@@ -86,10 +86,10 @@ _MAX_PARTNER_LIST = 5
 def family_from_cell_csv(json_path: Path) -> Dict[str, str]:
     """Map cell -> ``family`` from ``cell_counts_abc.csv`` for this network."""
     csv_path = resolve_cell_counts_abc_path(json_path)
-    out: Dict[str, str] = {}
+    family_by_cell: Dict[str, str] = {}
     if not csv_path.is_file():
         logger.warning("No cell_counts_abc.csv at %s; family names won't resolve", csv_path)
-        return out
+        return family_by_cell
     import csv
 
     with csv_path.open(newline="") as f:
@@ -97,8 +97,8 @@ def family_from_cell_csv(json_path: Path) -> Dict[str, str]:
             t = row.get("cell")
             fam = row.get("family")
             if t:
-                out[t] = fam if fam else t
-    return out
+                family_by_cell[t] = fam if fam else t
+    return family_by_cell
 
 
 def resolve_query_labels(
@@ -371,7 +371,7 @@ def ids_by_cell(
         raise ValueError(
             "ids_by_cell requires exactly one of radius, shell, at_u/at_v, at_x/at_y"
         )
-    out: Dict[str, Set[int]] = {}
+    ids_by_cell_map: Dict[str, Set[int]] = {}
     for n in nodes:
         name = n.get("name")
         if not isinstance(name, str):
@@ -403,8 +403,8 @@ def ids_by_cell(
                     continue
                 if at_v is not None and v != at_v:
                     continue
-        out.setdefault(name, set()).add(node_id)
-    return out
+        ids_by_cell_map.setdefault(name, set()).add(node_id)
+    return ids_by_cell_map
 
 
 
@@ -525,7 +525,7 @@ def partner_syn_by_label(
                             partner_xy[cell][pt].add(xy)
                 except (TypeError, ValueError):
                     pass
-    out: Dict[
+    syn_by_label: Dict[
         str,
         Tuple[
             DefaultDict[str, Dict[str, float]],
@@ -541,8 +541,8 @@ def partner_syn_by_label(
         row_sets = {pt: set(uvs) for pt, uvs in partner_uv[p].items()}
         row_xy_sets = {pt: set(coords) for pt, coords in partner_xy[p].items()}
         n_self = len(self_ids[p])
-        out[p] = (by_cell[p], sums[p], npartner_map, row_sets, row_xy_sets, n_self)
-    return out
+        syn_by_label[p] = (by_cell[p], sums[p], npartner_map, row_sets, row_xy_sets, n_self)
+    return syn_by_label
 
 
 def query_partner_syn(
@@ -740,7 +740,7 @@ def resolve_xy_ids(
     single_xy = at_x is not None and at_y is not None
     if single_xy:
         hu, hv = uv_from_xy(at_x, at_y)
-        out = ids_by_cell(nodes, at_u=hu, at_v=hv)
+        ids_by_cell_at = ids_by_cell(nodes, at_u=hu, at_v=hv)
         at_ref_xy = (float(at_x), float(at_y))
         hex_note = (
             f" at (x,y)=({_format_table_scalar(at_ref_xy[0])},"
@@ -753,12 +753,12 @@ def resolve_xy_ids(
             _format_table_scalar(at_ref_xy[1]),
             hu,
             hv,
-            sum(1 for ids in out.values() if ids),
+            sum(1 for ids in ids_by_cell_at.values() if ids),
         )
-        return out, hex_note, at_ref_xy, True
+        return ids_by_cell_at, hex_note, at_ref_xy, True
 
-    out = ids_by_cell(nodes, at_x=at_x, at_y=at_y)
-    if not any(out.values()):
+    ids_by_cell_at = ids_by_cell(nodes, at_x=at_x, at_y=at_y)
+    if not any(ids_by_cell_at.values()):
         raise ValueError(f"no ids match --x={at_x!r} --y={at_y!r}")
     parts = []
     if at_x is not None:
@@ -769,9 +769,9 @@ def resolve_xy_ids(
     logger.info(
         "Restricting to ids on %s; %d cells have ≥1 node there",
         ", ".join(parts),
-        sum(1 for ids in out.values() if ids),
+        sum(1 for ids in ids_by_cell_at.values() if ids),
     )
-    return out, hex_note, None, False
+    return ids_by_cell_at, hex_note, None, False
 
 
 def main(argv: List[str] | None = None) -> int:

@@ -153,9 +153,9 @@ def _active_spot_gt_cells(opts, available):
     )
 
 
-def _spot_session_z(outdir, contrast: str = "bright"):
+def _spot_session_z(run_dir, contrast: str = "bright"):
     """Best ``z`` on ``spot`` × ``contrast`` (or raise if no spot task)."""
-    session, z, _cost = plot.load_best(outdir)
+    session, z, _cost = plot.load_best(run_dir)
     tasks = list((session.train_opts or {}).get("tasks") or [])
     if "spot" not in tasks:
         raise SystemExit(f"run has no spot task (tasks={tasks})")
@@ -187,13 +187,13 @@ def load_delta_v_tables(session, z):
         dtype=np.int64,
     )
     delta = traces[:, t1] - traces[:, t0]
-    out = {name: {radius: [] for radius in radii} for name in cells}
+    delta_v_tables = {name: {radius: [] for radius in radii} for name in cells}
     for type_at, radius, delta_v, id_val in zip(type_idx, entry_radii, delta, ids):
         cell = cells[int(type_at)]
-        if int(radius) not in out[cell] or not np.isfinite(delta_v):
+        if int(radius) not in delta_v_tables[cell] or not np.isfinite(delta_v):
             continue
-        out[cell][int(radius)].append((int(id_val), float(delta_v)))
-    return out, radii
+        delta_v_tables[cell][int(radius)].append((int(id_val), float(delta_v)))
+    return delta_v_tables, radii
 
 
 def plot_syn_sign(
@@ -207,7 +207,7 @@ def plot_syn_sign(
     cell_idx,
     strength_by_pair,
     edges_bins,
-    outdir_name,
+    run_label,
     delta_tables,
     radii,
 ):
@@ -225,7 +225,7 @@ def plot_syn_sign(
     )
     fig.suptitle(
         f"%% n_syn+ {flow} cell  |  hist: red=init blue=×α  |  "
-        f"plot: x=×α %%  y=Δv  |  {outdir_name}",
+        f"plot: x=×α %%  y=Δv  |  {run_label}",
         fontsize=11,
     )
     legend_done = False
@@ -287,17 +287,17 @@ def plot_syn_sign(
                 ax.set_title(f"radius={rk}  n={len(xs)}", fontsize=8)
                 ax.tick_params(labelsize=6)
                 ax.axhline(0.0, color="0.6", linewidth=0.5)
-    timer.end_draw()
+    timer.end_plot()
     save_figure(fig, path, timer=timer)
 
 
-def save_syn_sign_figures(outdir, *, post=False, bins=None) -> None:
+def save_syn_sign_figures(run_dir, *, post=False, bins=None) -> None:
     """Write ``pre_syn/syn_{gt,all}.png`` (or ``post_syn/`` when *post*)."""
     if bins is None:
         bins = int(ANALYZE_SYN_SIGN["bins"])
-    opts = plot.load_train_opts(outdir)
+    opts = plot.load_train_opts(run_dir)
     if not opts:
-        raise SystemExit(f"missing train_opts.json under {outdir}")
+        raise SystemExit(f"missing train_opts.json under {run_dir}")
     if opts.get("model", "borst") not in ("borst", "hp_lp"):
         raise SystemExit(
             f"syn_strength_cell requires borst/hp_lp, got {opts.get('model')!r}"
@@ -311,7 +311,7 @@ def save_syn_sign_figures(outdir, *, post=False, bins=None) -> None:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        node_vals, cells_npz, pairs = train_mod.load_best_node_vals(outdir)
+        node_vals, cells_npz, pairs = train_mod.load_best_node_vals(run_dir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
     if "syn_strength_cell" not in node_vals:
@@ -324,11 +324,11 @@ def save_syn_sign_figures(outdir, *, post=False, bins=None) -> None:
     strength_by_pair, cell_idx = _syn_strength_from_edges(
         edges, cells, node_vals["syn_strength_cell"], pairs,
     )
-    session, z = _spot_session_z(outdir)
+    session, z = _spot_session_z(run_dir)
     delta_tables, radii = load_delta_v_tables(session, z)
 
     direction = "post" if post else "pre"
-    syn_dir = os.path.join(outdir, "post_syn" if post else "pre_syn")
+    syn_dir = os.path.join(run_dir, "post_syn" if post else "pre_syn")
     os.makedirs(syn_dir, exist_ok=True)
     figure_kwargs = dict(
         edges=edges,
@@ -336,7 +336,7 @@ def save_syn_sign_figures(outdir, *, post=False, bins=None) -> None:
         cell_idx=cell_idx,
         strength_by_pair=strength_by_pair,
         edges_bins=np.linspace(0.0, 100.0, bins + 1),
-        outdir_name=os.path.basename(outdir),
+        run_label=os.path.basename(run_dir),
         delta_tables=delta_tables,
         radii=radii,
     )

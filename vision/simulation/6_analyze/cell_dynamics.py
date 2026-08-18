@@ -543,17 +543,17 @@ def _trace_ylabel(panel_ylabel: str, label: str) -> str:
 
 def _plot_trace_colors(colors: list[str], layout: _ComponentLayout) -> dict[str, str]:
     """Map trace legend label → subplot color (hex index within its row)."""
-    out: dict[str, str] = {}
+    color_from_series: dict[str, str] = {}
     for _panel_ylabel, panel_series in layout.plot_panels:
         for series_idx, (_series, label) in enumerate(panel_series):
             if label in _BLACK_TRACE_LABELS:
-                out[label] = "0.0"
+                color_from_series[label] = "0.0"
             else:
-                out[label] = colors[series_idx % len(colors)]
+                color_from_series[label] = colors[series_idx % len(colors)]
     for label, src in _TRACE_COLOR_MATCH.items():
-        if label in out and src in out:
-            out[label] = out[src]
-    return out
+        if label in color_from_series and src in color_from_series:
+            color_from_series[label] = color_from_series[src]
+    return color_from_series
 
 
 def _g_e_note(label: str, *, e_leak: float, globs: dict[str, Any], params: dict[str, Any] | None = None) -> str | None:
@@ -785,15 +785,15 @@ def _std_from_sum_and_sum_sq(sum_: float, sum_sq: float, n_node: int) -> float:
 def _step_std(
     sums: dict[str, float], sum_sqs: dict[str, float], n_node: int, layout: _ComponentLayout,
 ) -> dict[str, float]:
-    out: dict[str, float] = {}
+    std_by_series: dict[str, float] = {}
     for series, component in layout.component_from_series.items():
         if component is None:
-            out[series] = 0.0
+            std_by_series[series] = 0.0
         else:
-            out[series] = _std_from_sum_and_sum_sq(
+            std_by_series[series] = _std_from_sum_and_sum_sq(
                 sums[component], sum_sqs[component], n_node,
             )
-    return out
+    return std_by_series
 
 
 def _step_from_sums(
@@ -1335,24 +1335,24 @@ def _globals(session):
 
 
 def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
-    out: dict[int, str] = {}
+    cell_by_node: dict[int, str] = {}
     for cell, cell_nodes in nodes_by_cell.items():
         for node in np.asarray(cell_nodes, dtype=np.int64).ravel():
-            out[int(node)] = cell
-    return out
+            cell_by_node[int(node)] = cell
+    return cell_by_node
 
 
 def _cell_idx_from_node_id(plan: _ComponentB, cells: list[str]) -> np.ndarray:
-    """Dense ``out[node_id] = cell_idx`` in ``cells`` (-1 if absent)."""
+    """Dense ``cell_idx_by_node[node]`` in ``cells`` (-1 if absent)."""
     cell_idx = dict(zip(cells, range(len(cells))))
     if plan.nodes.size == 0:
         return np.empty(0, dtype=np.int32)
-    out = np.full(int(plan.nodes.max()) + 1, -1, dtype=np.int32)
+    cell_idx_by_node = np.full(int(plan.nodes.max()) + 1, -1, dtype=np.int32)
     for node_id, cname in plan.cell_from_node.items():
         i = cell_idx.get(cname)
         if i is not None:
-            out[int(node_id)] = i
-    return out
+            cell_idx_by_node[int(node_id)] = i
+    return cell_idx_by_node
 
 
 def _merge_component_sums(
@@ -1466,12 +1466,12 @@ def _bar_specs_requested(
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     specs_by_cell = moving_bar_specs_by_cell(session, task, grids.side)
-    out: list[str] = []
+    spec_tokens: list[str] = []
     for cell in cells:
         for token in specs_by_cell.get(cell, specs):
-            if token in specs and token not in out:
-                out.append(token)
-    return out or list(specs)
+            if token in specs and token not in spec_tokens:
+                spec_tokens.append(token)
+    return spec_tokens or list(specs)
 
 
 def _resolve_bar_spec_i_sti(
@@ -1616,13 +1616,13 @@ def _analyze_component_forward(
             for cell in cells
         }
 
-    out: dict[str, dict[str, dict[str, Any]]] = {}
+    reports_by_spec: dict[str, dict[str, dict[str, Any]]] = {}
     for b, spec in enumerate(b_specs):
         if spec is None:
             raise SystemExit("non-merge component forward requires b_specs as str")
-        out[spec] = {}
+        reports_by_spec[spec] = {}
         for cell in cells:
-            out[spec][cell] = _one_report(
+            reports_by_spec[spec][cell] = _one_report(
                 cell=cell,
                 spec=spec,
                 before=int(before_t[b]),
@@ -1642,7 +1642,7 @@ def _analyze_component_forward(
                     else component_sums.ca_pre_sums[b][cell]
                 ),
             )
-    return out
+    return reports_by_spec
 
 
 def _analyze_bar_forward(
@@ -1719,7 +1719,7 @@ def analyze_bar_average(
         if not cols_holder:
             cols_holder.append(moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius))
         hexes = cols_holder[0]
-        out: dict[str, np.ndarray] = {}
+        nodes_by_cell: dict[str, np.ndarray] = {}
         for cell in cells:
             try:
                 nodes = nodes_from_hexes(connectome, cell, hexes)
@@ -1728,8 +1728,8 @@ def analyze_bar_average(
             nodes = nodes[t0_bn[b, nodes] >= 0]
             if nodes.size == 0:
                 raise SystemExit(f"no valid {cell} nodes in cost_radius for bar")
-            out[cell] = nodes
-        return out
+            nodes_by_cell[cell] = nodes
+        return nodes_by_cell
 
     return _analyze_bar_forward(
         session,
@@ -2187,21 +2187,21 @@ def _style_component_ax(
 
 
 def _shared_row_ylim(
-    curves: list[np.ndarray],
+    traces: list[np.ndarray],
     *,
     floor_zero: bool = False,
     margin_frac: float = 0.06,
 ) -> tuple[float, float]:
     """Tight row ylim from data min/max + small relative pad (not symmetric)."""
-    chunks: list[np.ndarray] = []
-    for curve in curves:
-        val = np.asarray(curve, dtype=float).ravel()
+    trace_vals = []
+    for trace in traces:
+        val = np.asarray(trace, dtype=float).ravel()
         val = val[np.isfinite(val)]
         if val.size:
-            chunks.append(val)
-    if not chunks:
+            trace_vals.append(val)
+    if not trace_vals:
         return -1.0, 1.0
-    vals = np.concatenate(chunks)
+    vals = np.concatenate(trace_vals)
     ylo = float(np.min(vals))
     yhi = float(np.max(vals))
     if floor_zero and ylo >= 0.0:
@@ -2213,15 +2213,15 @@ def _shared_row_ylim(
 
 def _shared_row_ylim(
     axes,
-    row_curves: dict[int, list[np.ndarray]],
+    traces_by_row: dict[int, list[np.ndarray]],
     layout: _ComponentLayout,
 ) -> None:
     """One tight data-driven ylim per row in ``layout.row_shared_ylim``."""
-    for row, curves in row_curves.items():
-        if not curves:
+    for row, traces in traces_by_row.items():
+        if not traces:
             continue
         _, panel_series = layout.plot_panels[row]
-        ylo, yhi = _shared_row_ylim(curves)
+        ylo, yhi = _shared_row_ylim(traces)
         for col in range(len(panel_series)):
             axes[row, col].set_ylim(ylo, yhi)
 
@@ -2280,7 +2280,7 @@ def _plot_component_reports(
     globs = reports[0].get("globals") or {}
     params0 = reports[0].get("params") or {}
     delta_ms = float(globs.get("delta_ms", train.MODEL['delta_ms']))
-    row_curves: dict[int, list[np.ndarray]] = {
+    traces_by_row: dict[int, list[np.ndarray]] = {
         row: [] for row in layout.row_shared_ylim
     }
     tc = _plot_trace_colors(colors, layout)
@@ -2304,10 +2304,10 @@ def _plot_component_reports(
                     dtype=float,
                 )
                 if row in layout.row_shared_ylim:
-                    row_curves[row].append(y)
+                    traces_by_row[row].append(y)
                     if np.any(std):
-                        row_curves[row].append(y + std)
-                        row_curves[row].append(y - std)
+                        traces_by_row[row].append(y + std)
+                        traces_by_row[row].append(y - std)
                 plot_std_band(ax, xs, y, std, color=color, alpha=0.3)
                 gt_report_key = next(
                     (
@@ -2337,7 +2337,7 @@ def _plot_component_reports(
                         y_gt = gt[t[valid]]
                         xs_gt = xs[valid]
                         if row in layout.row_shared_ylim:
-                            row_curves[row].append(y_gt)
+                            traces_by_row[row].append(y_gt)
                         ax.plot(
                             xs_gt, y_gt,
                             color="k",
@@ -2355,7 +2355,7 @@ def _plot_component_reports(
                 legend_ncol=1,
                 show_legend=show_legend or drew_gt,
             )
-    _shared_row_ylim(axes, row_curves, layout)
+    _shared_row_ylim(axes, traces_by_row, layout)
     _finish_component_figure(fig, title, colors, layout)
     _save_component_figure(
         fig, axes, xlabel="t (ms)",
@@ -2402,12 +2402,12 @@ def _emit_report(
         # Full per-t table only when not plotting (--plot false).
         _print_report(report, print_steps=not do_figure)
     if do_figure:
-        out = os.path.join(
+        figure_path = os.path.join(
             run_dir,
             "cell_dynamics",
             _figure_filename(report, file_suffix=file_suffix, html=html),
         )
-        plot_report(report, out)
+        plot_report(report, figure_path)
 
 
 # ---------------------------------------------------------------------------
@@ -2839,14 +2839,14 @@ def main(hydra_config) -> None:
                     if multi_report:
                         for cell in cells_bar:
                             reps = reports_by_cell[cell]
-                            out = os.path.join(
+                            figure_path = os.path.join(
                                 run_dir,
                                 "cell_dynamics",
                                 _compare_figure_filename(
                                     reps, file_suffix=file_suffix, html=html,
                                 ),
                             )
-                            plot_reports_compare(reps, out)
+                            plot_reports_compare(reps, figure_path)
                 else:
                     raise SystemExit(f"unsupported task {task!r}")
 

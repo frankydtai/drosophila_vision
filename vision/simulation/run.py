@@ -44,9 +44,9 @@ def run_train_and_plot(**kwargs):
 
     checkpoint_on_png = None
     if kwargs.get("checkpoint_interval") is not None:
-        def checkpoint_on_png(outdir, iter, z_best, cost_best, session):
+        def checkpoint_on_png(run_dir, iter, z_best, cost_best, session):
             token = implementation.checkpoint_iter_token(iter)
-            png_dir = os.path.join(outdir, "png")
+            png_dir = os.path.join(run_dir, "png")
             os.makedirs(png_dir, exist_ok=True)
             base_suffix = figure_kwargs.get("file_suffix") or ""
             plot_rf_t(
@@ -60,23 +60,23 @@ def run_train_and_plot(**kwargs):
             )
             print(f"wrote checkpoint png: {png_dir}/*_{token}.png")
 
-    fname, outdir, session, result = implementation.run_train(
+    fname, run_dir, session, result = implementation.run_train(
         **kwargs,
         checkpoint_on_png=checkpoint_on_png,
     )
-    if result.cost_curve is not None and len(result.cost_curve) > 0:
+    if result.costs is not None and len(result.costs) > 0:
         plot_cost(
-            result.cost_curve,
+            result.costs,
             os.path.join(
-                outdir,
-                f"cost_curve{'.html' if figure_kwargs.get('html') else '.png'}",
+                run_dir,
+                f"cost{'.html' if figure_kwargs.get('html') else '.png'}",
             ),
-            costs_by_part=result.cost_curves_by_part,
+            costs_by_part=result.costs_by_part,
             part_order=list(train.session_cost_part_keys(session)),
         )
     plot_rf_t(
         result.run_params,
-        outdir,
+        run_dir,
         session=session,
         final_costs=result.final_costs,
         save_data=False,
@@ -84,8 +84,8 @@ def run_train_and_plot(**kwargs):
     )
     if syn_sign:
         from analyze.syn_sign import save_syn_sign_figures
-        save_syn_sign_figures(outdir)
-    return fname, outdir, session
+        save_syn_sign_figures(run_dir)
+    return fname, run_dir, session
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")

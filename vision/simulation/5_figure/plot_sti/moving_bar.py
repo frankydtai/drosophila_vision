@@ -1,6 +1,6 @@
-"""Visualise moving-bar hex coverage (demo only).
+"""Visualise moving-bar hex i_sti (demo only).
 
-Connectome: hex sti field from ``task.moving_bar.sti_geo``.
+Connectome: hex sti from ``task.moving_bar.sti_geo``.
 
 Usage (from simulation/, project .venv):
 
@@ -79,7 +79,7 @@ def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
     return (x0 - pad, x1 + pad), (y0 - pad, y1 + pad)
 
 
-def _draw_bar_outline(ax, spec, view_deg, t: int, t_onset: int, *, bar_radius: int, multi_bar: bool = True):
+def _plot_bar_outline(ax, spec, view_deg, t: int, t_onset: int, *, bar_radius: int, multi_bar: bool = True):
     rects = bar_lane_rects(spec, view_deg, bar_radius, t, multi_bar=bool(multi_bar), t_onset=t_onset)
     for xmin, ymin, xmax, ymax in rects:
         ax.add_patch(
@@ -135,7 +135,7 @@ def plot_snapshot(
         ax, hexes, i_sti_hex[t], i_max, i_baseline, xlim, ylim,
         hexes_are_xy_deg=hexes_are_xy_deg,
     )
-    _draw_bar_outline(ax, spec, view_deg, t, t_onset, bar_radius=bar_radius, multi_bar=bool(multi_bar))
+    _plot_bar_outline(ax, spec, view_deg, t, t_onset, bar_radius=bar_radius, multi_bar=bool(multi_bar))
     ax.set_title(f"{token}  t={t} ({t * MODEL['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
 
 
@@ -145,7 +145,7 @@ def save_snapshots(
     i_sti_hex,
     i_max,
     i_baseline,
-    output,
+    path,
     side,
     t_onset,
     n_t,
@@ -166,9 +166,9 @@ def save_snapshots(
     xspan = xlim[1] - xlim[0]
     yspan = ylim[1] - ylim[0]
     panel_h = max(2.4, 3.0 * yspan / max(xspan / 3.0, 1.0))
-    ncols = len(snapshot_t) if snapshot_t else 3
+    n_col = len(snapshot_t) if snapshot_t else 3
     fig, axes = plt.subplots(
-        len(showcase), ncols,
+        len(showcase), n_col,
         figsize=(14.0, panel_h * len(showcase)),
         facecolor=PLOT_BG,
     )
@@ -205,14 +205,14 @@ def save_snapshots(
         fontsize=11,
     )
     fig.tight_layout()
-    os.makedirs(os.path.dirname(output) or ".", exist_ok=True)
-    fig.savefig(output, dpi=150, bbox_inches="tight")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"wrote {output}")
+    print(f"wrote {path}")
 
 
 def save_animation(
-    figure_hexes, showcase, i_sti_hex, i_max, i_baseline, output, side, t_onset, n_t, view_deg, t_stride,
+    figure_hexes, showcase, i_sti_hex, i_max, i_baseline, path, side, t_onset, n_t, view_deg, t_stride,
     *, hexes_are_xy_deg: bool = False,
     bar_radius=None,
     multi_bar: bool = True,
@@ -251,10 +251,10 @@ def save_animation(
         return [title]
 
     anim = FuncAnimation(fig, update, frames=len(times), interval=80, blit=False)
-    os.makedirs(os.path.dirname(output) or ".", exist_ok=True)
-    anim.save(output, writer=PillowWriter(fps=12))
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    anim.save(path, writer=PillowWriter(fps=12))
     plt.close(fig)
-    print(f"wrote {output}  ({len(times)} frames, t={times[0]}..{times[-1]})")
+    print(f"wrote {path}  ({len(times)} frames, t={times[0]}..{times[-1]})")
 
 
 def main():
@@ -313,7 +313,7 @@ def main():
     token = f"2{args.direction}_{network_run_token(network_json, connectome.meta)}"
     fallback_png = os.path.join(PLOT_DIR, f"moving_bar_{token}.png")
     fallback_gif = os.path.join(PLOT_DIR, f"moving_bar_{token}.gif")
-    output = args.output or fallback_png
+    path = args.output or fallback_png
     i_sti_hex_parts = []
     specs = []
     T = None
@@ -352,7 +352,7 @@ def main():
 
     save_snapshots(
         figure_hexes, specs, i_sti_hex, i_max, i_baseline,
-        output, side, t_onset, n_t, view_deg, snapshot_t=snapshot_t,
+        path, side, t_onset, n_t, view_deg, snapshot_t=snapshot_t,
         hexes_are_xy_deg=False,
         bar_radius=bar_radius,
         multi_bar=bool(args.multi_bar),

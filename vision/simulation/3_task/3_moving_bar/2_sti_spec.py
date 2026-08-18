@@ -109,7 +109,7 @@ def _coverage_trace(
     lane_origins = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)
     n_hex = hex_stack.shape[0]
     n_post = n_t - t_onset
-    out = np.zeros((n_post, n_hex), dtype=np.float64)
+    coverage_trace = np.zeros((n_post, n_hex), dtype=np.float64)
     for lane_origin, lane_pitch in lane_origins:
         trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start)
@@ -119,9 +119,9 @@ def _coverage_trace(
             )
             if rect is not None:
                 bx0, by0, bx1, by1 = rect
-                out[t] += coverages(hex_stack, bx0, by0, bx1, by1)
+                coverage_trace[t] += coverages(hex_stack, bx0, by0, bx1, by1)
             trail += trail_shift_deg
-    return np.clip(out, 0.0, 1.0)
+    return np.clip(coverage_trace, 0.0, 1.0)
 
 
 def t_from_trail(
@@ -281,9 +281,9 @@ def build_i_sti_hex(
     if n_hex == 0 or n_b == 0:
         return np.zeros((n_b, n_t, n_hex), dtype=np.float64)
 
-    out = np.zeros((n_b, n_t, n_hex), dtype=np.float64)
+    i_sti_hex = np.zeros((n_b, n_t, n_hex), dtype=np.float64)
     for b in range(n_b):
-        out[b, :t_onset] = i_baseline
+        i_sti_hex[b, :t_onset] = i_baseline
 
     view_deg = view_bounds(hexes)
     hex_stack = np.stack([hex.hex_xy for hex in hexes], axis=0)
@@ -301,10 +301,10 @@ def build_i_sti_hex(
             multi_bar=multi_bar,
         )
         for b in bs:
-            out[b, t_onset:] = _current_from_coverage(
+            i_sti_hex[b, t_onset:] = _current_from_coverage(
                 coverage, i_baseline=i_baseline, i_sti=i_sti,
             )
-    return out
+    return i_sti_hex
 
 
 @dataclass

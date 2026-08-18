@@ -265,12 +265,12 @@ def _parts_from_entries(
         costs.scatter_add_(0, part_idxs_pos, contrib * keep_f)
     else:
         raise ValueError(f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}")
-    out: Dict[str, torch.Tensor] = {}
+    parts: Dict[str, torch.Tensor] = {}
     for part_idx, part_key in enumerate(part_keys):
         if _part_scale(session, part_key) == 0.0:
             continue
-        out[part_key] = costs[part_idx]
-    return out
+        parts[part_key] = costs[part_idx]
+    return parts
 
 
 def _entries_by_part(
@@ -521,7 +521,7 @@ def _build_active_packs(session: TrainSession) -> Tuple[Pack, ...]:
     """Active cost entry/b packs (non-sequential mode only)."""
     if session.sequential:
         return ()
-    out: List[Pack] = []
+    active_packs: List[Pack] = []
     for pack in session.iter_packs():
         if not _pack_has_active_cost(pack, session):
             continue
@@ -530,8 +530,8 @@ def _build_active_packs(session: TrainSession) -> Tuple[Pack, ...]:
             continue
         pack = _active_cost_pack(pack, session, bs=active_bs)
         if pack is not None:
-            out.append(pack)
-    return tuple(out)
+            active_packs.append(pack)
+    return tuple(active_packs)
 
 
 def _build_fused_packs(
@@ -555,15 +555,15 @@ def _build_fused_packs(
             ),
             [],
         ).append(pack)
-    out: List[FusedPacks] = []
+    fused_packs: List[FusedPacks] = []
     for packs in grouped.values():
         offsets: List[int] = []
         off = 0
         for pack in packs:
             offsets.append(off)
             off += int(pack.i_sti.shape[0])
-        out.append(FusedPacks(packs=tuple(packs), b_offsets=tuple(offsets)))
-    return tuple(out)
+        fused_packs.append(FusedPacks(packs=tuple(packs), b_offsets=tuple(offsets)))
+    return tuple(fused_packs)
 
 
 def _readout_from_trace(
@@ -647,7 +647,7 @@ def _moving_bar_pack_cost_parts_from_v_readout(
     v_readout_dsi: torch.Tensor,
 ) -> Dict[str, torch.Tensor]:
     connectome = session.connectome
-    out: Dict[str, torch.Tensor] = {}
+    parts: Dict[str, torch.Tensor] = {}
     if pack.cost_pd_nds is not None:
         part_idxs, part_keys = _moving_bar_entries_by_part(pack, connectome)
         if v_readout is None:
@@ -657,7 +657,7 @@ def _moving_bar_pack_cost_parts_from_v_readout(
                     "PD/ND but pack has no cost_window readout",
                 )
         else:
-            out.update(
+            parts.update(
                 _parts_from_entries(
                     a_gt, bias_gt, pack.gts, pack.cost_scales, v_readout,
                     part_idxs, part_keys, session,
@@ -667,8 +667,8 @@ def _moving_bar_pack_cost_parts_from_v_readout(
         pack, session, bias_gt, v_readout_dsi,
     )
     if dsi_part is not None:
-        out[moving_bar_cost_part_key(pack.task, pack.contrast, "DSI")] = dsi_part
-    return out
+        parts[moving_bar_cost_part_key(pack.task, pack.contrast, "DSI")] = dsi_part
+    return parts
 
 
 _PACK_COST_PARTS_FROM_V_READOUT = {

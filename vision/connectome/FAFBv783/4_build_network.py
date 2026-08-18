@@ -79,32 +79,32 @@ class VisualSystem:
     cell_table: pd.DataFrame
     metadata: Dict[str, object] = field(default_factory=dict)
 
-    def save(self, output_dir: Optional[Path] = None) -> Path:
+    def save(self, run_dir: Optional[Path] = None) -> Path:
         """Write the filtered subnetwork to <side>_min_neuron<N>/ and return it."""
-        if output_dir is not None:
-            out = Path(output_dir)
+        if run_dir is not None:
+            run_dir = Path(run_dir)
         else:
             name = f"{self.metadata['side']}_min_neuron{self.metadata['min_neuron_count']}"
-            out = BUILT_NETWORKS_DIR / name
-        out.mkdir(parents=True, exist_ok=True)
+            run_dir = BUILT_NETWORKS_DIR / name
+        run_dir.mkdir(parents=True, exist_ok=True)
 
-        self.neurons.to_csv(out / "neurons.csv.gz", index=False, compression="gzip")
-        self.columns.to_csv(out / "columns.csv.gz", index=False, compression="gzip")
-        self.connections.to_csv(out / "connections.csv.gz", index=False, compression="gzip")
+        self.neurons.to_csv(run_dir / "neurons.csv.gz", index=False, compression="gzip")
+        self.columns.to_csv(run_dir / "columns.csv.gz", index=False, compression="gzip")
+        self.connections.to_csv(run_dir / "connections.csv.gz", index=False, compression="gzip")
 
         cell_table = self.cell_table
         cell_table.sort_values("count", ascending=False, kind="stable")[
             ["cell", "count"]
-        ].to_csv(out / "cell_counts.csv", index=False)
+        ].to_csv(run_dir / "cell_counts.csv", index=False)
         cell_table.sort_values("cell", kind="stable").to_csv(
-            out / "cell_counts_abc.csv", index=False
+            run_dir / "cell_counts_abc.csv", index=False
         )
 
-        with open(out / "metadata.json", "w") as fh:
+        with open(run_dir / "metadata.json", "w") as fh:
             json.dump(self.metadata, fh, indent=2)
 
-        logger.info("Saved filtered visual system to %s", out)
-        return out
+        logger.info("Saved filtered visual system to %s", run_dir)
+        return run_dir
 
 
 class FafbDataLoader:
@@ -227,15 +227,15 @@ def _assigned_column_csv(side: str, cell: str, direction: str) -> Path:
 
 def _ensure_assigned_column_csv(side: str, cell: str, direction: str) -> Path:
     """Return the located-column CSV, running ``3_assign_column.py`` if missing."""
-    out = _assigned_column_csv(side, cell, direction)
-    if out.exists():
-        return out
+    csv_path = _assigned_column_csv(side, cell, direction)
+    if csv_path.exists():
+        return csv_path
     cmd = [sys.executable, str(_ASSIGN_COLUMN_SCRIPT), cell, "--side", side]
     if direction == "post":
         cmd.append("--post")
-    logger.info("Missing %s; running: %s", out.name, " ".join(cmd))
+    logger.info("Missing %s; running: %s", csv_path.name, " ".join(cmd))
     subprocess.run(cmd, check=True)
-    return _require(out)
+    return _require(csv_path)
 
 
 def pos_from_column(side: str) -> Dict[int, Tuple[int, int]]:
@@ -424,10 +424,10 @@ def _write_summary(run_dir: Path, meta: Dict[str, object]) -> Path:
         f"sign_from_nt           : {meta['sign_from_nt']}",
         "",
     ]
-    out = run_dir / "summary.txt"
-    out.write_text("\n".join(lines))
-    logger.info("Wrote %s", out)
-    return out
+    summary_path = run_dir / "summary.txt"
+    summary_path.write_text("\n".join(lines))
+    logger.info("Wrote %s", summary_path)
+    return summary_path
 
 
 # =============================================================================
@@ -458,12 +458,12 @@ def main() -> None:
             min_syn_count=args.min_syn_count,
         )
         vs.save()
-        out = build(side, args.min_neuron_count)
-        meta = json.load(open(out))["metadata"]
+        network_path = build(side, args.min_neuron_count)
+        meta = json.load(open(network_path))["metadata"]
         print(f"\n=== build_network ({side}, min_neuron={args.min_neuron_count}) ===")
         for k, v in meta.items():
             print(f"  {k}: {v}")
-        print(f"  output: {out}")
+        print(f"  output: {network_path}")
 
 
 if __name__ == "__main__":

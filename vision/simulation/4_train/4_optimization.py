@@ -40,8 +40,8 @@ class TrainResult:
 
     run_params: np.ndarray   # (n_run, n_z)
     final_costs: np.ndarray  # (n_run,) scaled total
-    cost_curve: np.ndarray   # per-step scaled total for ``argmin(final_costs)``
-    cost_curves_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
+    costs: np.ndarray   # per-step scaled total for ``argmin(final_costs)``
+    costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     final_costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     # Per-run adams at best_z: exp_avg, exp_avg_sq (n_z,), iter (int).
     run_adams: tuple = ()
@@ -51,10 +51,10 @@ def _float_parts(parts: Optional[Dict[str, torch.Tensor]], task_order=None):
     """Tensor/number cost parts → ``{key: float}`` (optional key order)."""
     if not parts:
         return None
-    out = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in parts.items()}
+    float_parts = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in parts.items()}
     if task_order:
-        return {k: out[k] for k in task_order if k in out}
-    return out
+        return {k: float_parts[k] for k in task_order if k in float_parts}
+    return float_parts
 
 
 def _fmt_cost_parts(parts):
@@ -355,7 +355,7 @@ def _build_iter_logger(session: TrainSession):
 
 
 def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
-                 z_init=None, adam_init=None, checkpoint_interval=None, checkpoint_outdir=None,
+                 z_init=None, adam_init=None, checkpoint_interval=None, checkpoint_run_dir=None,
                  build_checkpoint_callback=None, checkpoint_on_png=None) -> TrainResult:
     """Run ``n_run`` independent runs; return ``TrainResult`` (no file I/O)."""
     schema = schema_copy(session.schema)
@@ -385,12 +385,12 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
 
         on_interval_best = None
         if checkpoint_interval is not None:
-            if checkpoint_outdir is None or build_checkpoint_callback is None:
+            if checkpoint_run_dir is None or build_checkpoint_callback is None:
                 raise ValueError(
-                    "checkpoint_interval requires checkpoint_outdir and build_checkpoint_callback"
+                    "checkpoint_interval requires checkpoint_run_dir and build_checkpoint_callback"
                 )
             on_interval_best = build_checkpoint_callback(
-                checkpoint_outdir, session, run_i=run, n_run=n_run,
+                checkpoint_run_dir, session, run_i=run, n_run=n_run,
                 on_png=checkpoint_on_png,
             )
 
@@ -418,23 +418,23 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
             final_costs_by_part[part_key][run] = float(part.item())
         cost_histories[run] = np.array(cost_history, dtype=np.float64)
         part_histories[run] = {
-            part_key: np.array(curve, dtype=np.float64)
-            for part_key, curve in target_history.items()
+            part_key: np.array(part_costs, dtype=np.float64)
+            for part_key, part_costs in target_history.items()
         }
 
     run_i = int(np.argmin(final_costs)) if n_run else 0
-    cost_curve = (
+    costs = (
         cost_histories[run_i]
         if cost_histories[run_i] is not None
         else np.array([], dtype=np.float64)
     )
-    cost_curves_by_part = part_histories[run_i] or {}
+    costs_by_part = part_histories[run_i] or {}
 
     return TrainResult(
         run_params=run_params,
         final_costs=final_costs,
-        cost_curve=cost_curve,
-        cost_curves_by_part=cost_curves_by_part,
+        costs=costs,
+        costs_by_part=costs_by_part,
         final_costs_by_part=final_costs_by_part,
         run_adams=tuple(run_adams),
     )

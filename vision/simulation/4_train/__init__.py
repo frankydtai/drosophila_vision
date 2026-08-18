@@ -91,7 +91,7 @@ from train.session import (
     resolve_train_opts,
     open_session,
     resolve_session,
-    session_from_outdir,
+    session_from_run_dir,
     resolve_gt_cells_by_task,
     resolve_cell_idxs,
     run_data_dir,

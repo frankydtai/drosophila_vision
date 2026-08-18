@@ -59,7 +59,7 @@ def _network_hexes_df(connectome: Network) -> pd.DataFrame:
     return pd.DataFrame({"column_id": -1, "u": [u for u, _ in uv], "v": [v for _, v in uv]})
 
 
-def _draw_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> None:
+def _plot_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> None:
     """Straight axial-radius hex about each center (vertices along ``_HEX_DIRECTIONS``).
 
     Vertex axial distance is ``spot_radius + 0.5``: outer
@@ -67,8 +67,8 @@ def _draw_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> Non
     """
     e = float(spot_radius) + 0.5
     du, dv = np.asarray(_HEX_DIRECTIONS, dtype=float).T
-    for cu, cv in zip(np.atleast_1d(centers_u), np.atleast_1d(centers_v)):
-        xs, ys = xy_deg_from_uv(float(cu) + e * du, float(cv) + e * dv)
+    for center_u, center_v in zip(np.atleast_1d(centers_u), np.atleast_1d(centers_v)):
+        xs, ys = xy_deg_from_uv(float(center_u) + e * du, float(center_v) + e * dv)
         ax.add_patch(
             Polygon(
                 np.column_stack([xs, ys]),
@@ -84,7 +84,7 @@ def plot_multi_spot_tiling(
     *,
     network: str,
     spot_radii,
-    output: str | None,
+    path: str | None,
     multi_spot: bool,
     fully_inside: bool,
 ) -> None:
@@ -101,11 +101,11 @@ def plot_multi_spot_tiling(
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     run_token = network_run_token(network_json, connectome.meta)
-    output = output or os.path.join(
+    path = path or os.path.join(
         PLOT_DIR, f"plotted_multi_spot_{run_token}.png",
     )
 
-    os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     df_hexes = _network_hexes_df(connectome)
     x_deg, y_deg = xy_deg_from_uv(df_hexes["u"].values, df_hexes["v"].values)
     x0, y0, x1, y1 = view_bounds_from_vertices(x_deg, y_deg)
@@ -114,9 +114,9 @@ def plot_multi_spot_tiling(
     ylim = (y0 - pad, y1 + pad)
 
     n = len(spot_radii)
-    ncol = max(1, int(math.ceil(math.sqrt(n))))
-    nrow = int(math.ceil(n / ncol))
-    fig, axes = plt.subplots(nrow, ncol, figsize=(7 * ncol, 6.5 * nrow), sharex=True, sharey=True)
+    n_col = max(1, int(math.ceil(math.sqrt(n))))
+    n_row = int(math.ceil(n / n_col))
+    fig, axes = plt.subplots(n_row, n_col, figsize=(7 * n_col, 6.5 * n_row), sharex=True, sharey=True)
     axes_flat = np.atleast_1d(axes).ravel()
     n_by_spot_radius = {}
     for ax, spot_radius in zip(axes_flat, spot_radii):
@@ -135,10 +135,10 @@ def plot_multi_spot_tiling(
             f"spot_radius_dist={dist}  n_spot={n_spot}",
         )
         if centers:
-            cu = np.array([center[0] for center in centers], dtype=np.int64)
-            cv = np.array([center[1] for center in centers], dtype=np.int64)
-            sx, sy = xy_deg_from_uv(cu, cv)
-            _draw_spot_radius_hexes(ax, cu, cv, spot_radius)
+            center_u = np.array([center[0] for center in centers], dtype=np.int64)
+            center_v = np.array([center[1] for center in centers], dtype=np.int64)
+            sx, sy = xy_deg_from_uv(center_u, center_v)
+            _plot_spot_radius_hexes(ax, center_u, center_v, spot_radius)
             ax.plot(
                 sx, sy, "o", color="crimson", markersize=5,
                 markeredgecolor="black", markeredgewidth=0.4,
@@ -158,9 +158,9 @@ def plot_multi_spot_tiling(
 
     fig.suptitle(f"Spot centers vs spot_radius ({run_token})", fontsize=13, fontweight="bold")
     plt.tight_layout()
-    plt.savefig(output, dpi=200, bbox_inches="tight")
+    plt.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
-    print(f"Wrote {output}")
+    print(f"Wrote {path}")
     print("n_by_spot_radius:", n_by_spot_radius)
 
 
@@ -170,7 +170,7 @@ def main(hydra_config) -> None:
     plot_multi_spot_tiling(
         network=str(NETWORK_PATH["network"]),
         spot_radii=FIGURE_PLOT_STI_SPOT.get("spot_radii") or [0.5, 1.0, 1.5, 2.0],
-        output=FIGURE_PLOT_STI_SPOT.get("output"),
+        path=FIGURE_PLOT_STI_SPOT.get("output"),
         multi_spot=bool(SPOT_INPUT_GEO["multi_spot"]),
         fully_inside=bool(SPOT_INPUT_GEO["fully_inside"]),
     )

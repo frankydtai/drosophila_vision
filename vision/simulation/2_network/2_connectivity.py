@@ -91,11 +91,11 @@ class ScatterConn:
         self.pairs = pairs
 
     def _target_sums(self, vals: torch.Tensor) -> torch.Tensor:
-        out_shape = vals.shape[:-1] + (self.n_node,)
-        out = torch.zeros(out_shape, dtype=vals.dtype, device=vals.device)
+        sums_shape = vals.shape[:-1] + (self.n_node,)
+        sums = torch.zeros(sums_shape, dtype=vals.dtype, device=vals.device)
         target_idxs_expanded = self.target_idxs.expand(vals.shape)
-        out.scatter_add_(-1, target_idxs_expanded, vals)
-        return out
+        sums.scatter_add_(-1, target_idxs_expanded, vals)
+        return sums
 
     def _gather(self, x: torch.Tensor) -> torch.Tensor:
         return x.index_select(-1, self.source_idxs)

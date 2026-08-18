@@ -91,10 +91,10 @@ def main(argv: list[str] | None = None) -> int:
                 "use analyze_cell_syn.py for :family / @<id>"
             )
 
-    outdir = plot.resolve_run_dir(args.run)
-    opts = plot.load_train_opts(outdir)
+    run_dir = plot.resolve_run_dir(args.run)
+    opts = plot.load_train_opts(run_dir)
     if not opts:
-        raise SystemExit(f"missing train_opts.json under {outdir}")
+        raise SystemExit(f"missing train_opts.json under {run_dir}")
     if opts.get("model", "borst") not in ("borst", "hp_lp"):
         raise SystemExit(
             f"syn_strength_cell requires borst/hp_lp model, got {opts.get('model')!r}"
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        node_vals, cells_npz, pairs = train_mod.load_best_node_vals(outdir)
+        node_vals, cells_npz, pairs = train_mod.load_best_node_vals(run_dir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
 

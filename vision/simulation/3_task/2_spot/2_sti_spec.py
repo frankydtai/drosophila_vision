@@ -54,16 +54,17 @@ def build_spot_a_sti_radius_drive(
                         a_sti_radius_idxs.append(int(a_sti_radius_idx))
     mask = sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     n_b = len(spot_bs)
+    i_sti = float(i_sti)
     network_sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
     i_sti_pulse = torch.as_tensor(
-        (float(i_sti) - float(i_baseline)) * mask, dtype=sim_dtype, device=device,
+        (i_sti - float(i_baseline)) * mask, dtype=sim_dtype, device=device,
     )
-    i_sti_out = torch.zeros((n_b, n_t, connectome.n_node), dtype=sim_dtype, device=device)
+    i_sti = torch.zeros((n_b, n_t, connectome.n_node), dtype=sim_dtype, device=device)
     if len(network_sti_nodes):
-        i_sti_out[:, :, network_sti_nodes] = float(i_baseline)
+        i_sti[:, :, network_sti_nodes] = float(i_baseline)
     for b, node in center_nodes:
-        i_sti_out[b, :, node] = i_sti_out[b, :, node] + i_sti_pulse
+        i_sti[b, :, node] = i_sti[b, :, node] + i_sti_pulse
     sti_bs_t = torch.tensor(sti_bs, dtype=torch.long, device=device)
     sti_nodes_t = torch.tensor(sti_nodes, dtype=torch.long, device=device)
     a_sti_radius_idxs_t = torch.tensor(a_sti_radius_idxs, dtype=torch.long, device=device)
-    return i_sti_out, i_sti_pulse, sti_bs_t, sti_nodes_t, a_sti_radius_idxs_t
+    return i_sti, i_sti_pulse, sti_bs_t, sti_nodes_t, a_sti_radius_idxs_t

@@ -203,7 +203,7 @@ def params_from_defaults(
         "syn_strength_edge" if mode == "per_edge" else "syn_strength_cell"
     )
     cells = [str(cell) for cell in cells]
-    out = {}
+    schema = {}
     for param in params:
         if param in skip:
             continue
@@ -211,18 +211,18 @@ def params_from_defaults(
             if param != active_syn:
                 continue
             p, spec = _syn_param(mode, n_pair, n_edge, params, pairs=pairs)
-            out[p] = spec
+            schema[p] = spec
             continue
         if param == "a_sti_radius":
             if not a_sti_radii:
                 continue
             p, spec = _a_sti_radius_param(params, a_sti_radii)
-            out[p] = spec
+            schema[p] = spec
             continue
-        out[param] = build_param_spec(
+        schema[param] = build_param_spec(
             param, n_cell, params[param], cells=cells,
         )
-    return out
+    return schema
 
 
 def build_borst_schema(

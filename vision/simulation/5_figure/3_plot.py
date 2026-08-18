@@ -17,7 +17,6 @@ from figure import spot
 from figure import spread
 from figure.panel import (
     network_hex_count,
-    filter_figure_token,
     session_filter_figure_token,
     ElapsedTimer,
     plot_cost_figure,
@@ -52,42 +51,42 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     pd_nd_labels = set()
     other_series_order = []
     other_series_seen = set()
-    curves_by_cell = {}
-    curves_global = []
+    costs_by_cell = {}
+    costs_global = []
 
     for part_key in part_keys:
-        curve = np.asarray(costs_by_part[part_key], dtype=np.float64)
-        if curve.size == 0:
+        part_costs = np.asarray(costs_by_part[part_key], dtype=np.float64)
+        if part_costs.size == 0:
             continue
 
-        parsed = spot.spot_cost_curve(part_key, curve)
+        parsed = spot.spot_cost(part_key, part_costs)
         if parsed is not None:
-            cell, series, label, curve = parsed
+            cell, series, label, part_costs = parsed
             spot_radii.add(series[1])
-            curves_by_cell.setdefault(cell, []).append((series, label, curve))
+            costs_by_cell.setdefault(cell, []).append((series, label, part_costs))
             continue
 
-        parsed = moving_bar.moving_bar_cost_curve(part_key, curve)
+        parsed = moving_bar.moving_bar_cost(part_key, part_costs)
         if parsed is not None:
-            cell, series, label, curve = parsed
+            cell, series, label, part_costs = parsed
             pd_nd_labels.add(series[1])
             if cell is None:
-                curves_global.append((series, label, curve))
+                costs_global.append((series, label, part_costs))
             else:
-                curves_by_cell.setdefault(cell, []).append((series, label, curve))
+                costs_by_cell.setdefault(cell, []).append((series, label, part_costs))
             continue
 
         series = ("other", part_key)
         if series not in other_series_seen:
             other_series_seen.add(series)
             other_series_order.append(series)
-        known_cell = {name for row in CELL_ROWS for name in row}
-        matches = [cell for cell in known_cell if cell and cell in part_key]
+        known_cells = {cell for row in CELL_ROWS for cell in row}
+        matches = [cell for cell in known_cells if cell and cell in part_key]
         if matches:
             cell = max(matches, key=len)
-            curves_by_cell.setdefault(cell, []).append((series, part_key, curve))
+            costs_by_cell.setdefault(cell, []).append((series, part_key, part_costs))
         else:
-            curves_global.append((series, part_key, curve))
+            costs_global.append((series, part_key, part_costs))
 
     palette = list(plt.get_cmap("tab20").colors)
     series_order = []
@@ -110,12 +109,12 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         series_order, islice(cycle(palette), len(series_order)),
     ))
 
-    rows = cell_rows(sorted(curves_by_cell.keys()))
+    rows = cell_rows(sorted(costs_by_cell.keys()))
     plot_cost_figure(
         costs,
         path,
-        curves_by_cell=curves_by_cell,
-        curves_global=curves_global,
+        costs_by_cell=costs_by_cell,
+        costs_global=costs_global,
         series_order=series_order,
         color_from_series=color_from_series,
         rows=rows,
@@ -159,9 +158,9 @@ def _network_spot_label(session, task="spot"):
     )
 
 
-def load_train_opts(outdir):
+def load_train_opts(run_dir):
     opts_path = os.path.join(
-        run_data_dir(os.path.abspath(outdir)), "train_opts.json",
+        run_data_dir(os.path.abspath(run_dir)), "train_opts.json",
     )
     if not os.path.isfile(opts_path):
         return None
@@ -180,19 +179,19 @@ def session_from_task(base_session, task, contrast):
                            schema=train.schema_copy(base_session.schema))
 
 
-def resolve_model(outdir, model=None):
+def resolve_model(run_dir, model=None):
     if model is None:
-        opts = load_train_opts(outdir)
+        opts = load_train_opts(run_dir)
         if not opts or 'model' not in opts:
             raise SystemExit(
-                f'cannot determine model for {outdir!r}; '
+                f'cannot determine model for {run_dir!r}; '
                 f'expected train_opts.json with "model" in '
                 f'{train.MODELS}'
             )
         model = opts['model']
     if model not in train.MODELS:
         raise SystemExit(
-            f'invalid model {model!r} in {outdir!r}; '
+            f'invalid model {model!r} in {run_dir!r}; '
             f'expected one of {train.MODELS}'
         )
     return model
@@ -205,7 +204,7 @@ def select_best(params, session, *, final_costs=None, verbose=True):
     valid = params[valid_mask]
     if len(valid) == 0:
         raise SystemExit('no trained parameter sets found (file all zeros)')
-    valid_idx = np.where(valid_mask)[0]
+    valid_run_idxs = np.where(valid_mask)[0]
 
     note = ''
     if final_costs is not None:
@@ -216,8 +215,8 @@ def select_best(params, session, *, final_costs=None, verbose=True):
             )
         valid_costs = final_costs[valid_mask]
         best = int(np.argmin(valid_costs))
-        run_i = int(valid_idx[best])
-        selected = float(final_costs[run_i])
+        run = int(valid_run_idxs[best])
+        selected = float(final_costs[run])
         note = ' (from saved final costs)'
     else:
         costs_out = []
@@ -226,11 +225,11 @@ def select_best(params, session, *, final_costs=None, verbose=True):
             costs_out.append(train.calc_cost(z, session).item())
         valid_costs = np.array(costs_out)
         best = int(np.argmin(valid_costs))
-        run_i = int(valid_idx[best])
+        run = int(valid_run_idxs[best])
         selected = float(valid_costs[best])
     if verbose:
         print(f'{len(valid)} trained set(s); costs min={valid_costs.min():.4f} '
-              f'max={valid_costs.max():.4f}; selected #{run_i}{note}')
+              f'max={valid_costs.max():.4f}; selected #{run}{note}')
     return valid[best], selected
 
 
@@ -250,17 +249,17 @@ def _session_z_from_best_param(session, run_dir):
     return session, z
 
 
-def load_best(outdir, *, model=None, verbose=False):
+def load_best(run_dir, *, model=None, verbose=False):
     """Load session and best ``z`` from a train run (``best_param.npz`` + costs)."""
     import train.implementation as train_mod
 
-    outdir = os.path.abspath(outdir)
-    if not os.path.isdir(outdir):
-        raise SystemExit(f'run dir not found: {outdir}')
-    model = resolve_model(outdir, model=model)
-    session, z = _session_z_from_best_param(train.session_from_outdir(outdir, model=model), outdir)
+    run_dir = os.path.abspath(run_dir)
+    if not os.path.isdir(run_dir):
+        raise SystemExit(f'run dir not found: {run_dir}')
+    model = resolve_model(run_dir, model=model)
+    session, z = _session_z_from_best_param(train.session_from_run_dir(run_dir, model=model), run_dir)
     best_cost = None
-    final_costs, _, _, _ = train_mod.load_stored_costs(outdir)
+    final_costs, _, _, _ = train_mod.load_stored_costs(run_dir)
     if final_costs is not None and len(final_costs) > 0:
         best_cost = float(final_costs[int(np.argmin(final_costs))])
     if best_cost is None:
@@ -456,24 +455,24 @@ def param_filename_suffix(param_vals=None):
     return "_" + "_".join(parts)
 
 
-def _stored_cost_parts(outdir):
+def _stored_cost_parts(run_dir):
     """Best-run per-part costs from ``costs_by_part.npz`` (no forward)."""
     import train.implementation as train_mod
 
-    final_costs, _, _, final_costs_by_part = train_mod.load_stored_costs(outdir)
+    final_costs, _, _, final_costs_by_part = train_mod.load_stored_costs(run_dir)
     if not final_costs_by_part or final_costs is None or len(final_costs) == 0:
         return {}
-    run_i = int(np.argmin(np.asarray(final_costs)))
-    out = {}
+    run = int(np.argmin(np.asarray(final_costs)))
+    cost_parts = {}
     for part_key, costs in final_costs_by_part.items():
         costs = np.asarray(costs).reshape(-1)
-        if run_i < costs.size:
-            out[part_key] = float(costs[run_i])
-    return out
+        if run < costs.size:
+            cost_parts[part_key] = float(costs[run])
+    return cost_parts
 
 
-def _plot_path(outdir, stem, file_suffix="", *, html=False):
-    return os.path.join(outdir, f"{stem}{file_suffix}{'.html' if html else '.png'}")
+def _plot_path(run_dir, stem, file_suffix="", *, html=False):
+    return os.path.join(run_dir, f"{stem}{file_suffix}{'.html' if html else '.png'}")
 
 
 def _readout_figure_stem(prefix, session):
@@ -481,7 +480,7 @@ def _readout_figure_stem(prefix, session):
     return f"{prefix}_{session_filter_figure_token(session)}"
 
 
-def _plot_spread_tasks(session, z, outdir, suffix, model_all,
+def _plot_spread_tasks(session, z, run_dir, suffix, model_all,
                        gts=None,
                        file_suffix="", html=False, ms_shown=None,
                        cost_parts=None):
@@ -498,41 +497,41 @@ def _plot_spread_tasks(session, z, outdir, suffix, model_all,
             )
             for contrast in ("bright", "dark")
         }
-        mvd = _plot_path(outdir, _readout_figure_stem('spread_gt', session), file_suffix, html=html)
+        gt_path = _plot_path(run_dir, _readout_figure_stem('spread_gt', session), file_suffix, html=html)
         plot_gt(
-            mvd, readouts=readouts,
+            gt_path, readouts=readouts,
             title=f'Spread {token}-gt ({suffix})',
             **figure_kwargs,
         )
-        allc = None
+        all_path = None
         if model_all:
-            allc = _plot_path(outdir, _readout_figure_stem('spread_all', session), file_suffix, html=html)
+            all_path = _plot_path(run_dir, _readout_figure_stem('spread_all', session), file_suffix, html=html)
             plot_all(
-                allc, readouts=readouts,
+                all_path, readouts=readouts,
                 title=f'Spread {token}-all ({suffix})',
                 **figure_kwargs,
             )
-        return mvd, allc
+        return gt_path, all_path
     for contrast in contrasts:
         one = session_from_task(session, "spread", contrast)
         readout = build_readout(one, z, **readout_kwargs)
         readouts = {contrast: readout}
-        mvd = _plot_path(outdir, _readout_figure_stem('spread_gt', session), file_suffix, html=html)
+        gt_path = _plot_path(run_dir, _readout_figure_stem('spread_gt', session), file_suffix, html=html)
         plot_gt(
-            mvd, readouts=readouts,
+            gt_path, readouts=readouts,
             title=f'spread {contrast} {token}-gt ({suffix})',
             **figure_kwargs,
         )
         if model_all:
-            allc = _plot_path(outdir, _readout_figure_stem('spread_all', session), file_suffix, html=html)
+            all_path = _plot_path(run_dir, _readout_figure_stem('spread_all', session), file_suffix, html=html)
             plot_all(
-                allc, readouts=readouts,
+                all_path, readouts=readouts,
                 title=f'spread {contrast} {token}-all ({suffix})',
                 **figure_kwargs,
             )
 
 
-def _plot_spot_tasks(session, z, outdir, suffix, model_all,
+def _plot_spot_tasks(session, z, run_dir, suffix, model_all,
                        gts=None,
                        at_x=None, at_y=None,
                        file_suffix="", html=False, ms_shown=None,
@@ -554,24 +553,24 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
             )
             for contrast in ("bright", "dark")
         }
-        mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
+        gt_path = _plot_path(run_dir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
         plot_gt(
-            mvd, readouts=readouts,
+            gt_path, readouts=readouts,
             title=f'Spot {token}-gt ({suffix}){net_label}',
             **figure_kwargs,
         )
-        allc = None
+        all_path = None
         if model_all:
-            allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
+            all_path = _plot_path(run_dir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
             plot_all(
-                allc, readouts=readouts,
+                all_path, readouts=readouts,
                 title=f'Spot {token}-all ({suffix}){net_label}',
                 **figure_kwargs,
             )
-        return mvd, allc
+        return gt_path, all_path
     for contrast in contrasts:
         _plot_one_spot(
-            session_from_task(session, "spot", contrast), z, outdir, contrast, suffix, model_all,
+            session_from_task(session, "spot", contrast), z, run_dir, contrast, suffix, model_all,
             gts=gts,
             at_x=at_x, at_y=at_y,
             cost_parts=cost_parts,
@@ -581,7 +580,7 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
         )
 
 
-def _plot_bar_readouts(session, z, outdir, suffix, model_all, *,
+def _plot_bar_readouts(session, z, run_dir, suffix, model_all, *,
                       plot_right_only=True, at_x=None, at_y=None,
                       align_at_x=None, align_at_y=None,
                       file_suffix="", html=False, ms_shown=None,
@@ -603,50 +602,50 @@ def _plot_bar_readouts(session, z, outdir, suffix, model_all, *,
         readout_dark = moving_bar.moving_bar_trace_readout(
             s_dark, z, "moving_bar", "dark", **readout_kwargs,
         )
-        mvd = _plot_path(outdir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
+        gt_path = _plot_path(run_dir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
         moving_bar.plot_moving_bar_gt(
-            mvd, readout=readout_bright, readout_2=readout_dark,
+            gt_path, readout=readout_bright, paired_readout=readout_dark,
             title=f'Moving-bar {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
-        allc = None
+        all_path = None
         if model_all:
-            allc = _plot_path(outdir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
+            all_path = _plot_path(run_dir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
             moving_bar.plot_moving_bar_all(
-                allc, readout=readout_bright, readout_2=readout_dark,
+                all_path, readout=readout_bright, paired_readout=readout_dark,
                 title=f'Moving-bar {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
-        return mvd, allc
+        return gt_path, all_path
     for contrast in contrasts:
         one = session_from_task(session, "moving_bar", contrast)
         readout = moving_bar.moving_bar_trace_readout(
             one, z, "moving_bar", contrast, **readout_kwargs,
         )
-        mvd = _plot_path(outdir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
+        gt_path = _plot_path(run_dir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
         moving_bar.plot_moving_bar_gt(
-            mvd, readout=readout, title=f'moving_bar {contrast} {token}-gt ({suffix})',
+            gt_path, readout=readout, title=f'moving_bar {contrast} {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
-        allc = None
+        all_path = None
         if model_all:
-            allc = _plot_path(outdir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
+            all_path = _plot_path(run_dir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
             moving_bar.plot_moving_bar_all(
-                allc, readout=readout, title=f'moving_bar {contrast} {token}-all ({suffix})',
+                all_path, readout=readout, title=f'moving_bar {contrast} {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
-        return mvd, allc
+        return gt_path, all_path
 
 
-def _plot_one_spot(session, z, outdir, contrast, suffix, model_all,
+def _plot_one_spot(session, z, run_dir, contrast, suffix, model_all,
                      gts=None,
                      at_x=None, at_y=None,
                      cost_parts=None, file_suffix="", html=False, ms_shown=None):
     token = session_filter_figure_token(session)
-    mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
-    allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
+    gt_path = _plot_path(run_dir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
+    all_path = _plot_path(run_dir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
     net_label = _network_spot_label(session, "spot")
     figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
@@ -657,18 +656,18 @@ def _plot_one_spot(session, z, outdir, contrast, suffix, model_all,
     )
     readouts = {contrast: readout}
     plot_gt(
-        mvd, readouts=readouts,
+        gt_path, readouts=readouts,
         title=f'spot {contrast} {token}-gt ({suffix}){net_label}', **figure_kwargs,
     )
     if model_all:
         plot_all(
-            allc, readouts=readouts,
+            all_path, readouts=readouts,
             title=f'spot {contrast} {token}-all ({suffix}){net_label}', **figure_kwargs,
         )
-    return mvd, allc
+    return gt_path, all_path
 
 
-def plot_rf_t(params, outdir, model=None, model_all=True,
+def plot_rf_t(params, run_dir, model=None, model_all=True,
                    context_dir=None,
                    plot_tasks=None, session=None, *,
                    final_costs=None,
@@ -680,18 +679,18 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
                    recompute_cost=False):
     import train.implementation as train_mod
 
-    os.makedirs(outdir, exist_ok=True)
-    ctx = context_dir or outdir
+    os.makedirs(run_dir, exist_ok=True)
+    ctx = context_dir or run_dir
     if model is None and session is not None:
         model = session.model
     if model is None:
         raise ValueError('model or session required')
     if session is None:
-        session = train.session_from_outdir(ctx, model)
+        session = train.session_from_run_dir(ctx, model)
 
     params = np.atleast_2d(params)
     if final_costs is None:
-        final_costs, _, _, _ = train_mod.load_stored_costs(outdir)
+        final_costs, _, _, _ = train_mod.load_stored_costs(run_dir)
 
     print(f'plot device={_plot_device_label()}')
     best, best_cost = select_best(
@@ -704,7 +703,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
             cost_parts = {k: float(v.item()) for k, v in parts.items()}
             best_cost = float(train.calc_cost(z, session, parts=parts).item())
     else:
-        cost_parts = _stored_cost_parts(outdir)
+        cost_parts = _stored_cost_parts(run_dir)
 
     suffix = f'trained, cost {best_cost:.2f}'
     cost_norm = (session.train_opts or {}).get("cost_norm", "a_gt2")
@@ -727,11 +726,11 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
         if at_x is None and at_y is None:
             raise SystemExit('--align-xy requires --x and/or --y')
         if not has_moving_bar:
-            raise SystemExit('--align-xy applies to moving_bar overlay plots only')
+            raise SystemExit('--align-xy applies to moving_bar --x/--y plots only')
 
     if has_spread:
         _plot_spread_tasks(
-            session, z, outdir, suffix, model_all,
+            session, z, run_dir, suffix, model_all,
             gts=gts,
             file_suffix=file_suffix,
             html=html,
@@ -740,7 +739,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
         )
     if has_spot:
         _plot_spot_tasks(
-            session, z, outdir, suffix, model_all,
+            session, z, run_dir, suffix, model_all,
             gts=gts,
             at_x=at_x, at_y=at_y,
             file_suffix=file_suffix,
@@ -750,7 +749,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
         )
     if has_moving_bar:
         _plot_bar_readouts(
-            session, z, outdir, suffix, model_all,
+            session, z, run_dir, suffix, model_all,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
             align_at_x=align_at_x, align_at_y=align_at_y,
@@ -761,9 +760,9 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
         )
 
     if save_data:
-        os.makedirs(run_data_dir(os.path.abspath(outdir)), exist_ok=True)
+        os.makedirs(run_data_dir(os.path.abspath(run_dir)), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
-        train_mod.save_best_param(outdir, z_best, session)
+        train_mod.save_best_param(run_dir, z_best, session)
     return best, best_cost
 
 
@@ -818,7 +817,7 @@ def override_params(z, schema, session, param_vals=None):
 
 
 def plot_trained_run(
-    outdir,
+    run_dir,
     *,
     figure_kwargs,
     euler=None,
@@ -835,9 +834,9 @@ def plot_trained_run(
     import train.implementation as train_mod
 
     param_vals = param_vals or {}
-    session, z, best_cost = load_best(outdir, verbose=True)
+    session, z, best_cost = load_best(run_dir, verbose=True)
     session, z, ms_changed = override_session(
-        run_dir=outdir, session=session, z=z,
+        run_dir=run_dir, session=session, z=z,
         ms_pre=ms_pre,
         ms_response=ms_response,
         ms_post=ms_post,
@@ -864,13 +863,13 @@ def plot_trained_run(
         + euler_filename_suffix(euler)
         + param_filename_suffix(param_vals=param_vals)
     )
-    model = resolve_model(outdir)
+    model = resolve_model(run_dir)
     z = z.detach().cpu().numpy()
-    print(f'params={train_mod.best_param_path(outdir)}')
+    print(f'params={train_mod.best_param_path(run_dir)}')
     print(f'model={model} ({z.shape[-1]} params)')
     plot_rf_t(
         np.atleast_2d(z),
-        outdir,
+        run_dir,
         model=model,
         session=session,
         final_costs=np.array([best_cost]),
@@ -892,10 +891,10 @@ def main(hydra_config):
 
     apply_config(hydra_config)
     figure_kwargs = resolve_figure_kwargs(hydra_config)
-    outdir = resolve_run_dir(active_config()["run_path"])
+    run_dir = resolve_run_dir(active_config()["run_path"])
     session_kwargs = session_kwargs_from_cli(hydra_config)
     plot_trained_run(
-        outdir,
+        run_dir,
         figure_kwargs=figure_kwargs,
         param_vals=dict(active_config().get("param_vals") or {}),
         **session_kwargs,

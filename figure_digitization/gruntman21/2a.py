@@ -113,7 +113,9 @@ def extract_trace(
         raise ValueError(f"could not seed {color} trace")
     seed_target = STIM_ONSET_LOCAL_X - 10
     seed_x, seed_y = min(
-        seed_candidates, key=lambda item: (abs(item[0] - seed_target), -item[1])
+        seed_candidates, key=lambda seed_candidate: (
+            abs(seed_candidate[0] - seed_target), -seed_candidate[1]
+        )
     )
 
     points: dict[int, float] = {seed_x: seed_y}

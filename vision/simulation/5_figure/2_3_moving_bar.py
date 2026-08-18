@@ -1,4 +1,4 @@
-"""Moving-bar plotting utilities extracted from ``figure.plot``."""
+"""Moving-bar plotting extracted from ``figure.plot``."""
 
 from __future__ import annotations
 
@@ -38,15 +38,15 @@ from figure.panel import (
     cell_ylabel,
     gt_trace_affine,
     ms_shown_axis_xlim,
-    overlay_reds,
+    at_xy_reds,
     plot_trace,
     plot_std_band,
     plot_timecourse,
     pack_center_mask,
     save_figure,
     std_from_traces,
-    overlay_coords,
-    suppress_cost_std,
+    at_xy_coords,
+    is_single_hex_cost,
     v_th_from_z,
 )
 from train.cost import moving_bar_cell_cost_part_key
@@ -107,20 +107,20 @@ def parse_moving_bar_cost_part_key(part_key):
     return None
 
 
-def moving_bar_cost_curve(part_key, curve):
-    """Moving-bar part → ``(cell_or_none, series, label, curve)`` or ``None``."""
+def moving_bar_cost(part_key, costs):
+    """Moving-bar part → ``(cell_or_none, series, label, costs)`` or ``None``."""
     parsed = parse_moving_bar_cost_part_key(part_key)
     if parsed is None:
         return None
     cell, contrast, pd_nd_label = parsed
     series = ("moving_bar_pd_nd", pd_nd_label)
     label = f"{pd_nd_label} ({contrast})" if contrast else pd_nd_label
-    return cell, series, label, np.asarray(curve, dtype=np.float64)
+    return cell, series, label, np.asarray(costs, dtype=np.float64)
 
 
 @dataclass
 class MovingBarWindowTraces:
-    ca_traces: dict
+    ca_mean_cell: dict
     ca_std: dict
     ca_n: dict
     before_t: dict
@@ -146,11 +146,11 @@ class MovingBarTraceReadout:
     session: object
     at_x: int | None = None
     at_y: int | None = None
+    at_xs: list | None = None
+    at_ys: list | None = None
+    labels: list[str] | None = None
+    ca_mean_cell_mean_hex_by_label: dict | None = None
     n_hex: int = 0
-    overlay: dict | None = None
-    overlay_axis: str | None = None
-    overlay_xs: list | None = None
-    overlay_ys: list | None = None
     align_at_x: int | None = None
     align_at_y: int | None = None
     prep_s: float = 0.0
@@ -158,25 +158,21 @@ class MovingBarTraceReadout:
     gt_affine_by_cell: dict = field(default_factory=dict)
     ms_shown: tuple[float, float] | None = None
 
-    @property
-    def has_overlays(self):
-        return bool(self.overlay)
 
-
-def _moving_bar_figure(nrows, ncols, *, sharex='col'):
+def _moving_bar_figure(n_row, n_col, *, sharex='col'):
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=(2.2 * ncols, 1.8 * nrows), sharex=sharex,
+        n_row, n_col, figsize=(2.2 * n_col, 1.8 * n_row), sharex=sharex,
     )
-    if nrows == 1:
+    if n_row == 1:
         axes = np.asarray([axes])
-    if ncols == 1:
+    if n_col == 1:
         axes = axes[:, None]
     return fig, axes
 
 
 def _moving_bar_cell_title(
     token,
-    ca_traces,
+    ca_mean_cell,
     gt_traces,
     ca_dsi_from_trace,
     gt_dsi_from_trace,
@@ -184,11 +180,11 @@ def _moving_bar_cell_title(
     *,
     cell,
     cost_parts=None,
-    cost_tasks=None,
+    cost_contrasts=None,
 ):
     head = token
-    if cost_parts is not None and cost_tasks:
-        cost_lines = format_moving_bar_cell_cost_lines(cell, cost_parts, cost_tasks)
+    if cost_parts is not None and cost_contrasts:
+        cost_lines = format_moving_bar_cell_cost_lines(cell, cost_parts, cost_contrasts)
         if cost_lines:
             head = '\n'.join([f'{cell} Cost', *cost_lines, head])
     return moving_bar_cell_title(
@@ -209,13 +205,13 @@ def figure_cell_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
     cell_idx = dict(zip(
         [str(cell) for cell in figure_cells], range(len(figure_cells)),
     ))
-    out = np.full(cell_idxs.shape, -1, dtype=np.int64)
-    for ci, name in enumerate(connectome_cells):
-        pi = cell_idx.get(str(name))
-        if pi is None:
+    figure_cell_idxs = np.full(cell_idxs.shape, -1, dtype=np.int64)
+    for connectome_cell_idx, cell in enumerate(connectome_cells):
+        figure_cell_idx = cell_idx.get(str(cell))
+        if figure_cell_idx is None:
             continue
-        out[cell_idxs == int(ci)] = int(pi)
-    return out
+        figure_cell_idxs[cell_idxs == int(connectome_cell_idx)] = int(figure_cell_idx)
+    return figure_cell_idxs
 
 
 def _cells_and_cell_idxs(session):
@@ -239,33 +235,33 @@ def _windows_by_b(trace, t0_bn, n_t_by_b):
     n_b = trace.shape[0]
     if isinstance(n_t_by_b, int):
         n_t_by_b = (n_t_by_b,) * n_b
-    out = []
+    windows_by_b = []
     for b in range(n_b):
         n_t_b = int(n_t_by_b[b])
-        sl = trace[b:b + 1]
+        window_slice = trace[b:b + 1]
         t0 = t0_bn[b:b + 1]
-        t_len = sl.shape[1]
-        n_node = sl.shape[2]
+        t_len = window_slice.shape[1]
+        n_node = window_slice.shape[2]
         ts = np.arange(n_t_b, dtype=np.int64)
         t_abs = t0[..., None] + ts[None, None, :]
         t_safe = np.clip(t_abs, 0, t_len - 1)
         bs = np.zeros(1, dtype=np.int64)[:, None, None]
         nodes = np.arange(n_node, dtype=np.int64)[None, :, None]
-        window = sl[bs, t_safe, nodes].astype(np.float64, copy=False)
+        window = window_slice[bs, t_safe, nodes].astype(np.float64, copy=False)
         window[t_abs < 0] = 0.0
-        out.append(window[0])
-    return out
+        windows_by_b.append(window[0])
+    return windows_by_b
 
 
-def _moving_bar_trace_means(
+def _moving_bar_ca_mean_cell(
     windows_by_b, t0_bn, cell_idxs, cells, spec_tokens, single_hex, *,
     hex_mask=None,
 ):
-    """``windows_by_b[b]`` shape ``(n_node, W_bi)``."""
-    ca_traces, ca_std, ca_n = {}, {}, {}
+    """``windows_by_b[b]`` shape ``(n_node, n_t)``."""
+    ca_mean_cell, ca_std, ca_n = {}, {}, {}
     valid = t0_bn >= 0
-    for ti, cell in enumerate(cells):
-        cell_mask = cell_idxs == ti
+    for figure_cell_idx, cell in enumerate(cells):
+        cell_mask = cell_idxs == figure_cell_idx
         if not cell_mask.any():
             continue
         for b, token in enumerate(spec_tokens):
@@ -274,18 +270,18 @@ def _moving_bar_trace_means(
                 node_mask = node_mask & hex_mask[b]
             if not node_mask.any():
                 continue
-            uids = np.nonzero(node_mask)[0]
-            traces = windows_by_b[b][uids]
+            nodes = np.nonzero(node_mask)[0]
+            traces = windows_by_b[b][nodes]
             key = (cell, token)
-            ca_traces[key] = traces.mean(axis=0)
+            ca_mean_cell[key] = traces.mean(axis=0)
             ca_std[key] = std_from_traces(traces, single_hex=single_hex)
-            ca_n[key] = int(np.unique(uids).size)
-    return ca_traces, ca_std, ca_n
+            ca_n[key] = int(np.unique(nodes).size)
+    return ca_mean_cell, ca_std, ca_n
 
 
-def _network_hex_node_mask(connectome, filt_hexes, n_b):
+def _network_hex_node_mask(connectome, filtered_hexes, n_b):
     node_u_np, node_v_np = network_uv_np(connectome)
-    hex_uv = {(int(hex.u), int(hex.v)) for hex in filt_hexes}
+    hex_uv = {(int(hex.u), int(hex.v)) for hex in filtered_hexes}
     hex_mask = np.array(
         [(int(hex_u), int(hex_v)) in hex_uv for hex_u, hex_v in zip(node_u_np, node_v_np)],
         dtype=bool,
@@ -303,11 +299,11 @@ def _t0_from_align_hex(t0_bn, b, ref_hex, *, connectome):
     return t0_ref
 
 
-def t0_bn_overlay_from_ref(
-    t0_bn, n_b, filt_hexes, align_at_x, align_at_y, *,
+def t0_bn_from_align_at_xy(
+    t0_bn, n_b, filtered_hexes, align_at_x, align_at_y, *,
     session, cost_radius,
 ):
-    """Copy ``t0_bn`` with overlay nodes forced to the ref hex ``t0`` (plot only)."""
+    """Copy ``t0_bn`` with at_xy nodes forced to the ref hex ``t0`` (plot only)."""
     connectome = session.connectome
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
     ref_hexes = filter_sti_hexes(hexes, at_x=align_at_x, at_y=align_at_y)
@@ -318,57 +314,48 @@ def t0_bn_overlay_from_ref(
         )
     ref_hex = ref_hexes[0]
     node_u_np, node_v_np = network_uv_np(connectome)
-    out = t0_bn.copy()
+    aligned_t0_bn = t0_bn.copy()
     for b in range(n_b):
-        t0_ref = _t0_from_align_hex(out, b, ref_hex, connectome=connectome)
-        for hex in filt_hexes:
+        t0_ref = _t0_from_align_hex(aligned_t0_bn, b, ref_hex, connectome=connectome)
+        for hex in filtered_hexes:
             on_hex = (node_u_np == int(hex.u)) & (node_v_np == int(hex.v))
-            out[b, on_hex] = t0_ref
-    return out
+            aligned_t0_bn[b, on_hex] = t0_ref
+    return aligned_t0_bn
 
 
-def _moving_bar_overlay_traces(
-    session, task, contrast, trace, base_wt, spec_tokens, *, at_x=None, at_y=None,
+def _moving_bar_ca_mean_cell_mean_hex(
+    session, task, contrast, trace, base_traces, spec_tokens, *, at_x=None, at_y=None,
     align_at_x=None, align_at_y=None,
 ):
-    """Per-hex overlay traces aligned to ``base_wt`` trace geometry."""
-    if base_wt.t0_bn is None or base_wt.cell_idxs is None or base_wt.cells is None:
-        raise ValueError("base_wt missing cached t0_bn/cells for overlay")
+    """Per at_xy mean_hex: cell mean over matching ``at_x``/``at_y`` hexes."""
+    if base_traces.t0_bn is None or base_traces.cell_idxs is None or base_traces.cells is None:
+        raise ValueError("base_traces missing cached t0_bn/cells for at_xy mean_hex")
     pack = session.packs[task][contrast]
-    cells = base_wt.cells
-    cell_idxs = base_wt.cell_idxs
-    t0_bn = base_wt.t0_bn
+    cells = base_traces.cells
+    cell_idxs = base_traces.cell_idxs
+    t0_bn = base_traces.t0_bn
     n_b = len(spec_tokens)
     connectome = session.connectome
     hexes = moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius)
-    filt_hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
-    if not filt_hexes:
+    filtered_hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
+    if not filtered_hexes:
         return None
-    hex_mask = _network_hex_node_mask(connectome, filt_hexes, n_b)
+    hex_mask = _network_hex_node_mask(connectome, filtered_hexes, n_b)
     n_t_by_b = [
-        base_wt.before_t[token] + base_wt.after_t[token] + 1
+        base_traces.before_t[token] + base_traces.after_t[token] + 1
         for token in spec_tokens
     ]
     t0_bn_aligned = t0_bn
     if align_at_x is not None and align_at_y is not None:
-        t0_bn_aligned = t0_bn_overlay_from_ref(
-            t0_bn, n_b, filt_hexes, align_at_x, align_at_y,
+        t0_bn_aligned = t0_bn_from_align_at_xy(
+            t0_bn, n_b, filtered_hexes, align_at_x, align_at_y,
             session=session, cost_radius=pack.cost_radius,
         )
     windows_by_b = _windows_by_b(trace, t0_bn_aligned, n_t_by_b)
-    ca_traces, ca_std, ca_n = _moving_bar_trace_means(
+    ca_mean_cell_mean_hex, _, _ = _moving_bar_ca_mean_cell(
         windows_by_b, t0_bn_aligned, cell_idxs, cells, spec_tokens, True, hex_mask=hex_mask,
     )
-    return MovingBarWindowTraces(
-        ca_traces=ca_traces,
-        ca_std=ca_std,
-        ca_n=ca_n,
-        before_t=base_wt.before_t,
-        after_t=base_wt.after_t,
-        t0_bn=t0_bn,
-        cell_idxs=cell_idxs,
-        cells=cells,
-    )
+    return ca_mean_cell_mean_hex
 
 
 def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
@@ -383,15 +370,15 @@ def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
 def _load_moving_bar_gt_traces(session, task, contrast, cells, specs, side):
     gt_traces = {}
     row_cells = cells_in_order(pack_cells(session, task, contrast))
-    for subtype in row_cells:
-        if subtype not in cells:
+    for cell in row_cells:
+        if cell not in cells:
             continue
         for spec in specs:
-            trace_token = fig1_trace_from_sti(side, subtype, spec)
+            trace_token = fig1_trace_from_sti(side, cell, spec)
             if trace_token is None:
                 continue
             trace = _fig1_trace_delta(load_fig1_trace(trace_token), session.delta_ms)
-            gt_traces[(subtype, spec.token)] = trace
+            gt_traces[(cell, spec.token)] = trace
     return gt_traces
 
 
@@ -414,20 +401,20 @@ def _traces_from_forward(
     side = grids.side
     n_hex = grids.n_hex
     single_hex = (
-        suppress_cost_std(session, task, contrast) or n_hex == 1
+        is_single_hex_cost(session, task, contrast) or n_hex == 1
     )
     n_t_by_b = [
         before_t[token] + after_t[token] + 1
         for token in spec_tokens
     ]
     windows_by_b = _windows_by_b(trace, t0_bn, n_t_by_b)
-    trace_mean, trace_std, trace_n = _moving_bar_trace_means(
+    ca_mean_cell, ca_std, ca_n = _moving_bar_ca_mean_cell(
         windows_by_b, t0_bn, cell_idxs, cells, spec_tokens, single_hex,
     )
     return MovingBarWindowTraces(
-        ca_traces=trace_mean,
-        ca_std=trace_std,
-        ca_n=trace_n,
+        ca_mean_cell=ca_mean_cell,
+        ca_std=ca_std,
+        ca_n=ca_n,
         before_t=before_t,
         after_t=after_t,
         t0_bn=t0_bn,
@@ -445,8 +432,7 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
     t_prep0 = time.perf_counter()
     pack = session.packs[task][contrast]
     params = train.params_from_z(z, session)
-    plot_t = train.forward_pack(session, params, pack.i_sti, pack)
-    trace = plot_t.detach().cpu().numpy()
+    trace = train.forward_pack(session, params, pack.i_sti, pack).detach().cpu().numpy()
     specs = bar_specs_from_task(session, task)
     spec_tokens = [spec.token for spec in specs]
     n_t = int(session.n_t)
@@ -468,8 +454,8 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
         center = pack_center_mask(pack, session.connectome)
         node_cells = cell_idxs[entry_nodes]
         nodes_by_cell = {
-            name: entry_nodes[center & (node_cells == cells.index(name))]
-            for name in cells
+            cell: entry_nodes[center & (node_cells == cells.index(cell))]
+            for cell in cells
         }
     e_leak = e_leak_from_z(z, session)
     v_th_by_cell = {cell: v_th.get(cell, np.nan) for cell in nodes_by_cell}
@@ -478,35 +464,32 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
         session, task, contrast, cells, specs, side,
     )
     gt_affine_by_cell = {
-        str(name): train.gt_affine_from_cell(
-            params, name, session.connectome, session=session,
+        str(cell): train.gt_affine_from_cell(
+            params, cell, session.connectome, session=session,
         )
-        for name in cells
+        for cell in cells
     }
-    overlay = None
-    axis = None
-    overlay_xs = None
-    overlay_ys = None
-    overlays, axis = overlay_coords(at_xs, at_ys)
-    if overlays:
-        overlay_xs = list(at_xs) if at_xs is not None else None
-        overlay_ys = list(at_ys) if at_ys is not None else None
-        overlay = {}
-        for label, xv, yv in overlays:
-            wt = _moving_bar_overlay_traces(
-                session, task, contrast, trace, traces, spec_tokens,
-                at_x=xv, at_y=yv,
-                align_at_x=align_at_x, align_at_y=align_at_y,
-            )
-            if wt is None:
-                print(f'skip overlay {label}: no hex within cost_radius')
-                continue
-            overlay[label] = wt
-        if not overlay:
-            overlay = None
-            axis = None
-            overlay_xs = None
-            overlay_ys = None
+    mean_hex_by_label = None
+    labels = None
+    if at_xs is not None or at_ys is not None:
+        coords, _at_xy_mode = at_xy_coords(at_xs, at_ys)
+        if coords:
+            mean_hex_by_label = {}
+            labels = []
+            for label, at_x, at_y in coords:
+                ca_mean_cell_mean_hex = _moving_bar_ca_mean_cell_mean_hex(
+                    session, task, contrast, trace, traces, spec_tokens,
+                    at_x=at_x, at_y=at_y,
+                    align_at_x=align_at_x, align_at_y=align_at_y,
+                )
+                if ca_mean_cell_mean_hex is None:
+                    print(f'skip at_xy {label}: no hex within cost_radius')
+                    continue
+                mean_hex_by_label[label] = ca_mean_cell_mean_hex
+                labels.append(label)
+            if not mean_hex_by_label:
+                mean_hex_by_label = None
+                labels = None
     return MovingBarTraceReadout(
         task=task,
         contrast=contrast,
@@ -522,11 +505,11 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
         session=session,
         at_x=at_x,
         at_y=at_y,
+        at_xs=at_xs,
+        at_ys=at_ys,
+        labels=labels,
+        ca_mean_cell_mean_hex_by_label=mean_hex_by_label,
         n_hex=n_hex,
-        overlay=overlay,
-        overlay_axis=axis,
-        overlay_xs=overlay_xs,
-        overlay_ys=overlay_ys,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         prep_s=time.perf_counter() - t_prep0,
@@ -536,26 +519,26 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
     )
 
 
-def _moving_bar_t_onset(readout, subtype, token):
+def _moving_bar_t_onset(readout, cell, token):
     """Median relative index of global ``t_onset`` within the plotted trace."""
     t_onset = readout.t_onset
-    wt = readout.traces
-    if t_onset is None or wt.t0_bn is None:
+    window_traces = readout.traces
+    if t_onset is None or window_traces.t0_bn is None:
         return 0
     try:
         b = readout.spec_tokens.index(token)
-        ti = wt.cells.index(subtype)
+        figure_cell_idx = window_traces.cells.index(cell)
     except ValueError:
         return 0
-    key = (subtype, token)
-    if key not in wt.ca_traces:
+    key = (cell, token)
+    if key not in window_traces.ca_mean_cell:
         return 0
-    n_t_figure = int(np.asarray(wt.ca_traces[key]).shape[0])
-    cell_mask = wt.cell_idxs == ti
-    valid = (wt.t0_bn[b] >= 0) & cell_mask
+    n_t_figure = int(np.asarray(window_traces.ca_mean_cell[key]).shape[0])
+    cell_mask = window_traces.cell_idxs == figure_cell_idx
+    valid = (window_traces.t0_bn[b] >= 0) & cell_mask
     if not bool(valid.any()):
         return 0
-    pre = np.clip(int(t_onset) - wt.t0_bn[b, valid], 0, n_t_figure)
+    pre = np.clip(int(t_onset) - window_traces.t0_bn[b, valid], 0, n_t_figure)
     return int(np.median(pre))
 
 
@@ -597,15 +580,15 @@ def _style_moving_bar_relative_axis(
     end = n_t_figure - 1
     xlim = ms_shown_axis_xlim(ms_shown, delta_ms=delta_ms, origin_t=before_t)
     if xlim is None:
-        lo, hi = 0, end
+        t_lo, t_hi = 0, end
     else:
-        lo, hi = max(0, xlim[0]), min(end, xlim[1])
-        if lo > hi:
-            lo, hi = 0, end
-    ax.set_xlim(lo, hi)
-    ticks = [t for t in (lo, before_t, hi) if lo <= t <= hi]
+        t_lo, t_hi = max(0, xlim[0]), min(end, xlim[1])
+        if t_lo > t_hi:
+            t_lo, t_hi = 0, end
+    ax.set_xlim(t_lo, t_hi)
+    ticks = [t for t in (t_lo, before_t, t_hi) if t_lo <= t <= t_hi]
     if len(ticks) < 2:
-        ticks = [lo, hi]
+        ticks = [t_lo, t_hi]
     ax.set_xticks(ticks)
     scale = float(delta_ms) / 1000.0
     ax.set_xticklabels(
@@ -618,19 +601,19 @@ def _style_moving_bar_relative_axis(
         cw_before = t_from_ms(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
         cw_after = t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
         for x in (before_t - cw_before, before_t + cw_after):
-            if lo <= x <= hi:
+            if t_lo <= x <= t_hi:
                 ax.axvline(x, color='0.75', linewidth=0.6, linestyle='--', zorder=0)
 
 
-def _moving_bar_spec_linestyle(side, subtype, token):
+def _moving_bar_spec_linestyle(side, cell, token):
     """Solid for PD stis, dashed for ND (Gruntman fig1 convention)."""
-    if subtype not in GT_CELLS:
+    if cell not in GT_CELLS:
         return '-'
     parts = str(token).split('_')
     if len(parts) < 3:
         return '-'
     direction, contrast = parts[0], parts[1]
-    pref = motion_preference(side, subtype, direction, contrast)
+    pref = motion_preference(side, cell, direction, contrast)
     if pref is None:
         return '-'
     return '--' if pref.pd_nd == 'ND' else '-'
@@ -673,7 +656,7 @@ def _plot_moving_bar_cell(
     plot_timecourse(
         ax, np.arange(n_t_figure),
         [{
-            "v_readout": ca_trace,
+            "ca_mean_cell": ca_trace,
             "gt": None,
             "std": std_trace,
             "linestyle": linestyle,
@@ -692,12 +675,12 @@ def _plot_moving_bar_cell(
         ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LINE_W, linestyle=linestyle)
 
 
-def _plot_moving_bar_cell_overlays(
+def _plot_moving_bar_cell_at_xy(
     ax,
     v_readout,
     std_trace,
-    overlay_traces,
-    overlay_labels,
+    ca_mean_cell_mean_hex_by_label,
+    labels,
     title,
     before_t,
     *,
@@ -731,10 +714,10 @@ def _plot_moving_bar_cell_overlays(
     t = np.arange(n_t_figure)
     if gt_x is not None:
         ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LINE_W)
-    colors = overlay_reds(len(overlay_labels))
-    for label, color in zip(overlay_labels, colors):
+    colors = at_xy_reds(len(labels))
+    for label, color in zip(labels, colors):
         plot_trace(
-            ax, t, overlay_traces[label], t_onset=t_onset,
+            ax, t, ca_mean_cell_mean_hex_by_label[label], t_onset=t_onset,
             color=color, linestyle='-', linewidth=TRACE_LINE_W, label=label,
         )
     if show_std and std_trace is not None and np.any(std_trace):
@@ -754,215 +737,229 @@ def _plot_moving_bar_cell_overlays(
         ax.legend(fontsize=5, loc='upper right', framealpha=0.85)
 
 
-def _moving_bar_all_hexes_label(readout_on):
-    if readout_on.has_overlays:
-        pack = readout_on.session.primary_pack
+def _moving_bar_all_hexes_label(readout):
+    if readout.at_xs is not None or readout.at_ys is not None:
+        pack = readout.session.primary_pack
         cost_radius = pack.cost_radius
-        at_x = readout_on.overlay_xs if readout_on.overlay_axis in ('x', 'xy') else None
-        at_y = readout_on.overlay_ys if readout_on.overlay_axis in ('y', 'xy') else None
-        parts = [at_xy_label(at_x, at_y), 'overlay + hexes']
-        if readout_on.align_at_x is not None and readout_on.align_at_y is not None:
+        _, at_xy_mode = at_xy_coords(readout.at_xs, readout.at_ys)
+        at_x = readout.at_xs if at_xy_mode in ('x', 'xy') else None
+        at_y = readout.at_ys if at_xy_mode in ('y', 'xy') else None
+        parts = [at_xy_label(at_x, at_y), 'at_xy + hexes']
+        if readout.align_at_x is not None and readout.align_at_y is not None:
             parts.append(
                 'aligned to '
-                + at_xy_label(readout_on.align_at_x, readout_on.align_at_y),
+                + at_xy_label(readout.align_at_x, readout.align_at_y),
             )
         if cost_radius is not None:
             parts.insert(0, f'cost_radius={cost_radius}')
         return ', '.join(parts)
-    return _moving_bar_hexes_label(readout_on.session)
+    return _moving_bar_hexes_label(readout.session)
 
 
-def _moving_bar_cost_contrasts(readout_on, readout_2=None):
-    contrasts = [readout_on.contrast]
-    if readout_2 is not None and readout_2.contrast not in contrasts:
-        contrasts.append(readout_2.contrast)
+def _moving_bar_cost_contrasts(readout, paired_readout=None):
+    contrasts = [readout.contrast]
+    if paired_readout is not None and paired_readout.contrast not in contrasts:
+        contrasts.append(paired_readout.contrast)
     return contrasts
 
 
-def _moving_bar_all_figure(readout_on, readout_2, title, *, right_only=True, cost_parts=None):
-    single_hex = readout_on.single_hex
-    cells = readout_on.cells
-    wt_on = readout_on.traces
-    spec_tokens = _filter_right_specs(readout_on.spec_tokens, right_only)
-    ncols_on = len(spec_tokens)
-    ca_traces, ca_std, ca_n = wt_on.ca_traces, wt_on.ca_std, wt_on.ca_n
-    gt_traces = readout_on.gt_traces
-    v_th_by_cell = readout_on.v_th_by_cell
-    e_leak_by_cell = readout_on.e_leak_by_cell
-    v_th_by_cell_2 = None
-    e_leak_by_cell_2 = None
-    wt_2 = None
-    overlay_labels = (
-        list(readout_on.overlay.keys()) if readout_on.overlay else []
-    )
-    has_overlays = readout_on.has_overlays
-    cost_contrasts = _moving_bar_cost_contrasts(readout_on, readout_2)
-    if readout_2 is not None:
-        wt_2 = readout_2.traces
-        spec_2 = _filter_right_specs(readout_2.spec_tokens, right_only)
-        spec_tokens = list(spec_tokens) + list(spec_2)
-        ca_traces = {**ca_traces, **wt_2.ca_traces}
-        ca_std = {**ca_std, **wt_2.ca_std}
-        ca_n = {**ca_n, **wt_2.ca_n}
-        gt_traces = {**gt_traces, **readout_2.gt_traces}
-        v_th_by_cell_2 = readout_2.v_th_by_cell
-        e_leak_by_cell_2 = readout_2.e_leak_by_cell
-    show_std = not single_hex and not has_overlays
-    nrows = len(cells)
-    ncols = len(spec_tokens)
-    ca_dsi_on = dsi_from_trace_map(wt_on.ca_traces, cells, readout_on.spec_tokens)
-    gt_dsi_on = dsi_from_trace_map(wt_on.gt_traces, cells, readout_on.spec_tokens)
-    ca_dsi_2 = gt_dsi_2 = None
-    if readout_2 is not None:
-        ca_dsi_2 = dsi_from_trace_map(wt_2.ca_traces, cells, readout_2.spec_tokens)
-        gt_dsi_2 = dsi_from_trace_map(readout_2.gt_traces, cells, readout_2.spec_tokens)
-    fig, axes = _moving_bar_figure(nrows, ncols)
-    for ri, cell in enumerate(cells):
-        for ci, token in enumerate(spec_tokens):
-            ax = axes[ri, ci]
+def _moving_bar_all_figure(readout, paired_readout, title, *, right_only=True, cost_parts=None):
+    single_hex = readout.single_hex
+    cells = readout.cells
+    window_traces = readout.traces
+    spec_tokens = _filter_right_specs(readout.spec_tokens, right_only)
+    n_col_readout = len(spec_tokens)
+    ca_mean_cell, ca_std, ca_n = window_traces.ca_mean_cell, window_traces.ca_std, window_traces.ca_n
+    gt_traces = readout.gt_traces
+    v_th_by_cell = readout.v_th_by_cell
+    e_leak_by_cell = readout.e_leak_by_cell
+    paired_v_th_by_cell = None
+    paired_e_leak_by_cell = None
+    paired_window_traces = None
+    labels = list(readout.labels or ())
+    has_at_xy = readout.ca_mean_cell_mean_hex_by_label is not None
+    cost_contrasts = _moving_bar_cost_contrasts(readout, paired_readout)
+    if paired_readout is not None:
+        paired_window_traces = paired_readout.traces
+        spec_tokens = list(spec_tokens) + list(
+            _filter_right_specs(paired_readout.spec_tokens, right_only)
+        )
+        ca_mean_cell = {**ca_mean_cell, **paired_window_traces.ca_mean_cell}
+        ca_std = {**ca_std, **paired_window_traces.ca_std}
+        ca_n = {**ca_n, **paired_window_traces.ca_n}
+        gt_traces = {**gt_traces, **paired_readout.gt_traces}
+        paired_v_th_by_cell = paired_readout.v_th_by_cell
+        paired_e_leak_by_cell = paired_readout.e_leak_by_cell
+    show_std = not single_hex and not has_at_xy
+    n_row = len(cells)
+    n_col = len(spec_tokens)
+    ca_dsi = dsi_from_trace_map(window_traces.ca_mean_cell, cells, readout.spec_tokens)
+    gt_dsi = dsi_from_trace_map(window_traces.gt_traces, cells, readout.spec_tokens)
+    paired_ca_dsi = paired_gt_dsi = None
+    if paired_readout is not None:
+        paired_ca_dsi = dsi_from_trace_map(
+            paired_window_traces.ca_mean_cell, cells, paired_readout.spec_tokens,
+        )
+        paired_gt_dsi = dsi_from_trace_map(
+            paired_readout.gt_traces, cells, paired_readout.spec_tokens,
+        )
+    fig, axes = _moving_bar_figure(n_row, n_col)
+    for row, cell in enumerate(cells):
+        for col, token in enumerate(spec_tokens):
+            ax = axes[row, col]
             key = (cell, token)
-            if key not in ca_traces:
+            if key not in ca_mean_cell:
                 ax.axis('off')
                 continue
             v_th = v_th_by_cell.get(cell)
-            el = e_leak_by_cell.get(cell)
-            readout_src = readout_on if ci < ncols_on else readout_2
-            wt = wt_on if ci < ncols_on else wt_2
-            if v_th_by_cell_2 is not None and ci >= ncols_on:
-                v_th = v_th_by_cell_2.get(cell)
-                el = e_leak_by_cell_2.get(cell)
-            before_t = wt.before_t[token]
-            dsi_on = ci < ncols_on
+            e_leak = e_leak_by_cell.get(cell)
+            panel_readout = readout if col < n_col_readout else paired_readout
+            panel_traces = window_traces if col < n_col_readout else paired_window_traces
+            if paired_v_th_by_cell is not None and col >= n_col_readout:
+                v_th = paired_v_th_by_cell.get(cell)
+                e_leak = paired_e_leak_by_cell.get(cell)
+            before_t = panel_traces.before_t[token]
+            use_readout_dsi = col < n_col_readout
             cell_title = _moving_bar_cell_title(
-                token, ca_traces, gt_traces,
-                ca_dsi_on if dsi_on else ca_dsi_2,
-                gt_dsi_on if dsi_on else gt_dsi_2,
+                token, ca_mean_cell, gt_traces,
+                ca_dsi if use_readout_dsi else paired_ca_dsi,
+                gt_dsi if use_readout_dsi else paired_gt_dsi,
                 key,
                 cell=cell,
                 cost_parts=cost_parts,
-                cost_tasks=cost_tasks,
+                cost_contrasts=cost_contrasts,
             )
-            if has_overlays and readout_src is not None and readout_src.overlay is not None:
-                overlay_traces = {
-                    label: readout_src.overlay[label].ca_traces[key]
-                    for label in overlay_labels
-                    if key in readout_src.overlay[label].ca_traces
+            if has_at_xy and panel_readout is not None and panel_readout.ca_mean_cell_mean_hex_by_label is not None:
+                ca_mean_cell_mean_hex_by_label = {
+                    label: panel_readout.ca_mean_cell_mean_hex_by_label[label][key]
+                    for label in labels
+                    if key in panel_readout.ca_mean_cell_mean_hex_by_label[label]
                 }
-                if not overlay_traces:
+                if not ca_mean_cell_mean_hex_by_label:
                     ax.axis('off')
                     continue
-                plot_labels = [label for label in overlay_labels if label in overlay_traces]
-                _plot_moving_bar_cell_overlays(
-                    ax, ca_traces[key], ca_std.get(key),
-                    overlay_traces, plot_labels,
+                plot_labels = [
+                    label for label in labels if label in ca_mean_cell_mean_hex_by_label
+                ]
+                _plot_moving_bar_cell_at_xy(
+                    ax, ca_mean_cell[key], ca_std.get(key),
+                    ca_mean_cell_mean_hex_by_label, plot_labels,
                     cell_title, before_t,
-                    gt_trace=gt_trace_affine(readout_src, cell, gt_traces.get(key)),
-                    show_ylabel=(ci == 0),
+                    gt_trace=gt_trace_affine(panel_readout, cell, gt_traces.get(key)),
+                    show_ylabel=(col == 0),
                     show_std=show_std and key in ca_std and np.any(ca_std[key]),
-                    show_legend=(ri == 0 and ci == 0),
+                    show_legend=(row == 0 and col == 0),
                     cell_ticks=False,
-                    show_tick_labels=(ri == nrows - 1),
+                    show_tick_labels=(row == n_row - 1),
                     mark_cost_window=True,
                     v_th=v_th,
-                    e_leak=el,
-                    t_onset=_moving_bar_t_onset(readout_src, cell, token),
-                    delta_ms=readout_src.session.delta_ms,
-                    ms_shown=readout_src.ms_shown,
+                    e_leak=e_leak,
+                    t_onset=_moving_bar_t_onset(panel_readout, cell, token),
+                    delta_ms=panel_readout.session.delta_ms,
+                    ms_shown=panel_readout.ms_shown,
                 )
             else:
-                src = readout_src or readout_on
+                src = panel_readout or readout
                 _plot_moving_bar_cell(
-                    ax, ca_traces[key], ca_std.get(key),
+                    ax, ca_mean_cell[key], ca_std.get(key),
                     cell_title, before_t,
                     gt_trace=gt_trace_affine(src, cell, gt_traces.get(key)),
-                    show_ylabel=(ci == 0),
+                    show_ylabel=(col == 0),
                     show_std=show_std and key in ca_std and np.any(ca_std[key]),
                     cell_ticks=False,
-                    show_tick_labels=(ri == nrows - 1),
+                    show_tick_labels=(row == n_row - 1),
                     mark_cost_window=True,
                     v_th=v_th,
-                    e_leak=el,
+                    e_leak=e_leak,
                     t_onset=_moving_bar_t_onset(src, cell, token),
                     delta_ms=src.session.delta_ms,
                     ms_shown=src.ms_shown,
                 )
-        axes[ri, 0].set_ylabel(cell_ylabel(cell, ca_n), fontsize=8, labelpad=12)
+        axes[row, 0].set_ylabel(cell_ylabel(cell, ca_n), fontsize=8, labelpad=12)
     if title is None:
         title = 'Moving-bar ca-all (right only)' if right_only else 'Moving-bar ca-all'
-    hexes_label = _moving_bar_all_hexes_label(readout_on)
+    hexes_label = _moving_bar_all_hexes_label(readout)
     fig.suptitle(title + f'  [{hexes_label}, t_first_sti-aligned trace]', fontsize=12)
     fig.subplots_adjust(top=0.90, bottom=0.08, hspace=0.50, wspace=0.35)
     return fig
 
 
 @torch.no_grad()
-def plot_moving_bar_gt(path, *, readout, readout_2=None, title=None, cost_parts=None):
+def plot_moving_bar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=None):
     """Plot ca-gt figure from a :class:`MovingBarTraceReadout`."""
-    timer = ElapsedTimer(prior_prep=readout_prep_s(readout, readout_2))
+    timer = ElapsedTimer(prior_prep=readout_prep_s(readout, paired_readout))
     timer.end_prep()
     single_hex = readout.single_hex
     row_specs = moving_bar_specs_by_cell(readout.session, readout.task, readout.side)
     gt_cells = list(row_specs.keys())
-    ncols_half = max((len(v) for v in row_specs.values()), default=8)
-    cost_tasks = _moving_bar_cost_tasks(readout, readout_2)
-    if readout_2 is not None:
-        row_specs_2 = moving_bar_specs_by_cell(readout_2.session, readout_2.task, readout_2.side)
-        ncols_half = max(ncols_half, max((len(v) for v in row_specs_2.values()), default=8))
-        ncols = ncols_half * 2
+    n_col_half = max((len(specs) for specs in row_specs.values()), default=8)
+    cost_contrasts = _moving_bar_cost_contrasts(readout, paired_readout)
+    if paired_readout is not None:
+        paired_row_specs = moving_bar_specs_by_cell(
+            paired_readout.session, paired_readout.task, paired_readout.side,
+        )
+        n_col_half = max(
+            n_col_half, max((len(specs) for specs in paired_row_specs.values()), default=8),
+        )
+        n_col = n_col_half * 2
     else:
-        row_specs_2 = None
-        ncols = ncols_half
-    nrows = len(gt_cells)
-    fig, axes = _moving_bar_figure(nrows, ncols)
+        paired_row_specs = None
+        n_col = n_col_half
+    n_row = len(gt_cells)
+    fig, axes = _moving_bar_figure(n_row, n_col)
 
-    ca_dsi_on = dsi_from_trace_map(readout.traces.ca_traces, gt_cells, readout.spec_tokens)
-    gt_dsi_on = dsi_from_trace_map(readout.gt_traces, gt_cells, readout.spec_tokens)
-    ca_dsi_2 = gt_dsi_2 = None
-    if readout_2 is not None:
-        ca_dsi_2 = dsi_from_trace_map(readout_2.traces.ca_traces, gt_cells, readout_2.spec_tokens)
-        gt_dsi_2 = dsi_from_trace_map(readout_2.gt_traces, gt_cells, readout_2.spec_tokens)
+    ca_dsi = dsi_from_trace_map(readout.traces.ca_mean_cell, gt_cells, readout.spec_tokens)
+    gt_dsi = dsi_from_trace_map(readout.gt_traces, gt_cells, readout.spec_tokens)
+    paired_ca_dsi = paired_gt_dsi = None
+    if paired_readout is not None:
+        paired_ca_dsi = dsi_from_trace_map(
+            paired_readout.traces.ca_mean_cell, gt_cells, paired_readout.spec_tokens,
+        )
+        paired_gt_dsi = dsi_from_trace_map(
+            paired_readout.gt_traces, gt_cells, paired_readout.spec_tokens,
+        )
 
-    def _plot_row(ri, subtype, specs, col_offset, row_readout, side, ca_dsi, gt_dsi):
-        wt = row_readout.traces
-        for ci, token in enumerate(specs):
-            ax = axes[ri, col_offset + ci]
-            key = (subtype, token)
-            if key not in wt.ca_traces:
+    def _plot_row(row, cell, specs, col_offset, row_readout, side, row_ca_dsi, row_gt_dsi):
+        window_traces = row_readout.traces
+        for col, token in enumerate(specs):
+            ax = axes[row, col_offset + col]
+            key = (cell, token)
+            if key not in window_traces.ca_mean_cell:
                 ax.axis('off')
                 continue
-            before_t = wt.before_t[token]
+            before_t = window_traces.before_t[token]
             cell_title = _moving_bar_cell_title(
-                token, wt.ca_traces, row_readout.gt_traces,
-                ca_dsi, gt_dsi, key,
-                cell=subtype,
+                token, window_traces.ca_mean_cell, row_readout.gt_traces,
+                row_ca_dsi, row_gt_dsi, key,
+                cell=cell,
                 cost_parts=cost_parts,
-                cost_tasks=cost_tasks,
+                cost_contrasts=cost_contrasts,
             )
             _plot_moving_bar_cell(
-                ax, wt.ca_traces[key], wt.ca_std[key],
+                ax, window_traces.ca_mean_cell[key], window_traces.ca_std[key],
                 cell_title, before_t,
                 gt_trace=gt_trace_affine(
-                    row_readout, subtype, row_readout.gt_traces.get(key),
+                    row_readout, cell, row_readout.gt_traces.get(key),
                 ),
-                show_ylabel=(col_offset + ci == 0), show_std=not single_hex,
+                show_ylabel=(col_offset + col == 0), show_std=not single_hex,
                 mark_cost_window=True,
-                v_th=row_readout.v_th_by_cell.get(subtype),
-                e_leak=row_readout.e_leak_by_cell.get(subtype),
-                linestyle=_moving_bar_spec_linestyle(side, subtype, token),
-                t_onset=_moving_bar_t_onset(row_readout, subtype, token),
+                v_th=row_readout.v_th_by_cell.get(cell),
+                e_leak=row_readout.e_leak_by_cell.get(cell),
+                linestyle=_moving_bar_spec_linestyle(side, cell, token),
+                t_onset=_moving_bar_t_onset(row_readout, cell, token),
                 delta_ms=row_readout.session.delta_ms,
                 ms_shown=row_readout.ms_shown,
             )
 
-    for ri, subtype in enumerate(gt_cells):
-        _plot_row(ri, subtype, row_specs[subtype], 0, readout, readout.side, ca_dsi_on, gt_dsi_on)
-        if readout_2 is not None:
+    for row, cell in enumerate(gt_cells):
+        _plot_row(row, cell, row_specs[cell], 0, readout, readout.side, ca_dsi, gt_dsi)
+        if paired_readout is not None:
             _plot_row(
-                ri, subtype, row_specs_2[subtype], ncols_half, readout_2, readout_2.side,
-                ca_dsi_2, gt_dsi_2,
+                row, cell, paired_row_specs[cell], n_col_half, paired_readout, paired_readout.side,
+                paired_ca_dsi, paired_gt_dsi,
             )
-        axes[ri, 0].set_ylabel(
-            cell_ylabel(subtype, readout.traces.ca_n), fontsize=8, labelpad=12,
+        axes[row, 0].set_ylabel(
+            cell_ylabel(cell, readout.traces.ca_n), fontsize=8, labelpad=12,
         )
     if title is None:
         title = 'Moving-bar ca-gt'
@@ -972,18 +969,18 @@ def plot_moving_bar_gt(path, *, readout, readout_2=None, title=None, cost_parts=
         fontsize=12,
     )
     fig.subplots_adjust(top=0.90, bottom=0.08, hspace=0.50, wspace=0.35)
-    timer.end_draw()
+    timer.end_plot()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True, timer=timer)
 
 
 @torch.no_grad()
-def plot_moving_bar_all(path, *, readout, readout_2=None, title=None, right_only=True,
+def plot_moving_bar_all(path, *, readout, paired_readout=None, title=None, right_only=True,
                         cost_parts=None):
     """Plot ca-all figure from a :class:`MovingBarTraceReadout`."""
-    timer = ElapsedTimer(prior_prep=readout_prep_s(readout, readout_2))
+    timer = ElapsedTimer(prior_prep=readout_prep_s(readout, paired_readout))
     timer.end_prep()
     fig = _moving_bar_all_figure(
-        readout, readout_2, title, right_only=right_only, cost_parts=cost_parts,
+        readout, paired_readout, title, right_only=right_only, cost_parts=cost_parts,
     )
-    timer.end_draw()
+    timer.end_plot()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True, timer=timer)

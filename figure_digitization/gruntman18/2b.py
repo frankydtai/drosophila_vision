@@ -213,8 +213,8 @@ def _repair_trace_pixels(
 
     anchors = MANUAL_PIXEL_ANCHORS.get((flash_ms, color))
     if anchors:
-        anchor_x = np.asarray([item[0] for item in anchors], dtype=float)
-        anchor_y = np.asarray([item[1] for item in anchors], dtype=float)
+        anchor_x = np.asarray([anchor[0] for anchor in anchors], dtype=float)
+        anchor_y = np.asarray([anchor[1] for anchor in anchors], dtype=float)
         use = (full_x >= anchor_x[0]) & (full_x <= anchor_x[-1])
         full_y[use] = np.interp(full_x[use], anchor_x, anchor_y)
 

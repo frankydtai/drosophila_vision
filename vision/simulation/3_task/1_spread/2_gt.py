@@ -92,9 +92,9 @@ def _shift_right(ir, t_delay: int):
     t_delay = int(t_delay)
     if t_delay <= 0:
         return ir
-    out = np.zeros_like(ir)
-    out[t_delay:] = ir[:-t_delay]
-    return out
+    delayed_ir = np.zeros_like(ir)
+    delayed_ir[t_delay:] = ir[:-t_delay]
+    return delayed_ir
 
 
 def build_ir_lti(cell: str, mask: np.ndarray, *, delta_ms: float) -> np.ndarray:

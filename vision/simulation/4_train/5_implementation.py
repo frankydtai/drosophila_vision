@@ -51,7 +51,7 @@ SYN_STRENGTH_CELL_CSV = "syn_strength_cell.csv"
 SYN_STRENGTH_EDGE_CSV = "syn_strength_edge.csv"
 
 
-def run_dir(model, root=None, parent=None, run=None):
+def build_build_run_dir(model, root=None, parent=None, run=None):
     """``<PARAMETER_DIR>/<model>/<run>`` (or under *parent*)."""
     if parent is None:
         root = str(PARAMETER_DIR) if root is None else root
@@ -65,10 +65,10 @@ def run_dir(model, root=None, parent=None, run=None):
 def resolve_run_dir(path):
     """Resolve a run folder under ``PARAMETER_DIR`` or an absolute path."""
     pth = Path(path).expanduser()
-    outdir = pth.resolve() if pth.is_absolute() else (PARAMETER_DIR / pth).resolve()
-    if not outdir.is_dir():
-        raise SystemExit(f'run folder not found: {path!r} -> {outdir}')
-    return str(outdir)
+    run_dir = pth.resolve() if pth.is_absolute() else (PARAMETER_DIR / pth).resolve()
+    if not run_dir.is_dir():
+        raise SystemExit(f'run folder not found: {path!r} -> {run_dir}')
+    return str(run_dir)
 
 
 def checkpoint_iter_token(iter):
@@ -89,25 +89,25 @@ def decompose_params(z, session):
     n = session.connectome.n_cell
     schema = train.schema_copy(session.schema)
     decoded = train.node_vals_from_z(z, schema)
-    out = {}
+    params_by_cell = {}
     for param, spec in schema.items():
         if param in ("syn_strength_cell", "syn_strength_edge") or spec.get("radii") is not None:
             continue  # e.g. a_sti_radius (per-radius, not per-cell)
         vals = np.asarray(decoded[param], dtype=np.float64).reshape(-1)
         if vals.shape[0] != n:
             raise ValueError(f"{param}: node w {vals.shape[0]} != n_cell {n}")
-        out[param] = vals
-    return out
+        params_by_cell[param] = vals
+    return params_by_cell
 
 
-def v_spot_markers_by_cell(z, session):
-    """Per-cell-type mean ``v`` markers; add ``v_ca``/``ca`` for ``filter=ca``.
+def v_spot_mean_cell(z, session):
+    """Per-cell mean ``v`` at pre / onset / sti_end; add ``v_ca``/``ca`` for ``filter=ca``.
 
-    * ``v_pre``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
-    * ``v_onset``: ``t=t_onset`` (``v_rows[t_onset]``), spot onset / end of pre.
-    * ``v_sti_end``: ``t=t_sti_end`` inclusive last on sample
+    * ``v_pre_mean_cell``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
+    * ``v_onset_mean_cell``: ``t=t_onset`` (``v_rows[t_onset]``), spot onset / end of pre.
+    * ``v_sti_end_mean_cell``: ``t=t_sti_end`` inclusive last on sample
       (``t_sti_end``).
-    * ``delta_v``: ``v_sti_end - v_onset``.
+    * ``delta_v_mean_cell``: ``v_sti_end_mean_cell - v_onset_mean_cell``.
 
     Uses ``session.primary_pack`` sti (``i_sti`` + ``pack_t_onset``).
     """
@@ -147,78 +147,84 @@ def v_spot_markers_by_cell(z, session):
     v_sti_end_n = v[0, t_end].detach().cpu().numpy()
     node_cells = session.connectome.conn.node_cells.detach().cpu().numpy()
     n_cell = int(session.connectome.n_cell)
-    v_pre = np.empty(n_cell, dtype=np.float64)
-    v_onset = np.empty(n_cell, dtype=np.float64)
-    v_sti_end = np.empty(n_cell, dtype=np.float64)
-    delta_v = np.empty(n_cell, dtype=np.float64)
+    v_pre_mean_cell = np.empty(n_cell, dtype=np.float64)
+    v_onset_mean_cell = np.empty(n_cell, dtype=np.float64)
+    v_sti_end_mean_cell = np.empty(n_cell, dtype=np.float64)
+    delta_v_mean_cell = np.empty(n_cell, dtype=np.float64)
     for cell_idx in range(n_cell):
         cell_node_mask = node_cells == cell_idx
         if not np.any(cell_node_mask):
-            v_pre[cell_idx] = np.nan
-            v_onset[cell_idx] = np.nan
-            v_sti_end[cell_idx] = np.nan
-            delta_v[cell_idx] = np.nan
+            v_pre_mean_cell[cell_idx] = np.nan
+            v_onset_mean_cell[cell_idx] = np.nan
+            v_sti_end_mean_cell[cell_idx] = np.nan
+            delta_v_mean_cell[cell_idx] = np.nan
         else:
-            v_pre[cell_idx] = float(v_pre_n[cell_node_mask].mean())
-            v_onset[cell_idx] = float(v_onset_n[cell_node_mask].mean())
-            v_sti_end[cell_idx] = float(v_sti_end_n[cell_node_mask].mean())
-            delta_v[cell_idx] = v_sti_end[cell_idx] - v_onset[cell_idx]
-    out = {
-        "v_pre": v_pre,
-        "v_onset": v_onset,
-        "v_sti_end": v_sti_end,
-        "delta_v": delta_v,
+            v_pre_mean_cell[cell_idx] = float(v_pre_n[cell_node_mask].mean())
+            v_onset_mean_cell[cell_idx] = float(v_onset_n[cell_node_mask].mean())
+            v_sti_end_mean_cell[cell_idx] = float(v_sti_end_n[cell_node_mask].mean())
+            delta_v_mean_cell[cell_idx] = (
+                v_sti_end_mean_cell[cell_idx] - v_onset_mean_cell[cell_idx]
+            )
+    mean_cell = {
+        "v_pre_mean_cell": v_pre_mean_cell,
+        "v_onset_mean_cell": v_onset_mean_cell,
+        "v_sti_end_mean_cell": v_sti_end_mean_cell,
+        "delta_v_mean_cell": delta_v_mean_cell,
     }
     if use_ca:
         v_ca_pre_n = v_ca[0, 0].detach().cpu().numpy()
         v_ca_onset_n = v_ca[0, t_onset].detach().cpu().numpy()
         v_ca_sti_end_n = v_ca[0, t_end].detach().cpu().numpy()
-        v_ca_pre = np.empty(n_cell, dtype=np.float64)
-        v_ca_onset = np.empty(n_cell, dtype=np.float64)
-        v_ca_sti_end = np.empty(n_cell, dtype=np.float64)
-        delta_v_ca = np.empty(n_cell, dtype=np.float64)
+        v_ca_pre_mean_cell = np.empty(n_cell, dtype=np.float64)
+        v_ca_onset_mean_cell = np.empty(n_cell, dtype=np.float64)
+        v_ca_sti_end_mean_cell = np.empty(n_cell, dtype=np.float64)
+        delta_v_ca_mean_cell = np.empty(n_cell, dtype=np.float64)
         for cell_idx in range(n_cell):
             cell_node_mask = node_cells == cell_idx
             if not np.any(cell_node_mask):
-                v_ca_pre[cell_idx] = np.nan
-                v_ca_onset[cell_idx] = np.nan
-                v_ca_sti_end[cell_idx] = np.nan
-                delta_v_ca[cell_idx] = np.nan
+                v_ca_pre_mean_cell[cell_idx] = np.nan
+                v_ca_onset_mean_cell[cell_idx] = np.nan
+                v_ca_sti_end_mean_cell[cell_idx] = np.nan
+                delta_v_ca_mean_cell[cell_idx] = np.nan
             else:
-                v_ca_pre[cell_idx] = float(v_ca_pre_n[cell_node_mask].mean())
-                v_ca_onset[cell_idx] = float(v_ca_onset_n[cell_node_mask].mean())
-                v_ca_sti_end[cell_idx] = float(v_ca_sti_end_n[cell_node_mask].mean())
-                delta_v_ca[cell_idx] = v_ca_sti_end[cell_idx] - v_ca_onset[cell_idx]
-        out.update(
-            v_ca_pre=v_ca_pre,
-            v_ca_onset=v_ca_onset,
-            v_ca_sti_end=v_ca_sti_end,
-            delta_v_ca=delta_v_ca,
+                v_ca_pre_mean_cell[cell_idx] = float(v_ca_pre_n[cell_node_mask].mean())
+                v_ca_onset_mean_cell[cell_idx] = float(v_ca_onset_n[cell_node_mask].mean())
+                v_ca_sti_end_mean_cell[cell_idx] = float(v_ca_sti_end_n[cell_node_mask].mean())
+                delta_v_ca_mean_cell[cell_idx] = (
+                    v_ca_sti_end_mean_cell[cell_idx] - v_ca_onset_mean_cell[cell_idx]
+                )
+        mean_cell.update(
+            v_ca_pre_mean_cell=v_ca_pre_mean_cell,
+            v_ca_onset_mean_cell=v_ca_onset_mean_cell,
+            v_ca_sti_end_mean_cell=v_ca_sti_end_mean_cell,
+            delta_v_ca_mean_cell=delta_v_ca_mean_cell,
         )
         ca_pre_n = ca[0, 0].detach().cpu().numpy()
         ca_onset_n = ca[0, t_onset].detach().cpu().numpy()
         ca_sti_end_n = ca[0, t_end].detach().cpu().numpy()
-        ca_pre = np.empty(n_cell, dtype=np.float64)
-        ca_onset = np.empty(n_cell, dtype=np.float64)
-        ca_sti_end = np.empty(n_cell, dtype=np.float64)
-        delta_ca = np.empty(n_cell, dtype=np.float64)
+        ca_pre_mean_cell = np.empty(n_cell, dtype=np.float64)
+        ca_onset_mean_cell = np.empty(n_cell, dtype=np.float64)
+        ca_sti_end_mean_cell = np.empty(n_cell, dtype=np.float64)
+        delta_ca_mean_cell = np.empty(n_cell, dtype=np.float64)
         for cell_idx in range(n_cell):
             cell_node_mask = node_cells == cell_idx
             if not np.any(cell_node_mask):
-                ca_pre[cell_idx] = np.nan
-                ca_onset[cell_idx] = np.nan
-                ca_sti_end[cell_idx] = np.nan
-                delta_ca[cell_idx] = np.nan
+                ca_pre_mean_cell[cell_idx] = np.nan
+                ca_onset_mean_cell[cell_idx] = np.nan
+                ca_sti_end_mean_cell[cell_idx] = np.nan
+                delta_ca_mean_cell[cell_idx] = np.nan
             else:
-                ca_pre[cell_idx] = float(ca_pre_n[cell_node_mask].mean())
-                ca_onset[cell_idx] = float(ca_onset_n[cell_node_mask].mean())
-                ca_sti_end[cell_idx] = float(ca_sti_end_n[cell_node_mask].mean())
-                delta_ca[cell_idx] = ca_sti_end[cell_idx] - ca_onset[cell_idx]
-        out.update(
-            ca_pre=ca_pre,
-            ca_onset=ca_onset,
-            ca_sti_end=ca_sti_end,
-            delta_ca=delta_ca,
+                ca_pre_mean_cell[cell_idx] = float(ca_pre_n[cell_node_mask].mean())
+                ca_onset_mean_cell[cell_idx] = float(ca_onset_n[cell_node_mask].mean())
+                ca_sti_end_mean_cell[cell_idx] = float(ca_sti_end_n[cell_node_mask].mean())
+                delta_ca_mean_cell[cell_idx] = (
+                    ca_sti_end_mean_cell[cell_idx] - ca_onset_mean_cell[cell_idx]
+                )
+        mean_cell.update(
+            ca_pre_mean_cell=ca_pre_mean_cell,
+            ca_onset_mean_cell=ca_onset_mean_cell,
+            ca_sti_end_mean_cell=ca_sti_end_mean_cell,
+            delta_ca_mean_cell=delta_ca_mean_cell,
         )
     if train.val_from_enabled(train_opts, "bias_gt"):
         if use_ca:
@@ -228,16 +234,16 @@ def v_spot_markers_by_cell(z, session):
         else:
             lo = param_from_entry("bias_gt", "lo", NEURON_SCHEMA['params'])
             hi = param_from_entry("bias_gt", "hi", NEURON_SCHEMA['params'])
-            bias = np.clip(v_onset, lo, hi)
-        out["bias_gt"] = np.asarray(bias, dtype=np.float64)
-    return out
+            bias = np.clip(v_onset_mean_cell, lo, hi)
+        mean_cell["bias_gt"] = np.asarray(bias, dtype=np.float64)
+    return mean_cell
 
 
 def save_param_table(z, session, table_path):
     node_vals = decompose_params(z, session)
-    markers = v_spot_markers_by_cell(z, session)
-    bias_gt = markers.pop("bias_gt", None)
-    node_vals.update(markers)
+    spot_v_mean_cell = v_spot_mean_cell(z, session)
+    bias_gt = spot_v_mean_cell.pop("bias_gt", None)
+    node_vals.update(spot_v_mean_cell)
     opts = session.train_opts or {}
     if train.val_from_enabled(opts, "v_th_ca") and "v_th" in node_vals and "v_th_ca" in node_vals:
         node_vals["v_th_ca"] = np.asarray(node_vals["v_th"], dtype=np.float64).copy()
@@ -326,7 +332,7 @@ def save_syn_strength_edge_table(z, session, table_path):
     return table_path
 
 
-def save_syn_table(z, session, outdir_or_path, *, token=None):
+def save_syn_table(z, session, run_dir, *, token=None):
     """Write ``syn_strength_cell.csv`` or ``syn_strength_edge.csv`` for the active syn mode."""
     if token is None:
         cell_filename, edge_filename = SYN_STRENGTH_CELL_CSV, SYN_STRENGTH_EDGE_CSV
@@ -334,27 +340,27 @@ def save_syn_table(z, session, outdir_or_path, *, token=None):
         cell_filename = f"syn_strength_cell_{token}.csv"
         edge_filename = f"syn_strength_edge_{token}.csv"
     cell_path = save_syn_strength_cell_table(
-        z, session, os.path.join(outdir_or_path, cell_filename),
+        z, session, os.path.join(run_dir, cell_filename),
     )
     edge_path = save_syn_strength_edge_table(
-        z, session, os.path.join(outdir_or_path, edge_filename),
+        z, session, os.path.join(run_dir, edge_filename),
     )
     return cell_path or edge_path
 
 
-def best_param_path(outdir):
-    return os.path.join(run_data_dir(outdir), 'best_param.npz')
+def best_param_path(run_dir):
+    return os.path.join(run_data_dir(run_dir), 'best_param.npz')
 
 
-def best_adam_path(outdir):
-    return os.path.join(run_data_dir(outdir), 'best_adam.npz')
+def best_adam_path(run_dir):
+    return os.path.join(run_data_dir(run_dir), 'best_adam.npz')
 
 
-def _data_file(outdir, filename):
-    return os.path.join(run_data_dir(outdir), filename)
+def _data_file(run_dir, filename):
+    return os.path.join(run_data_dir(run_dir), filename)
 
 
-def save_node_vals(outdir, z, session, filename):
+def save_node_vals(run_dir, z, session, filename):
     """Write per-param full-w node vals to ``data/<filename>``."""
     schema = train.schema_copy(session.schema)
     node_vals = train.node_vals_from_z(z, schema)
@@ -363,11 +369,11 @@ def save_node_vals(outdir, z, session, filename):
     payload['cells'] = cells
     if "syn_strength_cell" in schema:
         payload['pairs'] = np.asarray(train.pairs_from_connectome(session.connectome), dtype=object)
-    os.makedirs(run_data_dir(outdir), exist_ok=True)
-    np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
+    os.makedirs(run_data_dir(run_dir), exist_ok=True)
+    np.savez(os.path.join(run_data_dir(run_dir), filename), **payload)
 
 
-def save_adam(outdir, exp_avg, exp_avg_sq, iter, session, filename):
+def save_adam(run_dir, exp_avg, exp_avg_sq, iter, session, filename):
     """Write per-param adam m/v (z-space) to ``data/<filename>``."""
     schema = train.schema_copy(session.schema)
     adams_m, adams_v = train.adams_from_z(exp_avg, exp_avg_sq, schema)
@@ -380,13 +386,13 @@ def save_adam(outdir, exp_avg, exp_avg_sq, iter, session, filename):
         payload[f'm_{param}'] = np.asarray(adam, dtype=np.float64)
     for param, adam in adams_v.items():
         payload[f'v_{param}'] = np.asarray(adam, dtype=np.float64)
-    os.makedirs(run_data_dir(outdir), exist_ok=True)
-    np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
+    os.makedirs(run_data_dir(run_dir), exist_ok=True)
+    np.savez(os.path.join(run_data_dir(run_dir), filename), **payload)
 
 
-def save_best_param(outdir, z, session):
+def save_best_param(run_dir, z, session):
     """Write per-param full-w node vals to ``data/best_param.npz``."""
-    save_node_vals(outdir, z, session, 'best_param.npz')
+    save_node_vals(run_dir, z, session, 'best_param.npz')
 
 
 def _checkpoint_data_filename(kind, iter, run_i=0, n_run=1):
@@ -394,9 +400,9 @@ def _checkpoint_data_filename(kind, iter, run_i=0, n_run=1):
     return f'best_{kind}_iter_{checkpoint_iter_token(iter)}{suffix}.npz'
 
 
-def save_checkpoint_csv(outdir, iter, z_best, session):
+def save_checkpoint_csv(run_dir, iter, z_best, session):
     token = checkpoint_iter_token(iter)
-    csv_dir = os.path.join(outdir, 'csv')
+    csv_dir = os.path.join(run_dir, 'csv')
     os.makedirs(csv_dir, exist_ok=True)
     param_path = os.path.join(csv_dir, f'param_{token}.csv')
     save_param_table(z_best, session, param_path)
@@ -406,18 +412,18 @@ def save_checkpoint_csv(outdir, iter, z_best, session):
         print(f'wrote checkpoint csv: {syn_path}')
 
 
-def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None):
+def build_checkpoint_callback(run_dir, session, *, run_i=0, n_run=1, on_png=None):
     """Write interval-best npz/csv; optional *on_png* for plot layer (from ``run.py``)."""
 
     def on_interval_best(iter, z_best, cost_best, adam=None):
         filename = _checkpoint_data_filename('param', iter, run_i=run_i, n_run=n_run)
-        save_node_vals(outdir, z_best, session, filename)
+        save_node_vals(run_dir, z_best, session, filename)
         if adam is not None:
             adam_filename = _checkpoint_data_filename(
                 'adam', iter, run_i=run_i, n_run=n_run,
             )
             save_adam(
-                outdir,
+                run_dir,
                 adam['exp_avg'].detach().cpu().numpy(),
                 adam['exp_avg_sq'].detach().cpu().numpy(),
                 adam['iter'],
@@ -425,16 +431,16 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None)
                 adam_filename,
             )
             print(f'wrote checkpoint {adam_filename}')
-        save_checkpoint_csv(outdir, iter, z_best, session)
+        save_checkpoint_csv(run_dir, iter, z_best, session)
         if on_png is not None:
-            on_png(outdir, iter, z_best, cost_best, session)
+            on_png(run_dir, iter, z_best, cost_best, session)
         print(f'wrote checkpoint {filename} (cost={cost_best:.4f})')
     return on_interval_best
 
 
-def load_best_node_vals(outdir):
+def load_best_node_vals(run_dir):
     """Load ``data/best_param.npz`` → (node_vals, cells, pairs|None)."""
-    fp = best_param_path(outdir)
+    fp = best_param_path(run_dir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
     with np.load(fp, allow_pickle=True) as d:
@@ -450,9 +456,9 @@ def load_best_node_vals(outdir):
     return node_vals, cells, pairs
 
 
-def load_best_adam(outdir):
+def load_best_adam(run_dir):
     """Load ``data/best_adam.npz`` → (adams_m, adams_v, adam_iter, cells, pairs)."""
-    fp = best_adam_path(outdir)
+    fp = best_adam_path(run_dir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
     with np.load(fp, allow_pickle=True) as d:
@@ -473,9 +479,9 @@ def load_best_adam(outdir):
     return adams_m, adams_v, adam_iter, cells, pairs
 
 
-def load_best_param(outdir, session):
+def load_best_param(run_dir, session):
     """Load best params as 1-D z for *session* (remap from per-param npz)."""
-    node_vals, cells, pairs = load_best_node_vals(outdir)
+    node_vals, cells, pairs = load_best_node_vals(run_dir)
     schema = train.schema_with_param_carry(
         train.schema_copy(session.schema),
         train.remap_node_vals(
@@ -491,7 +497,7 @@ def load_best_param(outdir, session):
     return z.detach().cpu().numpy().astype(np.float64)
 
 
-def save_best_data(outdir, session, run_params, final_costs, adam=None):
+def save_best_data(run_dir, session, run_params, final_costs, adam=None):
     """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for ``argmin(final_costs)``.
 
     *adam* is the best-run bag ``{exp_avg, exp_avg_sq, iter}`` (required for a
@@ -501,46 +507,46 @@ def save_best_data(outdir, session, run_params, final_costs, adam=None):
     final_costs = np.asarray(final_costs, dtype=np.float64)
     run_i = int(np.argmin(final_costs))
     best = run_params[run_i]
-    os.makedirs(run_data_dir(outdir), exist_ok=True)
+    os.makedirs(run_data_dir(run_dir), exist_ok=True)
     z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
-    save_best_param(outdir, z_best, session)
+    save_best_param(run_dir, z_best, session)
     if adam is not None:
         save_adam(
-            outdir, adam['exp_avg'], adam['exp_avg_sq'], adam['iter'], session,
+            run_dir, adam['exp_avg'], adam['exp_avg_sq'], adam['iter'], session,
             'best_adam.npz',
         )
-        print(f"wrote {best_adam_path(outdir)} (best run #{run_i})")
-    table_path = os.path.join(outdir, PARAM_CSV)
+        print(f"wrote {best_adam_path(run_dir)} (best run #{run_i})")
+    table_path = os.path.join(run_dir, PARAM_CSV)
     save_param_table(z_best, session, table_path)
     print("wrote table: %s (best run #%d, cost=%.4f)" % (
         table_path, run_i, final_costs[run_i]))
-    syn_path = save_syn_table(z_best, session, outdir)
+    syn_path = save_syn_table(z_best, session, run_dir)
     if syn_path is not None:
         print("wrote table: %s" % syn_path)
     return best
 
 
-def load_stored_costs(outdir):
+def load_stored_costs(run_dir):
     """Load ``costs.npy``, ``best_costs.npy``, and per-part npz when present."""
     final_costs = None
-    cost_curve = None
+    costs = None
     costs_by_part = None
     final_costs_by_part = None
-    fp = _data_file(outdir, 'costs.npy')
+    fp = _data_file(run_dir, 'costs.npy')
     if os.path.isfile(fp):
         final_costs = np.load(fp)
-    cp = _data_file(outdir, 'best_costs.npy')
+    cp = _data_file(run_dir, 'best_costs.npy')
     if os.path.isfile(cp):
-        cost_curve = np.load(cp)
-    cbt = _data_file(outdir, 'best_costs_by_part.npz')
+        costs = np.load(cp)
+    cbt = _data_file(run_dir, 'best_costs_by_part.npz')
     if os.path.isfile(cbt):
         with np.load(cbt) as d:
             costs_by_part = {k: np.asarray(d[k]) for k in d.files}
-    fbt = _data_file(outdir, 'costs_by_part.npz')
+    fbt = _data_file(run_dir, 'costs_by_part.npz')
     if os.path.isfile(fbt):
         with np.load(fbt) as d:
             final_costs_by_part = {k: np.asarray(d[k]) for k in d.files}
-    return final_costs, cost_curve, costs_by_part, final_costs_by_part
+    return final_costs, costs, costs_by_part, final_costs_by_part
 
 
 def load_init_z(init_from, session):
@@ -550,11 +556,11 @@ def load_init_z(init_from, session):
     (still not in z); frozen nodes use ``carry``.
     """
     try:
-        outdir = resolve_run_dir(init_from)
+        run_dir = resolve_run_dir(init_from)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
-    node_vals, cells, pairs = load_best_node_vals(outdir)
-    adams_m, adams_v, adam_iter, _, _ = load_best_adam(outdir)
+    node_vals, cells, pairs = load_best_node_vals(run_dir)
+    adams_m, adams_v, adam_iter, _, _ = load_best_adam(run_dir)
     schema = train.schema_copy(session.schema)
     remapped = train.remap_node_vals(
         node_vals, cells, pairs, schema, session.connectome,
@@ -581,31 +587,31 @@ def load_init_z(init_from, session):
         'iter': int(adam_iter),
     }
     print(
-        f'from {outdir!r} -> {best_param_path(outdir)!r} + {best_adam_path(outdir)!r} '
+        f'from {run_dir!r} -> {best_param_path(run_dir)!r} + {best_adam_path(run_dir)!r} '
         f'({train.schema_n_z(schema)} z, adam_iter={adam_iter})'
     )
     return session, z, adam_init
 
 
-def save_train_outputs(fname, outdir, session, result):
+def save_train_data(fname, run_dir, session, result):
     """Write the full run data set (convention §5)."""
-    os.makedirs(outdir, exist_ok=True)
-    os.makedirs(run_data_dir(outdir), exist_ok=True)
+    os.makedirs(run_dir, exist_ok=True)
+    os.makedirs(run_data_dir(run_dir), exist_ok=True)
     if session.train_opts is not None:
-        with open(os.path.join(run_data_dir(outdir), "train_opts.json"), 'w') as f:
+        with open(os.path.join(run_data_dir(run_dir), "train_opts.json"), 'w') as f:
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
-    np.save(_data_file(outdir, fname), result.run_params)
-    np.save(_data_file(outdir, 'best_costs.npy'), result.cost_curve)
-    np.save(_data_file(outdir, 'costs.npy'), result.final_costs)
-    if result.cost_curves_by_part:
-        np.savez(_data_file(outdir, 'best_costs_by_part.npz'), **result.cost_curves_by_part)
+    np.save(_data_file(run_dir, fname), result.run_params)
+    np.save(_data_file(run_dir, 'best_costs.npy'), result.costs)
+    np.save(_data_file(run_dir, 'costs.npy'), result.final_costs)
+    if result.costs_by_part:
+        np.savez(_data_file(run_dir, 'best_costs_by_part.npz'), **result.costs_by_part)
     if result.final_costs_by_part:
-        np.savez(_data_file(outdir, 'costs_by_part.npz'), **result.final_costs_by_part)
+        np.savez(_data_file(run_dir, 'costs_by_part.npz'), **result.final_costs_by_part)
     run_i = int(np.argmin(result.final_costs)) if len(result.final_costs) else 0
     adam = result.run_adams[run_i] if result.run_adams else None
     save_best_data(
-        outdir, session, result.run_params, result.final_costs, adam=adam,
+        run_dir, session, result.run_params, result.final_costs, adam=adam,
     )
 
 
@@ -707,7 +713,7 @@ def build_session(
     return train.open_session(opts, model, schema=schema, connectome=connectome)
 
 
-def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
+def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
                  syn_mode=NEURON_SCHEMA['syn_mode'],
                  euler=MODEL['euler'],
                  pre_steady=None,
@@ -736,7 +742,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  checkpoint_interval=None,
                  build_checkpoint_callback=build_checkpoint_callback,
                  checkpoint_on_png=None):
-    """Run train + save data (no plotting). Returns ``(fname, outdir, session, result)``.
+    """Run train + save data (no plotting). Returns ``(fname, run_dir, session, result)``.
 
     Plotting belongs in ``run.py``. Pass *checkpoint_on_png* from the run layer
     when ``--checkpoint-interval`` should also write PNGs.
@@ -775,7 +781,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
     )
     suffix = "" if model == "borst" else f"_{model}"
     fname = fname or f"train{suffix or '_with_i_h'}.npy"
-    outdir = outdir or run_dir(model)
+    run_dir = run_dir or build_run_dir(model)
 
     print_param_modes(session)
     syn_mode = (session.train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode'])
@@ -795,13 +801,13 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
     result = do_many_runs(
         session, n_run, n_iter, lrs=lrs, z_init=z_init, adam_init=adam_init,
         checkpoint_interval=checkpoint_interval,
-        checkpoint_outdir=outdir if checkpoint_interval is not None else None,
+        checkpoint_run_dir=run_dir if checkpoint_interval is not None else None,
         build_checkpoint_callback=build_checkpoint_callback,
         checkpoint_on_png=checkpoint_on_png if checkpoint_interval is not None else None,
     )
     print(f"done in {(time.time() - t0) / 3600:.2f} hours")
 
-    save_train_outputs(fname, outdir, session, result)
-    return fname, outdir, session, result
+    save_train_data(fname, run_dir, session, result)
+    return fname, run_dir, session, result
 
 

@@ -11,12 +11,12 @@ Only words with an unambiguous single definition are included here.
 
 When asked whether a word fits this lexicon or “has a definition,” judge **meaning in `vision/` code**, not whether the token appears in lexicon.
 
-**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `at_uv` `` / `` `at_xy` ``, `` `u` `` / `` `v` `` / `` `du` `` / `` `dv` ``, `` `_by_` ``, `` `_from_` ``, `` `_over_` ``, or `` `a_*` ``). Established task compounds that are one concept in prose (`moving_bar`, `spot`) may appear as compounds. Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`).
+**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `at_uv` `` / `` `at_xy` ``, `` `u` `` / `` `v` `` / `` `du` `` / `` `dv` ``, `` `_by_` ``, `` `mean` ``, `` `_from_` ``, `` `_over_` ``, or `` `a_*` ``). Established task compounds that are one concept in prose (`moving_bar`, `spot`) may appear as compounds. Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`).
 
 **Banned words never get a headword.** A token that is only a forbidden substitute (listed under another concept’s **Forbidden**) must **not** have its own ``### \`word\`` entry — not even an entry whose body says “Forbidden / do not use.” Ban it only by naming it under the canonical concept’s Forbidden line. Creating ``### \`name\`` / ``### \`tag\`` / ``### \`gain\`` / ``### \`polarity\`` (etc.) solely to forbid them is itself a lexicon violation.
 
 **Banned-substitute map (lexicon-wide — no `tag` headword; `tag` is forbidden wherever it has been a substitute):** The token ``tag`` / ``_tag`` / ``*_tag`` / ``*tag*`` is banned project-wide — it is a substitute that **never gets its own headword** (per the rule above). It must be replaced with the canonical concept the role actually fills:
-- Human-facing display string, figure/report series name, overlay key, snapshot stage, axis label, or display dedup-suffix → ``label`` (see ``### label``).
+- Human-facing display string, figure/report series name, at_xy curve key, snapshot stage, axis label, or display dedup-suffix → ``label`` (see ``### label``).
 - CLI / opts parse atom, filename stem fragment, or parse-input kwarg → ``token`` (see ``### token``).
 - CLI / opts sub-option under a named parent → ``key`` (see ``### key``).
 - String token from a fixed enum (``syn_mode``, ``z_mode``, ``vote_mode``, param ``mode``) or its collection bag → ``mode`` (see ``### mode``).
@@ -308,12 +308,6 @@ Definition: Presynaptic output from a neuron — thresholded ``v`` signal multip
 Example: `v_out`, `params["a_out"]`, `"output": False` in `network.json` nodes
 Forbidden: `output` for persisted run files or sidecar tables — use `data`. Do not use `out` for total ``in`` — use `in`. Do not use `out` for light sti — use `sti`.
 
-### `overlay` / `overlays`
-
-Definition: Figure-layer bag of secondary labeled curves drawn beside the hexes aggregate — one entry per selected hex / ``(x,y)`` from ``--x``/``--y`` — not the main hexes aggregate and not a time-axis cut.
-Example: `overlay[label]`, `_spot_overlay(...)`, `_moving_bar_overlay_traces(...)`, `has_overlays`, subtitle `overlay + hexes`, `overlay_reds(n_overlay)`
-Forbidden: `slice` / `slice_overlay` / `slice_xs` (etc.) for this role — that is time-axis ``slice`` only. Do not use `overlay` for analyze multi-`report` co-plot mode — use `compare` / `multi_report` / `reports_by_cell`. Do not use `overlay` for cost-window coordinate remap — use ``_cost_window_xy``.
-
 ### `pack` / `packs`
 
 Definition: One task's train cost-spec container — that task's `i_sti`, cost `entry` idxs, `gt` traces, cost `scale`s, and related timing/DSI fields — used by `forward` / `cost` / `plot`. Type name `Pack`; locals/params `pack`; `session.packs` holds one per task; `session.primary_pack` is the first task's pack.
@@ -322,7 +316,7 @@ Forbidden: `readout`, `ReadoutPack`, `primary_readout`, `session.readouts` — t
 
 ### `panel` / `panels`
 
-Definition: One subplot cell in a figure grid (indexed by `row` / `col`), and the shared figure-layer module ``figure.panel`` of cross-task drawing / save / timing helpers used to fill those cells (colors, lims, timecourse lines, overlays, ``save_figure``, ``ElapsedTimer``). Compounds: ``PANEL_W``, ``PANEL_H``, ``N_COL_*``.
+Definition: One subplot cell in a figure grid (indexed by `row` / `col`), and the shared figure-layer module ``figure.panel`` of cross-task drawing / save / timing helpers used to fill those cells (colors, lims, timecourse lines, at_xy curves, ``save_figure``, ``ElapsedTimer``). Compounds: ``PANEL_W``, ``PANEL_H``, ``N_COL_*``.
 Example: `from figure.panel import save_figure, plot_timecourse`, `PANEL_W`, `fig.add_subplot(gs[row, col])` as one panel
 Forbidden: `util` / `utils` / `helper` / `helpers` / `common` as the module or concept name for these shared figure helpers. Do not use `panel` for connectome hex / cost `entry` / CSV `field` — those are `hex` / `entry` / `field`. Do not use `plot` as a noun module name for this bag (driver remains ``figure.plot``).
 
@@ -353,14 +347,14 @@ Forbidden: `ring` / `rings` as naming or prose substitutes for this concept; `ex
 ### `readout` / `readouts`
 
 Definition: An in-memory assembled forward result for one task scope — cost `trace`s plus entries, timing, and plot metadata between `forward` and `plot`. Distinct from persisted run `data` and from the cost-spec `pack`.
-Example: `_forward_spot_readout`, `readout["plot_traces"]`, `_spot_v_readout_from_readout`, `build_spot_center_readout`, `SpotTraceReadout`
+Example: `_forward_spot_readout`, `readout["plot_traces"]`, `_spot_v_readout_mean_cell_mean_radius`, `build_spot_center_readout`, `SpotTraceReadout`
 Forbidden: `data` — use `data` only for files under a run's `data/` folder. Do not name the container `rows`, `forward_data`, or `bundle_data`. Do not use `readout` for the connectome biological column — use `column` / `column_ids`. Do not use `readout` / `ReadoutPack` / `primary_readout` / `session.readouts` for the cost-spec container — that is `pack` / `Pack` / `primary_pack` / `session.packs`. Do not use `readout` for analyze diagnostic dicts — that is `report`.
 
 ### `report` / `reports`
 
 Definition: Analyze-layer in-memory diagnostic dict for one cell × task × optional spec / hex — traces, peak metrics, per-``t`` component ``steps``, and print / figure metadata — produced after component forward; distinct from train / figure ``readout`` and from run ``data``.
 Example: `_finalize_component_report(...)`, `reports[cell]`, `reports_by_spec[spec][cell]`, `plot_report(report, ...)`, `plot_reports_compare(reports, ...)`, `_print_report(report)`
-Forbidden: as a verb (`report_unresolved` → `print_…`). Do not use `report` for train / figure forward→plot bags — that is `readout`. Do not use `overlay` for multi-report co-plot mode — use `compare` / `multi_report`. Do not use `pack` or `data` for this bag.
+Forbidden: as a verb (`report_unresolved` → `print_…`). Do not use `report` for train / figure forward→plot bags — that is `readout`. Do not use at_xy mean_hex bags for multi-report co-plot mode — use `compare` / `multi_report`. Do not use `pack` or `data` for this bag.
 
 ### `ir` / `irs`
 
@@ -414,9 +408,9 @@ Forbidden: `kw` as a naming token (`figure_kw`, `timing_kw`, bare `kw`, `_take_f
 
 ### `label` / `labels`
 
-Definition: Human-facing display name of a figure / report series, overlay, snapshot stage, axis, formula fragment, or console row — the string shown to the reader and, when used as a bag key, the same string. Singular ``label`` is one such name; plural ``labels`` is the ordered bag.
-Example: `overlay[label]`, `overlay_labels`, `labels = ("start", "mid", "exit")`, `_BLACK_TRACE_LABELS`, `baseline_label`, formula row ``for label, series in formula``, `axis_label` returning a display ``label``.
-Forbidden: ``text`` / ``*_text`` as project identifiers (library ``ax.text`` / ``get_text`` / ``set_text`` / ``write_text`` / plotly kwargs ``text=`` may remain). Do not use ``label`` as the raw CLI / opts parse input — that is ``token``. Do not use ``label`` for connectome types (``cell``), CSV columns (``field``), or param-axis CLI ids. When a formula tuple pairs a drawn string with a color-source curve name, the drawn string is ``label`` and the color source is ``series`` (not a second ``label``). Do not use ``tag`` / ``_tag`` / ``*_tag`` / ``*tag*`` for any human-facing display string, figure/report series name, overlay key, snapshot stage, axis label, or display dedup-suffix — that is ``label`` (e.g. ``hex_scope_tag`` → ``at_xy_label``, ``_network_spot_tag`` → ``_network_spot_label``, ``row_tag`` → ``row_label``, ``panel_tag`` → ``panel_label``, ``radius_tag`` → ``radius_label``, ``*_display_tag`` → ``*_display_label``).
+Definition: Human-facing display name of a figure / report series, at_xy curve, snapshot stage, axis, formula fragment, or console row — the string shown to the reader and, when used as a bag key, the same string. Singular ``label`` is one such name; plural ``labels`` is the ordered bag.
+Example: `mean_hex_by_label[label]`, `labels = ("start", "mid", "exit")`, `_BLACK_TRACE_LABELS`, `baseline_label`, formula row ``for label, series in formula``, `axis_label` returning a display ``label``.
+Forbidden: ``text`` / ``*_text`` as project identifiers (library ``ax.text`` / ``get_text`` / ``set_text`` / ``write_text`` / plotly kwargs ``text=`` may remain). Do not use ``label`` as the raw CLI / opts parse input — that is ``token``. Do not use ``label`` for connectome types (``cell``), CSV columns (``field``), or param-axis CLI ids. When a formula tuple pairs a drawn string with a color-source curve name, the drawn string is ``label`` and the color source is ``series`` (not a second ``label``). Do not use ``tag`` / ``_tag`` / ``*_tag`` / ``*tag*`` for any human-facing display string, figure/report series name, at_xy curve key, snapshot stage, axis label, or display dedup-suffix — that is ``label`` (e.g. ``hex_scope_tag`` → ``at_xy_label``, ``_network_spot_tag`` → ``_network_spot_label``, ``row_tag`` → ``row_label``, ``panel_tag`` → ``panel_label``, ``radius_tag`` → ``radius_label``, ``*_display_tag`` → ``*_display_label``).
 
 ### `list` / `lists`
 
@@ -428,7 +422,7 @@ Forbidden: as a domain collection-bag suffix outside CLI lists (`cell_list`, `ta
 
 Definition: Contiguous subset along the trace time axis.
 Example: `trace_slice = v_post_d[t_lo:t_hi + 1]`, `_slice_ms(v_full, start_ms, stop_ms, …)`
-Forbidden: ``segment`` / ``seg`` (for trace subsets — and banned project-wide for schema packing). Do not use `slice` for figure hex / ``--x``/``--y`` secondary curves — that is `overlay`. Do not use `slice` for pack entry or ``z`` subsetting — use `subset` (or index without coining `slice`).
+Forbidden: ``segment`` / ``seg`` (for trace subsets — and banned project-wide for schema packing). Do not use `slice` for figure hex / ``--x``/``--y`` secondary curves — that is at_xy ``mean_hex_by_label``. Do not use `slice` for pack entry or ``z`` subsetting — use `subset` (or index without coining `slice`).
 
 ### `view` / `views`
 
@@ -452,7 +446,7 @@ Forbidden: `weight` for this role (`cost_weight`, …); `factor`; `gain`. Do not
 
 ### `series`
 
-Definition: Figure / analyze curve identity key paired with ``label`` — selects plot color, a component-step field, or a cost-curve family. Singular ``series`` is one such key (a string token or a typed tuple). Not the waveform data and not the human-facing legend string.
+Definition: Figure / analyze series identity key paired with ``label`` — selects plot color, a component-step field, or a cost-part family. Singular ``series`` is one such key (a string token or a typed tuple). Not the waveform data and not the human-facing legend string.
 Example: `for label, series in formula`, `color_from_series[series]`, `("spot_radius", radius)`, `step[series]`
 Forbidden: ``label`` for this role; ``trace`` / ``traces`` for the color key. Do not use ``series`` for a ``list[dict]`` contrast plot bag — that is ``traces`` (see ``### trace``). Do not use ``series`` for a report GT field name (``gt_v`` / ``gt_ca``) — that is ``gt_report_key`` (see ``### key``).
 
@@ -477,7 +471,7 @@ Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do n
 
 Definition: One moving-bar sti condition — direction × contrast × ``w`` (and speed), identified by token ``left_bright_w1`` / ``right_dark_w4`` / …. Type ``MovingBarSpec``; plural ``specs`` is a list of those conditions; string id is ``spec_token`` / bag ``spec_tokens``. Orthogonal to ``task`` (``moving_bar_bright`` holds many specs). Analyze report field ``"spec"`` and CLI ``--spec`` select this condition.
 Example: `MovingBarSpec(direction=..., contrast=..., w_deg=...)`, `spec.token`, `gruntman_moving_bar_specs()`, `bar_specs_from_task(...)`, `parse_moving_bar_spec(token)`, `reports_by_spec[spec][cell]`, `--spec right_bright_w1`
-Forbidden: component-plot layout bags (`_ComponentLayout` / ``layout``); generic config / curve / overlay bags; connectome run or path strings; ``condition`` / ``variant`` as naming tokens for this concept. Do not use ``tag`` / ``_tag`` / ``*_tag`` for a moving-bar condition id or its bag — that is ``spec`` (e.g. ``left_bright_tag`` → ``left_bright`` or ``spec_token``, ``*_spec_tag`` → ``*_spec_token``). Module files ``sti_spec`` (timing / ``i_sti`` assembly) may keep that basename. Library ``gridspec`` / ``ModuleSpec`` / ``inspect`` may remain.
+Forbidden: component-plot layout bags (`_ComponentLayout` / ``layout``); generic config / curve / at_xy bags; connectome run or path strings; ``condition`` / ``variant`` as naming tokens for this concept. Do not use ``tag`` / ``_tag`` / ``*_tag`` for a moving-bar condition id or its bag — that is ``spec`` (e.g. ``left_bright_tag`` → ``left_bright`` or ``spec_token``, ``*_spec_tag`` → ``*_spec_token``). Module files ``sti_spec`` (timing / ``i_sti`` assembly) may keep that basename. Library ``gridspec`` / ``ModuleSpec`` / ``inspect`` may remain.
 
 ### `spot` / `spots`
 
@@ -494,7 +488,7 @@ Forbidden: `stimulus`, `stim`, `stimuli`, `input`, `is_input`, `PR`, `photorecep
 
 Definition: A running total of values (or a bag of such totals keyed by component/cell), and the fold of many contributions into that total or into a destination tensor / cost / gradient. Singular ``sum`` is one total or the concept; plural ``sums`` is a bag of those totals. Compounds name the destination or role (``_target_sums``, ``part_sums``, ``backward_part_sums``, ``n_syn_sum``, ``b_sums``).
 Example: `forward_sums.sums`, `sums[cell] += ...`, `n_syn_sum`, `part_sums`, `_target_sums`, `backward_part_sums(z, session)`
-Forbidden: `accumulate` / `accum` / `acc` / `aggregate` as naming tokens or prose substitutes (``_accumulate_target`` → ``_target_sums``; ``backward_accumulate_scaled_cost`` → ``backward_part_sums``; ``accumulate_all`` → ``partner_syn_by_label``). Do not use `total` for a sum bag — `total` is the scaled cost scalar only. Do not use `count` / `counts` for a sum or cardinality. Mean/std reductions that are not sum bags use the result noun (e.g. ``_moving_bar_trace_means``), not ``sum``.
+Forbidden: `accumulate` / `accum` / `acc` / `aggregate` as naming tokens or prose substitutes (``_accumulate_target`` → ``_target_sums``; ``backward_accumulate_scaled_cost`` → ``backward_part_sums``; ``accumulate_all`` → ``partner_syn_by_label``). Do not use `total` for a sum bag — `total` is the scaled cost scalar only. Do not use `count` / `counts` for a sum or cardinality. Mean/std reductions that are not sum bags use the result noun with ``mean`` / ``std`` modifiers (e.g. ``_moving_bar_ca_mean_cell``), not ``sum``.
 
 ### `sum_sq` / `sum_sqs`
 
@@ -523,12 +517,12 @@ Example: `for name in session.tasks: ...`
 
 Definition: (1) CLI / opts / parse grammar atom — one raw string unit still being decoded by ``parse_*``, ``split``, or ``partition`` (argv value, comma-list piece, ``KEY=VALUE`` / ``SOURCE:BOOL`` slice, ``part_key`` substring awaiting cast, or enum string id such as ``spec.token`` / mode / contrast); or (2) a stem / suffix fragment written into a **filename** (run / figure path). Singular ``token`` is one such atom; plural ``tokens`` is the ordered bag.
 Example: `parse_comma_list(token)`, `parse_bool(token)`, `parse_moving_bar_spec(token)`, `enabled_token`, `radius_token = part_key[pos + 2:]`, `spec.token`, `spec_tokens`, `filter_figure_token`, `_format_filename_token`, filename stem ``filter_token``.
-Forbidden: ``text`` / ``*_text`` as project identifiers (library APIs may remain — see ``### label``). Do not use ``token`` for legend / overlay / formula / title / subtitle / console display names — that is ``label``. Do not use ``token`` for ``cell``, CSV ``field``, or arbitrary ``str`` locals that are neither parse/opts atoms nor filename fragments. Do not use ``tag`` / ``_tag`` / ``*_tag`` for any CLI / opts parse atom or filename stem fragment — that is ``token`` (e.g. ``w_tag(w_deg)`` → ``w_token(w_deg)``, ``network_run_tag`` → ``network_run_token``, ``_cell_tag`` → ``_cell_token``, ``checkpoint_iter_tag`` → ``checkpoint_iter_token``).
+Forbidden: ``text`` / ``*_text`` as project identifiers (library APIs may remain — see ``### label``). Do not use ``token`` for legend / at_xy / formula / title / subtitle / console display names — that is ``label``. Do not use ``token`` for ``cell``, CSV ``field``, or arbitrary ``str`` locals that are neither parse/opts atoms nor filename fragments. Do not use ``tag`` / ``_tag`` / ``*_tag`` for any CLI / opts parse atom or filename stem fragment — that is ``token`` (e.g. ``w_tag(w_deg)`` → ``w_token(w_deg)``, ``network_run_tag`` → ``network_run_token``, ``_cell_tag`` → ``_cell_token``, ``checkpoint_iter_tag`` → ``checkpoint_iter_token``).
 
 ### `total`
 
 Definition: The single scaled overall train cost scalar — ``Σ W·part / Σ W`` over parts with non-zero scale (``W`` from `part_cost_scales` / `_part_scale`) — and plot titles/curves that refer to that scalar only.
-Example: `total = _scaled_cost_from_parts(parts, session)`, `_last_total`, `"total (scaled)"` on the cost curve
+Example: `total = _scaled_cost_from_parts(parts, session)`, `_last_total`, `"total (scaled)"` on the cost plot
 Forbidden: do not use for cardinalities (`n_*`), sum bags (`sums`), plot scope/all traces, durations, or sidecar field labels.
 
 ### `trace` / `traces`
@@ -657,7 +651,7 @@ Example: `parse_moving_bar_spec(token)` → `(direction, contrast, w_token)`
 ### `plot`
 
 Definition: Produce a visualization output (figures/curves/images) from run results or computed traces. Verb only.
-Example: `plot_cost(result.cost_curve, out_path, costs_by_part=...)`, `plot_figures(...)`, `run_train_and_plot(...)`, CLI `--plot-right-only` / `plot_right_only`
+Example: `plot_cost(result.costs, out_path, costs_by_part=...)`, `plot_figures(...)`, `run_train_and_plot(...)`, CLI `--plot-right-only` / `plot_right_only`
 Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (e.g. “Δv scatters”) — use `plot` instead. Library `ax.scatter` / `go.Scatter` may remain. Do not use `plot` as a noun qualifier on identifiers (`plot_kwargs`, `plot_gts`, `plot_cells`, `filter_plot_token`, `add_plot_*`, `resolve_plot_kwargs`, `do_plot`, `cell_plot_rows`, …) — when the name must mark the figure path as distinct from train, use ``figure`` (see ``### figure``); otherwise drop the qualifier.
 
 ### `resolve`
@@ -696,19 +690,25 @@ Forbidden: do not use `step` to mean an optimizer iteration — use `iter` inste
 
 Definition: Spatial locus filter — select hexes / nodes / ids at a connectome position. Always spelled with the coordinate frame: ``at_uv`` (axial ``u``/``v``) or ``at_xy`` (hex-step ``x``/``y``, not degree ``x_deg``/``y_deg``). Axis scalars are ``at_u``/``at_v`` or ``at_x``/``at_y``; bags ``at_xs``/``at_ys``. Network axial lookup uses UV (``sti_nodes_at_uv``; ``ids_by_cell(..., at_u=, at_v=)``). Figure / analyze hex filters and CLI ``--x``/``--y`` use XY (``filter_sti_hexes(..., at_x=, at_y=)``, ``align_at_x``/``align_at_y``). Connectome analyze allows either frame, mutually exclusive.
 Example: `sti_nodes_at_uv(u, v)`, `filter_sti_hexes(..., at_x=, at_y=)`, `ids_by_cell(nodes, at_u=..., at_v=...)`, `ids_by_cell(nodes, at_x=..., at_y=...)`, `align_at_x`/`align_at_y`, `cli_xy_filter`, `--x`/`--y`, `--u`/`--v`
-Forbidden: bare ``at`` / ``_at_`` without ``uv`` or ``xy`` (never ``ids_at_hex``, ``sti_nodes_at``, ``_nodes_at_hex``, ``hex_at_scope_label``, ``hex_at_scope_token``). Do not use ``at`` for time / node / radius-disc sampling (``bar_lane_rects_at_t``, ``_spec_at``, ``v_at_onset``, ``_component_at_nodes_*``, ``n_node_t``) — name those with the real axis noun, not ``at`` (``bar_lane_rects``, ``_node_param_key``, ``v_onset``, ``_component_nodes_*``, ``n_node_t``). Exact-distance hex selection is ``shell`` (``shell_hexes``, ``--shell``, ``ids_by_cell(..., shell=)`` — see ``### shell``), not an ``at_*`` frame. Do not use ``in``/``on``/``inside`` as naming glue for spatial membership (``inside_mask``, ``hex_in_cost_radius``, ``*_in_disc``, ``*_on_shell``, ``*_on_hex``, ``*_on_uv_line``, ``*_on_xy_line``) — use ``radius_mask`` / ``cost_radius_mask`` / ``nodes_from_hexes`` / ``hex_mask``, or ``ids_by_cell(...)`` with ``radius``/``shell``/``at_u``/``at_v``/``at_x``/``at_y``. Figure overlay bags remain ``overlay_xs``/``overlay_ys`` (see ``### overlay``); ``at_x``/``at_y`` are filter kwargs. Library ``np.add.at`` may remain.
+Forbidden: bare ``at`` / ``_at_`` without ``uv`` or ``xy`` (never ``ids_at_hex``, ``sti_nodes_at``, ``_nodes_at_hex``, ``hex_at_scope_label``, ``hex_at_scope_token``). Do not use ``at`` for time / node / radius-disc sampling (``bar_lane_rects_at_t``, ``_spec_at``, ``v_at_onset``, ``_component_at_nodes_*``, ``n_node_t``) — name those with the real axis noun, not ``at`` (``bar_lane_rects``, ``_node_param_key``, ``v_onset``, ``_component_nodes_*``, ``n_node_t``). Exact-distance hex selection is ``shell`` (``shell_hexes``, ``--shell``, ``ids_by_cell(..., shell=)`` — see ``### shell``), not an ``at_*`` frame. Do not use ``in``/``on``/``inside`` as naming glue for spatial membership (``inside_mask``, ``hex_in_cost_radius``, ``*_in_disc``, ``*_on_shell``, ``*_on_hex``, ``*_on_uv_line``, ``*_on_xy_line``) — use ``radius_mask`` / ``cost_radius_mask`` / ``nodes_from_hexes`` / ``hex_mask``, or ``ids_by_cell(...)`` with ``radius``/``shell``/``at_u``/``at_v``/``at_x``/``at_y``. Per-label at_xy curves live in ``*_mean_hex_by_label`` on readout; ``at_xs``/``at_ys`` hold the CLI filter. Library ``np.add.at`` may remain.
 
 ### `_by_`
 
 Definition: The same quantity, partitioned or indexed by a subset axis — the bag still holds that quantity, keyed by the subset noun. Pattern: `<quantity>_by_<subset>`; both sides nouns only; the full identifier has no verb token and must not also contain ``_from_``.
-Example: `nodes_by_cell`, `e_leak_by_cell`, `v_th_by_cell`, `v_readout_by_cell`, `std_by_cell`, `gt_affine_by_cell`, `n_by_radius`, `n_t_by_b`, `costs_by_part`, `u_by_column_id`
-Forbidden: using ``_by_`` when result and source are **different** quantities — that is ``_from_`` (`v_th_from_z`, `std_from_traces`; noun→position tables use ``<noun>_idx``, not ``idx_from_*``). Hybrids that put both prepositions in one identifier (`e_leak_by_cell_from_z`, `v_th_by_cell_from_z`). Method / “by means of” English (`vote_by_syn`, `weight_by_syn`) — that is ``mode`` (`vote_mode`). Tautology when the quantity name already encodes the subset axis (`a_sti_radius_by_radius` — the bag is ``a_sti_radius``). Do not use ``*_by_param`` / ``by_param`` / ``vals_by_param`` — the bag keyed by param is ``node_vals`` / ``schema``, not a ``_by_param`` compound. Do not use ``_by_name`` — use the real subset noun (``*_by_cell``, …). A ``_from_`` function may return a ``_by_`` bag; name the function with ``_from_`` and the bag with ``_by_`` (`v_th_by_cell = v_th_from_z(...)`).
+Example: `nodes_by_cell`, `e_leak_by_cell`, `v_th_by_cell`, `gt_affine_by_cell`, `n_by_radius`, `n_t_by_b`, `costs_by_part`, `u_by_column_id`
+Forbidden: using ``_by_`` when the bag is an average — that is ``mean`` (``v_readout_mean_cell``, not ``v_readout_by_cell``). Using ``_by_`` when result and source are **different** quantities — that is ``_from_`` (`v_th_from_z`, `std_from_traces`; noun→position tables use ``<noun>_idx``, not ``idx_from_*``). Hybrids that put both prepositions in one identifier (`e_leak_by_cell_from_z`, `v_th_by_cell_from_z`). Method / “by means of” English (`vote_by_syn`, `weight_by_syn`) — that is ``mode`` (`vote_mode`). Tautology when the quantity name already encodes the subset axis (`a_sti_radius_by_radius` — the bag is ``a_sti_radius``). Do not use ``*_by_param`` / ``by_param`` / ``vals_by_param`` — the bag keyed by param is ``node_vals`` / ``schema``, not a ``_by_param`` compound. Do not use ``_by_name`` — use the real subset noun (``*_by_cell``, …). A ``_from_`` function may return a ``_by_`` bag; name the function with ``_from_`` and the bag with ``_by_`` (`v_th_by_cell = v_th_from_z(...)`).
+
+### `mean`
+
+Definition: Same word class as ``_by_``. Marks that the quantity was averaged within each class of a grouping unit — not a partition of the unaveraged values. Pattern: `<quantity>_mean_<unit>`; each grouping unit used in that average is one ``_mean_<unit>`` (``v_readout_mean_cell``, ``v_readout_mean_cell_mean_radius``, ``v_readout_mean_cell_mean_radius_mean_hex``, ``ca_mean_cell``, ``ca_mean_cell_mean_hex``). ``_by_<unit>`` is classify-only (no average).
+Example: `TraceReadout.v_readout_mean_cell`, `SpotTraceReadout.v_readout_mean_cell_mean_radius`, `_spot_v_readout_mean_cell_mean_radius(...)`, `_spot_v_readout_mean_cell_mean_radius_mean_hex(...)`, `MovingBarWindowTraces.ca_mean_cell`, `_moving_bar_ca_mean_cell(...)`, `_moving_bar_ca_mean_cell_mean_hex(...)`
+Forbidden: ``*_by_cell`` / ``*_by_radius`` for averaged traces (`v_readout_by_cell`); ``cell_mean`` / ``radius_mean`` as naming tokens; ``*_from_readout``; ``fill`` / ``_fill_*`` for writing a mean; ``*_trace_means``. Library ``np.mean`` / ``.mean()`` and a short-lived local ``mean = sum_ / n`` may remain.
 
 ### `_from_`
 
 Definition: One quantity from another already-concrete quantity — result and source are different roles or types (unit/coordinate conversion, schema pack/unpack, idx lookup, ``z`` → param values, fixed formula on present inputs). Pattern: `<result>_from_<source>`; both sides nouns only; the full identifier has no verb token and must not also contain ``_by_``. This entry's Definition and Example lines use nouns only — no verb tokens.
 Example: `t_from_ms(ms, delta_ms)`, `v_ca_from_v(v, p, session)`, `ca_from_v_ca(...)`, `t_abs_from_ms(...)`, `node_vals_from_z(z, schema)`, `v_th_from_z`, `e_leak_from_z`, `adams_from_z`, `hex_from_uv(u, v)`, `xy_deg_from_uv(u, v)`, `cell_from_node(...)`, `node_from_id`, `family_from_cell_csv(...)`
-Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. Any verb token anywhere in the identifier (`load`, `override`, `open`, `resolve`, `parse`, `build`, `assert`, …). Verbs in this lexicon entry's Definition or Example lines. Hybrids with ``_by_`` in the same identifier (see ``### _by_``). Exception: ``val_from`` compounds only (see ``### val_from``). Do not use ``_from_`` when the function merges ``config`` defaults, alias expansion, and/or Hydra/CLI tokens into the final execution value — that is ``resolve`` (``resolve_run_kwargs``, ``resolve_sti_timing``, ``resolve_spot``), not ``kwargs_from_args``, ``timing_from_opts``, or ``spot_from_opts``. Do not use ``_from_`` for multi-source assembly (defaults + tokens + validation); one complete source → one result only. Simple field extraction from an already-final opts dict (``gt_cells_from_opts``) may remain ``_from_``; if missing keys fall back to defaults, rename to ``resolve_*``.
+Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. Any verb token anywhere in the identifier (`load`, `override`, `open`, `resolve`, `parse`, `build`, `assert`, …). Verbs in this lexicon entry's Definition or Example lines. Hybrids with ``_by_`` in the same identifier (see ``### _by_``). Exception: ``val_from`` compounds only (see ``### val_from``). Do not suffix a mean builder with ``_from_readout``. Do not use ``_from_`` when the function merges ``config`` defaults, alias expansion, and/or Hydra/CLI tokens into the final execution value — that is ``resolve`` (``resolve_run_kwargs``, ``resolve_sti_timing``, ``resolve_spot``), not ``kwargs_from_args``, ``timing_from_opts``, or ``spot_from_opts``. Do not use ``_from_`` for multi-source assembly (defaults + tokens + validation); one complete source → one result only. Simple field extraction from an already-final opts dict (``gt_cells_from_opts``) may remain ``_from_``; if missing keys fall back to defaults, rename to ``resolve_*``.
 
 ### `_over_`
 

@@ -317,7 +317,7 @@ def pre_steady(session, params, n_b, i_sti=None):
 
 def step(u, u_rev, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
     """One borst update; returns ``(u, u_rev, v)`` or + g component tuple."""
-    out = update_v(
+    updated = update_v(
         v, u, u_rev,
         params["a_in"], params["a_out"], syn_strength(params), params["v_th"],
         params["a_h"], params["a_h_rev"],
@@ -335,7 +335,7 @@ def step(u, u_rev, v, params, i_sti, session, *, delta_ms: float, return_compone
         return_component=return_component,
     )
     if return_component:
-        v, u, u_rev, g_exc, g_inh, g_h, g_h_rev = out
+        v, u, u_rev, g_exc, g_inh, g_h, g_h_rev = updated
         return u, u_rev, v, (g_exc, g_inh, g_h, g_h_rev)
-    v, u, u_rev = out
+    v, u, u_rev = updated
     return u, u_rev, v

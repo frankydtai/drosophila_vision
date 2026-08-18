@@ -101,8 +101,8 @@ TASKS = ("spread", "spot", "moving_bar")
 RUN_DATA_SUBDIR = "data"
 
 
-def run_data_dir(outdir) -> str:
-    return str(Path(outdir) / RUN_DATA_SUBDIR)
+def run_data_dir(run_dir) -> str:
+    return str(Path(run_dir) / RUN_DATA_SUBDIR)
 
 
 def _tokens(values) -> List[str]:
@@ -694,15 +694,15 @@ _STI_OPTS_BY_TASK = {
 
 def _i_sti(i_sti=None) -> Dict[str, float]:
     """Bright/dark currents from ``SPREAD_INPUT_SPEC``; optional contrast stamps."""
-    out = {
+    i_sti_by_contrast = {
         "bright": float(SPREAD_INPUT_SPEC["i_bright"]),
         "dark": float(SPREAD_INPUT_SPEC["i_dark"]),
     }
     if not i_sti:
-        return out
+        return i_sti_by_contrast
     for contrast, val in i_sti.items():
-        out[str(contrast)] = float(val)
-    return out
+        i_sti_by_contrast[str(contrast)] = float(val)
+    return i_sti_by_contrast
 
 
 def _spread_resolve_sti_opts(opts, **_):
@@ -726,7 +726,7 @@ def _spread_resolve_sti_opts(opts, **_):
 
 
 def _spot_resolve_sti_opts(opts, *, shift_radius, spot_radius, multi_spot, fully_inside, **_):
-    out = build_spot_sti_opts(
+    sti_opts = build_spot_sti_opts(
         ms_pre=opts["ms_pre"],
         ms_response=opts["ms_response"],
         ms_post=opts["ms_post"],
@@ -747,11 +747,11 @@ def _spot_resolve_sti_opts(opts, *, shift_radius, spot_radius, multi_spot, fully
         ms_sti=opts["ms_sti"],
         gt_cells=opts.get("gt_cells"),
     )
-    out["shift_radius"] = shift_radius
-    out["spot_radius"] = spot_radius
-    out["multi_spot"] = multi_spot
-    out["fully_inside"] = fully_inside
-    return out
+    sti_opts["shift_radius"] = shift_radius
+    sti_opts["spot_radius"] = spot_radius
+    sti_opts["multi_spot"] = multi_spot
+    sti_opts["fully_inside"] = fully_inside
+    return sti_opts
 
 
 def _moving_bar_resolve_sti_opts(opts, **_):
@@ -782,7 +782,7 @@ def _resolve_sti_opts(
     fully_inside,
 ):
     opts = {**_STI_OPTS_BY_TASK.get(task, {}), **(opts or {})}
-    out = _RESOLVE_STI_OPTS[task](
+    sti_opts = _RESOLVE_STI_OPTS[task](
         opts,
         shift_radius=shift_radius,
         spot_radius=spot_radius,
@@ -790,10 +790,10 @@ def _resolve_sti_opts(
         fully_inside=fully_inside,
     )
     if cost_radius is not None:
-        out["cost_radius"] = int(cost_radius)
+        sti_opts["cost_radius"] = int(cost_radius)
     else:
-        out.pop("cost_radius", None)
-    return out
+        sti_opts.pop("cost_radius", None)
+    return sti_opts
 
 
 def resolve_train_opts(
@@ -929,11 +929,11 @@ def resolve_train_opts(
 
 def _cost_ms_sidecar(cost_ms) -> dict:
     """JSON sidecar: radii as strings, mss as floats."""
-    out: dict = {}
+    cost_ms_json: dict = {}
     for radius, vals in (cost_ms or {}).items():
         mss = list(vals) if isinstance(vals, (list, tuple)) else [vals]
-        out[str(int(radius))] = [float(x) for x in mss]
-    return out
+        cost_ms_json[str(int(radius))] = [float(x) for x in mss]
+    return cost_ms_json
 
 
 def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -> dict:
@@ -1252,12 +1252,12 @@ def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSess
     return open_session(opts, model, **kwargs)
 
 
-def session_from_outdir(
-    outdir: str,
+def session_from_run_dir(
+    run_dir: str,
     model: str | None = None,
 ) -> TrainSession:
     """Load ``train_opts.json`` from a run folder and return a ready session."""
-    opts_path = os.path.join(run_data_dir(os.path.abspath(outdir)), "train_opts.json")
+    opts_path = os.path.join(run_data_dir(os.path.abspath(run_dir)), "train_opts.json")
     if not os.path.isfile(opts_path):
         raise FileNotFoundError(f"missing {opts_path}")
     with open(opts_path) as f:

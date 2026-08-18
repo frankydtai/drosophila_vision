@@ -170,16 +170,16 @@ def locate_neurons(
     best = votes.groupby(self_id).first()
     # All per-column vote counts (descending), e.g. "5, 5, 5, 3"; sums to n_with_column.
 
-    out = targets.copy()
-    out["root_id"] = out["root_id"].astype("int64")
-    out[n_partner_field] = (
-        out["root_id"].map(n_partner).fillna(0).astype("int64")
+    located = targets.copy()
+    located["root_id"] = located["root_id"].astype("int64")
+    located[n_partner_field] = (
+        located["root_id"].map(n_partner).fillna(0).astype("int64")
     )
-    out[n_with_column_field] = (
-        out["root_id"].map(n_partner_with_column).fillna(0).astype("int64")
+    located[n_with_column_field] = (
+        located["root_id"].map(n_partner_with_column).fillna(0).astype("int64")
     )
-    out["votes"] = (
-        out["root_id"]
+    located["votes"] = (
+        located["root_id"]
         .map(
             votes.groupby(self_id, sort=False)["votes"].apply(
                 lambda s: ", ".join(str(int(x)) for x in s)
@@ -188,7 +188,7 @@ def locate_neurons(
         .fillna("")
         .astype("string")
     )
-    out["majority_column_id"] = out["root_id"].map(best["column_id"]).astype("Int64")
+    located["majority_column_id"] = located["root_id"].map(best["column_id"]).astype("Int64")
 
     if uv_from_column is not None:
         from build_hex import xy_from_uv
@@ -216,11 +216,11 @@ def locate_neurons(
         }
         # Per coordinate, arrange as mean (weighted), max, min.
         for coord, dtype in (("u", "Int64"), ("v", "Int64"), ("x", "Float64"), ("y", "Float64")):
-            out[f"mean_{coord}"] = (
-                out["root_id"].map(mean[coord].round(3)).astype("Float64")
+            located[f"mean_{coord}"] = (
+                located["root_id"].map(mean[coord].round(3)).astype("Float64")
             )
-            out[f"max_{coord}"] = out["root_id"].map(g[coord].max()).astype(dtype)
-            out[f"min_{coord}"] = out["root_id"].map(g[coord].min()).astype(dtype)
+            located[f"max_{coord}"] = located["root_id"].map(g[coord].max()).astype(dtype)
+            located[f"min_{coord}"] = located["root_id"].map(g[coord].min()).astype(dtype)
 
         # Majority column: keep the top-voted column when it holds >50% of the
         # votes; otherwise use the column nearest (Euclidean in u,v) to the
@@ -240,9 +240,9 @@ def locate_neurons(
         chosen = best["column_id"].astype("float").copy()
         use_nearest = best_frac <= 0.5
         chosen.loc[use_nearest] = nearest.reindex(chosen.index).loc[use_nearest]
-        out["majority_column_id"] = out["root_id"].map(chosen).astype("Int64")
+        located["majority_column_id"] = located["root_id"].map(chosen).astype("Int64")
 
-    return out.sort_values(["cell", "majority_column_id", "root_id"]).reset_index(
+    return located.sort_values(["cell", "majority_column_id", "root_id"]).reset_index(
         drop=True
     )
 
@@ -293,7 +293,7 @@ def _locate_and_write(
     side: str,
     neurons: pd.DataFrame,
     columns: pd.DataFrame,
-    out_dir,
+    assigned_columns_dir,
     vote_mode: str,
 ) -> None:
     neurons = neurons[neurons["side"] == side]
@@ -328,7 +328,7 @@ def _locate_and_write(
         vote_mode=vote_mode,
         uv_from_column=uv_from_column,
     )
-    out_path = out_dir / _output_name(side, cells, direction)
+    out_path = assigned_columns_dir / _output_name(side, cells, direction)
     located.to_csv(out_path, index=False)
 
     n_total = len(located)
@@ -347,8 +347,8 @@ def main() -> None:
     neurons = path.load_visual_neurons()
     columns = path.load_column_assignments()
 
-    out_dir = path.ASSIGNED_COLUMNS_DIR
-    out_dir.mkdir(parents=True, exist_ok=True)
+    assigned_columns_dir = path.ASSIGNED_COLUMNS_DIR
+    assigned_columns_dir.mkdir(parents=True, exist_ok=True)
 
     for cells, direction in jobs:
         for side in sides:
@@ -358,7 +358,7 @@ def main() -> None:
                 side=side,
                 neurons=neurons,
                 columns=columns,
-                out_dir=out_dir,
+                assigned_columns_dir=assigned_columns_dir,
                 vote_mode=args.vote_mode,
             )
 

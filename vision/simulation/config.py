@@ -278,7 +278,7 @@ def _command_run(script_stem: str, *, overrides: List[str] | None = None) -> str
 
 
 def _resolve_train_run_name(*, script_stem: str) -> str:
-    """Train outdir stem: explicit CLI ``run_name=`` else ``command_run``."""
+    """Train run_dir stem: explicit CLI ``run_name=`` else ``command_run``."""
     overrides = _hydra_task_overrides()
     for token in overrides:
         key, sep, val = str(token).lstrip("+~").partition("=")
@@ -331,7 +331,7 @@ def session_kwargs_from_cli(hydra_config) -> dict:
 def resolve_run_kwargs(hydra_config, *, script_stem: str = "run") -> dict:
     """Map merged Hydra config to kwargs for :func:`run_train_and_plot`."""
     import train
-    from train.implementation import run_dir
+    from train.implementation import build_run_dir
 
     apply_config(hydra_config)
     config = active_config()
@@ -414,7 +414,7 @@ def resolve_run_kwargs(hydra_config, *, script_stem: str = "run") -> dict:
         n_run=int(TRAIN_OPTIMIZATION["n_run"]),
         n_iter=int(n_iter),
         lrs=lrs,
-        outdir=run_dir(model, run=run_name),
+        run_dir=build_run_dir(model, run=run_name),
         syn_mode=syn_mode,
         network=str(NETWORK_PATH["network"]),
         tasks=tasks,

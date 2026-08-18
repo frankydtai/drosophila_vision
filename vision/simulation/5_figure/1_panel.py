@@ -1,4 +1,4 @@
-"""Shared figure panel helpers (no task-specific logic)."""
+"""Shared figure panel (no task-specific logic)."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def gt_trace_affine(readout, cell, gt_trace):
 
 
 def filter_figure_token(filter=None) -> str:
-    """Readout token for figure stems / labels: ``none`` → ``v``, ``ca`` → ``ca``."""
+    """Figure stem / label token from train ``filter``: ``none`` → ``v``, ``ca`` → ``ca``."""
     if filter is None or str(filter) == "none":
         return "v"
     return str(filter)
@@ -49,22 +49,22 @@ def session_filter_figure_token(session) -> str:
     return filter_figure_token(opts.get("filter"))
 
 
-def cost_ylim(*curves, percentile=99.0, padding=1.1, floor=1.0, log=False):
+def cost_ylim(*costs, percentile=99.0, padding=1.1, floor=1.0, log=False):
     """Ylim from high percentile so cost spikes do not dominate.
 
     ``log=True`` returns a positive ``limit_low`` (for ``yscale('log')``).
     """
-    chunks = []
-    for curve in curves:
-        if curve is None:
+    part_vals = []
+    for part_costs in costs:
+        if part_costs is None:
             continue
-        curve_values = np.asarray(curve, dtype=np.float64).ravel()
-        curve_values = curve_values[np.isfinite(curve_values)]
-        if curve_values.size:
-            chunks.append(curve_values)
-    if not chunks:
+        vals = np.asarray(part_costs, dtype=np.float64).ravel()
+        vals = vals[np.isfinite(vals)]
+        if vals.size:
+            part_vals.append(vals)
+    if not part_vals:
         return (floor, floor * 10.0) if log else (0.0, floor)
-    vals = np.concatenate(chunks)
+    vals = np.concatenate(part_vals)
     limit_high = float(np.percentile(vals, percentile))
     ylim_high = max(limit_high * padding, floor)
     if not log:
@@ -78,9 +78,9 @@ def cost_ylim(*curves, percentile=99.0, padding=1.1, floor=1.0, log=False):
     return ylim_low, ylim_high
 
 
-def _cost_yscale(ax, *curves):
+def _cost_yscale(ax, *costs):
     ax.set_yscale('log')
-    ax.set_ylim(*cost_ylim(*curves, log=True))
+    ax.set_ylim(*cost_ylim(*costs, log=True))
 
 
 def annotate_v_th(ax, v_th, *, e_leak=None):
@@ -106,15 +106,15 @@ def mark_sti_on(ax, t_onset, t_sti_end):
     """White band for sti-on samples ``[t_onset, t_sti_end]`` (axes face is gray)."""
     if t_onset is None or t_sti_end is None:
         return
-    onset_t = int(t_onset)
-    sti_end_t = int(t_sti_end)
-    if sti_end_t < onset_t:
+    t_onset = int(t_onset)
+    t_sti_end = int(t_sti_end)
+    if t_sti_end < t_onset:
         return
     # axvspan end is exclusive in continuous x; +1 covers inclusive last sample.
-    ax.axvspan(onset_t, sti_end_t + 1, facecolor='white', edgecolor='none', zorder=0)
+    ax.axvspan(t_onset, t_sti_end + 1, facecolor='white', edgecolor='none', zorder=0)
 
 
-def suppress_cost_std(session, task=None, contrast=None):
+def is_single_hex_cost(session, task=None, contrast=None):
     """True when cost uses a single hex (no hexes STD band)."""
     if task is None and contrast is None:
         pack = session.primary_pack
@@ -197,33 +197,33 @@ def readout_prep_s(*readouts):
 
 
 class ElapsedTimer:
-    """Shared prep / draw / save timing for bar and spot figures.
+    """Shared prep / plot / save timing for bar and spot figures.
 
     ``prior_prep`` is forward time already stored on ``TraceReadout.prep_s``.
     """
 
-    __slots__ = ('start_time', '_prep_time', '_draw_time')
+    __slots__ = ('start_time', '_prep_time', '_plot_time')
 
     def __init__(self, prior_prep=0.0):
         self.start_time = time.perf_counter() - float(prior_prep)
         self._prep_time = None
-        self._draw_time = None
+        self._plot_time = None
 
     def end_prep(self):
         self._prep_time = time.perf_counter()
 
-    def end_draw(self):
-        self._draw_time = time.perf_counter()
+    def end_plot(self):
+        self._plot_time = time.perf_counter()
 
     def log(self, path):
         prep_time = self._prep_time if self._prep_time is not None else time.perf_counter()
-        draw_time = self._draw_time if self._draw_time is not None else time.perf_counter()
+        plot_time = self._plot_time if self._plot_time is not None else time.perf_counter()
         now = time.perf_counter()
         elapsed_s = now - self.start_time
         parts = {
             'prep': prep_time - self.start_time,
-            'draw': draw_time - prep_time,
-            'save': now - draw_time,
+            'plot_s': plot_time - prep_time,
+            'save': now - plot_time,
             'elapsed_s': elapsed_s,
         }
         bits = [f'{name}={float(val):.1f}s' for name, val in parts.items()]
@@ -247,15 +247,15 @@ def at_xy_label(at_x, at_y):
     parts = []
     if at_x is not None:
         at_x_list = at_x if isinstance(at_x, (list, tuple)) else [at_x]
-        parts.append('x=' + ','.join(label for label, _, _ in overlay_coords(at_x_list, None)[0]))
+        parts.append('x=' + ','.join(label for label, _, _ in at_xy_coords(at_x_list, None)[0]))
     if at_y is not None:
         at_y_list = at_y if isinstance(at_y, (list, tuple)) else [at_y]
-        parts.append('y=' + ','.join(label for label, _, _ in overlay_coords(None, at_y_list)[0]))
+        parts.append('y=' + ','.join(label for label, _, _ in at_xy_coords(None, at_y_list)[0]))
     return ', '.join(parts)
 
 
-def overlay_coords(at_xs, at_ys):
-    """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` and overlay axis."""
+def at_xy_coords(at_xs, at_ys):
+    """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` and ``at_xy_mode``."""
     coords = []
     if at_xs is not None and at_ys is not None:
         for at_x in at_xs:
@@ -281,9 +281,9 @@ def overlay_coords(at_xs, at_ys):
     return [], None
 
 
-def overlay_reds(n_overlay):
-    """Red shades for per-overlay traces plus a darker primary v_readout trace."""
-    n = n_overlay + 1
+def at_xy_reds(n_label):
+    """Red shades for per at_xy traces plus a darker primary mean v_readout trace."""
+    n = n_label + 1
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
 
 
@@ -328,19 +328,20 @@ def _trace_points(t, y, ts=None):
 
 def traces_with_cost_ts(traces, readouts, *, entry_radius=None):
     """Copy ``traces`` with sparse cost ``ts`` per contrast readout."""
-    out = []
+    traces_with_ts = []
     for trace in traces:
-        item = dict(trace)
         contrast = trace["contrast"]
         readout = readouts[contrast]
         session = readout.session
-        item["ts"] = (
-            None if session is None else train.pack_cost_abs_ts(
-                session.primary_pack, readout.t_onset, entry_radius=entry_radius,
-            )
-        )
-        out.append(item)
-    return out
+        traces_with_ts.append({
+            **trace,
+            "ts": (
+                None if session is None else train.pack_cost_abs_ts(
+                    session.primary_pack, readout.t_onset, entry_radius=entry_radius,
+                )
+            ),
+        })
+    return traces_with_ts
 
 
 def plot_trace(
@@ -407,7 +408,8 @@ def plot_timecourse(
 ):
     """v_readout (red) vs gt (gray) time courses for one or more contrast traces.
 
-    ``traces``: sequence of dicts with keys ``v_readout``, ``gt``, optional
+    ``traces``: sequence of dicts with keys ``v_readout_mean_cell`` /
+    ``v_readout_mean_cell_mean_radius`` / ``ca_mean_cell``, ``gt``, optional
     ``std``, ``linestyle`` (default ``'-'``), ``ts``.
     When ``ts`` is set, gray gt is drawn as open dots at those samples
     (still never draws ``[0, gt_from_t)`` via line); otherwise gt is a solid
@@ -420,7 +422,11 @@ def plot_timecourse(
     t_onset = max(0, int(t_onset or 0))
     gt_start = t_onset if gt_from_t is None else max(0, int(gt_from_t))
     for trace in traces:
-        v_readout = trace.get("v_readout")
+        v_readout = (
+            trace.get("v_readout_mean_cell_mean_radius")
+            or trace.get("v_readout_mean_cell")
+            or trace.get("ca_mean_cell")
+        )
         gt = trace.get("gt")
         std = trace.get("std")
         linestyle = trace.get("linestyle", "-")
@@ -690,14 +696,14 @@ def _save_interactive_html(fig, path):
 def save_figure(fig, path, dpi=150, rasterize=False, *, timer=None):
     """Save figure: ``.png`` (default) or interactive ``.html`` (plotly hover x/y).
 
-    Always prints prep/draw/save via :class:`ElapsedTimer`. Pass *timer* when the
-    caller already marked prep/draw; otherwise only *save* is timed.
+    Always prints prep/plot/save via :class:`ElapsedTimer`. Pass *timer* when the
+    caller already marked prep/plot; otherwise only *save* is timed.
     """
     path = os.fspath(path)
     if timer is None:
         timer = ElapsedTimer()
         timer.end_prep()
-        timer.end_draw()
+        timer.end_plot()
     if path.lower().endswith('.html'):
         _save_interactive_html(fig, path)
     else:
@@ -713,19 +719,19 @@ def plot_cost_figure(
     costs,
     path,
     *,
-    curves_by_cell,
-    curves_global,
+    costs_by_cell,
+    costs_global,
     series_order,
     color_from_series,
     rows,
     timer=None,
 ):
-    """Shared cost-curve grid: total + per-cell parts (log then linear blocks)."""
+    """Shared train-cost grid: total + per-cell parts (log then linear blocks)."""
     timer = timer or ElapsedTimer()
     if timer._prep_time is None:
         timer.end_prep()
     n_col = N_COL_GT
-    n_global_axis = len(curves_global)
+    n_global_axis = len(costs_global)
     n_global_row = (n_global_axis + n_col - 1) // n_col if n_global_axis else 0
     n_cell_row = len(rows)
     n_part_row = n_cell_row + n_global_row
@@ -739,20 +745,23 @@ def plot_cost_figure(
         top=0.95, bottom=0.06, left=0.07, right=0.98,
     )
 
-    cell_curves = [
-        curve
-        for cell_curves_list in curves_by_cell.values()
-        for _, _, curve in cell_curves_list
+    cell_costs = [
+        part_costs
+        for cell_costs_list in costs_by_cell.values()
+        for _, _, part_costs in cell_costs_list
     ]
 
-    def _sorted_curves(cell):
-        cell_curves_list = curves_by_cell.get(cell) or []
+    def _sorted_costs(cell):
+        cell_costs_list = costs_by_cell.get(cell) or []
         return sorted(
-            cell_curves_list,
-            key=lambda item: series_order.index(item[0]) if item[0] in series_order else 10**9,
+            cell_costs_list,
+            key=lambda series_label_part_costs: (
+                series_order.index(series_label_part_costs[0])
+                if series_label_part_costs[0] in series_order else 10**9
+            ),
         )
 
-    def _draw_total(row, *, log):
+    def _plot_cost_total_row(row, *, log):
         ax = fig.add_subplot(grid_spec[row, :])
         ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
         if log:
@@ -763,47 +772,47 @@ def plot_cost_figure(
         ax.set_ylabel("cost [% gt power]")
         ax.grid(True, alpha=0.3, which='both' if log else 'major')
 
-    def _draw_part_block(row0, *, log, shared_cell_ylim, with_legend):
+    def _plot_cost_part_block(row0, *, log, shared_cell_ylim, with_legend):
         legend_done = False
         for row_group, row_cells in enumerate(rows):
             row = row0 + row_group
             start = (n_col - len(row_cells)) // 2
-            for j, cell in enumerate(row_cells):
-                ax = fig.add_subplot(grid_spec[row, start + j])
-                cell_curves_list = _sorted_curves(cell)
-                curves = []
-                for series, label, curve in cell_curves_list:
-                    curves.append(curve)
+            for col, cell in enumerate(row_cells):
+                ax = fig.add_subplot(grid_spec[row, start + col])
+                cell_costs_list = _sorted_costs(cell)
+                panel_costs = []
+                for series, label, part_costs in cell_costs_list:
+                    panel_costs.append(part_costs)
                     ax.plot(
-                        curve, color=color_from_series.get(series),
+                        part_costs, color=color_from_series.get(series),
                         linewidth=2, linestyle='-', label=label,
                     )
-                if log and shared_cell_ylim and cell_curves:
-                    _cost_yscale(ax, *cell_curves)
-                elif curves:
+                if log and shared_cell_ylim and cell_costs:
+                    _cost_yscale(ax, *cell_costs)
+                elif panel_costs:
                     if log:
-                        _cost_yscale(ax, *curves)
+                        _cost_yscale(ax, *panel_costs)
                     else:
-                        ax.set_ylim(*cost_ylim(*curves))
-                if j == 0:
+                        ax.set_ylim(*cost_ylim(*panel_costs))
+                if col == 0:
                     ax.set_ylabel("cost [% gt power]", fontsize=8)
                 ax.set_title(str(cell), fontsize=8)
                 ax.grid(True, alpha=0.3, which='both' if log else 'major')
-                if with_legend and (not legend_done) and len(cell_curves_list) > 1:
+                if with_legend and (not legend_done) and len(cell_costs_list) > 1:
                     ax.legend(fontsize=7)
                     legend_done = True
                 if row_group == n_cell_row - 1:
                     ax.set_xlabel("step")
 
-        for row_group, (series, label, curve) in enumerate(curves_global):
+        for row_group, (series, label, part_costs) in enumerate(costs_global):
             row = row0 + n_cell_row + row_group // n_col
             col = row_group % n_col
             ax = fig.add_subplot(grid_spec[row, col])
-            ax.plot(curve, color=color_from_series.get(series), linewidth=2, linestyle='-')
+            ax.plot(part_costs, color=color_from_series.get(series), linewidth=2, linestyle='-')
             if log:
-                _cost_yscale(ax, curve)
+                _cost_yscale(ax, part_costs)
             else:
-                ax.set_ylim(*cost_ylim(curve))
+                ax.set_ylim(*cost_ylim(part_costs))
             ax.set_title(label, fontsize=8)
             ax.grid(True, alpha=0.3, which='both' if log else 'major')
             if col == 0:
@@ -811,19 +820,19 @@ def plot_cost_figure(
             if row_group // n_col == n_global_row - 1:
                 ax.set_xlabel("step")
 
-    _draw_total(0, log=True)
-    _draw_part_block(1, log=True, shared_cell_ylim=True, with_legend=True)
-    _draw_total(n_block_row, log=False)
-    _draw_part_block(n_block_row + 1, log=False, shared_cell_ylim=False, with_legend=False)
+    _plot_cost_total_row(0, log=True)
+    _plot_cost_part_block(1, log=True, shared_cell_ylim=True, with_legend=True)
+    _plot_cost_total_row(n_block_row, log=False)
+    _plot_cost_part_block(n_block_row + 1, log=False, shared_cell_ylim=False, with_legend=False)
 
     fig.suptitle(f'Train cost ({len(costs)} steps)', fontsize=12, y=1.01)
     fig.tight_layout()
-    timer.end_draw()
+    timer.end_plot()
     save_figure(fig, path, dpi=150, timer=timer)
 
 
 def plot_cost_total(costs, path, *, timer=None):
-    """Plot train cost total curve only."""
+    """Plot train cost total only."""
     timer = timer or ElapsedTimer()
     timer.end_prep()
     if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
@@ -836,5 +845,5 @@ def plot_cost_total(costs, path, *, timer=None):
     ax.set_title(f'Train cost ({len(costs)} steps)')
     ax.grid(True, alpha=0.3, which='both')
     fig.tight_layout()
-    timer.end_draw()
+    timer.end_plot()
     save_figure(fig, path, dpi=150, timer=timer)

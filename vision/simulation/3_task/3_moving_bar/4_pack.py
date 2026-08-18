@@ -617,12 +617,12 @@ def _pack_cells(session, task: str, contrast: str) -> List[str]:
     cells = list(connectome.cells)
     seq = [str(cells[int(ti)]) for ti in node_cells]
     seen: set = set()
-    out: List[str] = []
+    pack_cells: List[str] = []
     for name in seq:
         if name not in seen:
             seen.add(name)
-            out.append(name)
-    return out
+            pack_cells.append(name)
+    return pack_cells
 
 
 def moving_bar_specs_by_cell(session, task: str, contrast: str, side: str) -> Dict[str, List[str]]:
@@ -647,12 +647,12 @@ def build_moving_bar_sti_opts(
     gt_cells=None,
 ):
     """Moving-bar sti opts: timing / geometry only (currents live on session ``i_sti``)."""
-    out = {
+    sti_opts = {
         "ms_pre": ms_pre,
         "delta_ms": delta_ms,
         "delta_ms_pre": delta_ms_pre,
         "multi_bar": bool(multi_bar),
     }
     if gt_cells is not None:
-        out["gt_cells"] = list(gt_cells)
-    return out
+        sti_opts["gt_cells"] = list(gt_cells)
+    return sti_opts

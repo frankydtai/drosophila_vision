@@ -52,12 +52,12 @@ def inject_a_sti_radius(i_sti, params, pack):
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
     a_sti_radius = a_sti_radius_effective(params, pack)
-    out = i_sti.clone()
+    i_sti = i_sti.clone()
     if sti_bs.numel() == 0:
-        return out
-    n_b, n_t, n_node = out.shape
+        return i_sti
+    n_b, n_t, n_node = i_sti.shape
     add = a_sti_radius[a_sti_radius_idxs][:, None] * i_sti_pulse[None, :]
-    flat = out.permute(0, 2, 1).reshape(n_b * n_node, n_t)
+    flat = i_sti.permute(0, 2, 1).reshape(n_b * n_node, n_t)
     flat.index_add_(0, sti_bs * n_node + node, add)
     return flat.reshape(n_b, n_node, n_t).permute(0, 2, 1).contiguous()
 

@@ -158,10 +158,10 @@ def coverages(
 ) -> np.ndarray:
     """Coverage fraction for every hex against one bar rectangle."""
     n_hex = hex_stack.shape[0]
-    out = np.empty(n_hex, dtype=np.float64)
+    hex_coverages = np.empty(n_hex, dtype=np.float64)
     for hex_idx in range(n_hex):
-        out[hex_idx] = _clip_rect_area(hex_stack[hex_idx], xmin, ymin, xmax, ymax)
-    return out
+        hex_coverages[hex_idx] = _clip_rect_area(hex_stack[hex_idx], xmin, ymin, xmax, ymax)
+    return hex_coverages
 
 
 def bar_lane_pitch_deg(
@@ -367,14 +367,14 @@ def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
     """Keep network sti hexes whose hex-step ``(x, y)`` matches ``at_x`` / ``at_y``."""
     if at_x is None and at_y is None:
         return list(hexes)
-    out = []
+    filtered_hexes = []
     for hex in hexes:
         if not _coord_matches(hex.x, at_x, tol=tol):
             continue
         if not _coord_matches(hex.y, at_y, tol=tol):
             continue
-        out.append(hex)
-    return out
+        filtered_hexes.append(hex)
+    return filtered_hexes
 
 
 def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
@@ -393,8 +393,8 @@ def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
 def i_sti_nodes_from_hex(i_sti_hex, hexes, n_node):
     """Map ``(B, T, n_hex)`` i_sti_hex to ``(B, T, n_node)`` by hex→node index."""
     n_b, n_t, _ = i_sti_hex.shape
-    out = np.zeros((n_b, n_t, n_node), dtype=np.float64)
+    i_sti = np.zeros((n_b, n_t, n_node), dtype=np.float64)
     hex_idxs, nodes = _hex_node_map(hexes)
     if len(hex_idxs):
-        out[:, :, nodes] = i_sti_hex[:, :, hex_idxs]
-    return out
+        i_sti[:, :, nodes] = i_sti_hex[:, :, hex_idxs]
+    return i_sti

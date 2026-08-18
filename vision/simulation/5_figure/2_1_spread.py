@@ -1,4 +1,4 @@
-"""Spread plotting and shared trace figure helpers for spot / moving_bar."""
+"""Spread plotting and shared trace figures for spot / moving_bar."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def cells_from_nodes(session, nodes):
     if torch.is_tensor(node_cells):
         node_cells = node_cells.detach().cpu().numpy()
     cells = list(connectome.cells)
-    return [str(cells[int(ti)]) for ti in node_cells]
+    return [str(cells[int(cell_idx)]) for cell_idx in node_cells]
 
 
 def pack_cells(session, task=None, contrast=None):
@@ -63,12 +63,12 @@ def pack_cells(session, task=None, contrast=None):
     else:
         pack = session.packs[task][contrast]
     seen = set()
-    out = []
-    for name in cells_from_nodes(session, pack.entry_nodes):
-        if name not in seen:
-            seen.add(name)
-            out.append(name)
-    return tuple(out)
+    pack_cells = []
+    for cell in cells_from_nodes(session, pack.entry_nodes):
+        if cell not in seen:
+            seen.add(cell)
+            pack_cells.append(cell)
+    return tuple(pack_cells)
 
 
 def active_spread_gt_cells(session, task=None, contrast=None):
@@ -137,7 +137,7 @@ def spread_gts(
         spread_gt_mode = str(spread_gt_mode)
     delta_ms = float(session.delta_ms if delta_ms is None else delta_ms)
     gt_amp = float(session.gt_amp)
-    out = {}
+    gts_by_contrast = {}
     for contrast in contrasts:
         contrast = str(contrast)
         if contrast not in CONTRASTS:
@@ -150,12 +150,12 @@ def spread_gts(
         )
         scaled = gt_stack * gt_amp * float(contrast_sign(contrast))
         gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
-        out[contrast] = {
+        gts_by_contrast[contrast] = {
             str(cell): scaled[gt_cell_idx[cell]]
             for cell in GT_CELLS
             if spread_gt_active(spread_gt_mode, contrast, int(RF_SIGN[cell]))
         }
-    return out
+    return gts_by_contrast
 
 
 def _session_task_timing(session):
@@ -182,7 +182,7 @@ def resolve_spread_gts(sessions, gts=None, *, filter=None):
         return gts
     if not sessions:
         return {}
-    out = {}
+    gts_by_contrast = {}
     for contrast, session in sessions.items():
         t_onset, _n_t, n_t_gt, ms_sti, delta_ms = _session_task_timing(session)
         part = spread_gts(
@@ -190,8 +190,8 @@ def resolve_spread_gts(sessions, gts=None, *, filter=None):
             t_onset=t_onset, n_t=n_t_gt, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter,
         )
-        out.update(part)
-    return out
+        gts_by_contrast.update(part)
+    return gts_by_contrast
 
 
 def _style_time_axis(
@@ -202,24 +202,24 @@ def _style_time_axis(
     t0 = int(t_onset or 0)
     t_last = max(int(n_t) - 1, 0)
     if ms_shown is None:
-        lo, hi = 0, t_last
+        t_lo, t_hi = 0, t_last
     else:
         start, stop = ms_shown
-        lo = t_abs_from_ms(
+        t_lo = t_abs_from_ms(
             float(start), t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt,
         )
-        hi = t_abs_from_ms(
+        t_hi = t_abs_from_ms(
             float(stop), t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt,
         )
-        lo, hi = max(0, lo), min(t_last, hi)
-        if lo > hi:
-            lo, hi = 0, t_last
-    t_lo_s = ms_from_t(lo, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
-    t_hi_s = ms_from_t(hi, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
+        t_lo, t_hi = max(0, t_lo), min(t_last, t_hi)
+        if t_lo > t_hi:
+            t_lo, t_hi = 0, t_last
+    t_lo_s = ms_from_t(t_lo, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
+    t_hi_s = ms_from_t(t_hi, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
     t_mid_s = (t_lo_s + t_hi_s) / 2.0
-    mid = (lo + hi) // 2
-    ax.set_xlim(lo, hi)
-    ax.set_xticks([lo, mid, hi])
+    mid = (t_lo + t_hi) // 2
+    ax.set_xlim(t_lo, t_hi)
+    ax.set_xticks([t_lo, mid, t_hi])
     ax.set_xticklabels([f'{t_lo_s:g}', f'{t_mid_s:g}', f'{t_hi_s:g}'], fontsize=6)
     if show_xlabel:
         ax.set_xlabel('time [s]', fontsize=7)
@@ -253,8 +253,8 @@ def plot_cell_time(
         v_th=v_th,
         e_leak=e_leak,
         show_ylabel=show_ylabel,
-        style_xaxis=lambda a: _style_time_axis(
-            a, show_xlabels, n_t,
+        style_xaxis=lambda ax_time: _style_time_axis(
+            ax_time, show_xlabels, n_t,
             delta_ms=delta_ms, delta_ms_pre=delta_ms_pre, t_onset=t_onset,
             ms_shown=ms_shown,
         ),
@@ -262,13 +262,13 @@ def plot_cell_time(
     )
 
 
-def _rows_from_cell_rows(cell_rows_in, figure_cells):
+def _rows_from_cell_rows(cell_rows, figure_cells):
     cell_idx = dict(zip(
         [str(cell) for cell in figure_cells], range(len(figure_cells)),
     ))
     rows = []
-    for cells_in_row in cell_rows_in:
-        cell_idxs = [cell_idx[str(name)] for name in cells_in_row if str(name) in cell_idx]
+    for cells_in_row in cell_rows:
+        cell_idxs = [cell_idx[str(cell)] for cell in cells_in_row if str(cell) in cell_idx]
         if cell_idxs:
             rows.append(cell_idxs)
     return rows
@@ -304,8 +304,8 @@ class TraceReadout:
     session: object = None
     n_t: int = 0
     prep_s: float = 0.0
-    v_readout_by_cell: dict = field(default_factory=dict)
-    std_by_cell: dict = field(default_factory=dict)
+    v_readout_mean_cell: dict = field(default_factory=dict)
+    std: dict = field(default_factory=dict)
     n_by_cell: dict = field(default_factory=dict)
     v_th_by_cell: dict = field(default_factory=dict)
     e_leak_by_cell: dict = field(default_factory=dict)
@@ -315,7 +315,7 @@ class TraceReadout:
     ms_shown: tuple[float, float] | None = None
 
 
-def _spread_readout_gt_view(readout):
+def _spread_gt_readout(readout):
     """Gt figure rows: configured active gt cells."""
     session = readout.session
     active = active_spread_gt_cells(
@@ -324,20 +324,20 @@ def _spread_readout_gt_view(readout):
         session.primary_pack.contrast,
     )
     rows = [np.array(row) for row in cell_rows(active)]
-    present = set(readout.cells)
-    cells = [cell for cell in cells_in_order(active) if cell in present]
+    readout_cells = set(readout.cells)
+    cells = [cell for cell in cells_in_order(active) if cell in readout_cells]
     return TraceReadout(
         cells=cells,
         rows=_rows_from_cell_rows(rows, cells),
         session=session,
         n_t=readout.n_t,
-        v_readout_by_cell={
-            cell: readout.v_readout_by_cell[cell] for cell in cells
-            if cell in readout.v_readout_by_cell
+        v_readout_mean_cell={
+            cell: readout.v_readout_mean_cell[cell] for cell in cells
+            if cell in readout.v_readout_mean_cell
         },
-        std_by_cell={
-            cell: readout.std_by_cell[cell] for cell in cells
-            if cell in readout.std_by_cell
+        std={
+            cell: readout.std[cell] for cell in cells
+            if cell in readout.std
         },
         n_by_cell={
             cell: readout.n_by_cell.get(cell) for cell in cells
@@ -369,20 +369,20 @@ def _forward_spread_readout(session, z):
     trace = train.forward_pack(session, params, i_sti, pack)
     connectome = session.connectome
     cells = list(connectome.cells)
-    mt = int(i_sti.shape[1])
+    n_t = int(i_sti.shape[1])
     trace_np = trace[0, :, :].cpu().numpy()
     node_cells = connectome.node_cells.detach().cpu().numpy()
 
-    v_readout_by_cell = {}
-    std_by_cell = {}
+    v_readout_mean_cell = {}
+    std = {}
     n_by_cell = {}
     for cell_idx, cell in enumerate(cells):
         mask = node_cells == cell_idx
         if not mask.any():
             continue
         node_traces = trace_np[:, mask].T
-        v_readout_by_cell[cell] = node_traces.mean(axis=0)
-        std_by_cell[cell] = std_from_traces(node_traces, single_hex=False)
+        v_readout_mean_cell[cell] = node_traces.mean(axis=0)
+        std[cell] = std_from_traces(node_traces, single_hex=False)
         n_by_cell[cell] = int(mask.sum())
 
     opts = dict((session.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
@@ -393,7 +393,7 @@ def _forward_spread_readout(session, z):
     e_leak = e_leak_from_z(z, session)
     gt_affine_by_cell = {
         cell: train.gt_affine_from_cell(params, cell, connectome, session=session)
-        for cell in v_readout_by_cell
+        for cell in v_readout_mean_cell
     }
     active = cells_in_order(connectome.cells)
     rows = _rows_from_cell_rows(
@@ -401,18 +401,18 @@ def _forward_spread_readout(session, z):
         cells_in_order(active),
     )
     return TraceReadout(
-        cells=cells_in_order(list(v_readout_by_cell)),
+        cells=cells_in_order(list(v_readout_mean_cell)),
         rows=rows,
         session=session,
-        n_t=mt,
-        v_readout_by_cell=v_readout_by_cell,
-        std_by_cell=std_by_cell,
+        n_t=n_t,
+        v_readout_mean_cell=v_readout_mean_cell,
+        std=std,
         n_by_cell=n_by_cell,
-        v_th_by_cell={cell: v_th.get(cell, np.nan) for cell in v_readout_by_cell},
-        e_leak_by_cell={cell: e_leak.get(cell, np.nan) for cell in v_readout_by_cell},
+        v_th_by_cell={cell: v_th.get(cell, np.nan) for cell in v_readout_mean_cell},
+        e_leak_by_cell={cell: e_leak.get(cell, np.nan) for cell in v_readout_mean_cell},
         gt_affine_by_cell=gt_affine_by_cell,
         t_onset=t_onset,
-        t_sti_end=t_sti_end(t_onset, mt, ms_sti, delta_ms=delta_ms),
+        t_sti_end=t_sti_end(t_onset, n_t, ms_sti, delta_ms=delta_ms),
     )
 
 
@@ -433,12 +433,12 @@ def _plot_spread_figure(
     title,
     gts=None,
     n_col,
-    figsize_fn,
+    figure_size_from_grid,
     gridspec_kwargs,
     suptitle_fs=12,
     cost_parts=None,
 ):
-    """Draw spread figure from ``readouts`` (contrast → TraceReadout)."""
+    """Plot spread figure from ``readouts`` (contrast → TraceReadout)."""
     order = contrast_order(readouts)
     if not order:
         raise ValueError("_plot_spread_figure requires at least one readout")
@@ -455,31 +455,30 @@ def _plot_spread_figure(
     sessions = {contrast: readouts[contrast].session for contrast in order}
     gt_by_contrast = resolve_spread_gts(sessions, gts)
     n_row = len(rows)
-    fig = plt.figure(figsize=figsize_fn(n_col, n_row))
-    gs = fig.add_gridspec(n_row, n_col, **gridspec_kwargs)
+    fig = plt.figure(figsize=figure_size_from_grid(n_col, n_row))
+    grid_spec = fig.add_gridspec(n_row, n_col, **gridspec_kwargs)
 
     def _build_cell_traces(cell):
         traces = []
         for contrast in order:
-            ro = readouts[contrast]
-            if cell not in ro.v_readout_by_cell:
+            contrast_readout = readouts[contrast]
+            if cell not in contrast_readout.v_readout_mean_cell:
                 continue
             gt_by_cell = gt_by_contrast.get(contrast) or {}
             traces.append({
                 "contrast": contrast,
-                "v_readout": ro.v_readout_by_cell[cell],
-                "gt": gt_trace_affine(ro, cell, gt_by_cell.get(cell)),
-                "std": ro.std_by_cell.get(cell),
+                "v_readout_mean_cell": contrast_readout.v_readout_mean_cell[cell],
+                "gt": gt_trace_affine(contrast_readout, cell, gt_by_cell.get(cell)),
+                "std": contrast_readout.std.get(cell),
                 "linestyle": contrast_linestyle(contrast),
             })
         return traces
 
     for row, cell_idxs in enumerate(rows):
         start = (n_col - len(cell_idxs)) // 2
-        for j, cell_idx in enumerate(cell_idxs):
-            col = start + j
+        for col, cell_idx in enumerate(cell_idxs, start=start):
             cell = cells[cell_idx]
-            ax = fig.add_subplot(gs[row, col])
+            ax = fig.add_subplot(grid_spec[row, col])
             traces = traces_with_cost_ts(_build_cell_traces(cell), readouts)
             if not traces:
                 ax.axis("off")
@@ -489,7 +488,7 @@ def _plot_spread_figure(
                 ax, traces,
                 title=time_title,
                 show_xlabels=(row == n_row - 1),
-                show_ylabel=(j == 0),
+                show_ylabel=(col == start),
                 v_th=primary.v_th_by_cell.get(cell),
                 e_leak=primary.e_leak_by_cell.get(cell),
                 n_t=n_t,
@@ -501,24 +500,24 @@ def _plot_spread_figure(
             )
 
     fig.suptitle(title, fontsize=suptitle_fs)
-    timer.end_draw()
+    timer.end_plot()
     save_figure(fig, path, dpi=150, timer=timer)
 
 
 def plot_network_spread_gt(path, *, readouts, title, gts=None, cost_parts=None):
-    """Draw gt figure (active gt cells)."""
-    views = {
-        contrast: _spread_readout_gt_view(readout)
+    """Plot gt figure (active gt cells)."""
+    gt_readouts = {
+        contrast: _spread_gt_readout(readout)
         for contrast, readout in readouts.items()
     }
     _plot_spread_figure(
         path,
         timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
-        readouts=views,
+        readouts=gt_readouts,
         title=title,
         gts=gts,
         n_col=N_COL_GT,
-        figsize_fn=lambda n_col, n_row: (PANEL_W * n_col, 2.5 * n_row),
+        figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
         gridspec_kwargs=dict(
             hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98,
         ),
@@ -527,7 +526,7 @@ def plot_network_spread_gt(path, *, readouts, title, gts=None, cost_parts=None):
 
 
 def plot_network_spread_all(path, *, readouts, title, gts=None, cost_parts=None):
-    """Draw all-cell figure from contrast → readout."""
+    """Plot all-cell figure from contrast → readout."""
     _plot_spread_figure(
         path,
         timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
@@ -535,7 +534,7 @@ def plot_network_spread_all(path, *, readouts, title, gts=None, cost_parts=None)
         title=title,
         gts=gts,
         n_col=N_COL_ALL,
-        figsize_fn=lambda n_col, n_row: (PANEL_W * n_col, 2.5 * n_row),
+        figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
         gridspec_kwargs=dict(
             hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98,
         ),
