@@ -42,7 +42,7 @@ from figure.panel import (
     hex_scope_label,
     mark_spot,
     overlay_reds,
-    plot_pre_post_line,
+    plot_trace,
     plot_timecourse,
     save_figure,
     std_from_traces,
@@ -62,10 +62,7 @@ from task.spot.sti_geo import (
     resolve_spot,
     spot_sti_bs,
 )
-from task.spread.sti_spec import (
-    resolve_sti_timing,
-    t_sti_end,
-)
+from task.spread.sti_spec import t_sti_end
 from task.spot.gt import (
     GT_CELLS,
     RF_CENTER_RADIUS,
@@ -89,17 +86,19 @@ def pack_spot_cost_radii(pack) -> tuple[int, ...]:
 
 def _session_spot_timing(session):
     """Extract onset ``t_onset`` / forward ``n_t``, ms_sti, and delta_ms from session."""
-    opts = (session.train_opts or {}).get(
-        f"{session.primary_pack.task}_sti_opts",
-    ) or {}
-    filter = str((session.train_opts or {}).get("filter", "none"))
-    timing = resolve_sti_timing(opts)
+    pack = session.primary_pack
+    opts = (session.train_opts or {}).get(f"{pack.task}_sti_opts") or {}
+    t_onset = train.pack_t_onset(pack)
+    n_t = int(pack.i_sti.shape[1])
+    n_t_gt = int(pack.gts.shape[1])
+    ms_sti = opts.get("ms_sti")
+    delta_ms = float(opts["delta_ms"])
     return (
-        int(timing.t_onset),
-        int(timing.n_t),
-        int(timing.n_t_gt),
-        None if timing.ms_sti is None else float(timing.ms_sti),
-        float(timing.delta_ms),
+        int(t_onset),
+        n_t,
+        n_t_gt,
+        None if ms_sti is None else float(ms_sti),
+        delta_ms,
     )
 
 
@@ -328,7 +327,6 @@ def plot_cell_time(
     n_t=None,
     t_onset=None,
     pre_end=None,
-    show_pre=False,
     t_sti_end=None,
     t_delay=0,
     delta_ms,
@@ -375,7 +373,6 @@ def plot_cell_time(
             ms_shown=ms_shown,
         ),
         pre_end=split,
-        show_pre=show_pre,
         t_onset=t_onset,
         t_sti_end=t_sti_end,
     )
@@ -395,7 +392,6 @@ def plot_cell_rf_time(
     e_leak=None,
     n_t=None,
     t_onset=None,
-    show_pre=False,
     t_sti_end=None,
     t_delay=0,
     delta_ms,
@@ -421,7 +417,6 @@ def plot_cell_rf_time(
         e_leak=e_leak,
         n_t=n_t,
         t_onset=t_onset,
-        show_pre=show_pre,
         t_sti_end=t_sti_end,
         t_delay=t_delay,
         delta_ms=delta_ms,
@@ -445,7 +440,6 @@ def plot_cell_rf_time_overlays(
     e_leak=None,
     n_t=None,
     t_onset=None,
-    show_pre=False,
     t_sti_end=None,
     t_delay=0,
     delta_ms,
@@ -495,19 +489,26 @@ def plot_cell_rf_time_overlays(
             label=item.get("label_scope"), linestyle=ls, filled=True,
         )
 
-        plot_pre_post_line(
-            ax_time, t, gt_center, pre_end=pre_end, show_pre=False, plot_pre=False,
-            color=GT_COLOR, linestyle=ls, linewidth=TRACE_LW,
-        )
+        if gt_center is not None:
+            t_gt = np.asarray(t)
+            gt_center = np.asarray(gt_center, dtype=np.float64)
+            if t_gt.shape[0] > gt_center.shape[0]:
+                t_gt = t_gt[: gt_center.shape[0]]
+            n_gt = int(gt_center.shape[0])
+            post = max(0, min(pre_end, n_gt))
+            if post < n_gt:
+                ax_time.plot(
+                    t_gt[post:], gt_center[post:],
+                    color=GT_COLOR, linestyle=ls, linewidth=TRACE_LW,
+                )
         for label, color in zip(overlay_labels, colors):
-            plot_pre_post_line(
+            plot_trace(
                 ax_time, t, overlay_centers.get(label), pre_end=pre_end,
-                show_pre=show_pre, plot_pre=True,
                 color=color, linestyle=ls, linewidth=TRACE_LW,
                 label=label if si == 0 else None,
             )
-        plot_pre_post_line(
-            ax_time, t, v_readout_center, pre_end=pre_end, show_pre=show_pre, plot_pre=True,
+        plot_trace(
+            ax_time, t, v_readout_center, pre_end=pre_end,
             color=colors[-1], linestyle=ls, linewidth=TRACE_LW,
             label=item.get("label_scope"),
         )
@@ -574,10 +575,8 @@ class SpotTraceReadout:
     e_leak_by_cell: dict = field(default_factory=dict)
     gt_affine_by_cell: dict = field(default_factory=dict)
     t_onset: int | None = None
-    show_pre: bool = True
     t_sti_end: int | None = None
     ms_shown: tuple[float, float] | None = None
-    center_only: bool = False
     a_sti_radius: dict[str, float] = field(default_factory=dict)
 
     @property
@@ -638,10 +637,8 @@ def _spot_readout_gt_view(readout):
             if cell in readout.gt_affine_by_cell
         },
         t_onset=readout.t_onset,
-        show_pre=readout.show_pre,
         t_sti_end=readout.t_sti_end,
         ms_shown=readout.ms_shown,
-        center_only=bool(readout.center_only),
         a_sti_radius=dict(readout.a_sti_radius),
     )
 
@@ -729,10 +726,10 @@ def _forward_spot_readout(
         spec = session.schema.get("a_sti_radius")
         if spec is not None:
             radii = [str(n) for n in (spec.get("radii") or ())]
-            raw = params["a_sti_radius"].detach().cpu().numpy().reshape(-1)
-            n_radius = min(len(radii), raw.size)
+            vals = params["a_sti_radius"].detach().cpu().numpy().reshape(-1)
+            n_radius = min(len(radii), vals.size)
             a_sti_radius = dict(zip(
-                radii[:n_radius], map(float, raw[:n_radius]),
+                radii[:n_radius], map(float, vals[:n_radius]),
             ))
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     trace = train.forward_pack(session, params, i_sti, pack)
@@ -763,7 +760,7 @@ def _forward_spot_readout(
         if sti_ms_pre is not None else None
     )
     filter = str((session.train_opts or {}).get("filter", "none"))
-    timing = resolve_sti_timing(opts)
+    ms_sti = opts.get("ms_sti")
     readout = dict(
         figure_cells=figure_cells,
         cells=cells,
@@ -776,8 +773,8 @@ def _forward_spot_readout(
         t_onset=int(sti_t_onset) if sti_t_onset is not None else None,
         t_sti_end=(
             None if sti_t_onset is None else t_sti_end(
-                sti_t_onset, mt, timing.ms_sti,
-                delta_ms=timing.delta_ms,
+                sti_t_onset, mt, ms_sti,
+                delta_ms=dt,
             )
         ),
         bs=bs,
@@ -847,9 +844,7 @@ def _spot_v_readout_from_readout(readout, session):
 def network_spot_trace_readout(
     session, z, *,
     at_xs=None, at_ys=None,
-    show_pre=True,
     ms_shown=None,
-    center_only=False,
 ):
     """Run one forward; full cost-radius spot traces over all types."""
     t_prep0 = time.perf_counter()
@@ -886,10 +881,8 @@ def network_spot_trace_readout(
         e_leak_by_cell=dict(readout.get('e_leak_by_cell') or {}),
         gt_affine_by_cell=dict(readout.get('gt_affine_by_cell') or {}),
         t_onset=readout.get('t_onset'),
-        show_pre=bool(show_pre),
         t_sti_end=readout.get('t_sti_end'),
         ms_shown=ms_shown,
-        center_only=bool(center_only),
         a_sti_radius=dict(readout.get('a_sti_radius') or {}),
     )
 
@@ -906,9 +899,9 @@ def _spot_suptitle(title, readout):
     return head
 
 
-def _trained_radii(cost_parts, contrasts, *, center_only=False):
+def _trained_radii(cost_parts, contrasts):
     """Sorted integer radii from spot cost parts (``spot_{contrast}_{cell}_r*``)."""
-    if center_only or not cost_parts:
+    if not cost_parts:
         return [int(RF_CENTER_RADIUS)]
     out = set()
     for contrast in contrasts:
@@ -956,7 +949,6 @@ def _plot_spot_figure(
     t_sti_end = primary.t_sti_end
     delta_ms = float(primary.session.delta_ms)
     delta_ms_pre = float(primary.session.delta_ms_pre)
-    show_pre = primary.show_pre
     ms_shown = primary.ms_shown
     t_delay = t_delay_from_ir(
         delta_ms=delta_ms,
@@ -973,11 +965,10 @@ def _plot_spot_figure(
     sessions = {contrast: readouts[contrast].session for contrast in order}
     gt_by_contrast = resolve_spot_gts(sessions, gts)
 
-    center_only = bool(primary.center_only)
     part_keys = list(cost_parts or ()) or list(
         train.session_cost_part_keys(primary.session)
     )
-    radii = _trained_radii(part_keys, order, center_only=center_only)
+    radii = _trained_radii(part_keys, order)
     center_radius = int(RF_CENTER_RADIUS)
     order_hs = [
         1 + len(radii) for _ in rows
@@ -1053,7 +1044,6 @@ def _plot_spot_figure(
                 v_th=v_th,
                 e_leak=e_leak,
                 t_onset=t_onset,
-                show_pre=show_pre,
                 t_sti_end=t_sti_end,
                 t_delay=_t_delay_from_cell(cell),
                 delta_ms=delta_ms,
@@ -1076,7 +1066,6 @@ def _plot_spot_figure(
                 v_th=v_th,
                 e_leak=e_leak,
                 t_onset=t_onset,
-                show_pre=show_pre,
                 t_sti_end=t_sti_end,
                 t_delay=_t_delay_from_cell(cell),
                 delta_ms=delta_ms,
@@ -1141,7 +1130,6 @@ def _plot_spot_figure(
                     e_leak=e_leak,
                     n_t=n_t,
                     t_onset=t_onset,
-                    show_pre=show_pre,
                     t_sti_end=t_sti_end,
                     t_delay=_t_delay_from_cell(cell),
                     delta_ms=delta_ms,

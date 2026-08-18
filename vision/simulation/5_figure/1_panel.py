@@ -23,10 +23,10 @@ PANEL_W = 3.0
 PANEL_H = 2.2
 
 
-def as_numpy(arr):
-    if isinstance(arr, torch.Tensor):
-        return arr.detach().cpu().numpy()
-    return np.asarray(arr)
+def as_numpy(x):
+    if isinstance(x, torch.Tensor):
+        return x.detach().cpu().numpy()
+    return np.asarray(x)
 
 
 def gt_affine_from_cell(params, cell, connectome, session=None) -> tuple[float, float]:
@@ -196,11 +196,11 @@ def _param_from_z(z, session, param):
     schema = train.schema_copy(session.schema)
     if param not in schema:
         return {}
-    arr = np.asarray(train.node_vals_from_z(z, schema)[param], dtype=np.float64).reshape(-1)
+    vals = np.asarray(train.node_vals_from_z(z, schema)[param], dtype=np.float64).reshape(-1)
     cells = train.cells_from_connectome(session.connectome)
-    if arr.shape[0] != len(cells):
-        raise ValueError(f"{param} length {arr.shape[0]} != n_cell {len(cells)}")
-    return {str(cell): float(arr_val) for cell, arr_val in zip(cells, arr)}
+    if vals.shape[0] != len(cells):
+        raise ValueError(f"{param} length {vals.shape[0]} != n_cell {len(cells)}")
+    return {str(cell): float(val) for cell, val in zip(cells, vals)}
 
 
 def cell_ylabel(label, ca_n=None, n=None):
@@ -217,7 +217,7 @@ def cell_ylabel(label, ca_n=None, n=None):
 
 def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
     """Time-panel title: ``radius=0 (n=252)`` + ``bright: 63.3`` / ``dark: …``."""
-    from train.config import spot_cost_part_key
+    from train.cost import spot_cost_part_key
 
     radius = float(radius)
     radius_label = str(int(radius)) if radius == int(radius) else str(radius)
@@ -236,7 +236,7 @@ def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
 
 def format_moving_bar_cell_cost_lines(cell, cost_parts, contrasts):
     """Lines ``ON: xx @PD yy @ND`` / ``OFF: …`` for moving-bar titles."""
-    from train.config import moving_bar_cell_cost_part_key
+    from train.cost import moving_bar_cell_cost_part_key
     label_map = {
         'bright': 'ON',
         'dark': 'OFF',
@@ -387,16 +387,16 @@ def plot_std_band(ax, t, v_readout, std, *, color=None, alpha=None, label=r'$\pm
     """Shaded ±STD for continuous line traces."""
     if std is None or not np.any(std):
         return
-    t_arr = np.asarray(t)
-    m_arr = np.asarray(v_readout, dtype=np.float64)
-    s_arr = np.asarray(std, dtype=np.float64)
-    mask = np.isfinite(m_arr) & np.isfinite(s_arr)
+    t = np.asarray(t)
+    v_readout = np.asarray(v_readout, dtype=np.float64)
+    std = np.asarray(std, dtype=np.float64)
+    mask = np.isfinite(v_readout) & np.isfinite(std)
     if not np.any(mask):
         return
     ax.fill_between(
-        t_arr[mask],
-        m_arr[mask] - s_arr[mask],
-        m_arr[mask] + s_arr[mask],
+        t[mask],
+        v_readout[mask] - std[mask],
+        v_readout[mask] + std[mask],
         color=STD_COLOR if color is None else color,
         alpha=0.3 if alpha is None else alpha,
         linewidth=0,
@@ -409,67 +409,63 @@ def _series_points(t, y, ts=None):
     """Return finite ``(x, y)`` points, optionally subsampled by integer ``ts``."""
     if y is None:
         return None, None
-    t_arr = np.asarray(t)
-    y_arr = np.asarray(y, dtype=np.float64)
+    t = np.asarray(t)
+    y = np.asarray(y, dtype=np.float64)
     if ts is not None:
         ts = np.asarray(ts, dtype=np.int64)
-        ts = ts[(ts >= 0) & (ts < y_arr.shape[0])]
-        t_arr = t_arr[ts]
-        y_arr = y_arr[ts]
-    mask = np.isfinite(y_arr)
+        ts = ts[(ts >= 0) & (ts < y.shape[0])]
+        t = t[ts]
+        y = y[ts]
+    mask = np.isfinite(y)
     if not np.any(mask):
         return None, None
-    return t_arr[mask], y_arr[mask]
+    return t[mask], y[mask]
 
 
-def plot_pre_post_line(
+def plot_trace(
     ax,
     t,
-    y,
+    trace,
     *,
     pre_end=0,
-    show_pre=False,
     color=V_READOUT_COLOR,
     linestyle='-',
     linewidth=TRACE_LW,
     label=None,
-    plot_pre=False,
 ):
-    """Plot a 1-D series with optional dashed pre-``pre_end`` slice.
+    """Plot a 1-D trace: dashed before ``pre_end``, solid after.
 
     ``pre_end`` is the first post-onset index (samples ``[0, pre_end)`` are pre).
-    Gray gt uses ``plot_pre=False`` (never plots pre). v_readout uses
-    ``plot_pre=show_pre`` (dashed pre when true; omit pre when false).
     """
-    if y is None:
+    if trace is None:
         return
-    t_arr = np.asarray(t)
-    y_arr = np.asarray(y, dtype=np.float64)
-    if y_arr.ndim != 1:
+    t = np.asarray(t)
+    trace = np.asarray(trace, dtype=np.float64)
+    if trace.ndim != 1:
         raise ValueError(
-            f'plot_pre_post_line expects 1-D y, got y={getattr(y_arr, "shape", None)}'
+            f'plot_trace expects 1-D trace, got trace={getattr(trace, "shape", None)}'
         )
-    if t_arr.shape[0] > y_arr.shape[0]:
-        # Spot gt omits ms_post; v_readout / axis may be longer.
-        t_arr = t_arr[: y_arr.shape[0]]
-    elif t_arr.shape[0] < y_arr.shape[0]:
+    if t.shape[0] > trace.shape[0]:
+        t = t[: trace.shape[0]]
+    elif t.shape[0] < trace.shape[0]:
         raise ValueError(
-            f'plot_pre_post_line expects t length >= y length, '
-            f'got t={getattr(t_arr, "shape", None)} y={getattr(y_arr, "shape", None)}'
+            f'plot_trace expects t length >= trace length, '
+            f'got t={getattr(t, "shape", None)} '
+            f'trace={getattr(trace, "shape", None)}'
         )
-    n = int(y_arr.shape[0])
+    n = int(trace.shape[0])
     split = max(0, min(int(pre_end or 0), n))
-    if plot_pre and show_pre and split > 0:
+    if split > 0:
         # Include the onset sample so dashed and solid traces meet.
         end_pre = min(split + 1, n)
         ax.plot(
-            t_arr[:end_pre], y_arr[:end_pre],
+            t[:end_pre], trace[:end_pre],
             color=color, linewidth=linewidth, linestyle='--',
         )
     if split >= n:
         return
     ax.plot(
-        t_arr[split:], y_arr[split:],
+        t[split:], trace[split:],
         color=color, linewidth=linewidth, linestyle=linestyle, label=label,
     )
 
@@ -489,7 +485,6 @@ def plot_timecourse(
     ticksize=6,
     style_xaxis=None,
     pre_end=0,
-    show_pre=False,
     t_onset=None,
     t_sti_end=None,
 ):
@@ -499,8 +494,7 @@ def plot_timecourse(
     ``std``, ``linestyle`` (default ``'-'``), ``ts``.
     When ``ts`` is set, gray gt is drawn as open dots at those samples
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
-    post-onset line. Red v_readout always uses continuous pre/post lines: dashed
-    pre when ``show_pre`` is true, solid after.
+    post-onset line. Red v_readout is dashed before ``pre_end`` and solid after.
     ``t_onset`` / ``t_sti_end``: white sti-on band ``[t_onset, t_sti_end]``.
     Y-limits / ticks: matplotlib autoscale.
     """
@@ -521,19 +515,22 @@ def plot_timecourse(
                     fillstyle='none', markeredgewidth=1.0, color=GT_COLOR,
                 )
         elif gt is not None:
-            plot_pre_post_line(
-                ax, t, gt, pre_end=split, show_pre=False, plot_pre=False,
-                color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
-            )
+            t_gt = np.asarray(t)
+            gt = np.asarray(gt, dtype=np.float64)
+            if t_gt.shape[0] > gt.shape[0]:
+                t_gt = t_gt[: gt.shape[0]]
+            n_gt = int(gt.shape[0])
+            post = max(0, min(split, n_gt))
+            if post < n_gt:
+                ax.plot(
+                    t_gt[post:], gt[post:],
+                    color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+                )
         if v_readout is not None:
             if show_std and std is not None:
-                t_arr = np.asarray(t)
-                m_arr = np.asarray(v_readout, dtype=np.float64)
-                s_arr = np.asarray(std, dtype=np.float64)
-                if split < m_arr.shape[0]:
-                    plot_std_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
-            plot_pre_post_line(
-                ax, t, v_readout, pre_end=split, show_pre=show_pre, plot_pre=True,
+                plot_std_band(ax, t, v_readout, std)
+            plot_trace(
+                ax, t, v_readout, pre_end=split,
                 color=V_READOUT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
             )
     if title is not None:
@@ -781,7 +778,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     timer = ElapsedTimer()
     timer.end_prep()
     if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
-        raise ValueError("plot_cost requires non-empty `costs` array")
+        raise ValueError("plot_cost requires non-empty `costs`")
 
     def _save_total_only():
         fig, ax = plt.subplots(figsize=(8, 4))
@@ -826,7 +823,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     def _moving_bar_parse(part_key: str):
         from task.spread.sti_spec import CONTRASTS
-        from train.config import PD_ND_LABELS
+        from task.moving_bar.sti_spec import PD_ND_LABELS
         for contrast in CONTRASTS:
             head = f"moving_bar_{contrast}_"
             if part_key[:len(head)] != head:

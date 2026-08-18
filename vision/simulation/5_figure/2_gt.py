@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from config import (
-    SPREAD_PACK,
+    SPREAD_GT,
 )
 
 import numpy as np
@@ -116,7 +116,7 @@ def spot_gts(
     else:
         filter = str(filter)
     if spread_gt_mode is None:
-        spread_gt_mode = str((session.train_opts or {}).get("spread_gt_mode", SPREAD_PACK['spread_gt_mode']))
+        spread_gt_mode = str((session.train_opts or {}).get("spread_gt_mode", SPREAD_GT['spread_gt_mode']))
     else:
         spread_gt_mode = str(spread_gt_mode)
     delta_ms = float(session.delta_ms if delta_ms is None else delta_ms)

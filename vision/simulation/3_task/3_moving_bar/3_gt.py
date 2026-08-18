@@ -107,15 +107,15 @@ def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
         raise ValueError("gt_cells must not be empty")
     out: list = []
     seen: set = set()
-    for raw in cells:
-        key = str(raw).strip()
-        if key in GT_CELL_ALIASES:
-            pool = GT_CELL_ALIASES[key]
-        elif key in GT_CELLS:
-            pool = (key,)
+    for token in cells:
+        token = str(token).strip()
+        if token in GT_CELL_ALIASES:
+            pool = GT_CELL_ALIASES[token]
+        elif token in GT_CELLS:
+            pool = (token,)
         else:
             valid = ", ".join((*GT_CELL_ALIASES, *GT_CELLS))
-            raise ValueError(f"unknown gt cell {key!r} (expected {valid})")
+            raise ValueError(f"unknown gt cell {token!r} (expected {valid})")
         for cell in pool:
             if cell not in seen:
                 seen.add(cell)

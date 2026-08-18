@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Train package: session assembly, cost, optimization, parameter schema, implementation, and cli.
+"""Train package: session assembly, cost, optimization, parameter schema, implementation.
 
 Public facade re-exporting train API names (``import train``). Engine internals are split across
 :mod:`train.param`, :mod:`train.session`, :mod:`train.cost`, :mod:`train.optimization`,
-:mod:`train.implementation`, :mod:`train.cli`. Contrast tokens live in
+:mod:`train.implementation`. Contrast tokens live in
 :mod:`task.spread.sti_spec`. Numeric defaults live in :mod:`config`. Lower layers
 (``neuron``, ``task``, ``network``) never import this package at load time.
 """
@@ -19,7 +19,7 @@ from config import (
     NETWORK_PATH,
     SPOT_INPUT_GEO,
     SPREAD_INPUT_SPEC,
-    SPREAD_PACK,
+    SPREAD_GT,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
     TRAIN_SESSION,
@@ -64,8 +64,6 @@ from train.param import (
     z_adams_from_node_vals,
     pairs_from_connectome,
     params_from_z,
-    parse_param_cli,
-    parse_param_init_val_tokens,
     override_params,
     remap_node_vals_adams,
     remap_node_vals,
@@ -74,20 +72,16 @@ from train.param import (
     parse_val_from_tokens,
     resolve_val_from,
     val_from_enabled,
-    resolve_param_modes,
     schema_clamps,
     schema_n_z,
     z_init_from_schema,
-    param_modes_from_schema,
     param_n_z,
     cells_from_connectome,
     z_from_node_vals,
-    validate_syn_strength_edge_param_mode,
     adams_from_z,
     node_vals_from_z,
     sim_dtype_from_fp,
 )
-from train.config import parse_contrasts, parse_tasks
 from train.session import (
     Pack,
     TrainSession,

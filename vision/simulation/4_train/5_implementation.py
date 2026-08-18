@@ -1,8 +1,7 @@
 """Train implementation: integrate session, optimization, and persistence.
 
 Wires the pieces of one train into a path that runs through before the top-level
-``simulation/run.py`` driver (which may also plot). CLI parsing lives in
-:mod:`train.cli`.
+``simulation/run.py`` driver (which may also plot).
 
 Import-safe: does NOT parse argv or touch CUDA.
 """
@@ -34,16 +33,15 @@ from config import (
     NEURON_FORWARD,
     NEURON_SCHEMA,
     SPOT_INPUT_GEO,
-    SPREAD_PACK,
+    SPREAD_GT,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
     TRAIN_SESSION,
 )
-from task.spread.sti_spec import t_sti_end, resolve_sti_timing
+from task.spread.sti_spec import t_sti_end
 from neuron.schema import param_from_entry
 from train import do_many_runs
 import train
-from train.cost import COST_NORMS
 from train.session import run_data_dir
 
 
@@ -82,7 +80,7 @@ def cell_labels(session):
 
 
 def decompose_params(z, session):
-    """Return per-cell param arrays for one parameter vector.
+    """Return per-cell param vals for one parameter vector.
 
     This powers the ``param.csv`` table. For CSV output we intentionally do
     *not* emit separate "global" scalar fields (shared-only means), because
@@ -97,10 +95,10 @@ def decompose_params(z, session):
             continue
         if spec.get("radii") is not None:
             continue  # e.g. a_sti_radius (per-radius, not per-cell)
-        arr = np.asarray(decoded[param], dtype=np.float64).reshape(-1)
-        if arr.shape[0] != n:
-            raise ValueError(f"{param}: node w {arr.shape[0]} != n_cell {n}")
-        out[param] = arr
+        vals = np.asarray(decoded[param], dtype=np.float64).reshape(-1)
+        if vals.shape[0] != n:
+            raise ValueError(f"{param}: node w {vals.shape[0]} != n_cell {n}")
+        out[param] = vals
     return out
 
 
@@ -136,10 +134,11 @@ def v_spot_markers_by_cell(z, session):
     if t_onset < 0 or t_onset >= n_t:
         raise ValueError(f"t_onset={t_onset} out of range for forward T={n_t}")
     opts = (session.train_opts or {}).get(f"{pack.task}_sti_opts") or {}
-    timing = resolve_sti_timing(opts)
+    ms_sti = opts.get("ms_sti")
+    delta_ms = float(opts["delta_ms"])
     t_end = t_sti_end(
-        t_onset, n_t, timing.ms_sti,
-        delta_ms=timing.delta_ms,
+        t_onset, n_t, ms_sti,
+        delta_ms=delta_ms,
     )
     if t_end < t_onset or t_end >= n_t:
         raise ValueError(
@@ -274,14 +273,14 @@ def save_syn_strength_cell_table(z, session, table_path):
     if spec is None or spec["kind"] != "edge_pair":
         return None
     node_vals = train.node_vals_from_z(z, schema)
-    arr = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
+    vals = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
     cells = [str(cell) for cell in cell_labels(session)]
     pairs = list(session.connectome.conn.pairs)
-    if arr.shape[0] != len(pairs):
+    if vals.shape[0] != len(pairs):
         raise ValueError(
-            f"syn_strength_cell length {arr.shape[0]} != n_pair {len(pairs)}"
+            f"syn_strength_cell length {vals.shape[0]} != n_pair {len(pairs)}"
         )
-    mat = {(int(source), int(target)): float(v) for (source, target), v in zip(pairs, arr)}
+    mat = {(int(source), int(target)): float(v) for (source, target), v in zip(pairs, vals)}
     n = len(cells)
     with open(table_path, "w") as f:
         f.write("," + ",".join(cells) + "\n")
@@ -301,11 +300,11 @@ def save_syn_strength_edge_table(z, session, table_path):
     if spec is None or spec["kind"] != "edge":
         return None
     node_vals = train.node_vals_from_z(z, schema)
-    arr = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
+    vals = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
     conn = session.connectome.conn
-    if arr.shape[0] != conn.n_edge:
+    if vals.shape[0] != conn.n_edge:
         raise ValueError(
-            f"syn_strength_edge length {arr.shape[0]} != n_edge {conn.n_edge}"
+            f"syn_strength_edge length {vals.shape[0]} != n_edge {conn.n_edge}"
         )
     cells = [str(cell) for cell in cell_labels(session)]
     src = conn.source_idxs.detach().cpu().numpy()
@@ -323,7 +322,7 @@ def save_syn_strength_edge_table(z, session, table_path):
                 % (
                     edge, si, ti,
                     cells[int(node_cells[si])], cells[int(node_cells[ti])],
-                    float(syn_sign[edge]), float(arr[edge]),
+                    float(syn_sign[edge]), float(vals[edge]),
                 )
             )
     return table_path
@@ -379,10 +378,10 @@ def save_adam(outdir, exp_avg, exp_avg_sq, iter, session, filename):
     payload['cells'] = cells
     if any(spec['kind'] == 'edge_pair' for spec in schema.values()):
         payload['pairs'] = np.asarray(train.pairs_from_connectome(session.connectome), dtype=object)
-    for param, arr in adams_m.items():
-        payload[f'm_{param}'] = np.asarray(arr, dtype=np.float64)
-    for param, arr in adams_v.items():
-        payload[f'v_{param}'] = np.asarray(arr, dtype=np.float64)
+    for param, adam in adams_m.items():
+        payload[f'm_{param}'] = np.asarray(adam, dtype=np.float64)
+    for param, adam in adams_v.items():
+        payload[f'v_{param}'] = np.asarray(adam, dtype=np.float64)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
@@ -564,11 +563,7 @@ def load_init_z(init_from, session):
     )
     schema = train.inits_from_node_vals(schema, remapped)
     schema = train.schema_with_param_carry(schema, remapped)
-    opts = dict(session.train_opts or {})
-    opts['param_modes'] = train.param_modes_from_schema(
-        schema, session.connectome,
-    )
-    session = replace(session, schema=schema, train_opts=opts)
+    session = replace(session, schema=schema)
     z = train.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
@@ -654,10 +649,6 @@ def build_session(
     moving_bar_sti_opts=None,
     spread_sti_opts=None,
     spot_sti_opts=None,
-    param_modes=None,
-    param_init=None,
-    param_clamps=None,
-    param_jits=None,
     syn_mode=NEURON_SCHEMA['syn_mode'],
     euler=MODEL['euler'],
     pre_steady=None,
@@ -667,7 +658,7 @@ def build_session(
     pre_grad=NEURON_FORWARD['pre_grad'],
     val_from=None,
     filter=NEURON_SCHEMA['filter'],
-    spread_gt_mode=SPREAD_PACK['spread_gt_mode'],
+    spread_gt_mode=SPREAD_GT['spread_gt_mode'],
     connectome=None,
     schema=None,
 ):
@@ -707,10 +698,6 @@ def build_session(
         pre_steady=pre_steady,
         pre_steady_n_iter=pre_steady_n_iter,
         pre_steady_damp=pre_steady_damp,
-        param_modes=param_modes,
-        param_init=param_init,
-        param_clamps=param_clamps,
-        param_jits=param_jits,
         syn_mode=syn_mode,
         fp=fp,
         pre_grad=pre_grad,
@@ -723,10 +710,6 @@ def build_session(
 
 
 def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
-                 param_modes=None,
-                 param_init=None,
-                 param_clamps=None,
-                 param_jits=None,
                  syn_mode=NEURON_SCHEMA['syn_mode'],
                  euler=MODEL['euler'],
                  pre_steady=None,
@@ -750,7 +733,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  pre_grad=NEURON_FORWARD['pre_grad'],
                  val_from=None,
                  filter=NEURON_SCHEMA['filter'],
-                 spread_gt_mode=SPREAD_PACK['spread_gt_mode'],
+                 spread_gt_mode=SPREAD_GT['spread_gt_mode'],
                  init_from=None,
                  checkpoint_interval=None,
                  build_checkpoint_callback=build_checkpoint_callback,
@@ -779,10 +762,6 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         moving_bar_sti_opts=moving_bar_sti_opts,
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
-        param_modes=param_modes,
-        param_init=param_init,
-        param_clamps=param_clamps,
-        param_jits=param_jits,
         syn_mode=syn_mode,
         euler=euler,
         pre_steady=pre_steady,

@@ -7,6 +7,7 @@ from config import (
     NEURON_SCHEMA,
     TRAIN_CONFIG,
     parse_cells,
+    session_kwargs_from_cli,
 )
 
 import json
@@ -25,6 +26,7 @@ if ROOT not in sys.path:
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
+from import_bootstrap import parse_comma_list
 import hydra
 import train
 import figure.plot as plot
@@ -55,7 +57,6 @@ from task.spot.sti_geo import (
     resolve_spot,
     spot_sti_bs,
 )
-from train.cli import session_kwargs_from_cli
 from train.cost import node_vals_from_param
 
 __doc__ = """Borst / hp_lp v component analysis.
@@ -114,7 +115,7 @@ Default run is ``RUN_PATH``. Pass comma lists in one process.
 * Multiple x/y: rejected.
 
 ``analyze_figure=true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
-``param_tokens=[...]`` / ``euler=im|ex`` / ``filter=none|ca`` /
+``param_vals.a_h.L1=0.8`` / ``euler=im|ex`` / ``filter=none|ca`` /
 ``ms_pre=...``: CLI session overrides (same Hydra keys as ``figure.plot``).
 Unset = keep the run ``train_opts.json``.
 
@@ -130,7 +131,8 @@ Examples
   ../.venv/bin/python -m analyze.cell_dynamics \\
     cells=T4a tasks=moving_bar contrasts=bright \\
     spec=left_bright_w4,right_bright_w4 \\
-    'param_tokens=[syn_strength_cell.Mi4:T4a=2.0,syn_strength_cell.Mi9:T4a=1.0]' \\
+    param_vals.syn_strength_cell.'Mi4:T4a'=2.0 \\
+    param_vals.syn_strength_cell.'Mi9:T4a'=1.0 \\
     t_rel_start=-5 t_rel_stop=15
 """
 
@@ -198,11 +200,12 @@ def resolve_shared_cli() -> SharedCli:
     cells = parse_cells(ANALYZE_CELL_DYNAMICS.get("cells"))
     if not cells:
         raise SystemExit("cells is required")
-    try:
-        tasks = train.parse_tasks(TRAIN_CONFIG["tasks"])
-        contrasts = train.parse_contrasts(TRAIN_CONFIG["contrasts"])
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
+    tasks = TRAIN_CONFIG["tasks"]
+    tasks = parse_comma_list(tasks) if isinstance(tasks, str) else list(tasks)
+    contrasts = TRAIN_CONFIG["contrasts"]
+    contrasts = (
+        parse_comma_list(contrasts) if isinstance(contrasts, str) else list(contrasts)
+    )
     specs_req = parse_cells(ANALYZE_CELL_DYNAMICS.get("spec"))
     xs = plot.parse_axis_coords(FIGURE_PLOT.get("x"))
     ys = plot.parse_axis_coords(FIGURE_PLOT.get("y"))
@@ -745,10 +748,9 @@ def _component_nodes_hp_lp(
             "i_sti", "v_sti", "v_syn", "v_syn_exc", "v_syn_inh", "v_slow", "v_in", "v_hp",
             "dv_leak", "dv_hp",
         ):
-            component_arr = component_t[component_tok]
+            trace = component_t[component_tok]
             component[component_tok] = (
-                component_arr[b, nodes_t]
-                if component_arr.dim() > 1 else component_arr[nodes_t]
+                trace[b, nodes_t] if trace.dim() > 1 else trace[nodes_t]
             ).detach().cpu().numpy()
         v_post_minus_pre_active = v_abs - v_pre_np
     return component, v_post_minus_pre_active
@@ -1252,17 +1254,17 @@ def _v_post_d_peak_t_rel(
     horizon: int | None = 40,
 ) -> int:
     """Index of largest |v_post_d| (= |v_post − v_onset|) after onset (optional ``horizon``)."""
-    arr = np.asarray(v_post_d, dtype=float)
-    if before_t is not None and 0 < before_t < arr.size:
-        stop = arr.size
+    v_post_d = np.asarray(v_post_d, dtype=float)
+    if before_t is not None and 0 < before_t < v_post_d.size:
+        stop = v_post_d.size
         if horizon is not None:
             stop = min(stop, before_t + int(horizon))
-        post = arr[before_t:stop]
+        post = v_post_d[before_t:stop]
         if post.size == 0:
             return int(before_t)
         return int(before_t + int(np.argmax(np.abs(post))))
-    stop = arr.size if horizon is None else min(arr.size, int(horizon))
-    return int(np.argmax(np.abs(arr[:stop])))
+    stop = v_post_d.size if horizon is None else min(v_post_d.size, int(horizon))
+    return int(np.argmax(np.abs(v_post_d[:stop])))
 
 
 def _sign(v: float, *, eps: float = 1e-3) -> str:
@@ -1810,7 +1812,7 @@ def _spot_extra_from_cell(
 ):
     """Build ``extra_from_cell`` with train GT named ``gt_v`` / ``gt_ca``."""
     contrast = contrast_from_pack(pack)
-    train_filter = train.expand_filter(train_filter)
+    train_filter = str(train_filter)
     gt_series = f"gt_{filter_figure_token(train_filter)}"
     gt_on = resolve_spot_gts(
         {contrast: session_one}, filter=train_filter,
@@ -2012,7 +2014,7 @@ def analyze_spot_hex(
     n_sti_b, n_t, n_node = i_sti.shape
     t0_abs = np.zeros(n_node, dtype=np.int64)
     n_t_aligned = time_window.aligned_n_t(n_t, delta_ms=float(session_one.delta_ms))
-    node_arr = np.asarray([node], dtype=np.int64)
+    nodes_by_cell = {cell: np.asarray([node], dtype=np.int64)}
     type_cell = cell_idx[cell]
 
     component_bs: list[_ComponentB] = []
@@ -2027,7 +2029,7 @@ def analyze_spot_hex(
         if not np.any(entry_mask):
             continue
         component_bs.append(
-            _build_component_b({cell: node_arr}, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
+            _build_component_b(nodes_by_cell, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
         )
         i_sti_rows.append(sti_b)
 
@@ -2085,8 +2087,7 @@ def analyze_bar_hex(
         session, cell, at_x=at_x, at_y=at_y,
         cost_radius=pack.cost_radius, node=node,
     )
-    node_arr = np.asarray([node], dtype=np.int64)
-    nodes_by_cell = {cell: node_arr}
+    nodes_by_cell = {cell: np.asarray([node], dtype=np.int64)}
 
     def nodes_from_b(b, spec, *, pack, t0_bn):
         if int(t0_bn[b, node]) < 0:
@@ -2652,16 +2653,14 @@ def main(hydra_config) -> None:
             "radius is average-only; omit x/y, or omit radius for hex mode"
         )
 
-    param_inits, param_vals, param_clamps, param_jits = plot.parse_param_init_val_tokens(
-        list(active_config().get("param_tokens") or []),
-    )
+    param_vals = dict(active_config().get("param_vals") or {})
 
     for run_idx, run_arg in enumerate(ANALYZE_RUNS):
         run_dir = plot.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
         session, z, best_cost = plot.load_best(run_dir)
         train_opts = plot.load_train_opts(run_dir) or {}
-        train_filter = train.expand_filter(train_opts.get("filter", "none"))
+        train_filter = str(train_opts.get("filter", "none"))
         session, z, ms_changed = plot.override_session(
             run_dir=run_dir,
             session=session,
@@ -2671,7 +2670,7 @@ def main(hydra_config) -> None:
         file_suffix = (
             plot.ms_filename_suffix(**ms_changed)
             + plot.euler_filename_suffix(euler)
-            + plot.param_filename_suffix(param_inits=param_inits, param_vals=param_vals)
+            + plot.param_filename_suffix(param_vals=param_vals)
         )
         if use_ms:
             lo, hi = (
@@ -2686,15 +2685,12 @@ def main(hydra_config) -> None:
             device=session.device,
         )
         z, schema = plot.override_params(
-            z, schema, session,
-            param_vals=param_vals, param_inits=param_inits,
-            param_clamps=param_clamps, param_jits=param_jits,
+            z, schema, session, param_vals=param_vals,
         )
         session = session.with_schema(schema)
         params = train.params_from_z(z, session)
         recompute_cost = bool(
-            ms_changed or euler is not None or filter is not None
-            or param_inits or param_vals
+            ms_changed or euler is not None or filter is not None or param_vals
         )
         cost = (
             float(train.calc_cost(z, session).item()) if recompute_cost

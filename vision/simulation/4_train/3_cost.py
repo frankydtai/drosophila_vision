@@ -124,14 +124,14 @@ def pack_cost_abs_ts(pack: Pack, t_onset, *, entry_radius=None):
 
 def node_vals_from_param(params, param: str, nodes, connectome, *, sim_dtype=SIM_DTYPE):
     """Per-node vals from a cell-indexed schema param (or scalar default)."""
-    raw = params.get(param, 1.0 if param == "a_gt" else 0.0)
+    vals = params.get(param, 1.0 if param == "a_gt" else 0.0)
     n = int(nodes.shape[0])
     device = nodes.device
-    if not torch.is_tensor(raw) or raw.dim() == 0:
-        val = float(raw if not torch.is_tensor(raw) else raw.item())
+    if not torch.is_tensor(vals) or vals.dim() == 0:
+        val = float(vals if not torch.is_tensor(vals) else vals.item())
         return torch.full((n,), val, dtype=sim_dtype, device=device)
     ci = connectome.node_cells[nodes]
-    return raw[ci]
+    return vals[ci]
 
 
 def gt_affine_from_nodes(
@@ -181,8 +181,7 @@ def gt_affine_from_pack(
 def _session_cost_norm(session: TrainSession) -> str:
     """``cost_norm`` from train_opts; default ``a_gt2``."""
     opts = session.train_opts or {}
-    raw = opts.get("cost_norm", TRAIN_OPTIMIZATION['cost_norm'])
-    return str(raw)
+    return str(opts.get("cost_norm", TRAIN_OPTIMIZATION['cost_norm']))
 
 
 def _gather_cost_time(pack: Pack, v_readout: torch.Tensor, gts: torch.Tensor):

@@ -3,17 +3,16 @@
 Uses ``analyze.cell_dynamics.analyze_spot_average`` only — one forward, no
 rewrite of core dynamics. Series: ``filter=ca`` → report ``ca``, else
 ``v_post``. Spot time axis: ``0`` = trial start; onset ≈ ``ms_pre``. Analyze /
-baseline windows are absolute ms (same as ``--ms-shown``), not locked to pre
-vs sti-on.
+baseline windows are absolute ms (``ms_shown``), not locked to pre vs sti-on.
 
-Checks
-------
-* ``oscillation``: FFT / v_peak_to_peak on ``--ms-shown``
-* ``flat``: ``--ms-shown`` near ``--baseline-ms-shown`` mean
-* ``drift``: linear trend on ``--ms-shown`` (rising / falling / none)
-* ``stability``: osc → drift → flat priority on ``--ms-shown``
+Checks (``check=``)
+-------------------
+* ``oscillation``: FFT / v_peak_to_peak on ``ms_shown``
+* ``flat``: ``ms_shown`` near ``baseline_ms_shown`` mean
+* ``drift``: linear trend on ``ms_shown`` (rising / falling / none)
+* ``stability``: osc → drift → flat priority on ``ms_shown``
 
-``param_tokens=[...]`` and Hydra keys already in ``config.yaml`` (``euler`` /
+``param_vals.a_h.L1=0.8`` and Hydra keys in ``config.yaml`` (``euler`` /
 ``filter`` / ``ms_pre`` / …) rebuild the session in memory via
 ``figure.plot.override_session``; they do not write ``train_opts.json``.
 Keys omitted on the Hydra CLI keep the run's train opts.
@@ -32,7 +31,7 @@ Usage (from ``vision/simulation/``)::
 
     ../.venv/bin/python -m analyze.trace \\
       analyze_runs=hp_lp/28704173-... check=drift ms_shown=0,1000 \\
-      cells=TmY11,Mi1,Tm3 'param_tokens=[a_slow.TmY11=1,a_slow.Mi1=1,a_slow.Tm3=1]'
+      cells=TmY11,Mi1,Tm3 param_vals.a_h.TmY11=1
 """
 from __future__ import annotations
 
@@ -42,7 +41,10 @@ from config import (
     ANALYZE_TRACE,
     FIGURE_PLOT,
     TRAIN_CONFIG,
+    active_config,
+    apply_config,
     parse_cells,
+    session_kwargs_from_cli,
 )
 
 import csv
@@ -64,7 +66,6 @@ import figure.plot as plot
 import train
 from analyze.cell_dynamics import TimeWindow, analyze_spot_average
 from import_bootstrap import parse_comma_list
-from train.cli import session_kwargs_from_cli
 
 CHECK_OSCILLATION = "oscillation"
 CHECK_FLAT = "flat"
@@ -278,11 +279,12 @@ def detect_stability(
 
 
 def _sti_ms(opts: dict) -> tuple[float, float, float]:
-    from task.spread.sti_spec import resolve_sti_timing
-
-    timing = resolve_sti_timing(opts)
-    ms_sti = timing.ms_sti if timing.ms_sti is not None else 0.0
-    return timing.ms_pre, ms_sti, timing.ms_response
+    ms_pre = float(opts["ms_pre"])
+    ms_response = float(opts["ms_response"])
+    ms_sti = opts.get("ms_sti")
+    if ms_sti is not None:
+        ms_response = max(ms_response, float(ms_sti))
+    return ms_pre, float(ms_sti) if ms_sti is not None else 0.0, ms_response
 
 
 def _resolve_ms_shown(
@@ -303,29 +305,38 @@ def _resolve_baseline_ms_shown(
     return 0.0, min(baseline_ms, _stop)
 
 
-def _resolve_windows(args, ms_pre, ms_sti, ms_response):
-    if args.ms_shown is not None:
-        analyze = plot.parse_ms_shown_range(args.ms_shown, flag="--ms-shown")
+def _resolve_windows(
+    *,
+    check: str,
+    ms_pre: float,
+    ms_sti: float,
+    ms_response: float,
+    ms_shown,
+    baseline_ms_shown,
+    baseline_ms: float,
+):
+    if ms_shown is not None:
+        analyze = plot.parse_ms_shown_range(str(ms_shown), flag="ms_shown")
     else:
-        analyze = _resolve_ms_shown(args.check, ms_pre, ms_sti, ms_response)
+        analyze = _resolve_ms_shown(check, ms_pre, ms_sti, ms_response)
 
-    need_baseline = args.check in (CHECK_FLAT, CHECK_STABILITY)
-    if args.baseline_ms_shown is not None:
+    need_baseline = check in (CHECK_FLAT, CHECK_STABILITY)
+    if baseline_ms_shown is not None:
         baseline = plot.parse_ms_shown_range(
-            args.baseline_ms_shown, flag="--baseline-ms-shown",
+            str(baseline_ms_shown), flag="baseline_ms_shown",
         )
     elif need_baseline:
-        baseline = _resolve_baseline_ms_shown(analyze, float(args.baseline_ms))
+        baseline = _resolve_baseline_ms_shown(analyze, baseline_ms)
     else:
         baseline = None
 
     if baseline is not None and baseline[0] >= baseline[1]:
         raise SystemExit(
             f"baseline window empty: {baseline[0]:g},{baseline[1]:g} "
-            f"(set --baseline-ms-shown START,STOP)"
+            f"(set baseline_ms_shown=START,STOP)"
         )
     if analyze[0] >= analyze[1]:
-        raise SystemExit(f"--ms-shown empty: {analyze[0]:g},{analyze[1]:g}")
+        raise SystemExit(f"ms_shown empty: {analyze[0]:g},{analyze[1]:g}")
     return analyze, baseline
 
 
@@ -353,12 +364,14 @@ def _baseline_mean(
     return float(np.mean(trace_slice))
 
 
-def _format_param(param_inits, param_vals) -> str:
+def _format_param(param_vals) -> str:
     parts: list[str] = []
-    for key, bag in (("init", param_inits or ()), ("val", param_vals or ())):
-        for param, node, number in bag:
-            token = f"{param}.{key}" if node is None else f"{param}.{key}.{node}"
-            parts.append(f"{token}={number:g}")
+    for param, bag in (param_vals or {}).items():
+        if isinstance(bag, dict):
+            for node, number in bag.items():
+                parts.append(f"{param}.{node}={number:g}")
+        else:
+            parts.append(f"{param}={float(bag):g}")
     return " ".join(parts) if parts else "none"
 
 
@@ -373,30 +386,34 @@ def _trace_series(rep: dict) -> np.ndarray:
     return np.asarray(rep["v_post"], dtype=float)
 
 
-def _load_reports(args):
+def _load_reports(
+    run_arg,
+    *,
+    check: str,
+    task: str,
+    contrast: str,
+    radius: int,
+    cells: list[str] | None,
+    session_kwargs: dict,
+):
     """Shared run load + one ``analyze_spot_average`` forward."""
-    run_dir = plot.resolve_run_dir(args.run)
+    run_dir = plot.resolve_run_dir(run_arg)
     session, z, _best_cost = plot.load_best(run_dir)
     train_opts = plot.load_train_opts(run_dir) or {}
-    train_filter = train.expand_filter(train_opts.get("filter", "none"))
-    eff_filter = args.filter if args.filter is not None else train_filter
-    timing_kwargs = resolve_sti_timing_kwargs(args.sti_timing)
-    session, z, _timing_changed = plot.override_session_sti_timing(
+    train_filter = str(train_opts.get("filter", "none"))
+    session, z, _ms_changed = plot.override_session(
         run_dir=run_dir,
         session=session,
         z=z,
-        **timing_kwargs,
-        filter=args.filter,
+        **session_kwargs,
     )
     z = torch.tensor(
         np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device,
     )
     schema = train.schema_copy(session.schema)
-    param_inits, param_vals, param_clamps, param_jits = plot.parse_param_init_val_tokens(args.param)
+    param_vals = dict(active_config().get("param_vals") or {})
     z, schema = plot.override_params(
-        z, schema, session,
-        param_vals=param_vals, param_inits=param_inits,
-        param_clamps=param_clamps, param_jits=param_jits,
+        z, schema, session, param_vals=param_vals,
     )
     session = session.with_schema(schema)
     params = train.override_val_from(
@@ -404,36 +421,42 @@ def _load_reports(args):
     )
 
     param_csv = os.path.join(run_dir, "param.csv")
-    if args.cells == "all":
+    if not cells:
         with open(param_csv) as param_csv_file:
             cells = [row["cell"] for row in csv.DictReader(param_csv_file)]
-    else:
-        cells = parse_comma_list(args.cells)
 
-    sess_one = plot.session_from_task(session, args.task, args.contrast)
+    sess_one = plot.session_from_task(session, task, contrast)
     delta_ms = float(sess_one.delta_ms)
     opts = dict(
         (sess_one.train_opts or {}).get(f"{sess_one.primary_pack.task}_sti_opts")
         or {},
     )
     ms_pre, ms_sti, ms_response = _sti_ms(opts)
-    analyze, baseline = _resolve_windows(args, ms_pre, ms_sti, ms_response)
+    analyze, baseline = _resolve_windows(
+        check=check,
+        ms_pre=ms_pre,
+        ms_sti=ms_sti,
+        ms_response=ms_response,
+        ms_shown=FIGURE_PLOT.get("ms_shown"),
+        baseline_ms_shown=ANALYZE_TRACE.get("baseline_ms_shown"),
+        baseline_ms=float(ANALYZE_TRACE["trace_baseline_ms"]),
+    )
     forward_stop = analyze[1]
     if baseline is not None:
         forward_stop = max(forward_stop, baseline[1])
-    # Buffer is always from trial start; start=0 keeps indices absolute.
     time_window = TimeWindow(kind="ms", start=0.0, stop=forward_stop)
     baseline_label = (
         f"{baseline[0]:g},{baseline[1]:g}" if baseline is not None else "none"
     )
+    filter_label = session_kwargs.get("filter") or "run"
     print(
-        f"check={args.check}  {args.task} {args.contrast} radius={args.radius}  "
-        f"filter={args.filter or 'run'}  "
+        f"check={check}  {task} {contrast} radius={radius}  "
+        f"filter={filter_label}  "
         f"ms-shown={analyze[0]:g},{analyze[1]:g}  "
         f"baseline-ms-shown={baseline_label}  "
         f"forward TimeWindow(ms, 0, {forward_stop:g})  "
         f"ms_pre={ms_pre:g} ms_sti={ms_sti:g} ms_response={ms_response:g}  "
-        f"param={_format_param(param_inits, param_vals)}  "
+        f"param={_format_param(param_vals)}  "
         f"n_cell={len(cells)}",
         flush=True,
     )
@@ -441,16 +464,16 @@ def _load_reports(args):
         sess_one,
         params=params,
         cells=cells,
-        task=args.task,
-        contrast=args.contrast,
+        task=task,
+        contrast=contrast,
         time_window=time_window,
-        radius=args.radius,
+        radius=radius,
         train_filter=train_filter,
     )
     return cells, reports, delta_ms, analyze, baseline
 
 
-def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
+def _print_oscillation(cells, reports, delta_ms, analyze) -> None:
     hdr = (
         f"{'Cell':<12} {'Osc?':<6} {'Reason':<12} "
         f"{'v_peak_to_peak_over_std':>8} {'peak_f':>8} {'SNR':>8} "
@@ -469,9 +492,9 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
         result = detect_oscillation(
             v,
             delta_ms=delta_ms,
-            min_osc_f=args.min_f,
-            max_osc_f=args.max_f,
-            z_threshold=args.z_threshold,
+            min_osc_f=ANALYZE_TRACE["trace_osc_min_f"],
+            max_osc_f=ANALYZE_TRACE["trace_osc_max_f"],
+            z_threshold=ANALYZE_TRACE["trace_osc_z_threshold"],
         )
         yes = "YES" if result["flag"] else "NO"
         print(
@@ -497,7 +520,7 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
         )
 
 
-def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
+def _print_flat(cells, reports, delta_ms, analyze, baseline) -> None:
     hdr = (
         f"{'Cell':<12} {'Flat?':<6} {'Reason':<12} "
         f"{'base':>8} {'Δmean':>8} {'|μ|':>8} {'v_peak_to_peak':>9} "
@@ -516,9 +539,9 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
         result = detect_flat(
             v,
             baseline=base,
-            max_abs=args.max_abs,
-            v_peak_to_peak_max=args.v_peak_to_peak_max,
-            abs_mean=args.abs_mean,
+            max_abs=ANALYZE_TRACE["trace_flat_max_abs"],
+            v_peak_to_peak_max=ANALYZE_TRACE["trace_flat_v_peak_to_peak_max"],
+            abs_mean=ANALYZE_TRACE["trace_flat_abs_mean"],
         )
         yes = "YES" if result["flag"] else "NO"
         print(
@@ -544,7 +567,7 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
         )
 
 
-def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
+def _print_drift(cells, reports, delta_ms, analyze) -> None:
     hdr = (
         f"{'Cell':<12} {'Drift?':<6} {'Reason':<12} "
         f"{'slope':>10} {'r':>8} {'Δend':>8} {'n':>6}"
@@ -562,8 +585,8 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
         result = detect_drift(
             v,
             delta_ms=delta_ms,
-            min_slope_mv_over_s=args.min_slope,
-            min_r=args.min_r,
+            min_slope_mv_over_s=ANALYZE_TRACE["trace_drift_min_slope_mv_over_s"],
+            min_r=ANALYZE_TRACE["trace_drift_min_r"],
         )
         yes = "YES" if result["flag"] else "NO"
         print(
@@ -586,7 +609,7 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
         )
 
 
-def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
+def _print_stability(cells, reports, delta_ms, analyze, baseline) -> None:
     hdr = (
         f"{'Cell':<12} {'Label':<16} {'Osc?':<5} {'Drift':<8} {'Flat?':<5} "
         f"{'v_peak_to_peak_over_std':>8} {'slope':>9} {'max|Δ|':>8} {'n':>6}"
@@ -605,14 +628,14 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             v,
             baseline=base,
             delta_ms=delta_ms,
-            min_osc_f=args.min_f,
-            max_osc_f=args.max_f,
-            z_threshold=args.z_threshold,
-            min_slope_mv_over_s=args.min_slope,
-            min_r=args.min_r,
-            max_abs=args.max_abs,
-            v_peak_to_peak_max=args.v_peak_to_peak_max,
-            abs_mean=args.abs_mean,
+            min_osc_f=ANALYZE_TRACE["trace_osc_min_f"],
+            max_osc_f=ANALYZE_TRACE["trace_osc_max_f"],
+            z_threshold=ANALYZE_TRACE["trace_osc_z_threshold"],
+            min_slope_mv_over_s=ANALYZE_TRACE["trace_drift_min_slope_mv_over_s"],
+            min_r=ANALYZE_TRACE["trace_drift_min_r"],
+            max_abs=ANALYZE_TRACE["trace_flat_max_abs"],
+            v_peak_to_peak_max=ANALYZE_TRACE["trace_flat_v_peak_to_peak_max"],
+            abs_mean=ANALYZE_TRACE["trace_flat_abs_mean"],
         )
         osc = result["oscillation"]
         drift = result["drift"]
@@ -639,93 +662,48 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             print(f"  {label}: {n_by_label[label]}", flush=True)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument(
-        "--run",
-        default=RUN_PATH,
-        help="run dir relative to PARAMETER_DIR or absolute (default: %(default)s)",
-    )
-    ap.add_argument(
-        "--check",
-        required=True,
-        choices=(CHECK_OSCILLATION, CHECK_FLAT, CHECK_DRIFT, CHECK_STABILITY),
-        help=(
-            "oscillation|flat|drift|stability on --ms-shown "
-            "(not locked to pre/sti-on)"
-        ),
-    )
-    ap.add_argument(
-        "--cells",
-        default="all",
-        help="comma-separated cells or all (default: param.csv)",
-    )
-    plot.add_ms_shown_argument(ap)
-    ap.add_argument(
-        "--baseline-ms-shown",
-        default=None,
-        metavar="START,STOP",
-        help=(
-            "absolute ms baseline window for flat/stability. "
-            "default: [start-baseline_ms, start] if start>0 else [0, baseline_ms]"
-        ),
-    )
-    plot.add_plot_session_override_arguments(ap)
-    ap.add_argument("--task", default="spot", choices=list(train.TASKS))
-    ap.add_argument("--contrast", default="bright", choices=list(train.CONTRASTS))
-    ap.add_argument("--radius", type=int, default=0, choices=(0, 1))
-    ap.add_argument(
-        "--z-threshold", type=float, default=ANALYZE_TRACE['trace_osc_z_threshold'],
-    )
-    ap.add_argument("--min-f", type=float, default=ANALYZE_TRACE['trace_osc_min_f'])
-    ap.add_argument("--max-f", type=float, default=ANALYZE_TRACE['trace_osc_max_f'])
-    ap.add_argument(
-        "--min-slope",
-        type=float,
-        default=ANALYZE_TRACE['trace_drift_min_slope_mv_over_s'],
-        help="drift: min |slope| in mV/s",
-    )
-    ap.add_argument(
-        "--min-r",
-        type=float,
-        default=ANALYZE_TRACE['trace_drift_min_r'],
-        help="drift: min |Pearson r| of linear fit",
-    )
-    ap.add_argument(
-        "--baseline-ms",
-        type=float,
-        default=ANALYZE_TRACE['trace_baseline_ms'],
-        help="default baseline length when --baseline-ms-shown omitted",
-    )
-    ap.add_argument(
-        "--max-abs",
-        type=float,
-        default=ANALYZE_TRACE['trace_flat_max_abs'],
-        help="flat: max |Δ| vs baseline",
-    )
-    ap.add_argument(
-        "--v-peak-to-peak-max",
-        type=float,
-        default=ANALYZE_TRACE['trace_flat_v_peak_to_peak_max'],
-        help="flat: max v_peak_to_peak from baseline",
-    )
-    ap.add_argument(
-        "--abs-mean",
-        type=float,
-        default=ANALYZE_TRACE['trace_flat_abs_mean'],
-        help="flat: max mean |Δ| vs baseline",
-    )
-    args = ap.parse_args()
+@hydra.main(version_base=None, config_path="../conf", config_name="config")
+def main(hydra_config) -> None:
+    apply_config(hydra_config)
+    check = ANALYZE_TRACE.get("check")
+    if check not in (
+        CHECK_OSCILLATION, CHECK_FLAT, CHECK_DRIFT, CHECK_STABILITY,
+    ):
+        raise SystemExit(
+            "check is required (oscillation|flat|drift|stability); "
+            f"got {check!r}"
+        )
 
-    cells, reports, delta_ms, analyze, baseline = _load_reports(args)
-    if args.check == CHECK_OSCILLATION:
-        _print_oscillation(cells, reports, delta_ms, analyze, args)
-    elif args.check == CHECK_FLAT:
-        _print_flat(cells, reports, delta_ms, analyze, baseline, args)
-    elif args.check == CHECK_DRIFT:
-        _print_drift(cells, reports, delta_ms, analyze, args)
-    else:
-        _print_stability(cells, reports, delta_ms, analyze, baseline, args)
+    tasks = TRAIN_CONFIG["tasks"]
+    tasks = parse_comma_list(tasks) if isinstance(tasks, str) else list(tasks)
+    contrasts = TRAIN_CONFIG["contrasts"]
+    contrasts = (
+        parse_comma_list(contrasts) if isinstance(contrasts, str) else list(contrasts)
+    )
+    task = tasks[0]
+    contrast = contrasts[0]
+    radius = int(ANALYZE_CELL_DYNAMICS.get("radius") or 0)
+    cells = parse_cells(ANALYZE_CELL_DYNAMICS.get("cells"))
+    session_kwargs = session_kwargs_from_cli(hydra_config)
+
+    for run_arg in ANALYZE_RUNS:
+        cells, reports, delta_ms, analyze, baseline = _load_reports(
+            run_arg,
+            check=check,
+            task=task,
+            contrast=contrast,
+            radius=radius,
+            cells=cells,
+            session_kwargs=session_kwargs,
+        )
+        if check == CHECK_OSCILLATION:
+            _print_oscillation(cells, reports, delta_ms, analyze)
+        elif check == CHECK_FLAT:
+            _print_flat(cells, reports, delta_ms, analyze, baseline)
+        elif check == CHECK_DRIFT:
+            _print_drift(cells, reports, delta_ms, analyze)
+        else:
+            _print_stability(cells, reports, delta_ms, analyze, baseline)
 
 
 if __name__ == "__main__":

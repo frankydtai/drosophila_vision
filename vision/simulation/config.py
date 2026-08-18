@@ -22,7 +22,7 @@ NEURON_SCHEMA: Dict[str, object] = {}
 NEURON_FORWARD: Dict[str, object] = {}
 NETWORK_PATH: Dict[str, object] = {}
 SPREAD_INPUT_SPEC: Dict[str, object] = {}
-SPREAD_PACK: Dict[str, object] = {}
+SPREAD_GT: Dict[str, object] = {}
 SPOT_INPUT_GEO: Dict[str, object] = {}
 SPOT_PACK: Dict[str, object] = {}
 MOVING_BAR_INPUT_GEO: Dict[str, object] = {}
@@ -71,7 +71,7 @@ def load_config_dict() -> dict:
 def _bind_config(config_dict: dict) -> None:
     global RUN_NAME, RUN_PATH
     global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
-    global SPREAD_INPUT_SPEC, SPREAD_PACK, SPOT_INPUT_GEO, SPOT_PACK
+    global SPREAD_INPUT_SPEC, SPREAD_GT, SPOT_INPUT_GEO, SPOT_PACK
     global MOVING_BAR_INPUT_GEO, MOVING_BAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
     global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, ANALYZE_RUNS
@@ -103,7 +103,7 @@ def _bind_config(config_dict: dict) -> None:
         "ms_response": config_dict["ms_response"],
         "ms_post": config_dict["ms_post"],
     }
-    SPREAD_PACK = {
+    SPREAD_GT = {
         "spread_gt_mode": config_dict["spread_gt_mode"],
     }
     SPOT_INPUT_GEO = {
@@ -139,8 +139,6 @@ def _bind_config(config_dict: dict) -> None:
     FIGURE_PLOT = {
         "html": config_dict.get("html", False),
         "plot_right_only": config_dict.get("plot_right_only", True),
-        "show_pre": config_dict.get("show_pre", True),
-        "center_only": config_dict.get("center_only", False),
         "x": config_dict.get("x"),
         "y": config_dict.get("y"),
         "align_xy": config_dict.get("align_xy"),
@@ -215,13 +213,13 @@ def _as_float_list(values) -> List[float]:
     return [float(x) for x in values]
 
 
-def parse_cells(raw) -> List[str] | None:
-    if raw is None or raw == "":
+def parse_cells(cells) -> List[str] | None:
+    if cells is None or cells == "":
         return None
-    if isinstance(raw, str):
-        cells = parse_comma_list(raw)
+    if isinstance(cells, str):
+        cells = parse_comma_list(cells)
     else:
-        cells = [str(cell).strip() for cell in raw if str(cell).strip()]
+        cells = [str(cell).strip() for cell in cells if str(cell).strip()]
     return cells or None
 
 
@@ -266,8 +264,6 @@ def resolve_figure_kwargs(hydra_config) -> dict:
         ms_shown = parse_ms_shown_range(str(figure_plot["ms_shown"]))
     return dict(
         plot_right_only=bool(figure_plot.get("plot_right_only", True)),
-        show_pre=bool(figure_plot.get("show_pre", True)),
-        center_only=bool(figure_plot.get("center_only", False)),
         at_x=parse_axis_coords(figure_plot.get("x")),
         at_y=parse_axis_coords(figure_plot.get("y")),
         align_at_x=align_at_x,
@@ -277,11 +273,29 @@ def resolve_figure_kwargs(hydra_config) -> dict:
     )
 
 
+def session_kwargs_from_cli(hydra_config) -> dict:
+    """CLI ``key=value`` bag for :func:`figure.plot.override_session`.
+
+    Keys not on the Hydra CLI stay ``None`` so re-plot keeps ``train_opts.json``.
+    """
+    from hydra.core.hydra_config import HydraConfig
+
+    keys = (
+        "euler", "filter", "ms_pre", "ms_sti", "ms_response", "ms_post",
+        "delta_ms", "delta_ms_pre",
+    )
+    hit = set()
+    if HydraConfig.initialized():
+        for token in HydraConfig.get().overrides.task:
+            hit.add(str(token).lstrip("+~").split("=", 1)[0])
+    if not isinstance(hydra_config, dict):
+        hydra_config = OmegaConf.to_container(hydra_config, resolve=True)
+    return {key: (hydra_config.get(key) if key in hit else None) for key in keys}
+
+
 def resolve_run_kwargs(hydra_config) -> dict:
     """Map merged Hydra config to kwargs for :func:`run_train_and_plot`."""
     import train
-    import train.cli as cli
-    from train.config import expand_cost_norm, expand_pre_steady
     from train.implementation import run_dir
 
     apply_config(hydra_config)
@@ -293,46 +307,17 @@ def resolve_run_kwargs(hydra_config) -> dict:
     if cost_radius is not None:
         cost_radius = int(cost_radius)
 
-    param_tokens = list(config_dict.get("param_tokens") or [])
-    param_init, param_vals, param_modes, param_clamps, param_jits = (
-        train.parse_param_cli(param_tokens) if param_tokens else ([], [], {}, [], [])
-    )
-    if param_vals:
-        raise ValueError(
-            "param_tokens …val… is for plot/analyze only; use …init… for train"
-        )
-
-    param_init = param_init or None
-    param_modes = param_modes or None
-    param_clamps = param_clamps or None
-    param_jits = param_jits or None
-
     syn_mode = str(NEURON_SCHEMA["syn_mode"])
-    if param_modes:
-        if syn_mode == "per_edge" and "syn_strength_cell" in param_modes:
-            raise ValueError("param syn_strength_cell requires syn_mode per_cell")
-        if syn_mode == "per_cell" and "syn_strength_edge" in param_modes:
-            raise ValueError("param syn_strength_edge requires syn_mode per_edge")
-        if "syn_strength_edge" in param_modes:
-            train.validate_syn_strength_edge_param_mode(param_modes["syn_strength_edge"])
-
-    filter = train.expand_filter(NEURON_SCHEMA["filter"])
-    spread_gt_mode = train.expand_spread_gt_mode(SPREAD_PACK["spread_gt_mode"])
+    filter = str(NEURON_SCHEMA["filter"])
+    spread_gt_mode = str(SPREAD_GT["spread_gt_mode"])
     val_from = train.resolve_val_from(VAL_FROM)
     val_from_opts = {"val_from": val_from}
     if filter != "ca":
-        for param in ("v_th_ca", "a_ca", "tau_ca"):
-            if cli.param_in_modes(param_modes, param):
-                raise ValueError(f"param {param} requires filter ca")
         if train.val_from_enabled(val_from_opts, "v_th_ca") or train.val_from_enabled(val_from_opts, "a_ca"):
             raise ValueError("val_from v_th_ca / a_ca require filter ca")
-        if param_modes:
-            param_modes = {
-                key: modes for key, modes in param_modes.items()
-                if key not in ("v_th_ca", "a_ca", "tau_ca")
-            } or None
 
-    tasks = train.parse_tasks(TRAIN_CONFIG["tasks"])
+    tasks = TRAIN_CONFIG["tasks"]
+    tasks = parse_comma_list(tasks) if isinstance(tasks, str) else list(tasks)
 
     part_cost_scales = {
         str(part_key): float(scale)
@@ -360,20 +345,21 @@ def resolve_run_kwargs(hydra_config) -> dict:
     if cost_interval_ms <= 0:
         raise ValueError("cost_interval_ms must be > 0")
 
-    cost_ms_raw = dict(TRAIN_OPTIMIZATION["cost_ms"])
     cost_ms = {
         str(int(radius)): [float(x) for x in mss]
-        for radius, mss in cost_ms_raw.items()
+        for radius, mss in TRAIN_OPTIMIZATION["cost_ms"].items()
     }
 
-    gt_tokens = TRAIN_CONFIG.get("gt_by_task")
-    gt_by_task = cli.resolve_gt(gt_tokens) if gt_tokens else None
-    if gt_by_task:
+    gt_cells_by_task = train.resolve_gt_cells_by_task(TRAIN_CONFIG.get("gt_by_task"))
+    if gt_cells_by_task:
         gt_opts = {"moving_bar": moving_bar_sti_opts, "spot": spot_sti_opts, "spread": spread_sti_opts}
-        for task, cells in gt_by_task.items():
+        for task, cells in gt_cells_by_task.items():
             gt_opts[task]["gt_cells"] = list(cells)
 
-    contrasts = train.parse_contrasts(TRAIN_CONFIG["contrasts"])
+    contrasts = TRAIN_CONFIG["contrasts"]
+    contrasts = (
+        parse_comma_list(contrasts) if isinstance(contrasts, str) else list(contrasts)
+    )
 
     lrs = _as_float_list(TRAIN_OPTIMIZATION.get("lrs"))
     if not lrs:
@@ -393,18 +379,13 @@ def resolve_run_kwargs(hydra_config) -> dict:
         n_run=int(TRAIN_OPTIMIZATION["n_run"]),
         n_iter=int(n_iter),
         lrs=lrs,
-        fname=config_dict.get("fname"),
-        outdir=run_dir(model, parent=config_dict.get("outdir"), run=run_name),
-        param_modes=param_modes,
-        param_init=param_init,
-        param_clamps=param_clamps,
-        param_jits=param_jits,
+        outdir=run_dir(model, run=run_name),
         syn_mode=syn_mode,
         network=str(NETWORK_PATH["network"]),
         tasks=tasks,
         contrasts=contrasts,
         part_cost_scales=part_cost_scales,
-        cost_norm=expand_cost_norm(TRAIN_OPTIMIZATION["cost_norm"]),
+        cost_norm=str(TRAIN_OPTIMIZATION["cost_norm"]),
         cost_interval_ms=cost_interval_ms,
         cost_ms=cost_ms,
         cost_radius=cost_radius,
@@ -416,7 +397,7 @@ def resolve_run_kwargs(hydra_config) -> dict:
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
         euler=str(MODEL["euler"]),
-        pre_steady=expand_pre_steady(TRAIN_OPTIMIZATION["pre_steady"]),
+        pre_steady=str(TRAIN_OPTIMIZATION["pre_steady"]),
         pre_steady_n_iter=TRAIN_OPTIMIZATION["pre_steady_n_iter"],
         pre_steady_damp=TRAIN_OPTIMIZATION["pre_steady_damp"],
         fp=fp,

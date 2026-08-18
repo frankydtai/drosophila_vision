@@ -351,7 +351,7 @@ def _as_int64_np(x) -> np.ndarray:
 
 
 def network_uv_np(connectome) -> Tuple[np.ndarray, np.ndarray]:
-    """connectome axial ``(u, v)`` per node as int64 numpy arrays."""
+    """connectome axial ``(u, v)`` per node as int64 numpy."""
     return _as_int64_np(connectome.us), _as_int64_np(connectome.vs)
 
 

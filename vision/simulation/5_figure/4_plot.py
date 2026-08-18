@@ -18,7 +18,7 @@ from figure.panel import (
     filter_figure_token,
     session_filter_figure_token,
 )
-from train.config import run_data_dir
+from train.session import run_data_dir
 from train.implementation import resolve_run_dir
 
 
@@ -100,15 +100,15 @@ def select_best(params, session, *, final_costs=None, verbose=True):
 
     note = ''
     if final_costs is not None:
-        costs_arr = np.asarray(final_costs, dtype=np.float64)
-        if costs_arr.shape[0] != params.shape[0]:
+        final_costs = np.asarray(final_costs, dtype=np.float64)
+        if final_costs.shape[0] != params.shape[0]:
             raise ValueError(
-                f'final_costs length {costs_arr.shape[0]} != params runs {params.shape[0]}',
+                f'final_costs length {final_costs.shape[0]} != params runs {params.shape[0]}',
             )
-        valid_costs = costs_arr[valid_mask]
+        valid_costs = final_costs[valid_mask]
         best = int(np.argmin(valid_costs))
         run_i = int(valid_idx[best])
-        selected = float(costs_arr[run_i])
+        selected = float(final_costs[run_i])
         note = ' (from saved final costs)'
     else:
         costs_out = []
@@ -218,22 +218,58 @@ def override_session(
         or delta_ms is not None
         or delta_ms_pre is not None
     ):
-        from train.cli import override_train_opts_timing
-        ms_changed = override_train_opts_timing(
-            opts,
-            ms_pre=ms_pre,
-            ms_response=ms_response,
-            ms_post=ms_post,
-            ms_sti=ms_sti,
-            delta_ms=delta_ms,
-            delta_ms_pre=delta_ms_pre,
+        pairs = (
+            ("ms_pre", ms_pre),
+            ("ms_post", ms_post),
+            ("delta_ms", delta_ms),
+            ("delta_ms_pre", delta_ms_pre),
+            ("ms_response", ms_response),
+            ("ms_sti", ms_sti),
         )
+        val = lambda ms: None if ms is None else float(ms)
+
+        def merge_ms(sti_opts, merge_pairs):
+            before = {key: val(sti_opts.get(key)) for key, _ in merge_pairs}
+            for key, ms in merge_pairs:
+                if ms is not None:
+                    sti_opts[key] = float(ms)
+            ms_sti_val = sti_opts.get("ms_sti")
+            ms_response_val = sti_opts.get("ms_response")
+            if ms_sti_val is not None and ms_response_val is not None:
+                sti_opts["ms_response"] = max(
+                    float(ms_response_val), float(ms_sti_val),
+                )
+            sti_opts.pop("n_t", None)
+            return {
+                key: sti_opts[key]
+                for key, _ in merge_pairs
+                if val(sti_opts.get(key)) != before[key]
+            }
+
+        for sti_opts_key in ("spread_sti_opts", "spot_sti_opts"):
+            sti_opts = opts.get(sti_opts_key)
+            if sti_opts is not None:
+                ms_changed.update(merge_ms(sti_opts, pairs))
+        if ms_pre is not None or delta_ms is not None or delta_ms_pre is not None:
+            sti_opts = opts.get("moving_bar_sti_opts")
+            if sti_opts is not None:
+                ms_changed.update(merge_ms(
+                    sti_opts,
+                    (
+                        ("ms_pre", ms_pre),
+                        ("ms_post", None),
+                        ("delta_ms", delta_ms),
+                        ("delta_ms_pre", delta_ms_pre),
+                        ("ms_response", None),
+                        ("ms_sti", None),
+                    ),
+                ))
 
     if euler is not None:
         opts["euler"] = train.expand_euler(euler)
 
     if filter is not None:
-        opts["filter"] = train.expand_filter(filter)
+        opts["filter"] = str(filter)
 
     session = train.resolve_session(opts, model=opts.get("model"))
     session, z = _session_z_from_best_param(session, run_dir)
@@ -281,8 +317,34 @@ def ms_filename_suffix(
 
 
 def euler_filename_suffix(euler=None):
-    from train.cli import euler_filename_suffix as _suffix
-    return _suffix(euler)
+    """PNG stem suffix for a non-``None`` euler override (``_im`` / ``_ex``)."""
+    if euler is None:
+        return ""
+    token = str(euler)
+    if token in ("implicit", "explicit"):
+        token = "im" if token == "implicit" else "ex"
+    elif token not in ("im", "ex"):
+        token = train.expand_euler(token)
+        token = "im" if token == "implicit" else "ex"
+    return f"_{token}"
+
+
+def param_filename_suffix(param_vals=None):
+    parts = []
+    for param, bag in (param_vals or {}).items():
+        if isinstance(bag, dict):
+            for node, number in bag.items():
+                parts.append("_".join([
+                    str(param), "val", str(node).replace(":", "_"),
+                    _format_filename_token(number),
+                ]))
+        else:
+            parts.append("_".join([
+                str(param), "val", _format_filename_token(bag),
+            ]))
+    if not parts:
+        return ""
+    return "_" + "_".join(parts)
 
 
 def _stored_cost_parts(outdir):
@@ -294,10 +356,10 @@ def _stored_cost_parts(outdir):
         return {}
     run_i = int(np.argmin(np.asarray(final_costs)))
     out = {}
-    for key, arr in final_costs_by_part.items():
-        vals = np.asarray(arr).reshape(-1)
-        if run_i < vals.size:
-            out[key] = float(vals[run_i])
+    for part_key, costs in final_costs_by_part.items():
+        costs = np.asarray(costs).reshape(-1)
+        if run_i < costs.size:
+            out[part_key] = float(costs[run_i])
     return out
 
 
@@ -314,9 +376,9 @@ def _readout_figure_stem(prefix, session):
 
 def _plot_spot_tasks(session, z, outdir, suffix, model_all,
                        gts=None,
-                       at_x=None, at_y=None, show_pre=True,
+                       at_x=None, at_y=None,
                        file_suffix="", html=False, ms_shown=None,
-                       center_only=False, cost_parts=None):
+                       cost_parts=None):
     """Plot spot; both contrasts in one figure when session has bright and dark."""
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
     net_label = _network_spot_label(session, "spot")
@@ -324,9 +386,7 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
     token = session_filter_figure_token(session)
     readout_kwargs = dict(
         at_xs=at_x, at_ys=at_y,
-        show_pre=show_pre,
         ms_shown=ms_shown,
-        center_only=center_only,
     )
     contrasts = tuple(session.contrasts)
     if set(contrasts) >= {"bright", "dark"}:
@@ -356,26 +416,23 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
             session_from_task(session, "spot", contrast), z, outdir, contrast, suffix, model_all,
             gts=gts,
             at_x=at_x, at_y=at_y,
-            show_pre=show_pre,
             cost_parts=cost_parts,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
-            center_only=center_only,
         )
 
 
 def _plot_bar_readouts(session, z, outdir, suffix, model_all, *,
                       plot_right_only=True, at_x=None, at_y=None,
                       align_at_x=None, align_at_y=None,
-                      show_pre=True, file_suffix="", html=False, ms_shown=None,
+                      file_suffix="", html=False, ms_shown=None,
                       cost_parts=None):
     """Plot moving-bar; bright left | dark right when session has both contrasts."""
     token = session_filter_figure_token(session)
     readout_kwargs = dict(
         at_xs=at_x, at_ys=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
-        show_pre=show_pre,
         ms_shown=ms_shown,
     )
     contrasts = tuple(session.contrasts)
@@ -427,9 +484,8 @@ def _plot_bar_readouts(session, z, outdir, suffix, model_all, *,
 
 def _plot_one_spot(session, z, outdir, contrast, suffix, model_all,
                      gts=None,
-                     at_x=None, at_y=None, show_pre=True,
-                     cost_parts=None, file_suffix="", html=False, ms_shown=None,
-                     center_only=False):
+                     at_x=None, at_y=None,
+                     cost_parts=None, file_suffix="", html=False, ms_shown=None):
     token = session_filter_figure_token(session)
     mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
     allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
@@ -439,9 +495,7 @@ def _plot_one_spot(session, z, outdir, contrast, suffix, model_all,
     readout = build_readout(
         session, z,
         at_xs=at_x, at_ys=at_y,
-        show_pre=show_pre,
         ms_shown=ms_shown,
-        center_only=center_only,
     )
     readouts = {contrast: readout}
     plot_gt(
@@ -464,8 +518,8 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
                    gts=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
-                   show_pre=True, file_suffix="", html=False, ms_shown=None,
-                   center_only=False, recompute_cost=False):
+                   file_suffix="", html=False, ms_shown=None,
+                   recompute_cost=False):
     import train.implementation as train_mod
 
     os.makedirs(outdir, exist_ok=True)
@@ -521,11 +575,9 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
             session, z, outdir, suffix, model_all,
             gts=gts,
             at_x=at_x, at_y=at_y,
-            show_pre=show_pre,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
-            center_only=center_only,
             cost_parts=cost_parts,
         )
     if has_moving_bar:
@@ -534,7 +586,6 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
             align_at_x=align_at_x, align_at_y=align_at_y,
-            show_pre=show_pre,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
@@ -589,30 +640,10 @@ def parse_ms_shown_range(token, *, flag="ms_shown"):
     return start, stop
 
 
-def parse_param_init_val_tokens(tokens):
-    try:
-        return train.parse_param_init_val_tokens(tokens)
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
-
-
-def filter_filename_suffix(filter=None):
-    from train.cli import filter_filename_suffix as _suffix
-    return _suffix(filter)
-
-
-def param_filename_suffix(param_inits=None, param_vals=None):
-    from train.cli import param_filename_suffix as _suffix
-    return _suffix(param_inits=param_inits, param_vals=param_vals)
-
-
-def override_params(z, schema, session, param_vals=None, param_inits=None,
-                    param_clamps=None, param_jits=None):
+def override_params(z, schema, session, param_vals=None):
     try:
         return train.override_params(
-            z, schema, session,
-            param_vals=param_vals, param_inits=param_inits,
-            param_clamps=param_clamps, param_jits=param_jits,
+            z, schema, session, param_vals=param_vals,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
@@ -624,7 +655,7 @@ def plot_trained_run(
     figure_kwargs,
     euler=None,
     filter=None,
-    param_tokens=None,
+    param_vals=None,
     ms_pre=None,
     ms_response=None,
     ms_post=None,
@@ -635,9 +666,7 @@ def plot_trained_run(
     """Re-plot one trained run (shared by Hydra ``figure.plot`` main)."""
     import train.implementation as train_mod
 
-    param_inits, param_vals, param_clamps, param_jits = parse_param_init_val_tokens(
-        param_tokens or [],
-    )
+    param_vals = param_vals or {}
     session, z, best_cost = load_best(outdir, verbose=True)
     session, z, ms_changed = override_session(
         run_dir=outdir, session=session, z=z,
@@ -656,19 +685,16 @@ def plot_trained_run(
                           device=session.device)
     )
     z, schema = override_params(
-        z, train.schema_copy(session.schema), session,
-        param_vals=param_vals, param_inits=param_inits,
-        param_clamps=param_clamps, param_jits=param_jits,
+        z, train.schema_copy(session.schema), session, param_vals=param_vals,
     )
     session = session.with_schema(schema)
     recompute_cost = bool(
-        ms_changed or euler is not None or filter is not None
-        or param_inits or param_vals
+        ms_changed or euler is not None or filter is not None or param_vals
     )
     file_suffix = (
         ms_filename_suffix(**ms_changed)
         + euler_filename_suffix(euler)
-        + param_filename_suffix(param_inits=param_inits, param_vals=param_vals)
+        + param_filename_suffix(param_vals=param_vals)
     )
     model = resolve_model(outdir)
     z = z.detach().cpu().numpy()
@@ -681,7 +707,7 @@ def plot_trained_run(
         session=session,
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
-        save_data=not (param_inits or param_vals),
+        save_data=not param_vals,
         recompute_cost=recompute_cost,
         **figure_kwargs,
     )
@@ -694,17 +720,17 @@ def main(hydra_config):
         active_config,
         apply_config,
         resolve_figure_kwargs,
+        session_kwargs_from_cli,
     )
 
     apply_config(hydra_config)
     figure_kwargs = resolve_figure_kwargs(hydra_config)
     outdir = resolve_run_dir(RUN_PATH)
-    from train.cli import session_kwargs_from_cli
     session_kwargs = session_kwargs_from_cli(hydra_config)
     plot_trained_run(
         outdir,
         figure_kwargs=figure_kwargs,
-        param_tokens=list(active_config().get("param_tokens") or []),
+        param_vals=dict(active_config().get("param_vals") or {}),
         **session_kwargs,
     )
 

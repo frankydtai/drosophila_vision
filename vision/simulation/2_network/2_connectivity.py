@@ -49,7 +49,7 @@ def build_cell_pair_idxs(src_cell, tar_cell, n_cell: int):
 class ScatterConn:
     """Edge-list connectivity backend (connectome sub-graph or full graph).
 
-    Built from parallel arrays describing directed synaptic edges ``source ->
+    Built from parallel source/target/weight bags describing directed synaptic edges ``source ->
     target`` with a signed weight ``edge_weights`` (``syn_sign * n_syn`` for per_cell,
     ``syn_sign`` for per_edge). Excitatory and inhibitory ``g`` are summed with
     ``scatter_add_`` onto target nodes. ``syn_strength`` is either type-pair

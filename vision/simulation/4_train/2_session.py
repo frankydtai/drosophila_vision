@@ -14,7 +14,7 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 Model traces are absolute ``v`` (``filter=none``) or ``ca`` (``filter=ca``);
 cost compares the pack to ``a_gt * gts + bias_gt``. Schema includes
 ``v_th_ca``/``a_ca``/``tau_ca`` only when ``filter=ca``. When
-``val_from`` (``--val-from``), ``bias_gt`` is written from ``v`` at ``t_onset`` (or ``ca`` when
+``val_from``, ``bias_gt`` is written from ``v`` at ``t_onset`` (or ``ca`` when
 ``filter=ca``) — same value appears in ``param.csv``. Spot ir uses Arenz digitized
 when ``filter=ca``. ``spread_gt_mode`` (``all`` | ``pos``) gates cost GT via
 :func:`task.spread.gt.spread_gt_active`; dark multiplies by :func:`task.spread.gt.contrast_sign`.
@@ -33,7 +33,7 @@ from config import (
     MODEL,
     NEURON_SCHEMA,
     SPREAD_INPUT_SPEC,
-    SPREAD_PACK,
+    SPREAD_GT,
     SPOT_INPUT_GEO,
     SPOT_PACK,
     TRAIN_CONFIG,
@@ -59,25 +59,19 @@ from neuron import (
     expand_euler,
 )
 from train.param import (
+    PARAM_MODES,
     SIM_DTYPE,
     active_device,
-    schema_with_params,
     schema_copy,
     schema_with_param_carry,
-    resolve_param_modes,
     resolve_val_from,
     schema_n_z,
-    param_modes_from_schema,
     sim_dtype_from_fp,
     val_from_enabled,
 )
 
 from task.spread.gt import expand_gt_cells as expand_spread_gt_cells
 from task.spread.pack import build_spread_gt
-from task.spread.sti_spec import (
-    resolve_sti_timing,
-    standardize_sti_timing,
-)
 from task.spot.gt import expand_gt_cells as expand_spot_gt_cells
 from task.spot.pack import (
     build_spot_gt,
@@ -238,7 +232,6 @@ def load_train_connectome(
     sim_dtype=SIM_DTYPE,
     syn_mode=NEURON_SCHEMA['syn_mode'],
     params=NEURON_SCHEMA['params'],
-    h_cells=NEURON_SCHEMA['h_cells'],
 ) -> Network:
     """Load connectome ``Network`` for train (print summary)."""
     device = device or active_device()
@@ -252,7 +245,7 @@ def load_train_connectome(
     print(f"  n_node={connectome.n_node}, n_cell={connectome.n_cell}, "
           f"n_pair={connectome.conn.n_pair}, n_edge={connectome.conn.n_edge}, "
           f"syn_mode={mode}, "
-          f"n_z={schema_n_z(build_schema('borst', connectome, syn_mode=mode, params=params, h_cells=h_cells, a_sti_radii=SPOT_PACK['a_sti_radii']))}")
+          f"n_z={schema_n_z(build_schema('borst', connectome, syn_mode=mode, params=params, a_sti_radii=SPOT_PACK['a_sti_radii']))}")
     return connectome
 
 
@@ -371,9 +364,11 @@ def _spot_cost_ts_and_mask(
     n = int(entry_radii.shape[0])
     if n == 0:
         return None, None
-    timing = resolve_sti_timing(opts)
-    delta_ms = timing.delta_ms
-    post = timing.n_t_gt - timing.t_onset
+    ms_response = float(opts["ms_response"])
+    if opts.get("ms_sti") is not None:
+        ms_response = max(ms_response, float(opts["ms_sti"]))
+    delta_ms = float(opts["delta_ms"])
+    post = int(t_from_ms(ms_response, delta_ms=delta_ms)) + 1
     cost_ms_by_radius = expand_cost_ms(cost_ms=cost_ms)
     entry_radii = entry_radii.detach().cpu().numpy().astype(np.int64, copy=False)
     radii = {int(radius) for radius in entry_radii.tolist()}
@@ -411,9 +406,11 @@ def _spot_cost_ts_and_mask(
 
 
 def _spread_cost_ts(opts, *, cost_ms, cost_interval_ms, device):
-    timing = resolve_sti_timing(opts)
-    delta_ms = timing.delta_ms
-    post = timing.n_t_gt - timing.t_onset
+    ms_response = float(opts["ms_response"])
+    if opts.get("ms_sti") is not None:
+        ms_response = max(ms_response, float(opts["ms_sti"]))
+    delta_ms = float(opts["delta_ms"])
+    post = int(t_from_ms(ms_response, delta_ms=delta_ms)) + 1
     cost_ms_by_radius = expand_cost_ms(cost_ms=cost_ms)
     if cost_ms_by_radius:
         mss = sorted({ms for vals in cost_ms_by_radius.values() for ms in vals})
@@ -450,11 +447,28 @@ def _build_spread_pack(
     task = "spread"
     if not spread_sti_opts:
         raise ValueError("spread requires sti opts (from resolve_train_opts / CLI)")
-    opts = standardize_sti_timing(dict(spread_sti_opts))
-    timing = resolve_sti_timing(opts)
+    opts = dict(spread_sti_opts)
+    ms_sti = opts.get("ms_sti")
+    ms_response = opts.get("ms_response")
+    if ms_sti is not None and ms_response is not None:
+        opts["ms_response"] = max(float(ms_response), float(ms_sti))
+    for key in ("ms_pre", "ms_response", "delta_ms", "delta_ms_pre"):
+        if opts.get(key) is None:
+            raise ValueError(f"spread sti opts require {key}")
+    ms_pre = float(opts["ms_pre"])
+    ms_response = float(opts["ms_response"])
+    delta_ms = float(opts["delta_ms"])
+    delta_ms_pre = float(opts["delta_ms_pre"])
+    ms_post = float(opts.get("ms_post", 0.0))
+    ms_sti = opts.get("ms_sti")
     device = device or active_device()
-    t_onset = timing.t_onset
-    n_t = timing.n_t
+    t_onset = int(t_from_ms(ms_pre, delta_ms=delta_ms_pre))
+    n_t = int(
+        t_onset
+        + t_from_ms(ms_response, delta_ms=delta_ms)
+        + t_from_ms(ms_post, delta_ms=delta_ms)
+        + 1
+    )
     i_baseline = i_baseline_from_i_sti(i_sti)
     T = build_spread_gt(
         connectome,
@@ -464,11 +478,11 @@ def _build_spread_pack(
         i_sti=float(i_sti[contrast]),
         contrast=contrast,
         gt_amp=gt_amp,
-        delta_ms=timing.delta_ms,
+        delta_ms=delta_ms,
         device=device,
         sim_dtype=sim_dtype,
-        ms_sti=timing.ms_sti,
-        ms_response=timing.ms_response,
+        ms_sti=ms_sti,
+        ms_response=ms_response,
         gt_cells=gt_cells_from_opts(opts),
         filter=str(filter),
         spread_gt_mode=str(spread_gt_mode),
@@ -514,16 +528,33 @@ def _build_spot_pack(
     task = "spot"
     if not spot_sti_opts:
         raise ValueError("spot requires sti opts (from resolve_train_opts / CLI)")
-    opts = standardize_sti_timing(dict(spot_sti_opts))
-    timing = resolve_sti_timing(opts)
+    opts = dict(spot_sti_opts)
+    ms_sti = opts.get("ms_sti")
+    ms_response = opts.get("ms_response")
+    if ms_sti is not None and ms_response is not None:
+        opts["ms_response"] = max(float(ms_response), float(ms_sti))
+    for key in ("ms_pre", "ms_response", "delta_ms", "delta_ms_pre"):
+        if opts.get(key) is None:
+            raise ValueError(f"spot sti opts require {key}")
+    ms_pre = float(opts["ms_pre"])
+    ms_response = float(opts["ms_response"])
+    delta_ms = float(opts["delta_ms"])
+    delta_ms_pre = float(opts["delta_ms_pre"])
+    ms_post = float(opts.get("ms_post", 0.0))
+    ms_sti = opts.get("ms_sti")
     cost_radius = standardize_cost_radius(opts.get("cost_radius"))
     shift_radius = int(opts["shift_radius"])
     spot_radius = float(opts["spot_radius"])
     multi_spot = bool(opts["multi_spot"])
     fully_inside = bool(opts["fully_inside"])
     device = device or active_device()
-    t_onset = timing.t_onset
-    n_t = timing.n_t
+    t_onset = int(t_from_ms(ms_pre, delta_ms=delta_ms_pre))
+    n_t = int(
+        t_onset
+        + t_from_ms(ms_response, delta_ms=delta_ms)
+        + t_from_ms(ms_post, delta_ms=delta_ms)
+        + 1
+    )
     i_baseline = i_baseline_from_i_sti(i_sti)
     cost_radius_scales = dict(SPOT_PACK['spot_cost_radius_scale'])
     T = build_spot_gt(
@@ -540,10 +571,10 @@ def _build_spot_pack(
         i_baseline=i_baseline,
         i_sti=float(i_sti[contrast]),
         contrast=contrast,
-        ms_sti=timing.ms_sti,
-        ms_response=timing.ms_response,
+        ms_sti=ms_sti,
+        ms_response=ms_response,
         gt_amp=gt_amp,
-        delta_ms=timing.delta_ms,
+        delta_ms=delta_ms,
         cost_radius_scales=cost_radius_scales,
         spot_cost_radii=SPOT_PACK['spot_cost_radii'],
         gt_cells=gt_cells_from_opts(opts),
@@ -571,8 +602,8 @@ def _build_spot_pack(
         a_sti_radii=SPOT_PACK['a_sti_radii'],
         t_onset=int(t_onset),
         n_t=int(n_t),
-        ms_sti=timing.ms_sti,
-        delta_ms=timing.delta_ms,
+        ms_sti=ms_sti,
+        delta_ms=delta_ms,
         i_baseline=i_baseline,
         i_sti=float(i_sti[contrast]),
         sim_dtype=sim_dtype,
@@ -677,43 +708,47 @@ def _i_sti(i_sti=None) -> Dict[str, float]:
     return out
 
 
-def _spread_resolve_sti_opts(raw, **_):
+def _spread_resolve_sti_opts(opts, **_):
+    ms_sti = opts["ms_sti"]
+    gt_cells = opts.get("gt_cells")
     opts = {
-        "ms_pre": raw["ms_pre"],
-        "ms_response": raw["ms_response"],
-        "ms_post": raw["ms_post"],
-        "delta_ms": raw["delta_ms"],
-        "delta_ms_pre": raw["delta_ms_pre"],
+        "ms_pre": opts["ms_pre"],
+        "ms_response": opts["ms_response"],
+        "ms_post": opts["ms_post"],
+        "delta_ms": opts["delta_ms"],
+        "delta_ms_pre": opts["delta_ms_pre"],
     }
-    if raw["ms_sti"] is not None:
-        opts["ms_sti"] = raw["ms_sti"]
-    gt_cells = raw.get("gt_cells")
+    if ms_sti is not None:
+        opts["ms_sti"] = ms_sti
     if gt_cells is not None:
         opts["gt_cells"] = list(gt_cells)
-    return standardize_sti_timing(opts)
+    ms_response = opts.get("ms_response")
+    if ms_sti is not None and ms_response is not None:
+        opts["ms_response"] = max(float(ms_response), float(ms_sti))
+    return opts
 
 
-def _spot_resolve_sti_opts(raw, *, shift_radius, spot_radius, multi_spot, fully_inside, **_):
+def _spot_resolve_sti_opts(opts, *, shift_radius, spot_radius, multi_spot, fully_inside, **_):
     out = build_spot_sti_opts(
-        ms_pre=raw["ms_pre"],
-        ms_response=raw["ms_response"],
-        ms_post=raw["ms_post"],
-        delta_ms=raw["delta_ms"],
-        delta_ms_pre=raw["delta_ms_pre"],
+        ms_pre=opts["ms_pre"],
+        ms_response=opts["ms_response"],
+        ms_post=opts["ms_post"],
+        delta_ms=opts["delta_ms"],
+        delta_ms_pre=opts["delta_ms_pre"],
         shift_radius=(
-            shift_radius if shift_radius is not None else raw["shift_radius"]
+            shift_radius if shift_radius is not None else opts["shift_radius"]
         ),
         spot_radius=(
-            spot_radius if spot_radius is not None else raw["spot_radius"]
+            spot_radius if spot_radius is not None else opts["spot_radius"]
         ),
         multi_spot=(
-            multi_spot if multi_spot is not None else raw["multi_spot"]
+            multi_spot if multi_spot is not None else opts["multi_spot"]
         ),
         fully_inside=(
-            fully_inside if fully_inside is not None else raw["fully_inside"]
+            fully_inside if fully_inside is not None else opts["fully_inside"]
         ),
-        ms_sti=raw["ms_sti"],
-        gt_cells=raw.get("gt_cells"),
+        ms_sti=opts["ms_sti"],
+        gt_cells=opts.get("gt_cells"),
     )
     out["shift_radius"] = shift_radius
     out["spot_radius"] = spot_radius
@@ -722,13 +757,13 @@ def _spot_resolve_sti_opts(raw, *, shift_radius, spot_radius, multi_spot, fully_
     return out
 
 
-def _moving_bar_resolve_sti_opts(raw, **_):
+def _moving_bar_resolve_sti_opts(opts, **_):
     return build_moving_bar_sti_opts(
-        ms_pre=raw["ms_pre"],
-        delta_ms=raw["delta_ms"],
-        delta_ms_pre=raw["delta_ms_pre"],
-        multi_bar=raw["multi_bar"],
-        gt_cells=raw.get("gt_cells"),
+        ms_pre=opts["ms_pre"],
+        delta_ms=opts["delta_ms"],
+        delta_ms_pre=opts["delta_ms_pre"],
+        multi_bar=opts["multi_bar"],
+        gt_cells=opts.get("gt_cells"),
     )
 
 
@@ -749,10 +784,9 @@ def _resolve_sti_opts(
     multi_spot,
     fully_inside,
 ):
-    raw = dict(_STI_OPTS_BY_TASK.get(task, {}))
-    raw.update(opts or {})
+    opts = {**_STI_OPTS_BY_TASK.get(task, {}), **(opts or {})}
     out = _RESOLVE_STI_OPTS[task](
-        raw,
+        opts,
         shift_radius=shift_radius,
         spot_radius=spot_radius,
         multi_spot=multi_spot,
@@ -784,10 +818,6 @@ def resolve_train_opts(
     spot_sti_opts=None,
     network_json=None,
     network=None,
-    param_modes=None,
-    param_init=None,
-    param_clamps=None,
-    param_jits=None,
     syn_mode=NEURON_SCHEMA['syn_mode'],
     device=None,
     packs=None,
@@ -799,7 +829,7 @@ def resolve_train_opts(
     pre_grad=NEURON_FORWARD['pre_grad'],
     val_from=None,
     filter=NEURON_SCHEMA['filter'],
-    spread_gt_mode=SPREAD_PACK['spread_gt_mode'],
+    spread_gt_mode=SPREAD_GT['spread_gt_mode'],
 ):
     """Canonical train opts for :func:`open_session`."""
     if network is None and network_json is None:
@@ -825,15 +855,9 @@ def resolve_train_opts(
     if filter != "ca":
         if val_from_enabled(val_from_opts, "v_th_ca") or val_from_enabled(val_from_opts, "a_ca"):
             raise ValueError(
-                "--val-from v_th_ca / a_ca require --filter ca "
+                "val_from v_th_ca / a_ca require filter ca "
                 f"(got filter={filter!r})"
             )
-        if param_modes:
-            param_modes = {
-                param: modes for param, modes in param_modes.items()
-                if param not in ("v_th_ca", "a_ca", "tau_ca")
-            } or None
-    param_modes = resolve_param_modes(param_modes, val_from_opts)
     tasks = _tokens(tasks if tasks is not None else TRAIN_CONFIG["tasks"])
     contrasts = _tokens(
         contrasts if contrasts is not None else SPREAD_INPUT_SPEC["contrasts"]
@@ -850,19 +874,18 @@ def resolve_train_opts(
         multi_spot=multi_spot,
         fully_inside=fully_inside,
     )
-    raw_by_task = {
+    sti_opts_by_task = {
         "spread": spread_sti_opts,
         "spot": spot_sti_opts,
         "moving_bar": moving_bar_sti_opts,
     }
     sti_opts = {}
     for task, sti_opts_key in _STI_TRAIN_OPT_KEYS:
-        raw = raw_by_task[task]
-        if task not in tasks and raw is None:
+        if task not in tasks and sti_opts_by_task[task] is None:
             sti_opts[sti_opts_key] = None
             continue
         sti_opts[sti_opts_key] = _resolve_sti_opts(
-            raw,
+            sti_opts_by_task[task],
             task,
             **finalize_kwargs,
         )
@@ -897,28 +920,13 @@ def resolve_train_opts(
         "spread_gt_mode": spread_gt_mode,
         "fp": fp,
         "packs": None,
-        "param_modes": None,
+        "params": copy.deepcopy(NEURON_SCHEMA["params"]),
         "network": network,
         "network_json": str(network_json) if network_json is not None else None,
         "device": device,
     }
     if packs is not None:
         opts["packs"] = packs
-    if param_modes is not None:
-        opts["param_modes"] = param_modes
-    if param_init:
-        opts["param_init"] = [
-            [param, node, float(val)] for param, node, val in param_init
-        ]
-    if param_clamps:
-        opts["param_clamps"] = [
-            [param, key, node, float(val)]
-            for param, key, node, val in param_clamps
-        ]
-    if param_jits:
-        opts["param_jits"] = [
-            [param, node, float(val)] for param, node, val in param_jits
-        ]
     return opts
 
 
@@ -964,14 +972,8 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
         "spot_sti_opts": _sti("spot_sti_opts"),
         "moving_bar_sti_opts": _sti("moving_bar_sti_opts"),
     }
-    if opts.get("param_modes"):
-        train_opts["param_modes"] = opts["param_modes"]
-    if opts.get("param_init"):
-        train_opts["param_init"] = opts["param_init"]
-    if opts.get("param_clamps"):
-        train_opts["param_clamps"] = opts["param_clamps"]
-    if opts.get("param_jits"):
-        train_opts["param_jits"] = opts["param_jits"]
+    if opts.get("params"):
+        train_opts["params"] = copy.deepcopy(opts["params"])
     if "euler" not in opts:
         raise ValueError("train opts require euler (implicit|explicit)")
     train_opts["euler"] = opts["euler"]
@@ -979,52 +981,39 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
     train_opts["pre_grad"] = opts.get("pre_grad", NEURON_FORWARD['pre_grad'])
     train_opts["val_from"] = copy.deepcopy(opts.get("val_from", VAL_FROM))
     train_opts["filter"] = str(opts.get("filter", NEURON_SCHEMA['filter']))
-    train_opts["spread_gt_mode"] = opts.get("spread_gt_mode", SPREAD_PACK['spread_gt_mode'])
+    train_opts["spread_gt_mode"] = opts.get("spread_gt_mode", SPREAD_GT['spread_gt_mode'])
     train_opts["fp"] = int(opts.get("fp", TRAIN_SESSION['fp']))
     return train_opts
 
 
 def resolve_schema(model, connectome, schema, train_opts):
-    """Build the train schema: defaults + CLI / sidecar ``param_key`` stamps."""
+    """Build the train schema from sidecar / YAML ``params``."""
     if schema is not None:
         return schema_copy(schema)
     filter = NEURON_SCHEMA['filter']
     if train_opts:
         filter = str(train_opts.get("filter", NEURON_SCHEMA['filter']))
     syn_mode = (train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode'])
-    base = build_schema(
+    params = (train_opts or {}).get("params") or NEURON_SCHEMA["params"]
+    schema = build_schema(
         model,
         connectome,
         syn_mode=syn_mode,
-        params=NEURON_SCHEMA['params'],
-        h_cells=NEURON_SCHEMA['h_cells'],
+        params=params,
         filter=filter,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
     )
-    if not train_opts:
-        return base
-    param_init = train_opts.get("param_init")
-    param_inits = (
-        [(row[0], row[1], float(row[2])) for row in param_init]
-        if param_init else None
-    )
-    param_clamps = train_opts.get("param_clamps")
-    clamps = (
-        [(row[0], row[1], row[2], float(row[3])) for row in param_clamps]
-        if param_clamps else None
-    )
-    param_jits = train_opts.get("param_jits")
-    jits = (
-        [(row[0], row[1], float(row[2])) for row in param_jits]
-        if param_jits else None
-    )
-    return schema_with_params(
-        base, connectome,
-        param_modes=train_opts.get("param_modes"),
-        param_inits=param_inits,
-        param_clamps=clamps,
-        param_jits=jits,
-    )
+    val_from = (train_opts or {}).get("val_from") or {}
+    schema = schema_copy(schema)
+    for target, entry in val_from.items():
+        if not entry.get("enabled") or target not in schema:
+            continue
+        spec = schema[target]
+        n_node = spec['n_node']
+        for mode in PARAM_MODES:
+            spec[mode] = []
+        spec["frozen"] = list(range(n_node))
+    return schema
 
 
 def _build_session(
@@ -1067,9 +1056,6 @@ def _build_session(
     train_opts["pre_steady_damp"] = pre_steady_damp
     sch = resolve_schema(
         model, connectome, schema, train_opts,
-    )
-    train_opts["param_modes"] = param_modes_from_schema(
-        sch, connectome,
     )
     sch = schema_with_param_carry(sch)
     cli_scales = {
@@ -1162,7 +1148,7 @@ def open_session(
                 pack, sti_opts, _label = _build_spread_pack(
                     spread_sti_opts=opts.get("spread_sti_opts"),
                     spread_gt_mode=str(
-                        opts.get("spread_gt_mode", SPREAD_PACK['spread_gt_mode']),
+                        opts.get("spread_gt_mode", SPREAD_GT['spread_gt_mode']),
                     ),
                     cost_ms=dict(opts.get("cost_ms") or {}),
                     cost_interval_ms=float(
@@ -1181,7 +1167,7 @@ def open_session(
                 pack, sti_opts, _label = _build_spot_pack(
                     spot_sti_opts=opts.get("spot_sti_opts"),
                     spread_gt_mode=str(
-                        opts.get("spread_gt_mode", SPREAD_PACK['spread_gt_mode']),
+                        opts.get("spread_gt_mode", SPREAD_GT['spread_gt_mode']),
                     ),
                     cost_ms=dict(opts.get("cost_ms") or {}),
                     cost_interval_ms=float(

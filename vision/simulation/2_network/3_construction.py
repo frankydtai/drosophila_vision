@@ -102,7 +102,7 @@ class Network:
 
 
 def node_cells(connectome: Network) -> np.ndarray:
-    """(n_node,) array of each node's cell NAME."""
+    """(n_node,) cell NAME per node."""
     return np.asarray(connectome.cells)[connectome.node_cells.detach().cpu().numpy()]
 
 

@@ -211,13 +211,13 @@ def locate_neurons(
             vu[f"_w{coord}"] = vu[coord].astype("float") * vu["w"]
         g = vu.groupby(self_id)
         w_sum = g["w"].sum()
-        raw_mean = {
+        mean = {
             coord: g[f"_w{coord}"].sum() / w_sum for coord in ("u", "v", "x", "y")
         }
         # Per coordinate, arrange as mean (weighted), max, min.
         for coord, dtype in (("u", "Int64"), ("v", "Int64"), ("x", "Float64"), ("y", "Float64")):
             out[f"mean_{coord}"] = (
-                out["root_id"].map(raw_mean[coord].round(3)).astype("Float64")
+                out["root_id"].map(mean[coord].round(3)).astype("Float64")
             )
             out[f"max_{coord}"] = out["root_id"].map(g[coord].max()).astype(dtype)
             out[f"min_{coord}"] = out["root_id"].map(g[coord].min()).astype(dtype)
@@ -227,8 +227,8 @@ def locate_neurons(
         # vote-scaled mean.
         votes_sum = g["votes"].sum()
         best_frac = best["votes"] / votes_sum
-        vu["d2"] = (vu["u"] - vu[self_id].map(raw_mean["u"])) ** 2 + (
-            vu["v"] - vu[self_id].map(raw_mean["v"])
+        vu["d2"] = (vu["u"] - vu[self_id].map(mean["u"])) ** 2 + (
+            vu["v"] - vu[self_id].map(mean["v"])
         ) ** 2
         nearest = (
             vu.sort_values(

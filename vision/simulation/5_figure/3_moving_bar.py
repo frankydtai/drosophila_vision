@@ -41,7 +41,7 @@ from figure.panel import (
     gt_trace_affine,
     ms_shown_axis_xlim,
     overlay_reds,
-    plot_pre_post_line,
+    plot_trace,
     plot_std_band,
     plot_timecourse,
     pack_center_mask,
@@ -104,7 +104,6 @@ class MovingBarTraceReadout:
     align_at_x: int | None = None
     align_at_y: int | None = None
     prep_s: float = 0.0
-    show_pre: bool = True
     t_onset: int | None = None
     gt_affine_by_cell: dict = field(default_factory=dict)
     ms_shown: tuple[float, float] | None = None
@@ -153,7 +152,7 @@ def _moving_bar_cell_title(
 def figure_cell_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
     """Map node ``node_cells`` (connectome cell idx) to ``figure_cells`` idx.
 
-    ``cells_in_order`` reorders cells; matching raw ``node_cells`` against
+    ``cells_in_order`` reorders cells; matching ``node_cells`` against
     ``enumerate(figure_cells)`` mislabels every cell whose plot idx ≠ connectome idx.
     """
     cell_idxs = np.asarray(as_numpy(node_cells), dtype=np.int64)
@@ -226,10 +225,10 @@ def _moving_bar_trace_means(
             if not node_mask.any():
                 continue
             uids = np.nonzero(node_mask)[0]
-            arr = windows_by_b[b][uids]
+            traces = windows_by_b[b][uids]
             key = (cell, token)
-            ca_mean[key] = arr.mean(axis=0)
-            ca_std[key] = std_from_traces(arr, single_hex=single_hex)
+            ca_mean[key] = traces.mean(axis=0)
+            ca_std[key] = std_from_traces(traces, single_hex=single_hex)
             ca_n[key] = int(np.unique(uids).size)
     return ca_mean, ca_std, ca_n
 
@@ -391,7 +390,7 @@ def _traces_from_forward(
 def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
                             at_xs=None, at_ys=None,
                             align_at_x=None, align_at_y=None,
-                            show_pre=True, ms_shown=None):
+                            ms_shown=None):
     """Run one forward; t_first_sti-aligned v_readout traces."""
     t_prep0 = time.perf_counter()
     pack = session.packs[task][contrast]
@@ -482,7 +481,6 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         prep_s=time.perf_counter() - t_prep0,
-        show_pre=bool(show_pre),
         t_onset=int(t_onset),
         gt_affine_by_cell=gt_affine_by_cell,
         ms_shown=ms_shown,
@@ -606,7 +604,6 @@ def _plot_moving_bar_cell(
     e_leak=None,
     linestyle='-',
     pre_end=0,
-    show_pre=False,
     delta_ms=None,
     ms_shown=None,
 ):
@@ -640,7 +637,6 @@ def _plot_moving_bar_cell(
         ticksize=6 if cell_ticks else 5,
         style_xaxis=style_xaxis,
         pre_end=pre_end,
-        show_pre=show_pre,
     )
     # Gray fig1 GT is already restricted to cost_window (no global pre).
     if gt_x is not None:
@@ -666,7 +662,6 @@ def _plot_moving_bar_cell_overlays(
     v_th=None,
     e_leak=None,
     pre_end=0,
-    show_pre=False,
     delta_ms=None,
     ms_shown=None,
 ):
@@ -689,17 +684,14 @@ def _plot_moving_bar_cell_overlays(
         ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LW)
     colors = overlay_reds(len(overlay_labels))
     for label, color in zip(overlay_labels, colors):
-        plot_pre_post_line(
+        plot_trace(
             ax, t, overlay_traces[label], pre_end=pre_end,
-            show_pre=show_pre, plot_pre=True,
             color=color, linestyle='-', linewidth=TRACE_LW, label=label,
         )
     if show_std and std_trace is not None and np.any(std_trace):
-        split = max(0, min(int(pre_end or 0), n_t_figure))
-        plot_std_band(ax, t[split:], scope_trace[split:], std_trace[split:])
-    plot_pre_post_line(
+        plot_std_band(ax, t, scope_trace, std_trace)
+    plot_trace(
         ax, t, scope_trace, pre_end=pre_end,
-        show_pre=show_pre, plot_pre=True,
         color=colors[-1], linestyle='-', linewidth=TRACE_LW, label='scope',
     )
     if title is not None:
@@ -825,7 +817,6 @@ def _moving_bar_all_figure(readout_on, readout_2, title, *, right_only=True, cos
                     v_th=v_th,
                     e_leak=el,
                     pre_end=_moving_bar_pre_end(readout_src, cell, token),
-                    show_pre=readout_src.show_pre,
                     delta_ms=readout_src.session.delta_ms,
                     ms_shown=readout_src.ms_shown,
                 )
@@ -843,7 +834,6 @@ def _moving_bar_all_figure(readout_on, readout_2, title, *, right_only=True, cos
                     v_th=v_th,
                     e_leak=el,
                     pre_end=_moving_bar_pre_end(src, cell, token),
-                    show_pre=src.show_pre,
                     delta_ms=src.session.delta_ms,
                     ms_shown=src.ms_shown,
                 )
@@ -911,7 +901,6 @@ def plot_moving_bar_gt(path, *, readout, readout_2=None, title=None, cost_parts=
                 e_leak=row_readout.e_leak_by_cell.get(subtype),
                 linestyle=_moving_bar_spec_linestyle(side, subtype, token),
                 pre_end=_moving_bar_pre_end(row_readout, subtype, token),
-                show_pre=row_readout.show_pre,
                 delta_ms=row_readout.session.delta_ms,
                 ms_shown=row_readout.ms_shown,
             )

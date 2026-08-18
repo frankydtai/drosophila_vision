@@ -479,9 +479,8 @@ def partner_syn_by_label(
     self_ids: Dict[str, Set[int]] = {p: set() for p in labels}
     for edge in edges:
         stype = edge.get(self_cell_field)
-        self_id_raw = edge.get(self_id_field)
         try:
-            self_id_int: Optional[int] = int(self_id_raw)
+            self_id_int: Optional[int] = int(edge.get(self_id_field))
         except (TypeError, ValueError):
             self_id_int = None
 

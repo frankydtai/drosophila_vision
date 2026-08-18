@@ -24,7 +24,7 @@ from network.construction import (
 )
 from neuron.borst import t_from_ms
 from task.spread.gt import GT_CELLS, RF_SIGN, contrast_sign, spread_gt_active
-from task.spread.sti_spec import standardize_sti_timing, sti_mask
+from task.spread.sti_spec import sti_mask
 from task.spot.gt import (
     _spot_readout_a_radius,
     load_rf_ir,
@@ -240,14 +240,10 @@ def spot_n_cost_hex(cost_hexes):
     return {b: n_by_b[b] for b in sorted(n_by_b)}
 
 
-def _as_np(arr) -> np.ndarray:
-    return arr.detach().cpu().numpy() if hasattr(arr, "detach") else np.asarray(arr)
-
-
 def build_spot_cost_readout(connectome, spot_bs, cost_radii, cost_radius):
-    network_node_u = _as_np(connectome.us)
-    network_node_v = _as_np(connectome.vs)
-    type_all = _as_np(connectome.node_cells)
+    network_node_u = np.asarray(connectome.us)
+    network_node_v = np.asarray(connectome.vs)
+    type_all = connectome.node_cells.detach().cpu().numpy()
     bs, nodes, radius, type_idx, sti_u, sti_v = [], [], [], [], [], []
     for b, mu, mv, cell_radius, su, sv in spot_cost_hexes(
         spot_bs, cost_radii, cost_radius,
@@ -277,8 +273,8 @@ def build_spot_center_readout(connectome, spot_bs, cost_radii, cost_radius):
     )
     sti_u = np.asarray(sti_u, dtype=np.int64)
     sti_v = np.asarray(sti_v, dtype=np.int64)
-    network_node_u = _as_np(connectome.us)
-    network_node_v = _as_np(connectome.vs)
+    network_node_u = np.asarray(connectome.us)
+    network_node_v = np.asarray(connectome.vs)
     du = np.asarray(network_node_u[nodes] - sti_u, dtype=np.int64)
     dv = np.asarray(network_node_v[nodes] - sti_v, dtype=np.int64)
     center_entry_mask = (du == 0) & (dv == 0)
@@ -504,4 +500,8 @@ def build_spot_sti_opts(
         opts["ms_sti"] = ms_sti
     if gt_cells is not None:
         opts["gt_cells"] = list(gt_cells)
-    return standardize_sti_timing(opts)
+    ms_sti = opts.get("ms_sti")
+    ms_response = opts.get("ms_response")
+    if ms_sti is not None and ms_response is not None:
+        opts["ms_response"] = max(float(ms_response), float(ms_sti))
+    return opts

@@ -46,9 +46,9 @@ params:
     lo: 0.0
     hi: 1.0
     init: 0.0
+    inits: {L1: 0.5, L2: 0.5, L4: 0.5, L5: 0.5}
     jit: 0.1
     mode: "indi"
-    exception: "init.L1,L2,L4,L5=0.5"
   v_mid_h_g: {lo: -70.0, hi: -30.0, init: -50.0, jit: 5.0, mode: "shared"}
   v_mid_h_tau: {lo: -70.0, hi: -40.0, init: -50.0, jit: 5.0, mode: "shared"}
   h_slope: {lo: -0.4, hi: -0.2, init: -0.25, jit: 0.02, mode: "shared"}
@@ -58,7 +58,8 @@ params:
     init: 0.0
     jit: 0.1
     mode: "fixed"
-    exception: "mode.h_cells=indi"
+    modes:
+      indi: ${h_cells}
   v_mid_h_g_rev: {lo: -70.0, hi: -30.0, init: -50.0, jit: 5.0, mode: "shared"}
   v_mid_h_tau_rev: {lo: -70.0, hi: -40.0, init: -50.0, jit: 5.0, mode: "shared"}
   h_slope_rev: {lo: -0.4, hi: -0.2, init: -0.25, jit: 0.02, mode: "shared"}
@@ -89,7 +90,7 @@ ms_response: 300.0
 ms_post: 0.0
 
 # ---------------------------------------------------------------------------
-# 3.1.3   task.spread.pack
+# 3.1.2   task.spread.gt
 # ---------------------------------------------------------------------------
 spread_gt_mode: "pos"
 
@@ -118,19 +119,19 @@ multi_bar: true
 bar_radius: 2
 
 # ---------------------------------------------------------------------------
-# 4.1   train.config
+# 4.2   train.session
 # ---------------------------------------------------------------------------
-tasks: "spot"
+tasks: "spread"
 gt_by_task: null
 cost_radius: null
 
 # ---------------------------------------------------------------------------
-# 4.2   train.param
+# 4.1   train.param (plot/analyze live vals; Hydra param_vals.a_h.L1=0.8)
 # ---------------------------------------------------------------------------
-param_tokens: []
+param_vals: {}
 
 # ---------------------------------------------------------------------------
-# 4.4   train.param (val_from)
+# 4.1   train.param (val_from)
 # ---------------------------------------------------------------------------
 val_from:
   bias_gt: {source: "v_onset", enabled: true}
@@ -142,7 +143,7 @@ val_from:
   v_mid_h_tau_rev: {source: "v_mid_h_tau", enabled: false}
 
 # ---------------------------------------------------------------------------
-# 4.5   train.cost / train.optimization
+# 4.3   train.cost
 # ---------------------------------------------------------------------------
 part_cost_scales: {}
 cost_norm: "a_gt2"
@@ -152,20 +153,22 @@ cost_ms:
 pre_steady: "solve"
 pre_steady_n_iter: 50
 pre_steady_damp: 0.1
+
+# ---------------------------------------------------------------------------
+# 4.4   train.optimization
+# ---------------------------------------------------------------------------
 n_run: 1
-n_iter: 200
+n_iter: 0
 lrs: [0.1]
 checkpoint_interval: 1000
 
 # ---------------------------------------------------------------------------
-# 4.6   train.implementation
+# 4.5   train.implementation
 # ---------------------------------------------------------------------------
 init_from: null
-outdir: null
-fname: null
 
 # ---------------------------------------------------------------------------
-# 4.5   train.session
+# 4.2   train.session
 # ---------------------------------------------------------------------------
 fp: 32
 sequential: false
@@ -181,8 +184,6 @@ spot_plot_output: null
 # ---------------------------------------------------------------------------
 html: false
 plot_right_only: true
-show_pre: true
-center_only: false
 x: null
 y: null
 align_xy: null

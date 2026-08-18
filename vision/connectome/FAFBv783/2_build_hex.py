@@ -89,7 +89,7 @@ def uv_from_pq(p, q, side: str) -> Tuple[np.ndarray, np.ndarray]:
     return -p, p - q
 
 
-def _hex_radius_arr(u, v) -> np.ndarray:
+def _hex_radii(u, v) -> np.ndarray:
     """Vectorized hex-lattice distance from the origin to axial (u, v)."""
     u = np.asarray(u, dtype=np.int64)
     v = np.asarray(v, dtype=np.int64)
@@ -98,7 +98,7 @@ def _hex_radius_arr(u, v) -> np.ndarray:
 
 def hex_radius(u: int, v: int) -> int:
     """Hex-lattice distance from the origin to axial (u, v)."""
-    return int(_hex_radius_arr(u, v))
+    return int(_hex_radii(u, v))
 
 
 def radius_mask(u, v, radius: int) -> np.ndarray:
@@ -112,7 +112,7 @@ def radius_mask(u, v, radius: int) -> np.ndarray:
     v = np.asarray(v, dtype=np.int64)
     if radius < 0:
         return np.ones(u.shape, dtype=bool)
-    return _hex_radius_arr(u, v) <= int(radius)
+    return _hex_radii(u, v) <= int(radius)
 
 
 # -- Hex disc -----------------------------------------------------------

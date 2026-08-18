@@ -37,14 +37,15 @@ import torch
 import figure.plot as plot
 import train
 from task.spread.sti_spec import CONTRASTS
-from train.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
 from train.cost import (
+    COST_NORMS,
     _gather_cost_time,
     _parts_from_entries,
     _pack_cost_forward,
     _session_cost_norm,
     _spot_entries_by_part,
     _scaled_mse_terms,
+    spot_cost_part_key,
     calc_cost_parts,
 )
 from train.param import params_from_z
@@ -81,7 +82,7 @@ def override_cost_norm(session, cost_norm: str | None):
     """Return session whose train_opts use ``cost_norm`` (run default if None)."""
     if cost_norm is None:
         return session, _session_cost_norm(session)
-    cost_norm = expand_cost_norm(cost_norm)
+    cost_norm = str(cost_norm)
     opts = dict(session.train_opts or {})
     opts["cost_norm"] = cost_norm
     return replace(session, train_opts=opts), cost_norm
