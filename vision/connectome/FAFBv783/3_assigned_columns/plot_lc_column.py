@@ -292,12 +292,12 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
     )
     plt.tight_layout(rect=[0, 0, 1, 0.96])
 
-    figure_path = path.ASSIGNED_COLUMNS_DIR / figure_name(lc_cells)
-    plt.savefig(figure_path, dpi=300, bbox_inches="tight")
+    figure = path.ASSIGNED_COLUMNS_DIR / figure_name(lc_cells)
+    plt.savefig(figure, dpi=300, bbox_inches="tight")
     plt.close(fig)
-    logger.info("Saved %s", figure_path)
-    print(f"Saved {figure_path}")
-    return figure_path
+    logger.info("Saved %s", figure)
+    print(f"Saved {figure}")
+    return figure
 
 
 def make_table(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:

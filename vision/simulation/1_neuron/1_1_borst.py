@@ -317,7 +317,26 @@ def pre_steady(session, params, n_b, i_sti=None):
 
 def step(u, u_rev, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
     """One borst update; returns ``(u, u_rev, v)`` or + g component tuple."""
-    updated = update_v(
+    if return_component:
+        v, u, u_rev, g_exc, g_inh, g_h, g_h_rev = update_v(
+            v, u, u_rev,
+            params["a_in"], params["a_out"], syn_strength(params), params["v_th"],
+            params["a_h"], params["a_h_rev"],
+            params["v_mid_h_g"], params["h_slope"], params["v_mid_h_tau"],
+            params["v_mid_h_g_rev"], params["h_slope_rev"], params["v_mid_h_tau_rev"],
+            i_sti, session.connectome, params["e_leak"],
+            delta_ms=float(delta_ms),
+            cap=session.cap,
+            g_leak=session.g_leak,
+            e_exc=session.e_exc,
+            e_inh=session.e_inh,
+            e_h=session.e_h,
+            h_g_max=session.h_g_max,
+            euler=session.euler,
+            return_component=True,
+        )
+        return u, u_rev, v, (g_exc, g_inh, g_h, g_h_rev)
+    v, u, u_rev = update_v(
         v, u, u_rev,
         params["a_in"], params["a_out"], syn_strength(params), params["v_th"],
         params["a_h"], params["a_h_rev"],
@@ -332,10 +351,6 @@ def step(u, u_rev, v, params, i_sti, session, *, delta_ms: float, return_compone
         e_h=session.e_h,
         h_g_max=session.h_g_max,
         euler=session.euler,
-        return_component=return_component,
+        return_component=False,
     )
-    if return_component:
-        v, u, u_rev, g_exc, g_inh, g_h, g_h_rev = updated
-        return u, u_rev, v, (g_exc, g_inh, g_h, g_h_rev)
-    v, u, u_rev = updated
     return u, u_rev, v

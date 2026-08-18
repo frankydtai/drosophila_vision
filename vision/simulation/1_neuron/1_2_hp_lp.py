@@ -137,16 +137,22 @@ def pre_steady(session, params, n_b, i_sti=None):
 
 def step(v_slow, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
     """One hp_lp update; returns ``(v_slow, v)`` or + component dict."""
-    updated = update_v(
+    if return_component:
+        v, v_slow, component = update_v(
+            v, v_slow, params, i_sti, session.connectome,
+            delta_ms=float(delta_ms),
+            v_clamp=session.v_clamp,
+            g_leak=session.g_leak,
+            euler=session.euler,
+            return_component=True,
+        )
+        return v_slow, v, component
+    v, v_slow = update_v(
         v, v_slow, params, i_sti, session.connectome,
         delta_ms=float(delta_ms),
         v_clamp=session.v_clamp,
         g_leak=session.g_leak,
         euler=session.euler,
-        return_component=return_component,
+        return_component=False,
     )
-    if return_component:
-        v, v_slow, component = updated
-        return v_slow, v, component
-    v, v_slow = updated
     return v_slow, v

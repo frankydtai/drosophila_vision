@@ -22,7 +22,7 @@ from task.moving_bar.sti_geo import (
     Hex,
     StiHex,
     bar_rect_lane_clipped,
-    coverages,
+    clip_rect_areas,
     view_bounds,
     i_sti_nodes_from_hex,
     lane_sweep_trail_range,
@@ -93,7 +93,7 @@ def _trail_shift_deg(spec: MovingBarSpec, delta_ms: float) -> float:
     raise ValueError(f"unknown direction {spec.direction!r}")
 
 
-def _coverage_trace(
+def _clip_rect_areas_trace(
     hex_stack: np.ndarray,
     spec: MovingBarSpec,
     view_deg: Tuple[float, float, float, float],
@@ -104,12 +104,12 @@ def _coverage_trace(
     *,
     multi_bar: bool = True,
 ) -> np.ndarray:
-    """Coverage from simultaneous per-lane bars (connectome field)."""
+    """Clip rect areas from simultaneous per-lane bars."""
     trail_shift_deg = _trail_shift_deg(spec, delta_ms)
     lane_origins = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)
     n_hex = hex_stack.shape[0]
     n_post = n_t - t_onset
-    coverage_trace = np.zeros((n_post, n_hex), dtype=np.float64)
+    clip_rect_areas_trace = np.zeros((n_post, n_hex), dtype=np.float64)
     for lane_origin, lane_pitch in lane_origins:
         trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start)
@@ -119,9 +119,9 @@ def _coverage_trace(
             )
             if rect is not None:
                 bx0, by0, bx1, by1 = rect
-                coverage_trace[t] += coverages(hex_stack, bx0, by0, bx1, by1)
+                clip_rect_areas_trace[t] += clip_rect_areas(hex_stack, bx0, by0, bx1, by1)
             trail += trail_shift_deg
-    return np.clip(coverage_trace, 0.0, 1.0)
+    return np.clip(clip_rect_areas_trace, 0.0, 1.0)
 
 
 def t_from_trail(
@@ -249,15 +249,6 @@ def bar_lane_rects(
     return rects
 
 
-def _current_from_coverage(
-    coverage: np.ndarray,
-    i_baseline: float,
-    *,
-    i_sti: float,
-) -> np.ndarray:
-    return i_baseline + coverage * (float(i_sti) - i_baseline)
-
-
 def build_i_sti_hex(
     hexes: Sequence[Hex],
     specs: Sequence[MovingBarSpec],
@@ -273,7 +264,7 @@ def build_i_sti_hex(
     """Multi-b hex currents ``(B, T, n_hex)``.
 
     Each b row superposes simultaneous lane bars for one ``MovingBarSpec``.
-    Specs that share direction / w / speed reuse one coverage trace;
+    Specs that share direction / w / speed reuse one clip_rect_areas_trace;
     only the contrast peak current ``i_sti`` differs when callers rebuild per contrast.
     """
     n_b = len(specs)
@@ -294,15 +285,15 @@ def build_i_sti_hex(
         by_geometry.setdefault(geometry, []).append(b)
 
     for bs in by_geometry.values():
-        coverage = _coverage_trace(
+        clip_rect_areas_trace = _clip_rect_areas_trace(
             hex_stack, specs[bs[0]], view_deg,
             n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
             bar_radius=bar_radius,
             multi_bar=multi_bar,
         )
         for b in bs:
-            i_sti_hex[b, t_onset:] = _current_from_coverage(
-                coverage, i_baseline=i_baseline, i_sti=i_sti,
+            i_sti_hex[b, t_onset:] = (
+                i_baseline + clip_rect_areas_trace * (float(i_sti) - i_baseline)
             )
     return i_sti_hex
 

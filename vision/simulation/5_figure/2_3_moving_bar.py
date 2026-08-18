@@ -26,6 +26,7 @@ from task.moving_bar.pack import (
 )
 from figure.spread import pack_cells
 from network.construction import cells_in_order
+from figure.plot import session_from_task
 from figure.panel import (
     GT_COLOR,
     TRACE_LINE_W,
@@ -118,6 +119,16 @@ def moving_bar_cost(part_key, costs):
     return cell, series, label, np.asarray(costs, dtype=np.float64)
 
 
+def parse_cost_part(part_key, costs):
+    """Cost plot hook for ``figure.plot.plot_cost``."""
+    return moving_bar_cost(part_key, costs)
+
+
+PLOT_AT_XY = True
+PLOT_ALIGN_XY = True
+PLOT_PAIRED = True
+
+
 @dataclass
 class MovingBarWindowTraces:
     ca_mean_cell: dict
@@ -205,13 +216,13 @@ def figure_cell_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
     cell_idx = dict(zip(
         [str(cell) for cell in figure_cells], range(len(figure_cells)),
     ))
-    figure_cell_idxs = np.full(cell_idxs.shape, -1, dtype=np.int64)
+    figure_cell_idx = np.full(cell_idxs.shape, -1, dtype=np.int64)
     for connectome_cell_idx, cell in enumerate(connectome_cells):
-        figure_cell_idx = cell_idx.get(str(cell))
-        if figure_cell_idx is None:
+        figure_cell_idx_slot = cell_idx.get(str(cell))
+        if figure_cell_idx_slot is None:
             continue
-        figure_cell_idxs[cell_idxs == int(connectome_cell_idx)] = int(figure_cell_idx)
-    return figure_cell_idxs
+        figure_cell_idx[cell_idxs == int(connectome_cell_idx)] = int(figure_cell_idx_slot)
+    return figure_cell_idx
 
 
 def _cells_and_cell_idxs(session):
@@ -279,9 +290,9 @@ def _moving_bar_ca_mean_cell(
     return ca_mean_cell, ca_std, ca_n
 
 
-def _network_hex_node_mask(connectome, filtered_hexes, n_b):
+def _network_hex_node_mask(connectome, hexes, n_b):
     node_u_np, node_v_np = network_uv_np(connectome)
-    hex_uv = {(int(hex.u), int(hex.v)) for hex in filtered_hexes}
+    hex_uv = {(int(hex.u), int(hex.v)) for hex in hexes}
     hex_mask = np.array(
         [(int(hex_u), int(hex_v)) in hex_uv for hex_u, hex_v in zip(node_u_np, node_v_np)],
         dtype=bool,
@@ -300,13 +311,13 @@ def _t0_from_align_hex(t0_bn, b, ref_hex, *, connectome):
 
 
 def t0_bn_from_align_at_xy(
-    t0_bn, n_b, filtered_hexes, align_at_x, align_at_y, *,
+    t0_bn, n_b, hexes, align_at_x, align_at_y, *,
     session, cost_radius,
 ):
     """Copy ``t0_bn`` with at_xy nodes forced to the ref hex ``t0`` (plot only)."""
     connectome = session.connectome
-    hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
-    ref_hexes = filter_sti_hexes(hexes, at_x=align_at_x, at_y=align_at_y)
+    cost_hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
+    ref_hexes = filter_sti_hexes(cost_hexes, at_x=align_at_x, at_y=align_at_y)
     if len(ref_hexes) != 1:
         raise SystemExit(
             f'--align-xy must match exactly one sti hex within cost_radius, '
@@ -314,13 +325,13 @@ def t0_bn_from_align_at_xy(
         )
     ref_hex = ref_hexes[0]
     node_u_np, node_v_np = network_uv_np(connectome)
-    aligned_t0_bn = t0_bn.copy()
+    t0_bn = t0_bn.copy()
     for b in range(n_b):
-        t0_ref = _t0_from_align_hex(aligned_t0_bn, b, ref_hex, connectome=connectome)
-        for hex in filtered_hexes:
+        t0_ref = _t0_from_align_hex(t0_bn, b, ref_hex, connectome=connectome)
+        for hex in hexes:
             on_hex = (node_u_np == int(hex.u)) & (node_v_np == int(hex.v))
-            aligned_t0_bn[b, on_hex] = t0_ref
-    return aligned_t0_bn
+            t0_bn[b, on_hex] = t0_ref
+    return t0_bn
 
 
 def _moving_bar_ca_mean_cell_mean_hex(
@@ -337,10 +348,10 @@ def _moving_bar_ca_mean_cell_mean_hex(
     n_b = len(spec_tokens)
     connectome = session.connectome
     hexes = moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius)
-    filtered_hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
-    if not filtered_hexes:
+    hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
+    if not hexes:
         return None
-    hex_mask = _network_hex_node_mask(connectome, filtered_hexes, n_b)
+    hex_mask = _network_hex_node_mask(connectome, hexes, n_b)
     n_t_by_b = [
         base_traces.before_t[token] + base_traces.after_t[token] + 1
         for token in spec_tokens
@@ -348,7 +359,7 @@ def _moving_bar_ca_mean_cell_mean_hex(
     t0_bn_aligned = t0_bn
     if align_at_x is not None and align_at_y is not None:
         t0_bn_aligned = t0_bn_from_align_at_xy(
-            t0_bn, n_b, filtered_hexes, align_at_x, align_at_y,
+            t0_bn, n_b, hexes, align_at_x, align_at_y,
             session=session, cost_radius=pack.cost_radius,
         )
     windows_by_b = _windows_by_b(trace, t0_bn_aligned, n_t_by_b)
@@ -432,7 +443,7 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
     t_prep0 = time.perf_counter()
     pack = session.packs[task][contrast]
     params = train.params_from_z(z, session)
-    trace = train.forward_pack(session, params, pack.i_sti, pack).detach().cpu().numpy()
+    trace = as_numpy(train.forward_pack(session, params, pack.i_sti, pack))
     specs = bar_specs_from_task(session, task)
     spec_tokens = [spec.token for spec in specs]
     n_t = int(session.n_t)
@@ -984,3 +995,38 @@ def plot_moving_bar_all(path, *, readout, paired_readout=None, title=None, right
     )
     timer.end_plot()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True, timer=timer)
+
+
+_TASK = "moving_bar"
+
+
+def build_readout(session, z, contrast, **readout_kwargs):
+    return moving_bar_trace_readout(
+        session_from_task(session, _TASK, contrast), z, _TASK, contrast, **readout_kwargs,
+    )
+
+
+def figure_titles(session, suffix, token, *, contrast=None):
+    if contrast is None:
+        return (
+            f'Moving-bar {token}-gt ({suffix})',
+            f'Moving-bar {token}-all ({suffix})',
+        )
+    return (
+        f'moving_bar {contrast} {token}-gt ({suffix})',
+        f'moving_bar {contrast} {token}-all ({suffix})',
+    )
+
+
+def plot_gt(path, *, readout, paired_readout=None, title, cost_parts=None, right_only=True):
+    plot_moving_bar_gt(
+        path, readout=readout, paired_readout=paired_readout,
+        title=title, cost_parts=cost_parts,
+    )
+
+
+def plot_all(path, *, readout, paired_readout=None, title, cost_parts=None, right_only=True):
+    plot_moving_bar_all(
+        path, readout=readout, paired_readout=paired_readout,
+        title=title, cost_parts=cost_parts, right_only=right_only,
+    )

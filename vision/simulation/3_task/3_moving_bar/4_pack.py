@@ -86,7 +86,7 @@ def nodes_from_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
         return np.zeros(0, dtype=np.int64)
     if cell not in connectome.cells:
         raise ValueError(f"unknown cell {cell!r}; known: {list(connectome.cells)}")
-    ti = int(connectome.cells.index(cell))
+    cell_idx = int(connectome.cells.index(cell))
     node_u_np, node_v_np = network_uv_np(connectome)
     cell_idxs = _as_int64_np(connectome.node_cells)
     uv_span = int(max(np.max(np.abs(node_u_np)), np.max(np.abs(node_v_np)), 1)) + 1
@@ -98,7 +98,7 @@ def nodes_from_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
         ],
         dtype=np.int64,
     )
-    return np.where((cell_idxs == ti) & np.isin(pack, hex_pack))[0].astype(np.int64)
+    return np.where((cell_idxs == cell_idx) & np.isin(pack, hex_pack))[0].astype(np.int64)
 
 
 def filter_requested_specs(
@@ -614,15 +614,9 @@ def _pack_cells(session, task: str, contrast: str) -> List[str]:
     node_cells = connectome.node_cells[entry_nodes]
     if torch.is_tensor(node_cells):
         node_cells = node_cells.detach().cpu().numpy()
-    cells = list(connectome.cells)
-    seq = [str(cells[int(ti)]) for ti in node_cells]
-    seen: set = set()
-    pack_cells: List[str] = []
-    for name in seq:
-        if name not in seen:
-            seen.add(name)
-            pack_cells.append(name)
-    return pack_cells
+    return list(dict.fromkeys(
+        str(connectome.cells[int(cell_idx)]) for cell_idx in node_cells
+    ))
 
 
 def moving_bar_specs_by_cell(session, task: str, contrast: str, side: str) -> Dict[str, List[str]]:

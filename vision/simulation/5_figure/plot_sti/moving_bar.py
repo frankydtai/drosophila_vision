@@ -12,9 +12,9 @@ Usage (from simulation/, project .venv):
 from __future__ import annotations
 
 from config import (
-    MOVING_BAR_INPUT_SPEC,
     MODEL,
     NEURON_SCHEMA,
+    TRAIN_CONFIG,
 )
 
 import argparse
@@ -297,12 +297,8 @@ def main():
         spec for spec in gruntman_moving_bar_specs(contrasts=tuple(sti))
         if spec.direction == args.direction
     ]
-    i_baseline = i_baseline_from_i_sti(
-        {
-            "bright": MOVING_BAR_INPUT_SPEC["i_bright"],
-            "dark": MOVING_BAR_INPUT_SPEC["i_dark"],
-        },
-    )
+    i_sti_spec = TRAIN_CONFIG["i_sti"]
+    i_baseline = i_baseline_from_i_sti(i_sti_spec)
 
     network_json = str(resolve_network_json(args.network))
     connectome = load_network(
@@ -328,7 +324,7 @@ def main():
             multi_bar=bool(args.multi_bar),
             delta_ms=MODEL['delta_ms'],
             i_baseline=i_baseline,
-            i_sti=float(MOVING_BAR_INPUT_SPEC[f"i_{contrast}"]),
+            i_sti=float(i_sti_spec[contrast]),
             sim_dtype=SIM_DTYPE,
         )
         i_sti_hex_parts.append(T.i_sti_hex)
@@ -336,7 +332,7 @@ def main():
     if not i_sti_hex_parts:
         raise SystemExit("no moving-bar specs to plot")
     i_sti_hex = np.concatenate(i_sti_hex_parts, axis=0)
-    i_max = max(float(MOVING_BAR_INPUT_SPEC[f"i_{contrast}"]) for contrast in sti)
+    i_max = max(float(i_sti_spec[contrast]) for contrast in sti)
     figure_hexes = [(hex.u, hex.v) for hex in sti_hexes(connectome)]
     t_onset = int(T.t_onset)
     n_t = int(T.n_t)

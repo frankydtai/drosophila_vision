@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Moving-bar sti geometry: hex view, lanes, bar rectangles, coverage."""
+"""Moving-bar sti geometry: hex view, lanes, bar rectangles, clip rect areas."""
 from __future__ import annotations
 
 import math
@@ -149,19 +149,19 @@ def _clip_rect_area(
     return min(1.0, _poly_area_xy(px, py, n) / hex_area)
 
 
-def coverages(
+def clip_rect_areas(
     hex_stack: np.ndarray,
     xmin: float,
     ymin: float,
     xmax: float,
     ymax: float,
 ) -> np.ndarray:
-    """Coverage fraction for every hex against one bar rectangle."""
+    """Clip rect area fraction for every hex against one bar rectangle."""
     n_hex = hex_stack.shape[0]
-    hex_coverages = np.empty(n_hex, dtype=np.float64)
+    hex_clip_rect_areas = np.empty(n_hex, dtype=np.float64)
     for hex_idx in range(n_hex):
-        hex_coverages[hex_idx] = _clip_rect_area(hex_stack[hex_idx], xmin, ymin, xmax, ymax)
-    return hex_coverages
+        hex_clip_rect_areas[hex_idx] = _clip_rect_area(hex_stack[hex_idx], xmin, ymin, xmax, ymax)
+    return hex_clip_rect_areas
 
 
 def bar_lane_pitch_deg(
@@ -367,14 +367,10 @@ def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
     """Keep network sti hexes whose hex-step ``(x, y)`` matches ``at_x`` / ``at_y``."""
     if at_x is None and at_y is None:
         return list(hexes)
-    filtered_hexes = []
-    for hex in hexes:
-        if not _coord_matches(hex.x, at_x, tol=tol):
-            continue
-        if not _coord_matches(hex.y, at_y, tol=tol):
-            continue
-        filtered_hexes.append(hex)
-    return filtered_hexes
+    return [
+        hex for hex in hexes
+        if _coord_matches(hex.x, at_x, tol=tol) and _coord_matches(hex.y, at_y, tol=tol)
+    ]
 
 
 def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:

@@ -33,10 +33,9 @@ import figure.plot as plot
 from figure.spread import contrast_from_pack
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
 from figure.panel import (
-    filter_figure_token,
     plot_std_band,
-    session_filter_figure_token,
 )
+from figure.plot import filter_figure_token, session_filter_figure_token
 from neuron.filter_ca import filter_ca
 from neuron.schema import param_from_entry
 from network.construction import hex2gt
@@ -543,17 +542,17 @@ def _trace_ylabel(panel_ylabel: str, label: str) -> str:
 
 def _plot_trace_colors(colors: list[str], layout: _ComponentLayout) -> dict[str, str]:
     """Map trace legend label → subplot color (hex index within its row)."""
-    color_from_series: dict[str, str] = {}
+    colors_by_label: dict[str, str] = {}
     for _panel_ylabel, panel_series in layout.plot_panels:
         for series_idx, (_series, label) in enumerate(panel_series):
             if label in _BLACK_TRACE_LABELS:
-                color_from_series[label] = "0.0"
+                colors_by_label[label] = "0.0"
             else:
-                color_from_series[label] = colors[series_idx % len(colors)]
+                colors_by_label[label] = colors[series_idx % len(colors)]
     for label, src in _TRACE_COLOR_MATCH.items():
-        if label in color_from_series and src in color_from_series:
-            color_from_series[label] = color_from_series[src]
-    return color_from_series
+        if label in colors_by_label and src in colors_by_label:
+            colors_by_label[label] = colors_by_label[src]
+    return colors_by_label
 
 
 def _g_e_note(label: str, *, e_leak: float, globs: dict[str, Any], params: dict[str, Any] | None = None) -> str | None:
@@ -785,15 +784,14 @@ def _std_from_sum_and_sum_sq(sum_: float, sum_sq: float, n_node: int) -> float:
 def _step_std(
     sums: dict[str, float], sum_sqs: dict[str, float], n_node: int, layout: _ComponentLayout,
 ) -> dict[str, float]:
-    std_by_series: dict[str, float] = {}
-    for series, component in layout.component_from_series.items():
-        if component is None:
-            std_by_series[series] = 0.0
-        else:
-            std_by_series[series] = _std_from_sum_and_sum_sq(
+    return {
+        series: (
+            0.0 if component is None else _std_from_sum_and_sum_sq(
                 sums[component], sum_sqs[component], n_node,
             )
-    return std_by_series
+        )
+        for series, component in layout.component_from_series.items()
+    }
 
 
 def _step_from_sums(
@@ -1335,24 +1333,24 @@ def _globals(session):
 
 
 def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
-    cell_by_node: dict[int, str] = {}
-    for cell, cell_nodes in nodes_by_cell.items():
-        for node in np.asarray(cell_nodes, dtype=np.int64).ravel():
-            cell_by_node[int(node)] = cell
-    return cell_by_node
+    return {
+        int(node): cell
+        for cell, cell_nodes in nodes_by_cell.items()
+        for node in np.asarray(cell_nodes, dtype=np.int64).ravel()
+    }
 
 
 def _cell_idx_from_node_id(plan: _ComponentB, cells: list[str]) -> np.ndarray:
-    """Dense ``cell_idx_by_node[node]`` in ``cells`` (-1 if absent)."""
+    """Dense ``node_cell_idx[node]`` in ``cells`` (-1 if absent)."""
     cell_idx = dict(zip(cells, range(len(cells))))
     if plan.nodes.size == 0:
         return np.empty(0, dtype=np.int32)
-    cell_idx_by_node = np.full(int(plan.nodes.max()) + 1, -1, dtype=np.int32)
+    node_cell_idx = np.full(int(plan.nodes.max()) + 1, -1, dtype=np.int32)
     for node_id, cname in plan.cell_from_node.items():
         i = cell_idx.get(cname)
         if i is not None:
-            cell_idx_by_node[int(node_id)] = i
-    return cell_idx_by_node
+            node_cell_idx[int(node_id)] = i
+    return node_cell_idx
 
 
 def _merge_component_sums(
@@ -2402,12 +2400,12 @@ def _emit_report(
         # Full per-t table only when not plotting (--plot false).
         _print_report(report, print_steps=not do_figure)
     if do_figure:
-        figure_path = os.path.join(
+        path = os.path.join(
             run_dir,
             "cell_dynamics",
             _figure_filename(report, file_suffix=file_suffix, html=html),
         )
-        plot_report(report, figure_path)
+        plot_report(report, path)
 
 
 # ---------------------------------------------------------------------------
@@ -2838,15 +2836,15 @@ def main(hydra_config) -> None:
                             )
                     if multi_report:
                         for cell in cells_bar:
-                            reps = reports_by_cell[cell]
-                            figure_path = os.path.join(
+                            reports = reports_by_cell[cell]
+                            path = os.path.join(
                                 run_dir,
                                 "cell_dynamics",
                                 _compare_figure_filename(
-                                    reps, file_suffix=file_suffix, html=html,
+                                    reports, file_suffix=file_suffix, html=html,
                                 ),
                             )
-                            plot_reports_compare(reps, figure_path)
+                            plot_reports_compare(reports, path)
                 else:
                     raise SystemExit(f"unsupported task {task!r}")
 

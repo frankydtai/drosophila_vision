@@ -198,13 +198,13 @@ def fig1_trace_from_sti(
 
 def active_stis_from_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str, str]]:
     """Non-orthogonal (direction, contrast, w_token) triples for one subtype."""
-    spec_triples = []
-    for direction in _axis_directions(subtype):
-        for contrast in ("bright", "dark"):
-            for w_deg in GRUNTMAN_WS_DEG:
-                if motion_preference(side, subtype, direction, contrast) is not None:
-                    spec_triples.append((direction, contrast, w_token(w_deg)))
-    return spec_triples
+    return [
+        (direction, contrast, w_token(w_deg))
+        for direction in _axis_directions(subtype)
+        for contrast in ("bright", "dark")
+        for w_deg in GRUNTMAN_WS_DEG
+        if motion_preference(side, subtype, direction, contrast) is not None
+    ]
 
 
 def parse_moving_bar_spec(token: str) -> Tuple[str, str, str]:
@@ -272,13 +272,11 @@ def dsi_from_trace_map(
     cells: Sequence[str],
     spec_tokens: Sequence[str],
 ) -> dict[tuple[str, str], Optional[float]]:
-    dsi_by_cell_spec: dict[tuple[str, str], Optional[float]] = {}
-    for cell in cells:
-        for spec in spec_tokens:
-            key = (cell, spec)
-            if key not in dsi_by_cell_spec:
-                dsi_by_cell_spec[key] = moving_bar_dsi_from_spec(trace_map, cell, spec)
-    return dsi_by_cell_spec
+    return {
+        (cell, spec): moving_bar_dsi_from_spec(trace_map, cell, spec)
+        for cell in cells
+        for spec in spec_tokens
+    }
 
 
 def moving_bar_cell_title(

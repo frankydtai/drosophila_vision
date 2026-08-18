@@ -85,9 +85,9 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
         "n_cell": int(len({n["name"] for n in kept_nodes})),
     }
 
-    assigned_columns_dir = run_dir.parent / f"{run_dir.name}_r{crop_radius}"
-    assigned_columns_dir.mkdir(parents=True, exist_ok=True)
-    out_path = assigned_columns_dir / "network.json"
+    cropped_run_dir = run_dir.parent / f"{run_dir.name}_r{crop_radius}"
+    cropped_run_dir.mkdir(parents=True, exist_ok=True)
+    out_path = cropped_run_dir / "network.json"
     with open(out_path, "w") as fh:
         json.dump({"metadata": metadata, "nodes": kept_nodes, "edges": kept_edges}, fh)
     logger.info(
@@ -95,7 +95,7 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
         run_dir.name, out_path, crop_radius,
         len(kept_nodes), len(kept_edges), metadata["n_cell"],
     )
-    _write_summary(assigned_columns_dir, metadata)
+    _write_summary(cropped_run_dir, metadata)
     return out_path
 
 

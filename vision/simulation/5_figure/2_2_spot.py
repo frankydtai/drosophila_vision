@@ -26,30 +26,35 @@ from figure.spread import (
     contrast_order,
 )
 from figure.panel import (
+    GT_COLOR,
+    V_READOUT_COLOR,
+    TRACE_LINE_W,
     N_COL_ALL,
     N_COL_GT,
     PANEL_H,
     PANEL_W,
-    GT_COLOR,
-    V_READOUT_COLOR,
-    TRACE_LINE_W,
     ElapsedTimer,
     annotate_v_th,
-    readout_prep_s,
+    as_numpy,
     gt_trace_affine,
     e_leak_from_z,
-    session_filter_figure_token,
+    readout_prep_s,
+    save_figure,
     at_xy_label,
     mark_sti_on,
     at_xy_reds,
     plot_trace,
     plot_timecourse,
-    save_figure,
     traces_with_cost_ts,
     std_from_traces,
     at_xy_coords,
     is_single_hex_cost,
     v_th_from_z,
+)
+from figure.plot import (
+    figure_subtitle_sti_geo,
+    session_filter_figure_token,
+    session_from_task,
 )
 from train.cost import spot_cost_part_key
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
@@ -127,6 +132,14 @@ def spot_cost(part_key, costs):
     return cell, series, label, np.asarray(costs, dtype=np.float64)
 
 
+def parse_cost_part(part_key, costs):
+    """Cost plot hook for ``figure.plot.plot_cost``."""
+    return spot_cost(part_key, costs)
+
+
+PLOT_AT_XY = True
+
+
 def active_spot_gt_cells(session, task=None, contrast=None):
     """Configured spot gt cells (sti opts), not cost-pack-only."""
     if task is None and contrast is None:
@@ -175,7 +188,8 @@ def spot_gts(
         spread_gt_mode = str(spread_gt_mode)
     delta_ms = float(session.delta_ms if delta_ms is None else delta_ms)
     gt_amp = float(session.gt_amp)
-    gts_by_contrast = {}
+    cell_idx = {cell: index for index, cell in enumerate(GT_CELLS)}
+    gts = {}
     for contrast in contrasts:
         contrast = str(contrast)
         if contrast not in CONTRASTS:
@@ -183,18 +197,16 @@ def spot_gts(
                 f"unknown contrast {contrast!r}; expected one of {CONTRASTS}"
             )
         load = load_gt_dark if contrast == "dark" else load_gt
-        gt_stack = load(
+        gt_rows = load(
             t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter, spread_gt_mode=spread_gt_mode,
-        )
-        scaled = gt_stack * gt_amp
-        gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
-        gts_by_contrast[contrast] = {
-            str(cell): scaled[gt_cell_idx[cell]]
+        ) * gt_amp
+        gts[contrast] = {
+            str(cell): gt_rows[cell_idx[cell]]
             for cell in GT_CELLS
             if spread_gt_active(spread_gt_mode, contrast, int(RF_SIGN[cell]))
         }
-    return gts_by_contrast
+    return gts
 
 
 def pack_spot_cost_radii(pack) -> tuple[int, ...]:
@@ -217,7 +229,7 @@ def resolve_spot_gts(sessions, gts=None, *, filter=None):
         return gts
     if not sessions:
         return {}
-    gts_by_contrast = {}
+    gts = {}
     for contrast, session in sessions.items():
         t_onset, _n_t, n_t_gt, ms_sti, delta_ms = _session_task_timing(session)
         part = spot_gts(
@@ -225,8 +237,8 @@ def resolve_spot_gts(sessions, gts=None, *, filter=None):
             t_onset=t_onset, n_t=n_t_gt, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter,
         )
-        gts_by_contrast.update(part)
-    return gts_by_contrast
+        gts.update(part)
+    return gts
 
 
 def center_trace_and_rf_profile(radius_time, center_radius, std=None, *, t_onset=None, t_sti_end=None, t_delay=0):
@@ -303,8 +315,7 @@ def _rf_profile_contrast_traces(
     ``v_readout_std``, ``gt_center``, ``gt_rf_profile`` plus passthrough keys.
     """
     rf_profile_kwargs = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
-    rf_profile_traces = []
-    for trace in traces:
+    for i, trace in enumerate(traces):
         v_readout = trace.get("v_readout_mean_cell_mean_radius")
         gt = trace.get("gt")
         if v_readout is not None:
@@ -319,15 +330,15 @@ def _rf_profile_contrast_traces(
             )
         else:
             gt_center, gt_rf_profile = None, None
-        rf_profile_traces.append({
+        traces[i] = {
             **trace,
             "v_readout_center": v_readout_center,
             "v_readout_rf_profile": v_readout_rf_profile,
             "v_readout_std": v_readout_std,
             "gt_center": gt_center,
             "gt_rf_profile": gt_rf_profile,
-        })
-    return rf_profile_traces
+        }
+    return traces
 
 
 def plot_cell_rf(
@@ -696,15 +707,15 @@ def _spot_gt_readout(readout):
 
 def _spot_readout_hex_mask(connectome, nodes, cost_radius, *, at_x=None, at_y=None):
     """True for cost entries whose node sits on matching cost-radius hexes."""
-    filtered_hexes = filter_sti_hexes(
+    hexes = filter_sti_hexes(
         moving_bar_cost_hexes(connectome, cost_radius=cost_radius),
         at_x=at_x,
         at_y=at_y,
     )
-    if not filtered_hexes:
+    if not hexes:
         return np.zeros(len(nodes), dtype=bool)
     node_u_np, node_v_np = network_uv_np(connectome)
-    hex_uv = {(int(hex.u), int(hex.v)) for hex in filtered_hexes}
+    hex_uv = {(int(hex.u), int(hex.v)) for hex in hexes}
     return np.array(
         [(int(node_u_np[node]), int(node_v_np[node])) in hex_uv for node in nodes],
         dtype=bool,
@@ -754,7 +765,7 @@ def _forward_spot_readout(
         spec = session.schema.get("a_sti_radius")
         if spec is not None:
             radii = [str(radius) for radius in (spec.get("radii") or ())]
-            vals = params["a_sti_radius"].detach().cpu().numpy().reshape(-1)
+            vals = as_numpy(params["a_sti_radius"]).reshape(-1)
             n_radius = min(len(radii), vals.size)
             a_sti_radius = dict(zip(
                 radii[:n_radius], map(float, vals[:n_radius]),
@@ -778,7 +789,7 @@ def _forward_spot_readout(
         connectome, spot_bs, pack_spot_cost_radii(pack), pack.cost_radius,
     )
 
-    figure_traces = trace[bs, :, nodes].cpu().numpy()
+    figure_traces = as_numpy(trace[bs, :, nodes])
 
     sti_ms_pre = opts.get("ms_pre")
     delta_ms = float(opts["delta_ms"])
@@ -897,11 +908,11 @@ def _spot_suptitle(title, readout):
     return head
 
 
-def _trained_radii(cost_parts, contrasts):
+def _radii_from_cost_parts(cost_parts, contrasts):
     """Sorted integer radii from spot cost parts (``spot_{contrast}_{cell}_r*``)."""
     if not cost_parts:
         return [int(RF_CENTER_RADIUS)]
-    trained_radii = set()
+    radii = set()
     for contrast in contrasts:
         prefix = f"spot_{contrast}_"
         for part_key in cost_parts:
@@ -916,13 +927,17 @@ def _trained_radii(cost_parts, contrasts):
             except ValueError:
                 continue
             if 0 <= radius < RF_N_RADII:
-                trained_radii.add(radius)
-    if not trained_radii:
+                radii.add(radius)
+    if not radii:
         return [int(RF_CENTER_RADIUS)]
-    return sorted(trained_radii)
+    return sorted(radii)
 
 
-def _plot_spot_figure(
+_TASK = "spot"
+_GRID_KWARGS = dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98)
+
+
+def _plot_figure(
     path, *,
     timer,
     readouts,
@@ -937,7 +952,7 @@ def _plot_spot_figure(
     """Plot spot figure from ``readouts`` (contrast → SpotTraceReadout)."""
     order = contrast_order(readouts)
     if not order:
-        raise ValueError("_plot_spot_figure requires at least one readout")
+        raise ValueError("_plot_figure requires at least one readout")
     primary = readouts[order[0]]
     cells, rows = _layout_cells_from_readouts(readouts, order)
     has_at_xy = (
@@ -950,15 +965,16 @@ def _plot_spot_figure(
     delta_ms = float(primary.session.delta_ms)
     delta_ms_pre = float(primary.session.delta_ms_pre)
     ms_shown = primary.ms_shown
+    figure_filter = session_filter_figure_token(primary.session)
     t_delay = t_delay_from_ir(
         delta_ms=delta_ms,
-        filter=session_filter_figure_token(primary.session),
+        filter=figure_filter,
     )
-    gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
+    cell_idx = {cell: index for index, cell in enumerate(GT_CELLS)}
 
     def _t_delay_from_cell(cell):
-        delay_cell_idx = gt_cell_idx.get(cell)
-        return 0 if delay_cell_idx is None else int(t_delay[delay_cell_idx])
+        index = cell_idx.get(cell)
+        return 0 if index is None else int(t_delay[index])
 
     timer.end_prep()
 
@@ -968,7 +984,7 @@ def _plot_spot_figure(
     part_keys = list(cost_parts or ()) or list(
         train.session_cost_part_keys(primary.session)
     )
-    radii = _trained_radii(part_keys, order)
+    radii = _radii_from_cost_parts(part_keys, order)
     center_radius = int(RF_CENTER_RADIUS)
     order_hs = [
         1 + len(radii) for _ in rows
@@ -993,9 +1009,7 @@ def _plot_spot_figure(
                 "v_th": contrast_readout.v_th_by_cell.get(cell),
                 "linestyle": contrast_linestyle(contrast),
                 "gt_label": f"{contrast} gt",
-                "v_readout_label": (
-                    f"{contrast} {session_filter_figure_token(primary.session)}"
-                ),
+                "v_readout_label": f"{contrast} {figure_filter}",
                 "hexes_label": f"{contrast} hexes",
             }
             by_label = contrast_readout.v_readout_mean_cell_mean_radius_mean_hex_by_label
@@ -1147,13 +1161,13 @@ def _plot_spot_figure(
     save_figure(fig, path, dpi=150, timer=timer)
 
 
-def plot_network_spot_gt(path, *, readouts, title, gts=None, cost_parts=None):
+def plot_network_gt(path, *, readouts, title, gts=None, cost_parts=None):
     """Plot gt figure (active gt cells; model ca for all active)."""
     gt_readouts = {
         contrast: _spot_gt_readout(readout)
         for contrast, readout in readouts.items()
     }
-    _plot_spot_figure(
+    _plot_figure(
         path,
         timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
         readouts=gt_readouts,
@@ -1161,14 +1175,14 @@ def plot_network_spot_gt(path, *, readouts, title, gts=None, cost_parts=None):
         gts=gts,
         n_col=N_COL_GT,
         figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
-        gridspec_kwargs=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
+        gridspec_kwargs=_GRID_KWARGS,
         cost_parts=cost_parts,
     )
 
 
-def plot_network_spot_all(path, *, readouts, title, gts=None, cost_parts=None):
+def plot_network_all(path, *, readouts, title, gts=None, cost_parts=None):
     """Plot ca-all figure (all types) from contrast → readout."""
-    _plot_spot_figure(
+    _plot_figure(
         path,
         timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
         readouts=readouts,
@@ -1176,6 +1190,29 @@ def plot_network_spot_all(path, *, readouts, title, gts=None, cost_parts=None):
         gts=gts,
         n_col=N_COL_ALL,
         figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
-        gridspec_kwargs=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
+        gridspec_kwargs=_GRID_KWARGS,
         cost_parts=cost_parts,
     )
+
+
+def build_readout(session, z, contrast, **readout_kwargs):
+    return network_spot_trace_readout(
+        session_from_task(session, _TASK, contrast), z, **readout_kwargs,
+    )
+
+
+def figure_titles(session, suffix, token, *, contrast=None):
+    net_label = figure_subtitle_sti_geo(session, _TASK)
+    if contrast is None:
+        return (
+            f'Spot {token}-gt ({suffix}){net_label}',
+            f'Spot {token}-all ({suffix}){net_label}',
+        )
+    return (
+        f'spot {contrast} {token}-gt ({suffix}){net_label}',
+        f'spot {contrast} {token}-all ({suffix}){net_label}',
+    )
+
+
+plot_gt = plot_network_gt
+plot_all = plot_network_all

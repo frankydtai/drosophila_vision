@@ -125,8 +125,8 @@ Example: `best_cost = float(final_costs[int(np.argmin(final_costs))])`
 ### `data`
 
 Definition: The set of parameter output files (`.npy`, `.npz`, `train_opts.json`, etc.) saved under the `data/` subfolder of a run directory.
-Example: `os.makedirs(run_data_dir(outdir), exist_ok=True)`
-Forbidden: `artifact`, `output` — use `data` instead. Do not use `data` for in-memory forward or plot worksets — use `readout`.
+Example: `os.makedirs(run_data_dir(run_dir), exist_ok=True)`
+Forbidden: `artifact`, `output` — use `data` instead. Do not use `data` for in-memory forward or plot worksets — use `readout`. Do not name the run folder ``outdir`` / ``output_dir`` — that is ``run_dir`` (see ``### dir``).
 
 ### `const` / `consts`
 
@@ -141,6 +141,12 @@ Definition: Numeric/config literal source — scope split by tree.
 - **`vision/connectome/**`**: connectome-build literals may use noun ``DEFAULT_*`` constants (``DEFAULT_NETWORK_RUN``, ``DEFAULT_RADIUS``, ``DEFAULT_SIDE``, …) for CLI defaults and reference geometry. Not the simulation ``config`` module.
 Example: `from config import RUN_PATH`, `config.NEURON_SCHEMA['params']`; connectome `path.DEFAULT_NETWORK_RUN`, `build_hex.DEFAULT_RADIUS`; figure CLI `default=DEFAULT_NETWORK_RUN` importing from connectome ``path``.
 Forbidden: In **vision/simulation/** only — ``default`` / ``defaults`` and any project identifier containing ``default`` (``default_*``, ``*_default``, ``DEFAULT_*``, ``_default_*``). Do not coin verb/compound substitutes for connectome ``DEFAULT_*`` in simulation (``FALLBACK_*``, ``BUILD_*``, ``BASE_*``, ``ASSIGN_*``, …). Library/API spellings may remain unchanged (``argparse`` keyword ``default=``, dataclass ``default_factory``, ``dict.setdefault``, help ``%(default)s``).
+
+### `dir` / `dirs`
+
+Definition: Filesystem directory path — a folder location (``str`` or ``Path``), never a single file. Singular ``dir`` is the suffix in compounds ``<role>_dir``; plural ``dirs`` is a bag of those paths. Primary run/build artifact folder: ``run_dir`` (one train run under ``PARAMETER_DIR/<model>/<run>``, or one connectome built-network run under ``BUILT_NETWORKS_DIR/<run>``). Subfolders and sibling dirs name the role first (``run_data_dir`` → ``data/`` under ``run_dir``; ``checkpoint_run_dir``, ``cropped_run_dir``, ``assigned_columns_dir``, ``png_dir``, ``csv_dir``). Tree-root constants use ``<ROLE>_DIR`` (``PARAMETER_DIR``, ``BUILT_NETWORKS_DIR``, ``ASSIGNED_COLUMNS_DIR``, ``BUILT_HEXES_DIR``, ``DATA_DIR``, ``DOWNLOADS_DIR``). Builders/resolvers that yield a ``run_dir`` use ``build_run_dir`` / ``resolve_run_dir``; the parameter/local holding the path is ``run_dir``, not ``dir`` alone.
+Example: `run_dir = build_run_dir(model, run=run_name)`, `resolve_run_dir(args.run)`, `run_data_dir(run_dir)`, `session_from_run_dir(run_dir)`, `checkpoint_run_dir=run_dir`, `os.makedirs(run_data_dir(run_dir), exist_ok=True)`, `BUILT_NETWORKS_DIR / run_name`, `cropped_run_dir = run_dir.parent / f"{run_dir.name}_r{crop_radius}"`
+Forbidden: ``outdir`` / ``output_dir`` / ``out_dir`` (use ``run_dir`` or role-specific ``<role>_dir``); ``folder`` / ``folders`` / ``directory`` / ``directories`` as naming tokens; bare ``dir`` / ``dirs`` as a local, parameter, or attribute (always ``<role>_dir``). Do not use ``dir`` for a single file path — that is ``<role>_path`` (``best_param_path``, ``out_path``, ``_plot_path``, ``opts_path``). Do not use ``output`` / ``out`` for persisted run location — ``run_dir`` holds the folder; ``data`` names files under ``run_data_dir`` (see ``### data`` / ``### out``). Library ``Path.is_dir()``, ``os.makedirs``, Hydra ``output_dir``, and matplotlib ``savefig(..., dir=...)`` may remain at call sites only.
 
 ### `edge` / `edges`
 
@@ -214,7 +220,7 @@ Forbidden: bare ``idx`` / ``idxs`` as a local, parameter, or attribute name. **F
 ### `implementation`
 
 Definition: Integration layer that wires the pieces of one large action (session, cost, optimization, persistence, …) into a path that runs through successfully before the top-level ``run`` driver. Module ``train.implementation`` (e.g. ``run_train``).
-Example: `fname, outdir, session, result = run_train(...)`
+Example: `fname, run_dir, session, result = run_train(...)`
 Forbidden: `implement` — use `implementation`. Do not use for the top-level plot/CLI driver (`simulation/run.py`) or for argparse-only parsing.
 
 ### `in`
@@ -453,7 +459,7 @@ Forbidden: ``label`` for this role; ``trace`` / ``traces`` for the color key. Do
 ### `session` / `sessions`
 
 Definition: A run-time context object that holds assembled configuration for one train/evaluation run (schema/connectome/tasks/readouts/opts).
-Example: `session = train.session_from_outdir(...)`
+Example: `session = train.session_from_run_dir(...)`
 
 ### `shell` / `shells`
 
@@ -534,7 +540,7 @@ Forbidden: ``series`` for a contrast plot bag or a time-sequence waveform — th
 ### `train`
 
 Definition: Noun only — the overall parameter-optimization process and its package (`import train`: session assembly, cost, optimization, persistence). Compounds use the noun (`train_opts`, `param_modes`, `TrainSession`).
-Example: `session = train.session_from_outdir(...)`, `import train`
+Example: `session = train.session_from_run_dir(...)`, `import train`
 Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, imperative “Train …”) — the update loop verb is `optimize`. Do not use `training` as a naming token — use `train`. Do not use `fit` for this process / package (see ``### gt`` Forbidden).
 
 ### `u` / `v` / `du` / `dv`
@@ -628,7 +634,7 @@ Forbidden: `simulate`, `compute` — use `forward` instead.
 ### `load`
 
 Definition: Load a saved artifact or serialized object from storage and reconstruct it for use.
-Example: `z = train.load_best_param(outdir, session)`
+Example: `z = train.load_best_param(run_dir, session)`
 Forbidden: `read` — use `load` instead.
 
 ### `normalize`
@@ -663,7 +669,7 @@ Forbidden: `lookup`, `fetch`. Unnecessary `resolve` — coding-rules HARD STOP 2
 ### `run`
 
 Definition: Execute a procedure end-to-end (train, evaluation, or full pipeline) and return or persist its result.
-Example: `fname, outdir, session = run_train_and_plot(figure_gts=..., **kwargs)`
+Example: `fname, run_dir, session = run_train_and_plot(figure_gts=..., **kwargs)`
 Forbidden: `execute`, `invoke` — use `run` instead.
 
 ### `save`

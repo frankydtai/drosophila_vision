@@ -16,19 +16,21 @@ from neuron.borst import t_abs_from_ms, ms_from_t
 from figure.panel import (
     N_COL_ALL,
     N_COL_GT,
+    PANEL_H,
     PANEL_W,
     ElapsedTimer,
+    as_numpy,
     gt_trace_affine,
     e_leak_from_z,
-    readout_prep_s,
-    session_filter_figure_token,
     mark_sti_on,
     plot_timecourse,
+    readout_prep_s,
     save_figure,
     traces_with_cost_ts,
     std_from_traces,
     v_th_from_z,
 )
+from figure.plot import session_from_task
 from network.construction import active_gt_cells, cell_rows, cells_in_order, gt_cells_from_opts
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from task.spread.gt import (
@@ -43,13 +45,9 @@ from train.cost import spread_cost_part_key
 
 
 def cells_from_nodes(session, nodes):
-    if torch.is_tensor(nodes):
-        nodes = nodes.detach().cpu().numpy()
-    nodes = np.asarray(nodes, dtype=np.int64)
+    nodes = np.asarray(as_numpy(nodes), dtype=np.int64)
     connectome = session.connectome
-    node_cells = connectome.node_cells[nodes]
-    if torch.is_tensor(node_cells):
-        node_cells = node_cells.detach().cpu().numpy()
+    node_cells = as_numpy(connectome.node_cells[nodes])
     cells = list(connectome.cells)
     return [str(cells[int(cell_idx)]) for cell_idx in node_cells]
 
@@ -62,13 +60,7 @@ def pack_cells(session, task=None, contrast=None):
         raise ValueError("task and contrast must be passed together")
     else:
         pack = session.packs[task][contrast]
-    seen = set()
-    pack_cells = []
-    for cell in cells_from_nodes(session, pack.entry_nodes):
-        if cell not in seen:
-            seen.add(cell)
-            pack_cells.append(cell)
-    return tuple(pack_cells)
+    return tuple(dict.fromkeys(cells_from_nodes(session, pack.entry_nodes)))
 
 
 def active_spread_gt_cells(session, task=None, contrast=None):
@@ -137,25 +129,25 @@ def spread_gts(
         spread_gt_mode = str(spread_gt_mode)
     delta_ms = float(session.delta_ms if delta_ms is None else delta_ms)
     gt_amp = float(session.gt_amp)
-    gts_by_contrast = {}
+    cell_idx = {cell: index for index, cell in enumerate(GT_CELLS)}
+    gts = {}
     for contrast in contrasts:
         contrast = str(contrast)
         if contrast not in CONTRASTS:
             raise ValueError(
                 f"unknown contrast {contrast!r}; expected one of {CONTRASTS}"
             )
-        gt_stack = load_ir(
+        irs = load_ir(
             t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter,
         )
-        scaled = gt_stack * gt_amp * float(contrast_sign(contrast))
-        gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
-        gts_by_contrast[contrast] = {
-            str(cell): scaled[gt_cell_idx[cell]]
+        gt_rows = irs * gt_amp * float(contrast_sign(contrast))
+        gts[contrast] = {
+            str(cell): gt_rows[cell_idx[cell]]
             for cell in GT_CELLS
             if spread_gt_active(spread_gt_mode, contrast, int(RF_SIGN[cell]))
         }
-    return gts_by_contrast
+    return gts
 
 
 def _session_task_timing(session):
@@ -182,7 +174,7 @@ def resolve_spread_gts(sessions, gts=None, *, filter=None):
         return gts
     if not sessions:
         return {}
-    gts_by_contrast = {}
+    gts = {}
     for contrast, session in sessions.items():
         t_onset, _n_t, n_t_gt, ms_sti, delta_ms = _session_task_timing(session)
         part = spread_gts(
@@ -190,8 +182,8 @@ def resolve_spread_gts(sessions, gts=None, *, filter=None):
             t_onset=t_onset, n_t=n_t_gt, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter,
         )
-        gts_by_contrast.update(part)
-    return gts_by_contrast
+        gts.update(part)
+    return gts
 
 
 def _style_time_axis(
@@ -366,12 +358,11 @@ def _forward_spread_readout(session, z):
     pack = session.primary_pack
     params = train.params_from_z(z, session)
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    trace = train.forward_pack(session, params, i_sti, pack)
+    trace = as_numpy(train.forward_pack(session, params, i_sti, pack)[0])
     connectome = session.connectome
     cells = list(connectome.cells)
     n_t = int(i_sti.shape[1])
-    trace_np = trace[0, :, :].cpu().numpy()
-    node_cells = connectome.node_cells.detach().cpu().numpy()
+    node_cells = as_numpy(connectome.node_cells)
 
     v_readout_mean_cell = {}
     std = {}
@@ -380,7 +371,7 @@ def _forward_spread_readout(session, z):
         mask = node_cells == cell_idx
         if not mask.any():
             continue
-        node_traces = trace_np[:, mask].T
+        node_traces = trace[:, mask].T
         v_readout_mean_cell[cell] = node_traces.mean(axis=0)
         std[cell] = std_from_traces(node_traces, single_hex=False)
         n_by_cell[cell] = int(mask.sum())
@@ -426,7 +417,11 @@ def network_spread_trace_readout(session, z, *, ms_shown=None):
     return readout
 
 
-def _plot_spread_figure(
+_TASK = "spread"
+_GRID_KWARGS = dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98)
+
+
+def _plot_figure(
     path, *,
     timer,
     readouts,
@@ -441,7 +436,7 @@ def _plot_spread_figure(
     """Plot spread figure from ``readouts`` (contrast → TraceReadout)."""
     order = contrast_order(readouts)
     if not order:
-        raise ValueError("_plot_spread_figure requires at least one readout")
+        raise ValueError("_plot_figure requires at least one readout")
     primary = readouts[order[0]]
     cells, rows = _layout_cells_from_readouts(readouts, order)
     n_t = primary.n_t
@@ -504,13 +499,13 @@ def _plot_spread_figure(
     save_figure(fig, path, dpi=150, timer=timer)
 
 
-def plot_network_spread_gt(path, *, readouts, title, gts=None, cost_parts=None):
+def plot_network_gt(path, *, readouts, title, gts=None, cost_parts=None):
     """Plot gt figure (active gt cells)."""
     gt_readouts = {
         contrast: _spread_gt_readout(readout)
         for contrast, readout in readouts.items()
     }
-    _plot_spread_figure(
+    _plot_figure(
         path,
         timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
         readouts=gt_readouts,
@@ -518,16 +513,14 @@ def plot_network_spread_gt(path, *, readouts, title, gts=None, cost_parts=None):
         gts=gts,
         n_col=N_COL_GT,
         figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
-        gridspec_kwargs=dict(
-            hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98,
-        ),
+        gridspec_kwargs=_GRID_KWARGS,
         cost_parts=cost_parts,
     )
 
 
-def plot_network_spread_all(path, *, readouts, title, gts=None, cost_parts=None):
+def plot_network_all(path, *, readouts, title, gts=None, cost_parts=None):
     """Plot all-cell figure from contrast → readout."""
-    _plot_spread_figure(
+    _plot_figure(
         path,
         timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
         readouts=readouts,
@@ -535,8 +528,28 @@ def plot_network_spread_all(path, *, readouts, title, gts=None, cost_parts=None)
         gts=gts,
         n_col=N_COL_ALL,
         figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
-        gridspec_kwargs=dict(
-            hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98,
-        ),
+        gridspec_kwargs=_GRID_KWARGS,
         cost_parts=cost_parts,
     )
+
+
+def build_readout(session, z, contrast, **readout_kwargs):
+    return network_spread_trace_readout(
+        session_from_task(session, _TASK, contrast), z, **readout_kwargs,
+    )
+
+
+def figure_titles(session, suffix, token, *, contrast=None):
+    if contrast is None:
+        return (
+            f'Spread {token}-gt ({suffix})',
+            f'Spread {token}-all ({suffix})',
+        )
+    return (
+        f'spread {contrast} {token}-gt ({suffix})',
+        f'spread {contrast} {token}-all ({suffix})',
+    )
+
+
+plot_gt = plot_network_gt
+plot_all = plot_network_all

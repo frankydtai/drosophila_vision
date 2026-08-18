@@ -51,10 +51,10 @@ def _float_parts(parts: Optional[Dict[str, torch.Tensor]], task_order=None):
     """Tensor/number cost parts → ``{key: float}`` (optional key order)."""
     if not parts:
         return None
-    float_parts = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in parts.items()}
+    parts = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in parts.items()}
     if task_order:
-        return {k: float_parts[k] for k in task_order if k in float_parts}
-    return float_parts
+        return {k: parts[k] for k in task_order if k in parts}
+    return parts
 
 
 def _fmt_cost_parts(parts):

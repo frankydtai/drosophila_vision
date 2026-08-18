@@ -1,23 +1,17 @@
 """Simulation + plotting for the FiveCol medulla model."""
-from config import (
-    RUN_PATH,
-)
+import importlib
 import json
 import os
-import numpy as np
-import torch
+
 import hydra
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 
 import import_bootstrap  # noqa: F401
 import train
-from task.spot.sti_geo import resolve_spot
-from figure import moving_bar
-from figure import spot
-from figure import spread
 from figure.panel import (
     network_hex_count,
-    session_filter_figure_token,
     ElapsedTimer,
     plot_cost_figure,
     plot_cost_total,
@@ -25,6 +19,37 @@ from figure.panel import (
 from train.session import run_data_dir
 from train.implementation import resolve_run_dir
 from network.construction import CELL_ROWS, cell_rows
+
+
+def filter_figure_token(filter=None) -> str:
+    """Figure filename token from train ``filter``: ``none`` → ``v``, ``ca`` → ``ca``."""
+    if filter is None or str(filter) == "none":
+        return "v"
+    return str(filter)
+
+
+def session_filter_figure_token(session) -> str:
+    opts = (session.train_opts if session is not None else None) or {}
+    return filter_figure_token(opts.get("filter"))
+
+
+def figure_subtitle_sti_geo(session, task):
+    """Subtitle suffix from sti geometry (centers × shifts, hex count)."""
+    opts = (session.train_opts or {}).get(f'{task}_sti_opts') or {}
+    sti_geo_mod = importlib.import_module('task.' + task + '.sti_geo')
+    resolve = getattr(sti_geo_mod, 'resolve_' + task)
+    geo = resolve(session.connectome, sti_opts=opts)
+    n_center = len(geo.centers)
+    n_shift = len(geo.shifts)
+    n_hex = network_hex_count(session.connectome)
+    return (
+        f'  [avg over {n_center} centers x {n_shift} shifts = {n_center * n_shift}]\n'
+        f'({n_hex} hexes in network)'
+    )
+
+
+def _figure_module(task):
+    return importlib.import_module('figure.' + task)
 
 
 def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
@@ -47,29 +72,32 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         plot_cost_total(costs, path, timer=timer)
         return
 
-    spot_radii = set()
-    pd_nd_labels = set()
     other_series_order = []
     other_series_seen = set()
     costs_by_cell = {}
     costs_global = []
+    series_order = []
+    series_seen = set()
 
     for part_key in part_keys:
         part_costs = np.asarray(costs_by_part[part_key], dtype=np.float64)
         if part_costs.size == 0:
             continue
 
-        parsed = spot.spot_cost(part_key, part_costs)
-        if parsed is not None:
-            cell, series, label, part_costs = parsed
-            spot_radii.add(series[1])
-            costs_by_cell.setdefault(cell, []).append((series, label, part_costs))
-            continue
+        parsed = None
+        for task in train.TASKS:
+            parse = getattr(_figure_module(task), 'parse_cost_part', None)
+            if parse is None:
+                continue
+            parsed = parse(part_key, part_costs)
+            if parsed is not None:
+                break
 
-        parsed = moving_bar.moving_bar_cost(part_key, part_costs)
         if parsed is not None:
             cell, series, label, part_costs = parsed
-            pd_nd_labels.add(series[1])
+            if series not in series_seen:
+                series_seen.add(series)
+                series_order.append(series)
             if cell is None:
                 costs_global.append((series, label, part_costs))
             else:
@@ -88,24 +116,10 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         else:
             costs_global.append((series, part_key, part_costs))
 
-    palette = list(plt.get_cmap("tab20").colors)
-    series_order = []
-    for radius in sorted(spot_radii, key=lambda value: (isinstance(value, float), value)):
-        series_order.append(("spot_radius", radius))
-
-    pd_nd_label_order = [
-        pd_nd_label for pd_nd_label in ("PD", "ND", "DSI") if pd_nd_label in pd_nd_labels
-    ]
-    extra_pd_nd = sorted([
-        pd_nd_label for pd_nd_label in pd_nd_labels if pd_nd_label not in pd_nd_label_order
-    ])
-    pd_nd_label_order.extend(extra_pd_nd)
-    for pd_nd_label in pd_nd_label_order:
-        series_order.append(("moving_bar_pd_nd", pd_nd_label))
-
     series_order.extend(other_series_order)
 
-    color_from_series = dict(zip(
+    palette = list(plt.get_cmap("tab20").colors)
+    colors_by_series = dict(zip(
         series_order, islice(cycle(palette), len(series_order)),
     ))
 
@@ -116,7 +130,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         costs_by_cell=costs_by_cell,
         costs_global=costs_global,
         series_order=series_order,
-        color_from_series=color_from_series,
+        colors_by_series=colors_by_series,
         rows=rows,
         timer=timer,
     )
@@ -127,35 +141,6 @@ def _plot_device_label():
     if device == 'cuda' and torch.cuda.is_available():
         return f'cuda ({torch.cuda.get_device_name(0)})'
     return device
-
-
-def spot_readout_fns(session):
-    return (
-        spot.network_spot_trace_readout,
-        spot.plot_network_spot_gt,
-        spot.plot_network_spot_all,
-    )
-
-
-def spread_readout_fns(session):
-    return (
-        spread.network_spread_trace_readout,
-        spread.plot_network_spread_gt,
-        spread.plot_network_spread_all,
-    )
-
-
-def _network_spot_label(session, task="spot"):
-    """Subtitle suffix for network spot plots (exact spot/shift counts)."""
-    opts = (session.train_opts or {}).get(f'{task}_sti_opts') or {}
-    spot = resolve_spot(session.connectome, sti_opts=opts)
-    n_spot = len(spot.centers)
-    n_shift = len(spot.shifts)
-    n_hex = network_hex_count(session.connectome)
-    return (
-        f'  [avg over {n_spot} spots x {n_shift} shifts = {n_spot * n_shift}]\n'
-        f'({n_hex} hexes in network)'
-    )
 
 
 def load_train_opts(run_dir):
@@ -286,8 +271,8 @@ def override_session(
     """Re-open session when any ms / euler / filter override is set; remap best ``z``.
 
     Unset flags keep values from the run's train opts. ``ms_pre`` /
-    ``delta_ms`` / ``delta_ms_pre`` also update moving_bar sti opts;
-    ``ms_response`` / ``ms_post`` / ``ms_sti`` are spot-only. ``euler`` is
+    ``delta_ms`` / ``delta_ms_pre`` also update the last task sti opts;
+    ``ms_response`` / ``ms_post`` / ``ms_sti`` apply to earlier tasks. ``euler`` is
     CLI ``im``/``ex`` (or already expanded ``implicit``/``explicit``).
     ``filter`` is ``none``/``ca``.
 
@@ -354,13 +339,11 @@ def override_session(
                 if val(sti_opts.get(key)) != before[key]
             }
 
-        for sti_opts_key in ("spread_sti_opts", "spot_sti_opts"):
-            sti_opts = opts.get(sti_opts_key)
-            if sti_opts is not None:
-                ms_changed.update(merge_ms(sti_opts, pairs))
-        if ms_pre is not None or delta_ms is not None or delta_ms_pre is not None:
-            sti_opts = opts.get("moving_bar_sti_opts")
-            if sti_opts is not None:
+        for task in train.TASKS:
+            sti_opts = opts.get(f'{task}_sti_opts')
+            if sti_opts is None:
+                continue
+            if task == train.TASKS[-1]:
                 ms_changed.update(merge_ms(
                     sti_opts,
                     (
@@ -372,6 +355,8 @@ def override_session(
                         ("ms_sti", None),
                     ),
                 ))
+            else:
+                ms_changed.update(merge_ms(sti_opts, pairs))
 
     if euler is not None:
         opts["euler"] = train.expand_euler(euler)
@@ -400,9 +385,9 @@ def ms_filename_suffix(
     delta_ms=None,
     delta_ms_pre=None,
 ):
-    """PNG stem suffix for ms keys that differ from the run (plot / analyze).
+    """PNG filename token suffix for ms keys that differ from the run (plot / analyze).
 
-    Order: pre, spot, response, post, delta, delta_pre. Example::
+    Order: pre, sti, response, post, delta, delta_pre. Example::
 
         _ms_post_2500
 
@@ -425,7 +410,7 @@ def ms_filename_suffix(
 
 
 def euler_filename_suffix(euler=None):
-    """PNG stem suffix for a non-``None`` euler override (``_im`` / ``_ex``)."""
+    """PNG filename token suffix for a non-``None`` euler override (``_im`` / ``_ex``)."""
     if euler is None:
         return ""
     token = str(euler)
@@ -471,205 +456,141 @@ def _stored_cost_parts(run_dir):
     return cost_parts
 
 
-def _plot_path(run_dir, stem, file_suffix="", *, html=False):
-    return os.path.join(run_dir, f"{stem}{file_suffix}{'.html' if html else '.png'}")
+def plot_path(run_dir, token, file_suffix="", *, html=False):
+    return os.path.join(run_dir, f"{token}{file_suffix}{'.html' if html else '.png'}")
 
 
-def _readout_figure_stem(prefix, session):
-    """``spot_gt_v`` / ``spot_gt_ca`` (filter chooses ``v`` or ``ca``, not both)."""
-    return f"{prefix}_{session_filter_figure_token(session)}"
+def readout_figure_token(base_token, session):
+    """``{base_token}_v`` / ``{base_token}_ca`` (filter chooses ``v`` or ``ca``, not both)."""
+    return f"{base_token}_{session_filter_figure_token(session)}"
 
 
-def _plot_spread_tasks(session, z, run_dir, suffix, model_all,
-                       gts=None,
-                       file_suffix="", html=False, ms_shown=None,
-                       cost_parts=None):
-    """Plot spread; both contrasts in one figure when session has bright and dark."""
-    build_readout, plot_gt, plot_all = spread_readout_fns(session)
-    figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
+def readout_gt_token(task):
+    return f"{task}_gt"
+
+
+def readout_all_token(task):
+    return f"{task}_all"
+
+
+def _readout_kwargs(mod, **kwargs):
+    readout_kwargs = {}
+    if kwargs.get('ms_shown') is not None:
+        readout_kwargs['ms_shown'] = kwargs['ms_shown']
+    if getattr(mod, 'PLOT_AT_XY', False):
+        readout_kwargs['at_xs'] = kwargs.get('at_x')
+        readout_kwargs['at_ys'] = kwargs.get('at_y')
+    if getattr(mod, 'PLOT_ALIGN_XY', False):
+        readout_kwargs['align_at_x'] = kwargs.get('align_at_x')
+        readout_kwargs['align_at_y'] = kwargs.get('align_at_y')
+    return readout_kwargs
+
+
+def plot_figures(session, z, run_dir, suffix, model_all, *, task, mod, **kwargs):
+    """Dispatch gt/all figures for one train ``task`` via hooks on ``mod``."""
     token = session_filter_figure_token(session)
-    readout_kwargs = dict(ms_shown=ms_shown)
+    gt_token = readout_gt_token(task)
+    all_token = readout_all_token(task)
+    file_suffix = kwargs.get('file_suffix', '')
+    html = kwargs.get('html', False)
+    figure_kwargs = dict(
+        gts=kwargs.get('gts'),
+        cost_parts=kwargs.get('cost_parts'),
+    )
+    readout_kwargs = _readout_kwargs(mod, **kwargs)
     contrasts = tuple(session.contrasts)
+    paired = getattr(mod, 'PLOT_PAIRED', False)
+    plot_gt_extra = {}
+    if paired and getattr(mod, 'PLOT_ALIGN_XY', False):
+        plot_gt_extra['right_only'] = kwargs.get('plot_right_only', True)
+
     if set(contrasts) >= {"bright", "dark"}:
-        readouts = {
-            contrast: build_readout(
-                session_from_task(session, "spread", contrast), z, **readout_kwargs,
+        if paired:
+            readout_bright = mod.build_readout(session, z, "bright", **readout_kwargs)
+            readout_dark = mod.build_readout(session, z, "dark", **readout_kwargs)
+            gt_title, all_title = mod.figure_titles(session, suffix, token)
+            gt_path = plot_path(
+                run_dir, readout_figure_token(gt_token, session), file_suffix, html=html,
             )
+            mod.plot_gt(
+                gt_path,
+                readout=readout_bright,
+                paired_readout=readout_dark,
+                title=gt_title,
+                cost_parts=figure_kwargs.get('cost_parts'),
+                **plot_gt_extra,
+            )
+            all_path = None
+            if model_all:
+                all_path = plot_path(
+                    run_dir, readout_figure_token(all_token, session), file_suffix, html=html,
+                )
+                mod.plot_all(
+                    all_path,
+                    readout=readout_bright,
+                    paired_readout=readout_dark,
+                    title=all_title,
+                    cost_parts=figure_kwargs.get('cost_parts'),
+                    **plot_gt_extra,
+                )
+            return gt_path, all_path
+        readouts = {
+            contrast: mod.build_readout(session, z, contrast, **readout_kwargs)
             for contrast in ("bright", "dark")
         }
-        gt_path = _plot_path(run_dir, _readout_figure_stem('spread_gt', session), file_suffix, html=html)
-        plot_gt(
-            gt_path, readouts=readouts,
-            title=f'Spread {token}-gt ({suffix})',
-            **figure_kwargs,
+        gt_title, all_title = mod.figure_titles(session, suffix, token)
+        gt_path = plot_path(
+            run_dir, readout_figure_token(gt_token, session), file_suffix, html=html,
         )
+        mod.plot_gt(gt_path, readouts=readouts, title=gt_title, **figure_kwargs)
         all_path = None
         if model_all:
-            all_path = _plot_path(run_dir, _readout_figure_stem('spread_all', session), file_suffix, html=html)
-            plot_all(
-                all_path, readouts=readouts,
-                title=f'Spread {token}-all ({suffix})',
-                **figure_kwargs,
+            all_path = plot_path(
+                run_dir, readout_figure_token(all_token, session), file_suffix, html=html,
             )
+            mod.plot_all(all_path, readouts=readouts, title=all_title, **figure_kwargs)
         return gt_path, all_path
+
+    gt_path = all_path = None
     for contrast in contrasts:
-        one = session_from_task(session, "spread", contrast)
-        readout = build_readout(one, z, **readout_kwargs)
-        readouts = {contrast: readout}
-        gt_path = _plot_path(run_dir, _readout_figure_stem('spread_gt', session), file_suffix, html=html)
-        plot_gt(
-            gt_path, readouts=readouts,
-            title=f'spread {contrast} {token}-gt ({suffix})',
-            **figure_kwargs,
+        gt_title, all_title = mod.figure_titles(session, suffix, token, contrast=contrast)
+        gt_path = plot_path(
+            run_dir, readout_figure_token(gt_token, session), file_suffix, html=html,
         )
+        if paired:
+            readout = mod.build_readout(session, z, contrast, **readout_kwargs)
+            mod.plot_gt(
+                gt_path,
+                readout=readout,
+                title=gt_title,
+                cost_parts=figure_kwargs.get('cost_parts'),
+                **plot_gt_extra,
+            )
+            if model_all:
+                all_path = plot_path(
+                    run_dir, readout_figure_token(all_token, session), file_suffix, html=html,
+                )
+                mod.plot_all(
+                    all_path,
+                    readout=readout,
+                    title=all_title,
+                    cost_parts=figure_kwargs.get('cost_parts'),
+                    **plot_gt_extra,
+                )
+            continue
+        readouts = {contrast: mod.build_readout(session, z, contrast, **readout_kwargs)}
+        mod.plot_gt(gt_path, readouts=readouts, title=gt_title, **figure_kwargs)
         if model_all:
-            all_path = _plot_path(run_dir, _readout_figure_stem('spread_all', session), file_suffix, html=html)
-            plot_all(
-                all_path, readouts=readouts,
-                title=f'spread {contrast} {token}-all ({suffix})',
-                **figure_kwargs,
+            all_path = plot_path(
+                run_dir, readout_figure_token(all_token, session), file_suffix, html=html,
             )
-
-
-def _plot_spot_tasks(session, z, run_dir, suffix, model_all,
-                       gts=None,
-                       at_x=None, at_y=None,
-                       file_suffix="", html=False, ms_shown=None,
-                       cost_parts=None):
-    """Plot spot; both contrasts in one figure when session has bright and dark."""
-    build_readout, plot_gt, plot_all = spot_readout_fns(session)
-    net_label = _network_spot_label(session, "spot")
-    figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
-    token = session_filter_figure_token(session)
-    readout_kwargs = dict(
-        at_xs=at_x, at_ys=at_y,
-        ms_shown=ms_shown,
-    )
-    contrasts = tuple(session.contrasts)
-    if set(contrasts) >= {"bright", "dark"}:
-        readouts = {
-            contrast: build_readout(
-                session_from_task(session, "spot", contrast), z, **readout_kwargs,
-            )
-            for contrast in ("bright", "dark")
-        }
-        gt_path = _plot_path(run_dir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
-        plot_gt(
-            gt_path, readouts=readouts,
-            title=f'Spot {token}-gt ({suffix}){net_label}',
-            **figure_kwargs,
-        )
-        all_path = None
-        if model_all:
-            all_path = _plot_path(run_dir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
-            plot_all(
-                all_path, readouts=readouts,
-                title=f'Spot {token}-all ({suffix}){net_label}',
-                **figure_kwargs,
-            )
-        return gt_path, all_path
-    for contrast in contrasts:
-        _plot_one_spot(
-            session_from_task(session, "spot", contrast), z, run_dir, contrast, suffix, model_all,
-            gts=gts,
-            at_x=at_x, at_y=at_y,
-            cost_parts=cost_parts,
-            file_suffix=file_suffix,
-            html=html,
-            ms_shown=ms_shown,
-        )
-
-
-def _plot_bar_readouts(session, z, run_dir, suffix, model_all, *,
-                      plot_right_only=True, at_x=None, at_y=None,
-                      align_at_x=None, align_at_y=None,
-                      file_suffix="", html=False, ms_shown=None,
-                      cost_parts=None):
-    """Plot moving-bar; bright left | dark right when session has both contrasts."""
-    token = session_filter_figure_token(session)
-    readout_kwargs = dict(
-        at_xs=at_x, at_ys=at_y,
-        align_at_x=align_at_x, align_at_y=align_at_y,
-        ms_shown=ms_shown,
-    )
-    contrasts = tuple(session.contrasts)
-    if set(contrasts) >= {"bright", "dark"}:
-        s_bright = session_from_task(session, "moving_bar", "bright")
-        s_dark = session_from_task(session, "moving_bar", "dark")
-        readout_bright = moving_bar.moving_bar_trace_readout(
-            s_bright, z, "moving_bar", "bright", **readout_kwargs,
-        )
-        readout_dark = moving_bar.moving_bar_trace_readout(
-            s_dark, z, "moving_bar", "dark", **readout_kwargs,
-        )
-        gt_path = _plot_path(run_dir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
-        moving_bar.plot_moving_bar_gt(
-            gt_path, readout=readout_bright, paired_readout=readout_dark,
-            title=f'Moving-bar {token}-gt ({suffix})',
-            cost_parts=cost_parts,
-        )
-        all_path = None
-        if model_all:
-            all_path = _plot_path(run_dir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
-            moving_bar.plot_moving_bar_all(
-                all_path, readout=readout_bright, paired_readout=readout_dark,
-                title=f'Moving-bar {token}-all ({suffix})',
-                right_only=plot_right_only,
-                cost_parts=cost_parts,
-            )
-        return gt_path, all_path
-    for contrast in contrasts:
-        one = session_from_task(session, "moving_bar", contrast)
-        readout = moving_bar.moving_bar_trace_readout(
-            one, z, "moving_bar", contrast, **readout_kwargs,
-        )
-        gt_path = _plot_path(run_dir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
-        moving_bar.plot_moving_bar_gt(
-            gt_path, readout=readout, title=f'moving_bar {contrast} {token}-gt ({suffix})',
-            cost_parts=cost_parts,
-        )
-        all_path = None
-        if model_all:
-            all_path = _plot_path(run_dir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
-            moving_bar.plot_moving_bar_all(
-                all_path, readout=readout, title=f'moving_bar {contrast} {token}-all ({suffix})',
-                right_only=plot_right_only,
-                cost_parts=cost_parts,
-            )
-        return gt_path, all_path
-
-
-def _plot_one_spot(session, z, run_dir, contrast, suffix, model_all,
-                     gts=None,
-                     at_x=None, at_y=None,
-                     cost_parts=None, file_suffix="", html=False, ms_shown=None):
-    token = session_filter_figure_token(session)
-    gt_path = _plot_path(run_dir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
-    all_path = _plot_path(run_dir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
-    build_readout, plot_gt, plot_all = spot_readout_fns(session)
-    net_label = _network_spot_label(session, "spot")
-    figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
-    readout = build_readout(
-        session, z,
-        at_xs=at_x, at_ys=at_y,
-        ms_shown=ms_shown,
-    )
-    readouts = {contrast: readout}
-    plot_gt(
-        gt_path, readouts=readouts,
-        title=f'spot {contrast} {token}-gt ({suffix}){net_label}', **figure_kwargs,
-    )
-    if model_all:
-        plot_all(
-            all_path, readouts=readouts,
-            title=f'spot {contrast} {token}-all ({suffix}){net_label}', **figure_kwargs,
-        )
+            mod.plot_all(all_path, readouts=readouts, title=all_title, **figure_kwargs)
     return gt_path, all_path
 
 
 def plot_rf_t(params, run_dir, model=None, model_all=True,
                    context_dir=None,
-                   plot_tasks=None, session=None, *,
+                   only_tasks=None, session=None, *,
                    final_costs=None,
                    save_data=True,
                    gts=None,
@@ -712,51 +633,37 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
     else:
         suffix = f'{suffix} ({cost_norm})'
     tasks = list(session.tasks)
-    if plot_tasks is not None:
-        tasks = [t for t in tasks if t in plot_tasks]
+    if only_tasks is not None:
+        tasks = [task for task in tasks if task in only_tasks]
 
-    has_spread = "spread" in tasks
-    has_spot = "spot" in tasks
-    has_moving_bar = "moving_bar" in tasks
-    if (at_x is not None or at_y is not None) and not has_moving_bar and not has_spot:
-        raise SystemExit('--x/--y require a moving_bar or spot task in this run')
-    if (align_at_x is not None or align_at_y is not None):
+    active_mods = [_figure_module(task) for task in tasks]
+    if (at_x is not None or at_y is not None) and not any(
+        getattr(mod, 'PLOT_AT_XY', False) for mod in active_mods
+    ):
+        raise SystemExit('--x/--y require a task figure module with PLOT_AT_XY')
+    if align_at_x is not None or align_at_y is not None:
         if align_at_x is None or align_at_y is None:
             raise SystemExit('--align-xy requires X,Y')
         if at_x is None and at_y is None:
             raise SystemExit('--align-xy requires --x and/or --y')
-        if not has_moving_bar:
-            raise SystemExit('--align-xy applies to moving_bar --x/--y plots only')
+        if not any(getattr(mod, 'PLOT_ALIGN_XY', False) for mod in active_mods):
+            raise SystemExit('--align-xy requires a task figure module with PLOT_ALIGN_XY')
 
-    if has_spread:
-        _plot_spread_tasks(
+    for task in tasks:
+        mod = _figure_module(task)
+        plot_figures(
             session, z, run_dir, suffix, model_all,
+            task=task, mod=mod,
             gts=gts,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
             cost_parts=cost_parts,
-        )
-    if has_spot:
-        _plot_spot_tasks(
-            session, z, run_dir, suffix, model_all,
-            gts=gts,
-            at_x=at_x, at_y=at_y,
-            file_suffix=file_suffix,
-            html=html,
-            ms_shown=ms_shown,
-            cost_parts=cost_parts,
-        )
-    if has_moving_bar:
-        _plot_bar_readouts(
-            session, z, run_dir, suffix, model_all,
+            at_x=at_x,
+            at_y=at_y,
+            align_at_x=align_at_x,
+            align_at_y=align_at_y,
             plot_right_only=plot_right_only,
-            at_x=at_x, at_y=at_y,
-            align_at_x=align_at_x, align_at_y=align_at_y,
-            file_suffix=file_suffix,
-            html=html,
-            ms_shown=ms_shown,
-            cost_parts=cost_parts,
         )
 
     if save_data:

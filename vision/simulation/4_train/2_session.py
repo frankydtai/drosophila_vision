@@ -370,11 +370,11 @@ def _spot_cost_ts_and_mask(
         ms_response = max(ms_response, float(opts["ms_sti"]))
     delta_ms = float(opts["delta_ms"])
     post = int(t_from_ms(ms_response, delta_ms=delta_ms)) + 1
-    cost_ms_by_radius = expand_cost_ms(cost_ms=cost_ms)
+    cost_ms = expand_cost_ms(cost_ms=cost_ms)
     entry_radii = entry_radii.detach().cpu().numpy().astype(np.int64, copy=False)
     radii = {int(radius) for radius in entry_radii.tolist()}
     grid = None
-    if any(radius not in cost_ms_by_radius for radius in radii):
+    if any(radius not in cost_ms for radius in radii):
         if cost_interval_ms <= 0:
             raise ValueError("cost_interval_ms must be > 0")
         if post <= 0:
@@ -383,7 +383,7 @@ def _spot_cost_ts_and_mask(
         grid = [t * delta_ms for t in range(0, post, step)]
     radius_ts = {}
     for radius in radii:
-        mss = cost_ms_by_radius[radius] if radius in cost_ms_by_radius else grid
+        mss = cost_ms[radius] if radius in cost_ms else grid
         ts = set()
         for ms in mss:
             t = int(round(float(ms) / delta_ms))
@@ -692,17 +692,12 @@ _STI_OPTS_BY_TASK = {
 }
 
 
-def _i_sti(i_sti=None) -> Dict[str, float]:
-    """Bright/dark currents from ``SPREAD_INPUT_SPEC``; optional contrast stamps."""
-    i_sti_by_contrast = {
-        "bright": float(SPREAD_INPUT_SPEC["i_bright"]),
-        "dark": float(SPREAD_INPUT_SPEC["i_dark"]),
-    }
-    if not i_sti:
-        return i_sti_by_contrast
-    for contrast, val in i_sti.items():
-        i_sti_by_contrast[str(contrast)] = float(val)
-    return i_sti_by_contrast
+def resolve_i_sti(i_sti=None) -> Dict[str, float]:
+    """Merge ``config`` ``i_sti`` defaults with optional contrast overrides."""
+    out = dict(TRAIN_CONFIG["i_sti"])
+    if i_sti:
+        out.update({str(contrast): float(val) for contrast, val in i_sti.items()})
+    return out
 
 
 def _spread_resolve_sti_opts(opts, **_):
@@ -857,13 +852,12 @@ def resolve_train_opts(
             )
     tasks = _tokens(tasks if tasks is not None else TRAIN_CONFIG["tasks"])
     contrasts = _tokens(
-        contrasts if contrasts is not None else SPREAD_INPUT_SPEC["contrasts"]
+        contrasts if contrasts is not None else TRAIN_CONFIG["contrasts"]
     )
     if spot_radius is None:
         spot_radius = SPOT_INPUT_GEO['spot_radius']
     if shift_radius is None:
         shift_radius = SPOT_INPUT_GEO['shift_radius']
-    merged_i_sti = _i_sti(i_sti)
     finalize_kwargs = dict(
         cost_radius=cost_radius,
         shift_radius=shift_radius,
@@ -889,7 +883,7 @@ def resolve_train_opts(
     opts = {
         "tasks": tasks,
         "contrasts": contrasts,
-        "i_sti": merged_i_sti,
+        "i_sti": resolve_i_sti(i_sti),
         "part_cost_scales": {
             str(part_key): float(scale)
             for part_key, scale in (
@@ -929,11 +923,12 @@ def resolve_train_opts(
 
 def _cost_ms_sidecar(cost_ms) -> dict:
     """JSON sidecar: radii as strings, mss as floats."""
-    cost_ms_json: dict = {}
-    for radius, vals in (cost_ms or {}).items():
-        mss = list(vals) if isinstance(vals, (list, tuple)) else [vals]
-        cost_ms_json[str(int(radius))] = [float(x) for x in mss]
-    return cost_ms_json
+    return {
+        str(int(radius)): [
+            float(x) for x in (list(vals) if isinstance(vals, (list, tuple)) else [vals])
+        ]
+        for radius, vals in (cost_ms or {}).items()
+    }
 
 
 def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -> dict:
@@ -1031,11 +1026,11 @@ def _build_session(
     sim_dtype=SIM_DTYPE,
 ) -> TrainSession:
     device = device or active_device()
-    seq = False if sequential is None else bool(sequential)
+    sequential = False if sequential is None else bool(sequential)
     neuron_const = MODEL
     if train_opts is not None:
         train_opts["model"] = model
-        train_opts["sequential"] = bool(seq)
+        train_opts["sequential"] = sequential
     if train_opts is None or "euler" not in train_opts:
         raise ValueError("train opts require euler (implicit|explicit)")
     euler = expand_euler(train_opts["euler"])
@@ -1067,7 +1062,7 @@ def _build_session(
         tasks=tuple(tasks),
         contrasts=tuple(contrasts),
         part_cost_scales=cli_scales,
-        sequential=bool(seq),
+        sequential=sequential,
         device=device,
         delta_ms=float(delta_ms),
         delta_ms_pre=float(delta_ms_pre),
@@ -1106,7 +1101,10 @@ def open_session(
     neuron_const = MODEL
     tasks = _tokens(opts.get("tasks"))
     contrasts = _tokens(opts.get("contrasts"))
-    i_sti = _i_sti(opts.get("i_sti"))
+    raw_i_sti = opts.get("i_sti")
+    if raw_i_sti is None:
+        raise ValueError("train opts require i_sti")
+    i_sti = {str(contrast): float(val) for contrast, val in raw_i_sti.items()}
     opts["i_sti"] = i_sti
     device = opts.get("device") or active_device()
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", TRAIN_SESSION['fp'])))

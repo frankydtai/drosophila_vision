@@ -89,6 +89,7 @@ from train.session import (
     _cost_hex_label,
     load_train_connectome,
     resolve_train_opts,
+    resolve_i_sti,
     open_session,
     resolve_session,
     session_from_run_dir,

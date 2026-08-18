@@ -371,7 +371,7 @@ def ids_by_cell(
         raise ValueError(
             "ids_by_cell requires exactly one of radius, shell, at_u/at_v, at_x/at_y"
         )
-    ids_by_cell_map: Dict[str, Set[int]] = {}
+    ids_by_cell: Dict[str, Set[int]] = {}
     for n in nodes:
         name = n.get("name")
         if not isinstance(name, str):
@@ -403,8 +403,8 @@ def ids_by_cell(
                     continue
                 if at_v is not None and v != at_v:
                     continue
-        ids_by_cell_map.setdefault(name, set()).add(node_id)
-    return ids_by_cell_map
+        ids_by_cell.setdefault(name, set()).add(node_id)
+    return ids_by_cell
 
 
 
@@ -525,24 +525,17 @@ def partner_syn_by_label(
                             partner_xy[cell][pt].add(xy)
                 except (TypeError, ValueError):
                     pass
-    syn_by_label: Dict[
-        str,
-        Tuple[
-            DefaultDict[str, Dict[str, float]],
-            float,
-            Dict[str, int],
-            Dict[str, Set[_UvCoord]],
-            Dict[str, Set[Tuple[float, float]]],
-            int,
-        ],
-    ] = {}
-    for p in labels:
-        npartner_map = {pt: len(ids) for pt, ids in partner_ids[p].items()}
-        row_sets = {pt: set(uvs) for pt, uvs in partner_uv[p].items()}
-        row_xy_sets = {pt: set(coords) for pt, coords in partner_xy[p].items()}
-        n_self = len(self_ids[p])
-        syn_by_label[p] = (by_cell[p], sums[p], npartner_map, row_sets, row_xy_sets, n_self)
-    return syn_by_label
+    return {
+        p: (
+            by_cell[p],
+            sums[p],
+            {pt: len(ids) for pt, ids in partner_ids[p].items()},
+            {pt: set(uvs) for pt, uvs in partner_uv[p].items()},
+            {pt: set(coords) for pt, coords in partner_xy[p].items()},
+            len(self_ids[p]),
+        )
+        for p in labels
+    }
 
 
 def query_partner_syn(
@@ -740,7 +733,7 @@ def resolve_xy_ids(
     single_xy = at_x is not None and at_y is not None
     if single_xy:
         hu, hv = uv_from_xy(at_x, at_y)
-        ids_by_cell_at = ids_by_cell(nodes, at_u=hu, at_v=hv)
+        ids_by_cell = ids_by_cell(nodes, at_u=hu, at_v=hv)
         at_ref_xy = (float(at_x), float(at_y))
         hex_note = (
             f" at (x,y)=({_format_table_scalar(at_ref_xy[0])},"
@@ -753,12 +746,12 @@ def resolve_xy_ids(
             _format_table_scalar(at_ref_xy[1]),
             hu,
             hv,
-            sum(1 for ids in ids_by_cell_at.values() if ids),
+            sum(1 for ids in ids_by_cell.values() if ids),
         )
-        return ids_by_cell_at, hex_note, at_ref_xy, True
+        return ids_by_cell, hex_note, at_ref_xy, True
 
-    ids_by_cell_at = ids_by_cell(nodes, at_x=at_x, at_y=at_y)
-    if not any(ids_by_cell_at.values()):
+    ids_by_cell = ids_by_cell(nodes, at_x=at_x, at_y=at_y)
+    if not any(ids_by_cell.values()):
         raise ValueError(f"no ids match --x={at_x!r} --y={at_y!r}")
     parts = []
     if at_x is not None:
@@ -769,9 +762,9 @@ def resolve_xy_ids(
     logger.info(
         "Restricting to ids on %s; %d cells have ≥1 node there",
         ", ".join(parts),
-        sum(1 for ids in ids_by_cell_at.values() if ids),
+        sum(1 for ids in ids_by_cell.values() if ids),
     )
-    return ids_by_cell_at, hex_note, None, False
+    return ids_by_cell, hex_note, None, False
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -1039,7 +1032,14 @@ def main(argv: List[str] | None = None) -> int:
     # Partner delta coords: always collected; reference is --at uv or mean self location.
     uv_from_id = uv_from_node_id(nodes, float_coords=False)
     xy_from_id = None
-    syn_by_label = partner_syn_by_label(
+    for label, (
+        by_partner,
+        n_syn_sum,
+        n_partner_by_type,
+        partner_uv_by_type,
+        partner_xy_by_type,
+        n_self,
+    ) in partner_syn_by_label(
         edges,
         labels,
         labels_from_self_cell,
@@ -1049,9 +1049,7 @@ def main(argv: List[str] | None = None) -> int:
         direction=direction,
         family_from_cell=family_from_partner_cell,
         labels_from_self_id=labels_from_self_id,
-    )
-    for label in labels:
-        by_partner, n_syn_sum, n_partner_by_type, partner_uv_by_type, partner_xy_by_type, n_self = syn_by_label[label]
+    ).items():
         label_origin_uv, label_origin_xy = _label_origins(
             label,
             nodes,

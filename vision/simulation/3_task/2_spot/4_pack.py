@@ -87,14 +87,18 @@ def expand_cost_ms(
     """Radius → explicit post-onset ms; empty when unset."""
     if not cost_ms:
         return {}
-    cost_ms_by_radius: Dict[int, Tuple[float, ...]] = {}
     for radius, mss in cost_ms.items():
-        radius = standardize_spot_cost_radius(radius)
-        mss = parse_comma_list(mss) if isinstance(mss, str) else list(mss)
-        if not mss:
-            raise ValueError(f"cost_ms[{radius!r}] must list at least one ms")
-        cost_ms_by_radius[radius] = tuple(float(ms) for ms in mss)
-    return cost_ms_by_radius
+        mss_list = parse_comma_list(mss) if isinstance(mss, str) else list(mss)
+        if not mss_list:
+            raise ValueError(
+                f"cost_ms[{standardize_spot_cost_radius(radius)!r}] must list at least one ms"
+            )
+    return {
+        standardize_spot_cost_radius(radius): tuple(
+            float(ms) for ms in (parse_comma_list(mss) if isinstance(mss, str) else list(mss))
+        )
+        for radius, mss in cost_ms.items()
+    }
 
 
 def parse_cost_ms_tokens(
@@ -105,7 +109,7 @@ def parse_cost_ms_tokens(
         return None
     if len(tokens) == 1 and str(tokens[0]).strip().lower() in ("none", "off"):
         return {}
-    cost_ms_by_radius: Dict[int, Tuple[float, ...]] = {}
+    cost_ms: Dict[int, Tuple[float, ...]] = {}
     for token in tokens:
         if "=" not in token:
             raise ValueError(f"expected R=MS,... or none|off, got {token!r}")
@@ -113,8 +117,8 @@ def parse_cost_ms_tokens(
         vals = parse_comma_list(val)
         if not vals:
             raise ValueError(f"--cost-ms {radius}=... must list at least one ms")
-        cost_ms_by_radius[standardize_spot_cost_radius(radius)] = tuple(float(x) for x in vals)
-    return cost_ms_by_radius
+        cost_ms[standardize_spot_cost_radius(radius)] = tuple(float(x) for x in vals)
+    return cost_ms
 
 
 def resolve_spot_cost_radius_scale(

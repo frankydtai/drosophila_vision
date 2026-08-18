@@ -51,7 +51,7 @@ SYN_STRENGTH_CELL_CSV = "syn_strength_cell.csv"
 SYN_STRENGTH_EDGE_CSV = "syn_strength_edge.csv"
 
 
-def build_build_run_dir(model, root=None, parent=None, run=None):
+def build_run_dir(model, root=None, parent=None, run=None):
     """``<PARAMETER_DIR>/<model>/<run>`` (or under *parent*)."""
     if parent is None:
         root = str(PARAMETER_DIR) if root is None else root
@@ -89,15 +89,15 @@ def decompose_params(z, session):
     n = session.connectome.n_cell
     schema = train.schema_copy(session.schema)
     decoded = train.node_vals_from_z(z, schema)
-    params_by_cell = {}
+    node_vals = {}
     for param, spec in schema.items():
         if param in ("syn_strength_cell", "syn_strength_edge") or spec.get("radii") is not None:
             continue  # e.g. a_sti_radius (per-radius, not per-cell)
         vals = np.asarray(decoded[param], dtype=np.float64).reshape(-1)
         if vals.shape[0] != n:
             raise ValueError(f"{param}: node w {vals.shape[0]} != n_cell {n}")
-        params_by_cell[param] = vals
-    return params_by_cell
+        node_vals[param] = vals
+    return node_vals
 
 
 def v_spot_mean_cell(z, session):
@@ -165,7 +165,7 @@ def v_spot_mean_cell(z, session):
             delta_v_mean_cell[cell_idx] = (
                 v_sti_end_mean_cell[cell_idx] - v_onset_mean_cell[cell_idx]
             )
-    mean_cell = {
+    spot_v_mean_cell = {
         "v_pre_mean_cell": v_pre_mean_cell,
         "v_onset_mean_cell": v_onset_mean_cell,
         "v_sti_end_mean_cell": v_sti_end_mean_cell,
@@ -193,7 +193,7 @@ def v_spot_mean_cell(z, session):
                 delta_v_ca_mean_cell[cell_idx] = (
                     v_ca_sti_end_mean_cell[cell_idx] - v_ca_onset_mean_cell[cell_idx]
                 )
-        mean_cell.update(
+        spot_v_mean_cell.update(
             v_ca_pre_mean_cell=v_ca_pre_mean_cell,
             v_ca_onset_mean_cell=v_ca_onset_mean_cell,
             v_ca_sti_end_mean_cell=v_ca_sti_end_mean_cell,
@@ -220,7 +220,7 @@ def v_spot_mean_cell(z, session):
                 delta_ca_mean_cell[cell_idx] = (
                     ca_sti_end_mean_cell[cell_idx] - ca_onset_mean_cell[cell_idx]
                 )
-        mean_cell.update(
+        spot_v_mean_cell.update(
             ca_pre_mean_cell=ca_pre_mean_cell,
             ca_onset_mean_cell=ca_onset_mean_cell,
             ca_sti_end_mean_cell=ca_sti_end_mean_cell,
@@ -235,8 +235,8 @@ def v_spot_mean_cell(z, session):
             lo = param_from_entry("bias_gt", "lo", NEURON_SCHEMA['params'])
             hi = param_from_entry("bias_gt", "hi", NEURON_SCHEMA['params'])
             bias = np.clip(v_onset_mean_cell, lo, hi)
-        mean_cell["bias_gt"] = np.asarray(bias, dtype=np.float64)
-    return mean_cell
+        spot_v_mean_cell["bias_gt"] = np.asarray(bias, dtype=np.float64)
+    return spot_v_mean_cell
 
 
 def save_param_table(z, session, table_path):

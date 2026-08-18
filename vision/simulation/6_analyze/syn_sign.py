@@ -162,7 +162,7 @@ def _spot_session_z(run_dir, contrast: str = "bright"):
     return plot.session_from_task(session, "spot", contrast), z
 
 
-def load_delta_v_tables(session, z):
+def load_delta_v_by_cell(session, z):
     """cell -> radius_k -> [(id, Δv)]; radii from pack cost radii."""
     readout = spot._forward_spot_readout(session, z)
     t_onset = readout.get("t_onset")
@@ -187,13 +187,13 @@ def load_delta_v_tables(session, z):
         dtype=np.int64,
     )
     delta = traces[:, t1] - traces[:, t0]
-    delta_v_tables = {name: {radius: [] for radius in radii} for name in cells}
+    delta_v_by_cell = {name: {radius: [] for radius in radii} for name in cells}
     for type_at, radius, delta_v, id_val in zip(type_idx, entry_radii, delta, ids):
         cell = cells[int(type_at)]
-        if int(radius) not in delta_v_tables[cell] or not np.isfinite(delta_v):
+        if int(radius) not in delta_v_by_cell[cell] or not np.isfinite(delta_v):
             continue
-        delta_v_tables[cell][int(radius)].append((int(id_val), float(delta_v)))
-    return delta_v_tables, radii
+        delta_v_by_cell[cell][int(radius)].append((int(id_val), float(delta_v)))
+    return delta_v_by_cell, radii
 
 
 def plot_syn_sign(
@@ -208,7 +208,7 @@ def plot_syn_sign(
     strength_by_pair,
     edges_bins,
     run_label,
-    delta_tables,
+    delta_v_by_cell,
     radii,
 ):
     """Draw hist + per-radius Δv plots for ``active`` cells."""
@@ -267,16 +267,15 @@ def plot_syn_sign(
                 fontsize=9,
             )
             ax_h.tick_params(labelsize=7)
-            by_r = delta_tables.get(cell) or {}
-            for si, rk in enumerate(radii):
+            for si, radius in enumerate(radii):
                 ax = fig.add_subplot(gs[base + 1 + si, ci])
                 xs, ys = [], []
-                for id, d_v in by_r.get(rk) or []:
+                for id, delta_v in (delta_v_by_cell.get(cell) or {}).get(radius) or []:
                     percent = pct_tr_map.get(id)
                     if percent is None:
                         continue
                     xs.append(percent)
-                    ys.append(d_v)
+                    ys.append(delta_v)
                 if xs:
                     ax.scatter(
                         xs, ys, s=8, c="C0", alpha=0.65, edgecolors="none",
@@ -284,7 +283,7 @@ def plot_syn_sign(
                 ax.set_xlim(0, 100)
                 ax.set_xlabel("% n_syn+ (×α)", fontsize=7)
                 ax.set_ylabel("Δv (mV)", fontsize=7)
-                ax.set_title(f"radius={rk}  n={len(xs)}", fontsize=8)
+                ax.set_title(f"radius={radius}  n={len(xs)}", fontsize=8)
                 ax.tick_params(labelsize=6)
                 ax.axhline(0.0, color="0.6", linewidth=0.5)
     timer.end_plot()
@@ -325,7 +324,7 @@ def save_syn_sign_figures(run_dir, *, post=False, bins=None) -> None:
         edges, cells, node_vals["syn_strength_cell"], pairs,
     )
     session, z = _spot_session_z(run_dir)
-    delta_tables, radii = load_delta_v_tables(session, z)
+    delta_v_by_cell, radii = load_delta_v_by_cell(session, z)
 
     direction = "post" if post else "pre"
     syn_dir = os.path.join(run_dir, "post_syn" if post else "pre_syn")
@@ -337,7 +336,7 @@ def save_syn_sign_figures(run_dir, *, post=False, bins=None) -> None:
         strength_by_pair=strength_by_pair,
         edges_bins=np.linspace(0.0, 100.0, bins + 1),
         run_label=os.path.basename(run_dir),
-        delta_tables=delta_tables,
+        delta_v_by_cell=delta_v_by_cell,
         radii=radii,
     )
     plot_syn_sign(

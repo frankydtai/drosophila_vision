@@ -98,9 +98,6 @@ def _bind_config(config: dict) -> None:
     NEURON_FORWARD = {"pre_grad": config["pre_grad"]}
     NETWORK_PATH = {"network": config["network"]}
     SPREAD_INPUT_SPEC = {
-        "i_bright": config["i_bright"],
-        "i_dark": config["i_dark"],
-        "contrasts": config["contrasts"],
         "ms_pre": config["ms_pre"],
         "ms_sti": config["ms_sti"],
         "ms_response": config["ms_response"],
@@ -125,14 +122,16 @@ def _bind_config(config: dict) -> None:
         "bar_radius": config["bar_radius"],
     }
     MOVING_BAR_INPUT_SPEC = {
-        "i_bright": config["i_bright"],
-        "i_dark": config["i_dark"],
         "ms_pre": config["ms_pre"],
     }
     tasks = config["tasks"]
     TRAIN_CONFIG = {
         "tasks": tasks,
         "contrasts": config["contrasts"],
+        "i_sti": {
+            str(contrast): float(val)
+            for contrast, val in config["i_sti"].items()
+        },
         "gt_by_task": config.get("gt_by_task"),
         "cost_radius": config.get("cost_radius"),
     }
@@ -260,10 +259,10 @@ def _hydra_task_overrides() -> List[str]:
     return [str(token) for token in HydraConfig.get().overrides.task]
 
 
-def _command_run(script_stem: str, *, overrides: List[str] | None = None) -> str:
-    """Build a run folder stem from Hydra task overrides (train only)."""
+def _command_run(script_token: str, *, overrides: List[str] | None = None) -> str:
+    """Build a run folder name token from Hydra task overrides (train only)."""
     prefix = os.environ.get("SLURM_JOB_ID") or time.strftime("%m%d_%H%M%S")
-    parts = [prefix, script_stem]
+    parts = [prefix, script_token]
     for token in overrides or _hydra_task_overrides():
         token = str(token).lstrip("+~")
         key, sep, val = token.partition("=")
@@ -277,14 +276,14 @@ def _command_run(script_stem: str, *, overrides: List[str] | None = None) -> str
     return run[:_RUN_MAX].rstrip("-")
 
 
-def _resolve_train_run_name(*, script_stem: str) -> str:
-    """Train run_dir stem: explicit CLI ``run_name=`` else ``command_run``."""
+def _resolve_train_run_name(*, script_token: str) -> str:
+    """Train ``run_dir`` name: explicit CLI ``run_name=`` else ``command_run``."""
     overrides = _hydra_task_overrides()
     for token in overrides:
         key, sep, val = str(token).lstrip("+~").partition("=")
         if sep and key == "run_name":
             return str(val).strip()
-    return _command_run(script_stem, overrides=overrides)
+    return _command_run(script_token, overrides=overrides)
 
 
 def resolve_figure_kwargs(hydra_config) -> dict:
@@ -328,7 +327,7 @@ def session_kwargs_from_cli(hydra_config) -> dict:
     return {key: (hydra_config.get(key) if key in hit else None) for key in keys}
 
 
-def resolve_run_kwargs(hydra_config, *, script_stem: str = "run") -> dict:
+def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
     """Map merged Hydra config to kwargs for :func:`run_train_and_plot`."""
     import train
     from train.implementation import build_run_dir
@@ -407,7 +406,7 @@ def resolve_run_kwargs(hydra_config, *, script_stem: str = "run") -> dict:
 
     n_iter = TRAIN_OPTIMIZATION["n_iter"]
 
-    run_name = _resolve_train_run_name(script_stem=script_stem)
+    run_name = _resolve_train_run_name(script_token=script_token)
 
     train_kwargs = dict(
         model=model,
@@ -419,6 +418,7 @@ def resolve_run_kwargs(hydra_config, *, script_stem: str = "run") -> dict:
         network=str(NETWORK_PATH["network"]),
         tasks=tasks,
         contrasts=contrasts,
+        i_sti=dict(TRAIN_CONFIG["i_sti"]),
         part_cost_scales=part_cost_scales,
         cost_norm=str(TRAIN_OPTIMIZATION["cost_norm"]),
         cost_interval_ms=cost_interval_ms,

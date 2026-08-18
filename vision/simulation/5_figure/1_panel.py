@@ -37,18 +37,6 @@ def gt_trace_affine(readout, cell, gt_trace):
     return float(a_gt) * np.asarray(gt_trace, dtype=float) + float(bias)
 
 
-def filter_figure_token(filter=None) -> str:
-    """Figure stem / label token from train ``filter``: ``none`` → ``v``, ``ca`` → ``ca``."""
-    if filter is None or str(filter) == "none":
-        return "v"
-    return str(filter)
-
-
-def session_filter_figure_token(session) -> str:
-    opts = (session.train_opts if session is not None else None) or {}
-    return filter_figure_token(opts.get("filter"))
-
-
 def cost_ylim(*costs, percentile=99.0, padding=1.1, floor=1.0, log=False):
     """Ylim from high percentile so cost spikes do not dominate.
 
@@ -197,7 +185,7 @@ def readout_prep_s(*readouts):
 
 
 class ElapsedTimer:
-    """Shared prep / plot / save timing for bar and spot figures.
+    """Shared prep / plot / save timing for trace figures.
 
     ``prior_prep`` is forward time already stored on ``TraceReadout.prep_s``.
     """
@@ -328,20 +316,19 @@ def _trace_points(t, y, ts=None):
 
 def traces_with_cost_ts(traces, readouts, *, entry_radius=None):
     """Copy ``traces`` with sparse cost ``ts`` per contrast readout."""
-    traces_with_ts = []
-    for trace in traces:
-        contrast = trace["contrast"]
-        readout = readouts[contrast]
-        session = readout.session
-        traces_with_ts.append({
+    return [
+        {
             **trace,
             "ts": (
-                None if session is None else train.pack_cost_abs_ts(
-                    session.primary_pack, readout.t_onset, entry_radius=entry_radius,
+                None if readouts[trace["contrast"]].session is None else train.pack_cost_abs_ts(
+                    readouts[trace["contrast"]].session.primary_pack,
+                    readouts[trace["contrast"]].t_onset,
+                    entry_radius=entry_radius,
                 )
             ),
-        })
-    return traces_with_ts
+        }
+        for trace in traces
+    ]
 
 
 def plot_trace(
@@ -578,7 +565,7 @@ def _save_interactive_html(fig, path):
                 font=dict(size=10),
             ))
 
-        # Spot-on / axvspan bands (data-x, axes-y) → shapes under traces.
+        # Sti-on / axvspan bands (data-x, axes-y) → shapes under traces.
         for patch in ax.patches:
             if not isinstance(patch, Rectangle):
                 continue
@@ -722,7 +709,7 @@ def plot_cost_figure(
     costs_by_cell,
     costs_global,
     series_order,
-    color_from_series,
+    colors_by_series,
     rows,
     timer=None,
 ):
@@ -784,7 +771,7 @@ def plot_cost_figure(
                 for series, label, part_costs in cell_costs_list:
                     panel_costs.append(part_costs)
                     ax.plot(
-                        part_costs, color=color_from_series.get(series),
+                        part_costs, color=colors_by_series.get(series),
                         linewidth=2, linestyle='-', label=label,
                     )
                 if log and shared_cell_ylim and cell_costs:
@@ -808,7 +795,7 @@ def plot_cost_figure(
             row = row0 + n_cell_row + row_group // n_col
             col = row_group % n_col
             ax = fig.add_subplot(grid_spec[row, col])
-            ax.plot(part_costs, color=color_from_series.get(series), linewidth=2, linestyle='-')
+            ax.plot(part_costs, color=colors_by_series.get(series), linewidth=2, linestyle='-')
             if log:
                 _cost_yscale(ax, part_costs)
             else:

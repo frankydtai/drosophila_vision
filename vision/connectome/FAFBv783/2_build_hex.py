@@ -126,13 +126,13 @@ def shell_hexes(shell: int) -> list:
         raise ValueError(f"shell must be >= 0, got {shell}")
     if shell == 0:
         return [(0, 0)]
-    shell_hexes_list = []
+    hexes = []
     u, v = _HEX_DIRECTIONS[4][0] * shell, _HEX_DIRECTIONS[4][1] * shell
     for du, dv in _HEX_DIRECTIONS:
         for _ in range(shell):
-            shell_hexes_list.append((u, v))
+            hexes.append((u, v))
             u, v = u + du, v + dv
-    return shell_hexes_list
+    return hexes
 
 
 def radius_hexes(radius) -> list:
