@@ -27,8 +27,8 @@ scale per cell×radius unless ``part_cost_scales`` says otherwise).
 
 Sparse cost time points (#4): ``pack.gts`` stays the ``ms_response`` window length
 (spot excludes ``ms_post``) and the subsample is gathered from both v_readout
-trace and gt at cost time via ``pack.cost_ts`` (from train_opts
-``cost_interval_ms`` / ``cost_ms``); when radii use different
+trace and gt at cost time via ``pack.cost_ts`` (spread: ``cost_interval_ms``;
+spot: ``cost_interval_ms`` / ``cost_ms``); when radii use different
 ``cost_ms`` lists, ``pack.cost_time_mask`` zeros non-participating (entry, t)
 pairs. ``gt_power`` is recomputed on the subsample.
 """
@@ -150,6 +150,20 @@ def gt_affine_from_nodes(
     if (not from_onset) and "v_th" in params:
         bias = bias + node_vals_from_param(params, "v_th", nodes, connectome, sim_dtype=sim_dtype)
     return a_gt, bias
+
+
+def gt_affine_from_cell(
+    params, cell, connectome, *, sim_dtype=SIM_DTYPE, session=None,
+) -> tuple[float, float]:
+    """Cell-level ``(a_gt, effective_bias)`` — mean over that cell's nodes."""
+    cell_idx = [str(name) for name in connectome.cells].index(str(cell))
+    nodes = torch.nonzero(
+        connectome.node_cells == cell_idx, as_tuple=False,
+    ).squeeze(-1)
+    a_gt, bias = gt_affine_from_nodes(
+        params, nodes, connectome, sim_dtype=sim_dtype, session=session,
+    )
+    return float(a_gt[0].item()), float(bias.mean().item())
 
 
 def forward_pack(session, params, i_sti, pack):

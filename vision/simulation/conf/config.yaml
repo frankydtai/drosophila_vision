@@ -1,9 +1,9 @@
 # ---------------------------------------------------------------------------
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
-model: hp_lp
 run_name: |-
-  29104256-run-n-iter-300-param-a_h.mode=fixed-param-a_h.mode.h_cells=indi-param-a_h.val.L1=0.5
+  29104256-run-n-iter-300-a-h-init.L1,L2,L4,L5-0.5
+run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
 # 1.1.1   neuron.borst / MODEL (session scalars; not packed into z)
@@ -25,6 +25,7 @@ euler: "im"
 # ---------------------------------------------------------------------------
 # 1.3   neuron.schema (trainable schema pack spec)
 # ---------------------------------------------------------------------------
+model: hp_lp
 filter: "none"
 syn_mode: "per_cell"
 a_lo: 0.1

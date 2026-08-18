@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from pathlib import Path
 from typing import Dict, List
@@ -48,6 +49,8 @@ _TRAIN_OPTIMIZATION_KEYS = (
     "pre_steady", "pre_steady_n_iter", "pre_steady_damp", "n_run",
     "n_iter", "lrs", "checkpoint_interval",
 )
+_RUN_MAX = 255
+
 _ANALYZE_TRACE_KEYS = (
     "trace_osc_min_f", "trace_osc_max_f", "trace_osc_peak_threshold",
     "trace_osc_z_threshold", "trace_osc_snr_min",
@@ -61,14 +64,14 @@ def config_path() -> Path:
     return Path(__file__).resolve().with_name("conf") / "config.yaml"
 
 
-def load_config_dict() -> dict:
+def load_config() -> dict:
     data = OmegaConf.to_container(OmegaConf.load(config_path()), resolve=True)
     if not isinstance(data, dict):
         raise ValueError("simulation/conf/config.yaml must decode to a dict")
     return data
 
 
-def _bind_config(config_dict: dict) -> None:
+def _bind_config(config: dict) -> None:
     global RUN_NAME, RUN_PATH
     global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
     global SPREAD_INPUT_SPEC, SPREAD_GT, SPOT_INPUT_GEO, SPOT_PACK
@@ -78,77 +81,77 @@ def _bind_config(config_dict: dict) -> None:
     global ANALYZE_CELL_DYNAMICS, ANALYZE_SYN_SIGN, ANALYZE_TRACE
     global ANALYZE_COST_PART
 
-    model = str(config_dict["model"])
-    RUN_NAME = str(config_dict["run_name"]).strip()
-    RUN_PATH = f"{model}/{RUN_NAME}"
+    model = str(config["model"])
+    RUN_NAME = str(config["run_name"]).strip()
+    RUN_PATH = str(config["run_path"]).strip()
 
-    MODEL = {key: config_dict[key] for key in _MODEL_KEYS}
+    MODEL = {key: config[key] for key in _MODEL_KEYS}
     NEURON_SCHEMA = {
         "model": model,
-        "filter": config_dict["filter"],
-        "syn_mode": config_dict["syn_mode"],
-        "a_lo": config_dict["a_lo"],
-        "a_hi": config_dict["a_hi"],
-        "h_cells": config_dict["h_cells"],
-        "params": config_dict["params"],
+        "filter": config["filter"],
+        "syn_mode": config["syn_mode"],
+        "a_lo": config["a_lo"],
+        "a_hi": config["a_hi"],
+        "h_cells": config["h_cells"],
+        "params": config["params"],
     }
-    NEURON_FORWARD = {"pre_grad": config_dict["pre_grad"]}
-    NETWORK_PATH = {"network": config_dict["network"]}
+    NEURON_FORWARD = {"pre_grad": config["pre_grad"]}
+    NETWORK_PATH = {"network": config["network"]}
     SPREAD_INPUT_SPEC = {
-        "i_bright": config_dict["i_bright"],
-        "i_dark": config_dict["i_dark"],
-        "contrasts": config_dict["contrasts"],
-        "ms_pre": config_dict["ms_pre"],
-        "ms_sti": config_dict["ms_sti"],
-        "ms_response": config_dict["ms_response"],
-        "ms_post": config_dict["ms_post"],
+        "i_bright": config["i_bright"],
+        "i_dark": config["i_dark"],
+        "contrasts": config["contrasts"],
+        "ms_pre": config["ms_pre"],
+        "ms_sti": config["ms_sti"],
+        "ms_response": config["ms_response"],
+        "ms_post": config["ms_post"],
     }
     SPREAD_GT = {
-        "spread_gt_mode": config_dict["spread_gt_mode"],
+        "spread_gt_mode": config["spread_gt_mode"],
     }
     SPOT_INPUT_GEO = {
-        "spot_radius": config_dict["spot_radius"],
-        "fully_inside": config_dict["fully_inside"],
-        "multi_spot": config_dict["multi_spot"],
-        "shift_radius": config_dict["shift_radius"],
+        "spot_radius": config["spot_radius"],
+        "fully_inside": config["fully_inside"],
+        "multi_spot": config["multi_spot"],
+        "shift_radius": config["shift_radius"],
     }
     SPOT_PACK = {
-        "spot_cost_radii": config_dict["spot_cost_radii"],
-        "a_sti_radii": config_dict["a_sti_radii"],
-        "spot_cost_radius_scale": config_dict["spot_cost_radius_scale"],
+        "spot_cost_radii": config["spot_cost_radii"],
+        "a_sti_radii": config["a_sti_radii"],
+        "spot_cost_radius_scale": config["spot_cost_radius_scale"],
     }
     MOVING_BAR_INPUT_GEO = {
-        "multi_bar": config_dict["multi_bar"],
-        "bar_radius": config_dict["bar_radius"],
+        "multi_bar": config["multi_bar"],
+        "bar_radius": config["bar_radius"],
     }
     MOVING_BAR_INPUT_SPEC = {
-        "i_bright": config_dict["i_bright"],
-        "i_dark": config_dict["i_dark"],
-        "ms_pre": config_dict["ms_pre"],
+        "i_bright": config["i_bright"],
+        "i_dark": config["i_dark"],
+        "ms_pre": config["ms_pre"],
     }
-    tasks = config_dict["tasks"]
+    tasks = config["tasks"]
     TRAIN_CONFIG = {
         "tasks": tasks,
-        "contrasts": config_dict["contrasts"],
-        "gt_by_task": config_dict.get("gt_by_task"),
-        "cost_radius": config_dict.get("cost_radius"),
+        "contrasts": config["contrasts"],
+        "gt_by_task": config.get("gt_by_task"),
+        "cost_radius": config.get("cost_radius"),
     }
-    VAL_FROM = dict(config_dict.get("val_from") or {})
-    TRAIN_OPTIMIZATION = {key: config_dict[key] for key in _TRAIN_OPTIMIZATION_KEYS}
-    TRAIN_SESSION = {"fp": config_dict["fp"], "sequential": config_dict["sequential"]}
+    VAL_FROM = dict(config.get("val_from") or {})
+    TRAIN_OPTIMIZATION = {key: config[key] for key in _TRAIN_OPTIMIZATION_KEYS}
+    TRAIN_SESSION = {"fp": config["fp"], "sequential": config["sequential"]}
     FIGURE_PLOT = {
-        "html": config_dict.get("html", False),
-        "plot_right_only": config_dict.get("plot_right_only", True),
-        "x": config_dict.get("x"),
-        "y": config_dict.get("y"),
-        "align_xy": config_dict.get("align_xy"),
-        "ms_shown": config_dict.get("ms_shown"),
+        "html": config.get("html", False),
+        "plot_right_only": config.get("plot_right_only", True),
+        "x": config.get("x"),
+        "y": config.get("y"),
+        "align_xy": config.get("align_xy"),
+        "ms_shown": config.get("ms_shown"),
     }
     FIGURE_PLOT_STI_SPOT = {
-        "spot_radii": config_dict.get("spot_radii"),
-        "output": config_dict.get("spot_plot_output"),
+        "spot_radii": config.get("spot_radii"),
+        "output": config.get("spot_plot_output"),
     }
-    analyze_runs = config_dict.get("analyze_runs")
+    analyze_runs = config.get("analyze_runs")
     if not analyze_runs:
         ANALYZE_RUNS = [RUN_PATH]
     elif isinstance(analyze_runs, str):
@@ -156,37 +159,37 @@ def _bind_config(config_dict: dict) -> None:
     else:
         ANALYZE_RUNS = [str(run) for run in analyze_runs]
     ANALYZE_CELL_DYNAMICS = {
-        "cells": config_dict.get("cells"),
-        "spec": config_dict.get("spec"),
-        "node": config_dict.get("node"),
-        "radius": int(config_dict.get("radius") or 0),
-        "t_rel_start": config_dict.get("t_rel_start"),
-        "t_rel_stop": config_dict.get("t_rel_stop"),
-        "figure": bool(config_dict.get("analyze_figure", True)),
-        "json": bool(config_dict.get("analyze_json", False)),
+        "cells": config.get("cells"),
+        "spec": config.get("spec"),
+        "node": config.get("node"),
+        "radius": int(config.get("radius") or 0),
+        "t_rel_start": config.get("t_rel_start"),
+        "t_rel_stop": config.get("t_rel_stop"),
+        "figure": bool(config.get("analyze_figure", True)),
+        "json": bool(config.get("analyze_json", False)),
     }
     ANALYZE_SYN_SIGN = {
-        "bins": config_dict["bins"],
-        "after_train": config_dict["after_train"],
-        "post": bool(config_dict.get("post", False)),
+        "bins": config["bins"],
+        "after_train": config["after_train"],
+        "post": bool(config.get("post", False)),
     }
-    ANALYZE_TRACE = {key: config_dict[key] for key in _ANALYZE_TRACE_KEYS}
-    ANALYZE_TRACE["check"] = config_dict.get("check")
-    ANALYZE_TRACE["baseline_ms_shown"] = config_dict.get("baseline_ms_shown")
+    ANALYZE_TRACE = {key: config[key] for key in _ANALYZE_TRACE_KEYS}
+    ANALYZE_TRACE["check"] = config.get("check")
+    ANALYZE_TRACE["baseline_ms_shown"] = config.get("baseline_ms_shown")
     ANALYZE_COST_PART = {
-        "part": config_dict.get("part"),
-        "cost_norm": config_dict.get("analyze_cost_norm"),
-        "stride": int(config_dict.get("stride") or 1),
-        "per_node": bool(config_dict.get("per_node", False)),
-        "csv": config_dict.get("cost_part_csv"),
-        "print_parts": bool(config_dict.get("print_parts", False)),
+        "part": config.get("part"),
+        "cost_norm": config.get("analyze_cost_norm"),
+        "stride": int(config.get("stride") or 1),
+        "per_node": bool(config.get("per_node", False)),
+        "csv": config.get("cost_part_csv"),
+        "print_parts": bool(config.get("print_parts", False)),
     }
 
 
 def active_config() -> dict:
     global _ACTIVE
     if _ACTIVE is None:
-        _ACTIVE = load_config_dict()
+        _ACTIVE = load_config()
         _bind_config(_ACTIVE)
     return _ACTIVE
 
@@ -245,11 +248,43 @@ def _resolve_init_from(init_from):
     return str(init_from)
 
 
-def _resolve_run_name(config_dict: dict) -> str:
-    if config_dict.get("run_name"):
-        return str(config_dict["run_name"]).strip()
+def _run_token(value) -> str:
+    return re.sub(r"[^\w.,-]+", "-", str(value)).strip("-")
+
+
+def _hydra_task_overrides() -> List[str]:
+    from hydra.core.hydra_config import HydraConfig
+
+    if not HydraConfig.initialized():
+        return []
+    return [str(token) for token in HydraConfig.get().overrides.task]
+
+
+def _command_run(script_stem: str, *, overrides: List[str] | None = None) -> str:
+    """Build a run folder stem from Hydra task overrides (train only)."""
     prefix = os.environ.get("SLURM_JOB_ID") or time.strftime("%m%d_%H%M%S")
-    return f"{prefix}-run"
+    parts = [prefix, script_stem]
+    for token in overrides or _hydra_task_overrides():
+        token = str(token).lstrip("+~")
+        key, sep, val = token.partition("=")
+        if not sep or key == "run_name":
+            continue
+        parts.append(_run_token(key))
+        parts.append(_run_token(val))
+    run = "-".join(parts)
+    if len(run) <= _RUN_MAX:
+        return run
+    return run[:_RUN_MAX].rstrip("-")
+
+
+def _resolve_train_run_name(*, script_stem: str) -> str:
+    """Train outdir stem: explicit CLI ``run_name=`` else ``command_run``."""
+    overrides = _hydra_task_overrides()
+    for token in overrides:
+        key, sep, val = str(token).lstrip("+~").partition("=")
+        if sep and key == "run_name":
+            return str(val).strip()
+    return _command_run(script_stem, overrides=overrides)
 
 
 def resolve_figure_kwargs(hydra_config) -> dict:
@@ -293,16 +328,16 @@ def session_kwargs_from_cli(hydra_config) -> dict:
     return {key: (hydra_config.get(key) if key in hit else None) for key in keys}
 
 
-def resolve_run_kwargs(hydra_config) -> dict:
+def resolve_run_kwargs(hydra_config, *, script_stem: str = "run") -> dict:
     """Map merged Hydra config to kwargs for :func:`run_train_and_plot`."""
     import train
     from train.implementation import run_dir
 
     apply_config(hydra_config)
-    config_dict = active_config()
+    config = active_config()
 
     model = str(NEURON_SCHEMA["model"])
-    init_from = _resolve_init_from(config_dict.get("init_from"))
+    init_from = _resolve_init_from(config.get("init_from"))
     cost_radius = TRAIN_CONFIG.get("cost_radius")
     if cost_radius is not None:
         cost_radius = int(cost_radius)
@@ -372,7 +407,7 @@ def resolve_run_kwargs(hydra_config) -> dict:
 
     n_iter = TRAIN_OPTIMIZATION["n_iter"]
 
-    run_name = _resolve_run_name(config_dict)
+    run_name = _resolve_train_run_name(script_stem=script_stem)
 
     train_kwargs = dict(
         model=model,

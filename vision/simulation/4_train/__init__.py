@@ -102,6 +102,7 @@ from train.cost import (
     calc_cost,
     calc_cost_parts,
     forward_pack,
+    gt_affine_from_cell,
     gt_affine_from_nodes,
     moving_bar_cell_cost_part_key,
     moving_bar_cost_part_key,

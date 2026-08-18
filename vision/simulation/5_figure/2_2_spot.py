@@ -5,10 +5,6 @@ Network RF profile axis is hex-lattice radius: v_readout[..., radius] = mean at 
 
 from __future__ import annotations
 
-from config import (
-    MODEL,
-)
-
 import time
 from dataclasses import dataclass, field
 
@@ -17,12 +13,17 @@ import numpy as np
 import torch
 
 import train
-from neuron.borst import t_from_ms, t_abs_from_ms, ms_from_t
-from figure.gt import (
+from neuron.borst import t_from_ms
+from config import SPREAD_GT
+
+from figure.spread import (
+    TraceReadout,
+    _layout_cells_from_readouts,
+    _rows_from_cell_rows,
+    _session_task_timing,
+    _style_time_axis,
     contrast_linestyle,
     contrast_order,
-    active_spot_gt_cells,
-    spot_gts,
 )
 from figure.panel import (
     N_COL_ALL,
@@ -30,27 +31,26 @@ from figure.panel import (
     PANEL_W,
     GT_COLOR,
     V_READOUT_COLOR,
-    TRACE_LW,
+    TRACE_LINE_W,
     ElapsedTimer,
     annotate_v_th,
     readout_prep_s,
-    format_spot_radius_time_title,
-    gt_affine_from_cell,
     gt_trace_affine,
     e_leak_from_z,
     session_filter_figure_token,
-    hex_scope_label,
-    mark_spot,
+    at_xy_label,
+    mark_sti_on,
     overlay_reds,
     plot_trace,
     plot_timecourse,
     save_figure,
+    traces_with_cost_ts,
     std_from_traces,
     overlay_coords,
     suppress_cost_std,
     v_th_from_z,
 )
-from network.construction import cell_rows, cells_in_order
+from train.cost import spot_cost_part_key
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
 from task.moving_bar.sti_geo import (
@@ -62,17 +62,137 @@ from task.spot.sti_geo import (
     resolve_spot,
     spot_sti_bs,
 )
-from task.spread.sti_spec import t_sti_end
+from task.spread.gt import RF_SIGN, contrast_sign, spread_gt_active
+from task.spread.sti_spec import CONTRASTS, t_sti_end
 from task.spot.gt import (
     GT_CELLS,
     RF_CENTER_RADIUS,
     RF_N_RADII,
     RF_RADIUS_DEG,
+    load_gt,
+    load_gt_dark,
     t_delay_from_ir,
 )
 from task.spot.pack import build_spot_center_readout
 
 RF_RADIUS_X = np.arange(RF_N_RADII) * RF_RADIUS_DEG
+
+
+def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
+    """Time-panel title: ``radius=0 (n=252)`` + ``bright: 63.3`` / ``dark: …``."""
+    radius = float(radius)
+    radius_label = str(int(radius)) if radius == int(radius) else str(radius)
+    head = f'radius={radius_label}'
+    if n is not None:
+        head = f'{head} (n={int(n)})'
+    if not cost_parts or not contrasts:
+        return head
+    lines = [head]
+    for contrast in contrasts:
+        part_key = spot_cost_part_key("spot", contrast, cell, radius)
+        if part_key in cost_parts:
+            lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
+    return '\n'.join(lines)
+
+
+def parse_spot_cost_part_key(part_key):
+    """Return ``(cell, contrast, radius)`` or ``None``."""
+    for contrast in CONTRASTS:
+        head = f"spot_{contrast}_"
+        if part_key[:len(head)] != head:
+            continue
+        pos = part_key.rfind("_r")
+        if pos < 0:
+            return None
+        radius_token = part_key[pos + 2:]
+        try:
+            radius = int(radius_token)
+        except ValueError:
+            return None
+        cell = part_key[len(head):pos]
+        return cell, contrast, radius
+    return None
+
+
+def spot_cost_curve(part_key, curve):
+    """Spot part → ``(cell, series, label, curve)`` or ``None``."""
+    parsed = parse_spot_cost_part_key(part_key)
+    if parsed is None:
+        return None
+    cell, contrast, radius = parsed
+    series = ("spot_radius", radius)
+    label = f"R{radius} ({contrast})" if contrast else f"R{radius}"
+    return cell, series, label, np.asarray(curve, dtype=np.float64)
+
+
+def active_spot_gt_cells(session, task=None, contrast=None):
+    """Configured spot gt cells (sti opts), not cost-pack-only."""
+    if task is None and contrast is None:
+        pack = session.primary_pack
+    elif task is None or contrast is None:
+        raise ValueError("task and contrast must be passed together")
+    else:
+        pack = session.packs[task][contrast]
+    opts = dict((session.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
+    connectome = session.connectome
+    return tuple(
+        active_gt_cells(
+            gt_cells_from_opts(opts),
+            GT_CELLS,
+            connectome.cells,
+            context="spot plot",
+        )
+    )
+
+
+def spot_gts(
+    session,
+    task=None,
+    *,
+    contrasts=None,
+    t_onset=None,
+    n_t=None,
+    ms_sti=None,
+    delta_ms=None,
+    filter="none",
+    spread_gt_mode=None,
+):
+    """Spot gts ``{contrast: {cell: gt}}``."""
+    task = task or session.primary_pack.task
+    if contrasts is None:
+        contrasts = tuple(session.contrasts)
+    if filter is None:
+        filter = str((session.train_opts or {}).get("filter", "none"))
+    else:
+        filter = str(filter)
+    if spread_gt_mode is None:
+        spread_gt_mode = str(
+            (session.train_opts or {}).get("spread_gt_mode", SPREAD_GT['spread_gt_mode']),
+        )
+    else:
+        spread_gt_mode = str(spread_gt_mode)
+    delta_ms = float(session.delta_ms if delta_ms is None else delta_ms)
+    gt_amp = float(session.gt_amp)
+    out = {}
+    for contrast in contrasts:
+        contrast = str(contrast)
+        if contrast not in CONTRASTS:
+            raise ValueError(
+                f"unknown contrast {contrast!r}; expected one of {CONTRASTS}"
+            )
+        load = load_gt_dark if contrast == "dark" else load_gt
+        gt_stack = load(
+            t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
+            filter=filter, spread_gt_mode=spread_gt_mode,
+        )
+        scaled = gt_stack * gt_amp
+        gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
+        out[contrast] = {
+            str(cell): scaled[gt_cell_idx[cell]]
+            for cell in GT_CELLS
+            if spread_gt_active(spread_gt_mode, contrast, int(RF_SIGN[cell]))
+        }
+    return out
 
 
 def pack_spot_cost_radii(pack) -> tuple[int, ...]:
@@ -81,24 +201,6 @@ def pack_spot_cost_radii(pack) -> tuple[int, ...]:
         raise ValueError(f"{pack.task} pack missing entry_radii")
     return tuple(
         sorted({int(radius) for radius in pack.entry_radii.tolist()})
-    )
-
-
-def _session_spot_timing(session):
-    """Extract onset ``t_onset`` / forward ``n_t``, ms_sti, and delta_ms from session."""
-    pack = session.primary_pack
-    opts = (session.train_opts or {}).get(f"{pack.task}_sti_opts") or {}
-    t_onset = train.pack_t_onset(pack)
-    n_t = int(pack.i_sti.shape[1])
-    n_t_gt = int(pack.gts.shape[1])
-    ms_sti = opts.get("ms_sti")
-    delta_ms = float(opts["delta_ms"])
-    return (
-        int(t_onset),
-        n_t,
-        n_t_gt,
-        None if ms_sti is None else float(ms_sti),
-        delta_ms,
     )
 
 
@@ -115,37 +217,13 @@ def resolve_spot_gts(sessions, gts=None, *, filter=None):
         return {}
     out = {}
     for contrast, session in sessions.items():
-        t_onset, _n_t, n_t_gt, ms_sti, delta_ms = _session_spot_timing(session)
+        t_onset, _n_t, n_t_gt, ms_sti, delta_ms = _session_task_timing(session)
         part = spot_gts(
             session, session.primary_pack.task, contrasts=(str(contrast),),
             t_onset=t_onset, n_t=n_t_gt, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter,
         )
         out.update(part)
-    return out
-
-
-def _session_cost_ts(session, t_onset, *, entry_radius=None):
-    """Absolute cost ``ts`` for sparse spot cost (pack contract; or ``None``)."""
-    if session is None:
-        return None
-    return train.pack_cost_abs_ts(
-        session.primary_pack, t_onset, entry_radius=entry_radius,
-    )
-
-
-def _series_with_cost_points(series, readouts, entry_radius):
-    """Copy ``series`` with ``ts`` for one hex-lattice ``entry_radius``."""
-    out = []
-    for entry in series:
-        item = dict(entry)
-        contrast = entry["contrast"]
-        item["ts"] = _session_cost_ts(
-            readouts[contrast].session,
-            readouts[contrast].t_onset,
-            entry_radius=entry_radius,
-        )
-        out.append(item)
     return out
 
 
@@ -203,37 +281,6 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
     ax.plot(RF_RADIUS_X[mask], rf[mask], **kwargs)
 
 
-def _style_time_axis(
-    ax, show_xlabel, n_t, *, delta_ms, delta_ms_pre, t_onset, ms_shown=None,
-):
-    dt = float(delta_ms)
-    dt_pre = float(delta_ms_pre)
-    t0 = int(t_onset or 0)
-    t_last = max(int(n_t) - 1, 0)
-    if ms_shown is None:
-        lo, hi = 0, t_last
-    else:
-        start, stop = ms_shown
-        lo = t_abs_from_ms(
-            float(start), t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt,
-        )
-        hi = t_abs_from_ms(
-            float(stop), t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt,
-        )
-        lo, hi = max(0, lo), min(t_last, hi)
-        if lo > hi:
-            lo, hi = 0, t_last
-    t_lo_s = ms_from_t(lo, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
-    t_hi_s = ms_from_t(hi, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
-    t_mid_s = (t_lo_s + t_hi_s) / 2.0
-    mid = (lo + hi) // 2
-    ax.set_xlim(lo, hi)
-    ax.set_xticks([lo, mid, hi])
-    ax.set_xticklabels([f'{t_lo_s:g}', f'{t_mid_s:g}', f'{t_hi_s:g}'], fontsize=6)
-    if show_xlabel:
-        ax.set_xlabel('time [s]', fontsize=7)
-
-
 def _style_rf_profile_axis(ax, show_xlabel):
     """Style RF profile axis (degrees from center; index = radius)."""
     x_max = float((RF_N_RADII - 1) * RF_RADIUS_DEG)
@@ -244,24 +291,24 @@ def _style_rf_profile_axis(ax, show_xlabel):
         ax.set_xlabel('RF (°)', fontsize=7)
 
 
-def _scale_contrast_series(
-    series, *, t_onset, t_sti_end, center_radius=RF_CENTER_RADIUS, t_delay=0,
+def _scale_contrast_traces(
+    traces, *, t_onset, t_sti_end, center_radius=RF_CENTER_RADIUS, t_delay=0,
 ):
-    """Scale each contrast series entry to gt / v_readout plot curves.
+    """Scale each contrast trace to gt / v_readout plot curves.
 
-    ``series`` items may include ``v_readout``, ``gt``, ``std``.
+    ``traces`` items may include ``v_readout``, ``gt``, ``std``.
     Returns a list of dicts with ``v_readout_center``, ``v_readout_spatial``,
     ``v_readout_std``, ``gt_center``, ``gt_spatial`` plus passthrough keys.
     """
     scale_curve_kwargs = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
     out = []
-    for entry in series:
-        item = dict(entry)
-        v_readout = entry.get("v_readout")
-        gt = entry.get("gt")
+    for trace in traces:
+        item = dict(trace)
+        v_readout = trace.get("v_readout")
+        gt = trace.get("gt")
         if v_readout is not None:
             v_readout_center, v_readout_spatial, v_readout_std = scale_curve(
-                v_readout, center_radius, entry.get("std"), **scale_curve_kwargs,
+                v_readout, center_radius, trace.get("std"), **scale_curve_kwargs,
             )
         else:
             v_readout_center, v_readout_spatial, v_readout_std = None, None, None
@@ -283,7 +330,7 @@ def _scale_contrast_series(
 def plot_cell_rf(
     ax,
     title,
-    series,
+    traces,
     *,
     show_legend=False,
     show_xlabels=False,
@@ -292,19 +339,19 @@ def plot_cell_rf(
     t_sti_end=None,
     t_delay=0,
 ):
-    """RF-profile panel for one cell across contrast ``series``."""
-    scaled = _scale_contrast_series(
-        series, t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay,
+    """RF-profile panel for one cell across contrast ``traces``."""
+    scaled = _scale_contrast_traces(
+        traces, t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay,
     )
     for item in scaled:
         ls = item.get("linestyle", "-")
         _plot_rf_profile(
             ax, item["gt_spatial"], color=GT_COLOR,
-            label=item.get("label_gt"), linestyle=ls,
+            label=item.get("gt_label"), linestyle=ls,
         )
         _plot_rf_profile(
             ax, item["v_readout_spatial"], color=V_READOUT_COLOR,
-            label=item.get("label_v_readout"), linestyle=ls, filled=True,
+            label=item.get("v_readout_label"), linestyle=ls, filled=True,
         )
     ax.set_title(title, fontsize=8, pad=2)
     _style_rf_profile_axis(ax, show_xlabels)
@@ -317,7 +364,7 @@ def plot_cell_rf(
 
 def plot_cell_time(
     ax,
-    series,
+    traces,
     *,
     title=None,
     show_xlabels=False,
@@ -326,7 +373,7 @@ def plot_cell_time(
     e_leak=None,
     n_t=None,
     t_onset=None,
-    pre_end=None,
+    gt_from_t=None,
     t_sti_end=None,
     t_delay=0,
     delta_ms,
@@ -334,36 +381,36 @@ def plot_cell_time(
     ms_shown=None,
     center_radius=RF_CENTER_RADIUS,
 ):
-    """Time-course panel for one cell across contrast ``series``.
+    """Time-course panel for one cell across contrast ``traces``.
 
-    ``pre_end`` defaults to ``t_onset`` (gray gt omits ``[0, pre_end)``).
-    Pass ``pre_end=0`` to draw the full gt trace including pre-onset.
+    Gray gt omits ``[0, t_onset)`` unless ``gt_from_t=0``.
     ``t_sti_end``: white sti-on band ``[t_onset, t_sti_end]``.
     """
-    scaled = _scale_contrast_series(
-        series,
+    scaled = _scale_contrast_traces(
+        traces,
         t_onset=t_onset,
         t_sti_end=t_sti_end,
         t_delay=t_delay,
         center_radius=int(center_radius),
     )
     t = np.arange(n_t)
-    split = int(t_onset or 0) if pre_end is None else int(pre_end)
+    trace_t_onset = int(t_onset or 0)
     if title is not None:
         ax.set_title(title, fontsize=8, pad=2)
-    traces = [
-        {
-            "v_readout": item["v_readout_center"],
-            "gt": item["gt_center"],
-            "std": item["v_readout_std"],
-            "linestyle": item.get("linestyle", "-"),
-            "ts": item.get("ts"),
-        }
-        for item in scaled
-    ]
+    mark_sti_on(ax, t_onset, t_sti_end)
     plot_timecourse(
-        ax, t, traces,
-        show_std=any(item["v_readout_std"] is not None for item in scaled),
+        ax, t,
+        [
+            {
+                "v_readout": trace["v_readout_center"],
+                "gt": trace["gt_center"],
+                "std": trace["v_readout_std"],
+                "linestyle": trace.get("linestyle", "-"),
+                "ts": trace.get("ts"),
+            }
+            for trace in scaled
+        ],
+        show_std=any(trace["v_readout_std"] is not None for trace in scaled),
         v_th=v_th,
         e_leak=e_leak,
         show_ylabel=show_ylabel,
@@ -372,9 +419,8 @@ def plot_cell_time(
             delta_ms=delta_ms, delta_ms_pre=delta_ms_pre, t_onset=t_onset,
             ms_shown=ms_shown,
         ),
-        pre_end=split,
-        t_onset=t_onset,
-        t_sti_end=t_sti_end,
+        t_onset=trace_t_onset,
+        gt_from_t=gt_from_t,
     )
 
 
@@ -382,7 +428,7 @@ def plot_cell_rf_time(
     ax_rf,
     ax_time,
     title,
-    series,
+    traces,
     *,
     time_title=None,
     show_legend=False,
@@ -400,7 +446,7 @@ def plot_cell_rf_time(
 ):
     """RF + time panels for one cell (composes ``plot_cell_rf`` + ``plot_cell_time``)."""
     plot_cell_rf(
-        ax_rf, title, series,
+        ax_rf, title, traces,
         show_legend=show_legend,
         show_xlabels=show_xlabels,
         show_ylabel=show_ylabel,
@@ -409,7 +455,7 @@ def plot_cell_rf_time(
         t_delay=t_delay,
     )
     plot_cell_time(
-        ax_time, series,
+        ax_time, traces,
         title=time_title,
         show_xlabels=show_xlabels,
         show_ylabel=show_ylabel,
@@ -429,7 +475,7 @@ def plot_cell_rf_time_overlays(
     ax_rf,
     ax_time,
     title,
-    series,
+    traces,
     overlay_labels,
     *,
     time_title=None,
@@ -446,19 +492,19 @@ def plot_cell_rf_time_overlays(
     delta_ms_pre,
     ms_shown=None,
 ):
-    """RF + time panels with per-overlay curves across contrast ``series``."""
+    """RF + time panels with per-overlay curves across contrast ``traces``."""
     center_radius = RF_CENTER_RADIUS
     scale_curve_kwargs = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
     colors = overlay_reds(len(overlay_labels))
     t = np.arange(n_t)
-    pre_end = int(t_onset or 0)
-    mark_spot(ax_time, t_onset, t_sti_end)
+    trace_t_onset = int(t_onset or 0)
+    mark_sti_on(ax_time, t_onset, t_sti_end)
 
-    for si, item in enumerate(series):
-        ls = item.get("linestyle", "-")
-        v_readout = item.get("v_readout")
-        gt = item.get("gt")
-        overlay = item.get("overlay") or {}
+    for trace_i, trace in enumerate(traces):
+        ls = trace.get("linestyle", "-")
+        v_readout = trace.get("v_readout")
+        gt = trace.get("gt")
+        overlay = trace.get("overlay") or {}
         v_readout_center = v_readout_spatial = None
         if v_readout is not None:
             v_readout_center, v_readout_spatial, _ = scale_curve(
@@ -477,16 +523,16 @@ def plot_cell_rf_time_overlays(
 
         _plot_rf_profile(
             ax_rf, gt_spatial, color=GT_COLOR,
-            label=item.get("label_gt"), linestyle=ls,
+            label=trace.get("gt_label"), linestyle=ls,
         )
         for label, color in zip(overlay_labels, colors):
             _plot_rf_profile(
                 ax_rf, overlay_spatials.get(label), color=color,
-                label=label if si == 0 else None, linestyle=ls,
+                label=label if trace_i == 0 else None, linestyle=ls,
             )
         _plot_rf_profile(
             ax_rf, v_readout_spatial, color=colors[-1],
-            label=item.get("label_scope"), linestyle=ls, filled=True,
+            label=trace.get("hexes_label"), linestyle=ls, filled=True,
         )
 
         if gt_center is not None:
@@ -495,22 +541,22 @@ def plot_cell_rf_time_overlays(
             if t_gt.shape[0] > gt_center.shape[0]:
                 t_gt = t_gt[: gt_center.shape[0]]
             n_gt = int(gt_center.shape[0])
-            post = max(0, min(pre_end, n_gt))
-            if post < n_gt:
+            gt_start = max(0, min(trace_t_onset, n_gt))
+            if gt_start < n_gt:
                 ax_time.plot(
-                    t_gt[post:], gt_center[post:],
-                    color=GT_COLOR, linestyle=ls, linewidth=TRACE_LW,
+                    t_gt[gt_start:], gt_center[gt_start:],
+                    color=GT_COLOR, linestyle=ls, linewidth=TRACE_LINE_W,
                 )
         for label, color in zip(overlay_labels, colors):
             plot_trace(
-                ax_time, t, overlay_centers.get(label), pre_end=pre_end,
-                color=color, linestyle=ls, linewidth=TRACE_LW,
-                label=label if si == 0 else None,
+                ax_time, t, overlay_centers.get(label), t_onset=trace_t_onset,
+                color=color, linestyle=ls, linewidth=TRACE_LINE_W,
+                label=label if trace_i == 0 else None,
             )
         plot_trace(
-            ax_time, t, v_readout_center, pre_end=pre_end,
-            color=colors[-1], linestyle=ls, linewidth=TRACE_LW,
-            label=item.get("label_scope"),
+            ax_time, t, v_readout_center, t_onset=trace_t_onset,
+            color=colors[-1], linestyle=ls, linewidth=TRACE_LINE_W,
+            label=trace.get("hexes_label"),
         )
 
     ax_rf.set_title(title, fontsize=8, pad=2)
@@ -556,44 +602,18 @@ def _fill_member_v_readout(v_readout, std, ti, ft_global, type_idx, du, dv, figu
 
 
 @dataclass
-class SpotTraceReadout:
+class SpotTraceReadout(TraceReadout):
     """One forward pass; full cost-radius readout over all types."""
 
-    cells: list
-    rows: list | None = None
-    session: object = None
     overlay: dict[str, dict[str, np.ndarray]] | None = None
     overlay_labels: list[str] | None = None
     overlay_xs: list | None = None
     overlay_ys: list | None = None
-    n_t: int = 0
-    prep_s: float = 0.0
-    v_readout_by_cell: dict = field(default_factory=dict)
-    std_by_cell: dict = field(default_factory=dict)
-    n_by_cell: dict = field(default_factory=dict)
-    v_th_by_cell: dict = field(default_factory=dict)
-    e_leak_by_cell: dict = field(default_factory=dict)
-    gt_affine_by_cell: dict = field(default_factory=dict)
-    t_onset: int | None = None
-    t_sti_end: int | None = None
-    ms_shown: tuple[float, float] | None = None
     a_sti_radius: dict[str, float] = field(default_factory=dict)
 
     @property
     def has_overlays(self):
         return bool(self.overlay)
-
-
-def _rows_from_cell_rows(cell_rows, figure_cells):
-    cell_idx = dict(zip(
-        [str(cell) for cell in figure_cells], range(len(figure_cells)),
-    ))
-    rows = []
-    for cells_in_row in cell_rows:
-        cell_idxs = [cell_idx[str(n)] for n in cells_in_row if str(n) in cell_idx]
-        if cell_idxs:
-            rows.append(cell_idxs)
-    return rows
 
 
 def _spot_readout_gt_view(readout):
@@ -643,16 +663,6 @@ def _spot_readout_gt_view(readout):
     )
 
 
-def _layout_cells_from_readouts(readouts, order):
-    """Union of contrast cells in biological order."""
-    seen = set()
-    for contrast in order:
-        seen.update(readouts[contrast].cells)
-    cells = cells_in_order(list(seen))
-    rows = [np.array(row) for row in cell_rows(cells)]
-    return cells, _rows_from_cell_rows(rows, cells)
-
-
 def _spot_v_readout_from_readout_mask(readout, mask):
     figure_cells = readout['figure_cells']
     cells = readout['cells']
@@ -689,12 +699,12 @@ def _spot_readout_hex_mask(connectome, nodes, cost_radius, *, at_x=None, at_y=No
 
 
 def _spot_overlay(readout, connectome, at_xs, at_ys):
-    """Per-hex readout overlays (same ``filter_sti_hexes`` scope as moving_bar)."""
+    """Per-hex readout overlays (same ``at_x``/``at_y`` sti hex filter as moving_bar)."""
     overlay = {}
     labels = []
     pack = readout['pack']
     nodes = readout['nodes']
-    for label, at_x, at_y in overlay_coords(at_xs, at_ys):
+    for label, at_x, at_y in overlay_coords(at_xs, at_ys)[0]:
         mask = _spot_readout_hex_mask(
             connectome, nodes, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
@@ -801,7 +811,7 @@ def _forward_spot_readout(
         cell: e_leak.get(cell, np.nan) for cell in nodes_by_cell
     }
     readout['gt_affine_by_cell'] = {
-        cell: gt_affine_from_cell(
+        cell: train.gt_affine_from_cell(
             params, cell, session.connectome, session=session,
         )
         for cell in figure_cells
@@ -894,8 +904,8 @@ def _spot_suptitle(title, readout):
         if a_sti_radius and "1" in a_sti_radius:
             head = f"a_sti_radius 1 = {float(a_sti_radius['1']):.4g}"
         if readout.has_overlays:
-            scope = hex_scope_label(readout.overlay_xs, readout.overlay_ys)
-            return f'{head}  [{scope}, overlay + scope]'
+            at_xy_subtitle = at_xy_label(readout.overlay_xs, readout.overlay_ys)
+            return f'{head}  [{at_xy_subtitle}, overlay + hexes]'
     return head
 
 
@@ -978,38 +988,38 @@ def _plot_spot_figure(
     gs = fig.add_gridspec(n_row, n_col, **gridspec_kwargs)
     legend_done = False
 
-    def _series_from_cell(cell, *, with_overlays):
-        series = []
+    def _build_cell_traces(cell, *, with_overlays):
+        traces = []
         for contrast in order:
             ro = readouts[contrast]
             if cell not in ro.v_readout_by_cell:
                 continue
             gt_by_cell = gt_by_contrast.get(contrast) or {}
-            entry = {
+            trace = {
                 "contrast": contrast,
                 "v_readout": ro.v_readout_by_cell[cell],
                 "gt": gt_trace_affine(ro, cell, gt_by_cell.get(cell)),
                 "std": ro.std_by_cell.get(cell),
                 "v_th": ro.v_th_by_cell.get(cell),
                 "linestyle": contrast_linestyle(contrast),
-                "label_gt": f"{contrast} gt",
-                "label_v_readout": (
+                "gt_label": f"{contrast} gt",
+                "v_readout_label": (
                     f"{contrast} {session_filter_figure_token(primary.session)}"
                 ),
-                "label_scope": f"{contrast} scope",
+                "hexes_label": f"{contrast} hexes",
             }
             if with_overlays:
                 overlay = ro.overlay
                 if overlay is not None:
-                    entry["overlay"] = {
+                    trace["overlay"] = {
                         label: v_readout_by_cell[cell]
                         for label, v_readout_by_cell in overlay.items()
                         if cell in v_readout_by_cell
                     }
                 else:
-                    entry["overlay"] = {}
-            series.append(entry)
-        return series
+                    trace["overlay"] = {}
+            traces.append(trace)
+        return traces
 
     def _plot_cell(cell, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
@@ -1024,18 +1034,18 @@ def _plot_spot_figure(
         v_th = primary.v_th_by_cell.get(cell)
         e_leak = primary.e_leak_by_cell.get(cell)
         if has_overlays and primary.overlay is not None:
-            series = _series_with_cost_points(
-                _series_from_cell(cell, with_overlays=True),
+            traces = traces_with_cost_ts(
+                _build_cell_traces(cell, with_overlays=True),
                 readouts,
-                float(center_radius),
+                entry_radius=float(center_radius),
             )
-            overlay = (series[0].get("overlay") or {}) if series else {}
+            overlay = (traces[0].get("overlay") or {}) if traces else {}
             if not overlay:
                 ax_rf.axis("off")
                 ax_time.axis("off")
                 return
             plot_cell_rf_time_overlays(
-                ax_rf, ax_time, cell, series, overlay_labels,
+                ax_rf, ax_time, cell, traces, overlay_labels,
                 time_title=time_title,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
@@ -1051,13 +1061,13 @@ def _plot_spot_figure(
                 ms_shown=ms_shown,
             )
         else:
-            series = _series_with_cost_points(
-                _series_from_cell(cell, with_overlays=False),
+            traces = traces_with_cost_ts(
+                _build_cell_traces(cell, with_overlays=False),
                 readouts,
-                float(center_radius),
+                entry_radius=float(center_radius),
             )
             plot_cell_rf_time(
-                ax_rf, ax_time, cell, series,
+                ax_rf, ax_time, cell, traces,
                 time_title=time_title,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
@@ -1095,10 +1105,10 @@ def _plot_spot_figure(
                     ax_off.axis("off")
                 continue
 
-            series = _series_from_cell(cell, with_overlays=False)
+            traces = _build_cell_traces(cell, with_overlays=False)
             show_legend = not legend_done
             plot_cell_rf(
-                ax_rf, cell, series,
+                ax_rf, cell, traces,
                 show_legend=show_legend,
                 show_xlabels=False,
                 show_ylabel=(j == 0),
@@ -1122,7 +1132,9 @@ def _plot_spot_figure(
                 )
                 plot_cell_time(
                     ax_t,
-                    _series_with_cost_points(series, readouts, float(radius)),
+                    traces_with_cost_ts(
+                        traces, readouts, entry_radius=float(radius),
+                    ),
                     title=time_title,
                     show_xlabels=(local_i == len(radii) - 1),
                     show_ylabel=(j == 0),

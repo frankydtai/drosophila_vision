@@ -9,6 +9,7 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 * spot: sparse ``cost_ts`` / optional ``cost_time_mask`` (#4; ``cost_ms``
   overwrites interval per radius), ``ms_sti`` (#1) already baked into
   the sti, ``waveform_mse=True``;
+* spread: sparse ``cost_ts`` from ``cost_interval_ms`` only;
 * moving bar: ``waveform_mse=True``.
 
 Model traces are absolute ``v`` (``filter=none``) or ``ca`` (``filter=ca``);
@@ -405,20 +406,18 @@ def _spot_cost_ts_and_mask(
     return cost_ts, mask
 
 
-def _spread_cost_ts(opts, *, cost_ms, cost_interval_ms, device):
+def _spread_cost_ts(opts, *, cost_interval_ms, device):
     ms_response = float(opts["ms_response"])
     if opts.get("ms_sti") is not None:
         ms_response = max(ms_response, float(opts["ms_sti"]))
     delta_ms = float(opts["delta_ms"])
     post = int(t_from_ms(ms_response, delta_ms=delta_ms)) + 1
-    cost_ms_by_radius = expand_cost_ms(cost_ms=cost_ms)
-    if cost_ms_by_radius:
-        mss = sorted({ms for vals in cost_ms_by_radius.values() for ms in vals})
-    else:
-        if cost_interval_ms <= 0:
-            raise ValueError("cost_interval_ms must be > 0")
-        step = max(1, int(round(cost_interval_ms / delta_ms)))
-        mss = [t * delta_ms for t in range(0, post, step)]
+    if cost_interval_ms <= 0:
+        raise ValueError("cost_interval_ms must be > 0")
+    if post <= 0:
+        raise ValueError("spread post-onset window must be > 0 for cost_interval_ms")
+    step = max(1, int(round(cost_interval_ms / delta_ms)))
+    mss = [t * delta_ms for t in range(0, post, step)]
     ts = set()
     for ms in mss:
         t = int(round(float(ms) / delta_ms))
@@ -441,7 +440,6 @@ def _build_spread_pack(
     spread_sti_opts: Optional[dict],
     filter: str,
     spread_gt_mode: str,
-    cost_ms: Optional[dict],
     cost_interval_ms: float,
 ) -> Tuple[Pack, dict, str]:
     task = "spread"
@@ -489,7 +487,6 @@ def _build_spread_pack(
     )
     cost_ts = _spread_cost_ts(
         opts,
-        cost_ms=cost_ms,
         cost_interval_ms=cost_interval_ms,
         device=device,
     )
@@ -1150,7 +1147,6 @@ def open_session(
                     spread_gt_mode=str(
                         opts.get("spread_gt_mode", SPREAD_GT['spread_gt_mode']),
                     ),
-                    cost_ms=dict(opts.get("cost_ms") or {}),
                     cost_interval_ms=float(
                         opts.get("cost_interval_ms", TRAIN_OPTIMIZATION['cost_interval_ms'])
                     ),

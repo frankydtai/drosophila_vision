@@ -91,9 +91,7 @@ def decompose_params(z, session):
     decoded = train.node_vals_from_z(z, schema)
     out = {}
     for param, spec in schema.items():
-        if spec["kind"] in ("edge_pair", "edge"):
-            continue
-        if spec.get("radii") is not None:
+        if param in ("syn_strength_cell", "syn_strength_edge") or spec.get("radii") is not None:
             continue  # e.g. a_sti_radius (per-radius, not per-cell)
         vals = np.asarray(decoded[param], dtype=np.float64).reshape(-1)
         if vals.shape[0] != n:
@@ -270,7 +268,7 @@ def save_syn_strength_cell_table(z, session, table_path):
     """
     schema = train.schema_copy(session.schema)
     spec = schema.get("syn_strength_cell")
-    if spec is None or spec["kind"] != "edge_pair":
+    if spec is None:
         return None
     node_vals = train.node_vals_from_z(z, schema)
     vals = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
@@ -297,7 +295,7 @@ def save_syn_strength_edge_table(z, session, table_path):
     """Write per-edge ``syn_strength_edge`` CSV (network edge order)."""
     schema = train.schema_copy(session.schema)
     spec = schema.get("syn_strength_edge")
-    if spec is None or spec["kind"] != "edge":
+    if spec is None:
         return None
     node_vals = train.node_vals_from_z(z, schema)
     vals = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
@@ -363,7 +361,7 @@ def save_node_vals(outdir, z, session, filename):
     cells = np.asarray(train.cells_from_connectome(session.connectome), dtype=object)
     payload = {k: np.asarray(v, dtype=np.float64) for k, v in node_vals.items()}
     payload['cells'] = cells
-    if any(spec['kind'] == 'edge_pair' for spec in schema.values()):
+    if "syn_strength_cell" in schema:
         payload['pairs'] = np.asarray(train.pairs_from_connectome(session.connectome), dtype=object)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
@@ -376,7 +374,7 @@ def save_adam(outdir, exp_avg, exp_avg_sq, iter, session, filename):
     cells = np.asarray(train.cells_from_connectome(session.connectome), dtype=object)
     payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
     payload['cells'] = cells
-    if any(spec['kind'] == 'edge_pair' for spec in schema.values()):
+    if "syn_strength_cell" in schema:
         payload['pairs'] = np.asarray(train.pairs_from_connectome(session.connectome), dtype=object)
     for param, adam in adams_m.items():
         payload[f'm_{param}'] = np.asarray(adam, dtype=np.float64)

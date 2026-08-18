@@ -30,11 +30,10 @@ from import_bootstrap import parse_comma_list
 import hydra
 import train
 import figure.plot as plot
-from figure.gt import contrast_from_pack
+from figure.spread import contrast_from_pack
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
 from figure.panel import (
     filter_figure_token,
-    gt_affine_from_cell,
     plot_std_band,
     session_filter_figure_token,
 )
@@ -219,7 +218,7 @@ def resolve_shared_cli() -> SharedCli:
     )
 
 
-# Component-step fields plotted vs time (series, ylabel/legend).
+# Component-step fields plotted vs time (series color key, ylabel/legend).
 _BORST_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "v_post (mV)",
@@ -293,7 +292,7 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     ),
 ]
 
-# First plot row when ``filter=ca`` (replaces the single ``v_post`` series).
+# First plot row when ``filter=ca`` (replaces the single ``v_post`` color key).
 _CA_PLOT_ROW0: tuple[str, list[tuple[str, str]]] = (
     "v / Ca",
     [
@@ -451,7 +450,7 @@ _TRACE_COLOR_MATCH: dict[str, str] = {
     "v_ca": "v_post",
     "ca": "v_post",
 }
-# Report GT series → plot panel series (train GT kind; never mix).
+# Report gt_report_key → plot panel series (train GT kind; never mix).
 _GT_PLOT_PANEL: dict[str, str] = {
     "gt_v": "v_post",
     "gt_ca": "ca",
@@ -485,7 +484,7 @@ class _ComponentLayout:
 
     @property
     def n_col(self) -> int:
-        return max(len(series) for _, series in self.plot_panels)
+        return max(len(panel_series) for _, panel_series in self.plot_panels)
 
 
 def _component_layout(model: str, euler: str, *, filter: str = "v") -> _ComponentLayout:
@@ -1784,12 +1783,12 @@ def _spot_gt_extra(
     t_onset: int,
     a_gt: float,
     bias_gt: float,
-    gt_series: str,
+    gt_report_key: str,
 ) -> dict[str, Any]:
-    """Affine GT on readout axis: ``a_gt * gt + bias``; series is ``gt_v`` or ``gt_ca``."""
-    if gt_series not in _GT_PLOT_PANEL:
-        raise SystemExit(f"unknown gt_series {gt_series!r}; expected gt_v|gt_ca")
-    extra: dict[str, Any] = {"gt_peak": None, gt_series: None, "radius": radius}
+    """Affine GT on readout axis: ``a_gt * gt + bias``; ``gt_report_key`` is ``gt_v`` or ``gt_ca``."""
+    if gt_report_key not in _GT_PLOT_PANEL:
+        raise SystemExit(f"unknown gt_report_key {gt_report_key!r}; expected gt_v|gt_ca")
+    extra: dict[str, Any] = {"gt_peak": None, gt_report_key: None, "radius": radius}
     if cell not in gt_on:
         return extra
     gt = np.asarray(gt_on[cell], dtype=float)
@@ -1803,7 +1802,7 @@ def _spot_gt_extra(
     mask = np.isfinite(v_post) & np.isfinite(v_post_d)
     if not np.any(mask):
         return extra
-    extra[gt_series] = gt_aff.tolist()
+    extra[gt_report_key] = gt_aff.tolist()
     return extra
 
 
@@ -1813,7 +1812,7 @@ def _spot_extra_from_cell(
     """Build ``extra_from_cell`` with train GT named ``gt_v`` / ``gt_ca``."""
     contrast = contrast_from_pack(pack)
     train_filter = str(train_filter)
-    gt_series = f"gt_{filter_figure_token(train_filter)}"
+    gt_report_key = f"gt_{filter_figure_token(train_filter)}"
     gt_on = resolve_spot_gts(
         {contrast: session_one}, filter=train_filter,
     ).get(contrast) or {}
@@ -1838,7 +1837,7 @@ def _spot_extra_from_cell(
                     params["bias_gt"][cell_idx] = val
             else:
                 params["bias_gt"] = val
-        a_gt, bias_gt = gt_affine_from_cell(
+        a_gt, bias_gt = train.gt_affine_from_cell(
             params, cell, session_one.connectome, session=session_one,
         )
         return _spot_gt_extra(
@@ -1850,7 +1849,7 @@ def _spot_extra_from_cell(
             t_onset=t_onset,
             a_gt=a_gt,
             bias_gt=bias_gt,
-            gt_series=gt_series,
+            gt_report_key=gt_report_key,
         )
 
     return extra_from_cell
@@ -2121,8 +2120,6 @@ def analyze_bar_hex(
 
 
 def _figure_filename(report: dict[str, Any], *, file_suffix: str = "", html: bool = False) -> str:
-    from figure.panel import figure_file_ext
-
     filter_token = str(report.get("filter") or "v")
     parts = [report["cell"], report["task"], report["contrast"], filter_token, report.get("mode", "average")]
     if report.get("spec"):
@@ -2133,20 +2130,18 @@ def _figure_filename(report: dict[str, Any], *, file_suffix: str = "", html: boo
     radius = report.get("radius")
     if radius is not None and int(radius) != 0:
         parts.append(f"radius{int(radius)}")
-    return "_".join(parts) + f"{file_suffix}{figure_file_ext(html=html)}"
+    return "_".join(parts) + f"{file_suffix}{'.html' if html else '.png'}"
 
 
 def _compare_figure_filename(
     reports: list[dict[str, Any]], *, file_suffix: str = "", html: bool = False,
 ) -> str:
-    from figure.panel import figure_file_ext
-
     first_report = reports[0]
     filter_token = str(first_report.get("filter") or "v")
     specs = "_".join(str(one_report["spec"]) for one_report in reports)
     return (
         f"{first_report['cell']}_{first_report['task']}_{first_report['contrast']}_{filter_token}_compare_{specs}"
-        f"{file_suffix}{figure_file_ext(html=html)}"
+        f"{file_suffix}{'.html' if html else '.png'}"
     )
 
 
@@ -2176,8 +2171,8 @@ def _component_figure(title: str, layout: _ComponentLayout):
 
 def _hide_unused_axes(axes, layout: _ComponentLayout) -> None:
     n_row, n_col = axes.shape
-    for row, (_panel_ylabel, series) in enumerate(layout.plot_panels):
-        for col in range(len(series), n_col):
+    for row, (_panel_ylabel, panel_series) in enumerate(layout.plot_panels):
+        for col in range(len(panel_series), n_col):
             axes[row, col].set_visible(False)
 
 
@@ -2225,9 +2220,9 @@ def _shared_row_ylim(
     for row, curves in row_curves.items():
         if not curves:
             continue
-        _, series = layout.plot_panels[row]
+        _, panel_series = layout.plot_panels[row]
         ylo, yhi = _shared_row_ylim(curves)
-        for col in range(len(series)):
+        for col in range(len(panel_series)):
             axes[row, col].set_ylim(ylo, yhi)
 
 
@@ -2314,13 +2309,17 @@ def _plot_component_reports(
                         row_curves[row].append(y + std)
                         row_curves[row].append(y - std)
                 plot_std_band(ax, xs, y, std, color=color, alpha=0.3)
-                gt_series = next(
-                    (gk for gk, pk in _GT_PLOT_PANEL.items() if pk == series and rep.get(gk) is not None),
+                gt_report_key = next(
+                    (
+                        mapped_gt_report_key
+                        for mapped_gt_report_key, mapped_series in _GT_PLOT_PANEL.items()
+                        if mapped_series == series and rep.get(mapped_gt_report_key) is not None
+                    ),
                     None,
                 )
                 model_label = (
                     str(rep["spec"]) if show_legend
-                    else (series if gt_series is not None else "_nolegend_")
+                    else (series if gt_report_key is not None else "_nolegend_")
                 )
                 ax.plot(
                     xs, y,
@@ -2329,8 +2328,8 @@ def _plot_component_reports(
                     linestyle=ls,
                     linewidth=1.4,
                 )
-                if gt_series is not None:
-                    gt = np.asarray(rep[gt_series], dtype=float)
+                if gt_report_key is not None:
+                    gt = np.asarray(rep[gt_report_key], dtype=float)
                     t_onset = int(rep.get("before_t") or 0)
                     t = ts - t_onset
                     valid = (t >= 0) & (t < gt.shape[0])
@@ -2365,7 +2364,7 @@ def _plot_component_reports(
 
 
 def plot_report(report: dict[str, Any], out_path: str) -> None:
-    """Write one multi-panel PNG: component series vs ``t`` in ms."""
+    """Write one multi-panel PNG: component traces vs ``t`` in ms."""
     title = (
         f"{report['cell']}  {report['task']}  {report['contrast']}"
         + (f"  {report['spec']}" if report.get("spec") else "")

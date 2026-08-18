@@ -37,7 +37,7 @@ def run_train_and_plot(**kwargs):
     import train
     import train.implementation as implementation
     from figure.plot import plot_rf_t
-    from figure.panel import plot_cost, figure_file_ext
+    from figure.plot import plot_cost
 
     syn_sign = kwargs.pop("syn_sign")
     figure_kwargs = kwargs.pop("figure_kwargs")
@@ -67,7 +67,10 @@ def run_train_and_plot(**kwargs):
     if result.cost_curve is not None and len(result.cost_curve) > 0:
         plot_cost(
             result.cost_curve,
-            os.path.join(outdir, f'cost_curve{figure_file_ext(html=figure_kwargs.get("html"))}'),
+            os.path.join(
+                outdir,
+                f"cost_curve{'.html' if figure_kwargs.get('html') else '.png'}",
+            ),
             costs_by_part=result.cost_curves_by_part,
             part_order=list(train.session_cost_part_keys(session)),
         )

@@ -30,7 +30,6 @@ _I_H_REV_ONLY = frozenset({
 })
 _BORST_ONLY = frozenset({"v_mid_h_g", "v_mid_h_tau", "h_slope"}) | _I_H_REV_ONLY
 _CA_ONLY = frozenset({"v_th_ca", "a_ca", "tau_ca"})
-_OUTPUT_KIND = frozenset({"a_gt", "bias_gt"})
 
 
 def param_from_entry(param, param_key, params):
@@ -73,7 +72,7 @@ def _node_vals_from_bag(bag, names, param, key):
 
 
 def build_param_spec(
-    param, n_node, kind, entry, *, cells=None, radii=None, pairs=None, edges=None,
+    param, n_node, entry, *, cells=None, radii=None, pairs=None, edges=None,
 ):
     """Build one schema ``spec`` dict (no self-id; caller keys the schema by ``param``).
 
@@ -95,7 +94,6 @@ def build_param_spec(
     node_from = dict(zip(names, range(len(names))))
     spec = {
         "n_node": n_node,
-        "kind": kind,
         "lo": float(entry["lo"]),
         "hi": float(entry["hi"]),
         "jit": float(entry["jit"]),
@@ -162,14 +160,14 @@ def _syn_param(syn_mode, n_pair, n_edge, params, *, pairs):
         n_edge = int(n_edge)
         edges = [f"e{i}" for i in range(n_edge)]
         return "syn_strength_edge", build_param_spec(
-            "syn_strength_edge", n_edge, "edge", params["syn_strength_edge"],
+            "syn_strength_edge", n_edge, params["syn_strength_edge"],
             edges=edges,
         )
     if n_pair is None:
         raise TypeError("per_cell syn_strength_cell requires n_pair from network ScatterConn")
     n_pair = int(n_pair)
     return "syn_strength_cell", build_param_spec(
-        "syn_strength_cell", n_pair, "edge_pair", params["syn_strength_cell"],
+        "syn_strength_cell", n_pair, params["syn_strength_cell"],
         pairs=pairs,
     )
 
@@ -181,7 +179,7 @@ def _a_sti_radius_param(params: dict, a_sti_radii):
     if n == 0:
         raise ValueError("a_sti_radius requires non-empty a_sti_radii")
     spec = build_param_spec(
-        "a_sti_radius", n, "output", params["a_sti_radius"], radii=radii,
+        "a_sti_radius", n, params["a_sti_radius"], radii=radii,
     )
     spec["radii"] = radii
     return "a_sti_radius", spec
@@ -221,9 +219,8 @@ def params_from_defaults(
             p, spec = _a_sti_radius_param(params, a_sti_radii)
             out[p] = spec
             continue
-        kind = "output" if param in _OUTPUT_KIND else "node"
         out[param] = build_param_spec(
-            param, n_cell, kind, params[param], cells=cells,
+            param, n_cell, params[param], cells=cells,
         )
     return out
 

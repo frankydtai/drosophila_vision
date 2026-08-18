@@ -93,7 +93,7 @@ def _trail_shift_deg(spec: MovingBarSpec, delta_ms: float) -> float:
     raise ValueError(f"unknown direction {spec.direction!r}")
 
 
-def _coverage_time_series(
+def _coverage_trace(
     hex_stack: np.ndarray,
     spec: MovingBarSpec,
     view_deg: Tuple[float, float, float, float],
@@ -273,7 +273,7 @@ def build_i_sti_hex(
     """Multi-b hex currents ``(B, T, n_hex)``.
 
     Each b row superposes simultaneous lane bars for one ``MovingBarSpec``.
-    Specs that share direction / w / speed reuse one coverage time series;
+    Specs that share direction / w / speed reuse one coverage trace;
     only the contrast peak current ``i_sti`` differs when callers rebuild per contrast.
     """
     n_b = len(specs)
@@ -294,7 +294,7 @@ def build_i_sti_hex(
         by_geometry.setdefault(geometry, []).append(b)
 
     for bs in by_geometry.values():
-        cov_ts = _coverage_time_series(
+        coverage = _coverage_trace(
             hex_stack, specs[bs[0]], view_deg,
             n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
             bar_radius=bar_radius,
@@ -302,7 +302,7 @@ def build_i_sti_hex(
         )
         for b in bs:
             out[b, t_onset:] = _current_from_coverage(
-                cov_ts, i_baseline=i_baseline, i_sti=i_sti,
+                coverage, i_baseline=i_baseline, i_sti=i_sti,
             )
     return out
 

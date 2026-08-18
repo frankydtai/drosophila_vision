@@ -535,7 +535,7 @@ class MovingBarSessionT0:
     before_t: Dict[str, int]
     after_t: Dict[str, int]
     side: str
-    n_filter_hex: int
+    n_hex: int
 
 
 def bar_specs_from_task(session, task, contrast) -> List[MovingBarSpec]:
@@ -599,7 +599,7 @@ def moving_bar_session_t0_grids(
         before_t=grids.before_t,
         after_t=grids.after_t,
         side=side,
-        n_filter_hex=len(filt_hexes),
+        n_hex=len(filt_hexes),
     )
 
 

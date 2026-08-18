@@ -16,7 +16,7 @@ import train
 GT_COLOR = 'gray'
 V_READOUT_COLOR = 'red'
 STD_COLOR = 'pink'
-TRACE_LW = 1.5
+TRACE_LINE_W = 1.5
 N_COL_GT = 5
 N_COL_ALL = 8
 PANEL_W = 3.0
@@ -27,34 +27,6 @@ def as_numpy(x):
     if isinstance(x, torch.Tensor):
         return x.detach().cpu().numpy()
     return np.asarray(x)
-
-
-def gt_affine_from_cell(params, cell, connectome, session=None) -> tuple[float, float]:
-    """``(a_gt, effective_bias)`` for one cell (matches cost).
-
-    ``params`` must already have ``override_val_from`` applied so
-    ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold ``val_from`` sources when enabled.
-    When ``val_from`` bias_gt is on, do not add ``v_th``.
-    """
-    cells = [str(n) for n in connectome.cells]
-    ci = cells.index(str(cell))
-    gs = params["a_gt"]
-    a_gt = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
-    gb = params["bias_gt"]
-    bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
-    opts = (session.train_opts if session is not None else None) or {}
-    from_onset = train.val_from_enabled(opts, "bias_gt")
-    if (not from_onset) and "v_th" in params:
-        vt = params["v_th"]
-        if torch.is_tensor(vt) and vt.dim() > 0:
-            if int(vt.shape[0]) == int(connectome.n_cell):
-                bias = bias + float(vt[ci])
-            else:
-                m = connectome.conn.node_cells == ci
-                bias = bias + float(vt[m].mean())
-        else:
-            bias = bias + float(vt if not torch.is_tensor(vt) else vt.item())
-    return a_gt, bias
 
 
 def gt_trace_affine(readout, cell, gt_trace):
@@ -77,37 +49,36 @@ def session_filter_figure_token(session) -> str:
     return filter_figure_token(opts.get("filter"))
 
 
-def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0, log=False):
+def cost_ylim(*curves, percentile=99.0, padding=1.1, floor=1.0, log=False):
     """Ylim from high percentile so cost spikes do not dominate.
 
-    ``log=True`` returns a positive ``lo`` (for ``yscale('log')``).
+    ``log=True`` returns a positive ``limit_low`` (for ``yscale('log')``).
     """
     chunks = []
     for curve in curves:
         if curve is None:
             continue
-        v = np.asarray(curve, dtype=np.float64).ravel()
-        v = v[np.isfinite(v)]
-        if v.size:
-            chunks.append(v)
+        curve_values = np.asarray(curve, dtype=np.float64).ravel()
+        curve_values = curve_values[np.isfinite(curve_values)]
+        if curve_values.size:
+            chunks.append(curve_values)
     if not chunks:
         return (floor, floor * 10.0) if log else (0.0, floor)
     vals = np.concatenate(chunks)
-    hi = float(np.percentile(vals, pct))
-    yhi = max(hi * pad, floor)
+    limit_high = float(np.percentile(vals, percentile))
+    ylim_high = max(limit_high * padding, floor)
     if not log:
-        return 0.0, yhi
-    pos = vals[vals > 0]
-    if not pos.size:
-        return floor, max(yhi, floor * 10.0)
-    ylo = max(float(pos.min()) / pad, floor)
-    if ylo >= yhi:
-        yhi = ylo * 10.0
-    return ylo, yhi
+        return 0.0, ylim_high
+    positive = vals[vals > 0]
+    if not positive.size:
+        return floor, max(ylim_high, floor * 10.0)
+    ylim_low = max(float(positive.min()) / padding, floor)
+    if ylim_low >= ylim_high:
+        ylim_high = ylim_low * 10.0
+    return ylim_low, ylim_high
 
 
 def _cost_yscale(ax, *curves):
-    """Log y-scale with shared-style ylim from *curves*."""
     ax.set_yscale('log')
     ax.set_ylim(*cost_ylim(*curves, log=True))
 
@@ -131,20 +102,20 @@ def annotate_v_th(ax, v_th, *, e_leak=None):
     )
 
 
-def mark_spot(ax, t_onset, t_sti_end):
+def mark_sti_on(ax, t_onset, t_sti_end):
     """White band for sti-on samples ``[t_onset, t_sti_end]`` (axes face is gray)."""
     if t_onset is None or t_sti_end is None:
         return
-    t0 = int(t_onset)
-    t1 = int(t_sti_end)
-    if t1 < t0:
+    onset_t = int(t_onset)
+    sti_end_t = int(t_sti_end)
+    if sti_end_t < onset_t:
         return
     # axvspan end is exclusive in continuous x; +1 covers inclusive last sample.
-    ax.axvspan(t0, t1 + 1, facecolor='white', edgecolor='none', zorder=0)
+    ax.axvspan(onset_t, sti_end_t + 1, facecolor='white', edgecolor='none', zorder=0)
 
 
 def suppress_cost_std(session, task=None, contrast=None):
-    """True when cost uses a single hex (no hex-mean STD band)."""
+    """True when cost uses a single hex (no hexes STD band)."""
     if task is None and contrast is None:
         pack = session.primary_pack
     else:
@@ -159,18 +130,10 @@ def pack_center_mask(pack, connectome):
         return pack.entry_radii.cpu().numpy().astype(np.int64, copy=False) == 0
     if pack.cost_radius is not None:
         import build_hex
-        network_node_u = (
-            connectome.us.detach().cpu().numpy()
-            if hasattr(connectome.us, "detach")
-            else np.asarray(connectome.us)
-        )
-        network_node_v = (
-            connectome.vs.detach().cpu().numpy()
-            if hasattr(connectome.vs, "detach")
-            else np.asarray(connectome.vs)
-        )
         return build_hex.radius_mask(
-            network_node_u[entry_nodes], network_node_v[entry_nodes], int(pack.cost_radius),
+            np.asarray(connectome.us)[entry_nodes],
+            np.asarray(connectome.vs)[entry_nodes],
+            int(pack.cost_radius),
         )
     return np.ones(entry_nodes.shape[0], dtype=bool)
 
@@ -183,12 +146,10 @@ def std_from_traces(traces, single_hex=False):
 
 
 def v_th_from_z(z, session):
-    """``v_th`` (mV) keyed by cell, decoded from ``z``."""
     return _param_from_z(z, session, 'v_th')
 
 
 def e_leak_from_z(z, session):
-    """``e_leak`` (mV) keyed by cell, decoded from ``z``."""
     return _param_from_z(z, session, 'e_leak')
 
 
@@ -215,57 +176,9 @@ def cell_ylabel(label, ca_n=None, n=None):
     return f'{label} (n={int(n)})'
 
 
-def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
-    """Time-panel title: ``radius=0 (n=252)`` + ``bright: 63.3`` / ``dark: …``."""
-    from train.cost import spot_cost_part_key
-
-    radius = float(radius)
-    radius_label = str(int(radius)) if radius == int(radius) else str(radius)
-    head = f'radius={radius_label}'
-    if n is not None:
-        head = f'{head} (n={int(n)})'
-    if not cost_parts or not contrasts:
-        return head
-    lines = [head]
-    for contrast in contrasts:
-        part_key = spot_cost_part_key("spot", contrast, cell, radius)
-        if part_key in cost_parts:
-            lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
-    return '\n'.join(lines)
-
-
-def format_moving_bar_cell_cost_lines(cell, cost_parts, contrasts):
-    """Lines ``ON: xx @PD yy @ND`` / ``OFF: …`` for moving-bar titles."""
-    from train.cost import moving_bar_cell_cost_part_key
-    label_map = {
-        'bright': 'ON',
-        'dark': 'OFF',
-    }
-    lines = []
-    if not cost_parts:
-        return lines
-    for contrast in contrasts:
-        bits = []
-        for lab in ('PD', 'ND'):
-            part_key = moving_bar_cell_cost_part_key("moving_bar", contrast, cell, lab)
-            if part_key in cost_parts:
-                bits.append(f'{float(cost_parts[part_key]):.1f} @{lab}')
-        if bits:
-            lines.append(f'{label_map.get(contrast, contrast)}: {" ".join(bits)}')
-    return lines
-
-
 def network_hex_count(connectome):
     """Unique axial hexes on the connectome."""
     return len({(int(hex_u), int(hex_v)) for hex_u, hex_v in zip(connectome.us, connectome.vs)})
-
-
-def log_figure_elapsed(path, t0, **parts):
-    """Print per-figure timing (seconds) after saving a plot."""
-    elapsed_s = time.perf_counter() - t0
-    bits = [f'{name}={float(val):.1f}s' for name, val in parts.items()]
-    bits.append(f'elapsed_s={elapsed_s:.1f}s')
-    print(f'plot {path}: {"  ".join(bits)}')
 
 
 def readout_prep_s(*readouts):
@@ -289,96 +202,87 @@ class ElapsedTimer:
     ``prior_prep`` is forward time already stored on ``TraceReadout.prep_s``.
     """
 
-    __slots__ = ('t0', '_t_prep', '_t_draw')
+    __slots__ = ('start_time', '_prep_time', '_draw_time')
 
     def __init__(self, prior_prep=0.0):
-        self.t0 = time.perf_counter() - float(prior_prep)
-        self._t_prep = None
-        self._t_draw = None
+        self.start_time = time.perf_counter() - float(prior_prep)
+        self._prep_time = None
+        self._draw_time = None
 
     def end_prep(self):
-        self._t_prep = time.perf_counter()
+        self._prep_time = time.perf_counter()
 
     def end_draw(self):
-        self._t_draw = time.perf_counter()
+        self._draw_time = time.perf_counter()
 
     def log(self, path):
-        t_prep = self._t_prep if self._t_prep is not None else time.perf_counter()
-        t_draw = self._t_draw if self._t_draw is not None else time.perf_counter()
+        prep_time = self._prep_time if self._prep_time is not None else time.perf_counter()
+        draw_time = self._draw_time if self._draw_time is not None else time.perf_counter()
         now = time.perf_counter()
-        log_figure_elapsed(
-            path, self.t0,
-            prep=t_prep - self.t0,
-            draw=t_draw - t_prep,
-            save=now - t_draw,
-        )
+        elapsed_s = now - self.start_time
+        parts = {
+            'prep': prep_time - self.start_time,
+            'draw': draw_time - prep_time,
+            'save': now - draw_time,
+            'elapsed_s': elapsed_s,
+        }
+        bits = [f'{name}={float(val):.1f}s' for name, val in parts.items()]
+        print(f'plot {path}: {"  ".join(bits)}')
 
 
 def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
-    """Inclusive t-index xlim from ``--ms-shown``; ``origin_t`` is t0 on the axis."""
+    """Inclusive t-index xlim from ``--ms-shown``; ``origin_t`` is onset t on the axis."""
     if ms_shown is None:
         return None
     start, stop = ms_shown
-    lo = int(origin_t) + int(train.t_from_ms(float(start), delta_ms=float(delta_ms)))
-    hi = int(origin_t) + int(train.t_from_ms(float(stop), delta_ms=float(delta_ms)))
-    if lo > hi:
-        raise ValueError(f'ms-shown xlim START t={lo} > STOP t={hi}')
-    return lo, hi
+    limit_low = int(origin_t) + int(train.t_from_ms(float(start), delta_ms=float(delta_ms)))
+    limit_high = int(origin_t) + int(train.t_from_ms(float(stop), delta_ms=float(delta_ms)))
+    if limit_low > limit_high:
+        raise ValueError(f'ms-shown xlim START t={limit_low} > STOP t={limit_high}')
+    return limit_low, limit_high
 
 
-def hex_scope_label(at_x, at_y):
-    """Subtitle fragment for plot hex overlay."""
-
-    def coord_label(val):
-        v = float(val)
-        if np.isclose(v, round(v)):
-            return str(int(round(v)))
-        return str(v).replace('.', 'params').replace('-', 'm')
-
+def at_xy_label(at_x, at_y):
+    """Subtitle fragment for ``at_x`` / ``at_y`` hex-step filter."""
     parts = []
     if at_x is not None:
-        xs = at_x if isinstance(at_x, (list, tuple)) else [at_x]
-        parts.append('x=' + ','.join(coord_label(v) for v in xs))
+        at_x_list = at_x if isinstance(at_x, (list, tuple)) else [at_x]
+        parts.append('x=' + ','.join(label for label, _, _ in overlay_coords(at_x_list, None)[0]))
     if at_y is not None:
-        ys = at_y if isinstance(at_y, (list, tuple)) else [at_y]
-        parts.append('y=' + ','.join(coord_label(v) for v in ys))
+        at_y_list = at_y if isinstance(at_y, (list, tuple)) else [at_y]
+        parts.append('y=' + ','.join(label for label, _, _ in overlay_coords(None, at_y_list)[0]))
     return ', '.join(parts)
 
 
 def overlay_coords(at_xs, at_ys):
-    """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` (missing axis is None)."""
-
-    def axis_label(val):
-        fv = float(val)
-        if np.isclose(fv, round(fv)):
-            return str(int(round(fv)))
-        return str(fv)
-
+    """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` and overlay axis."""
+    coords = []
     if at_xs is not None and at_ys is not None:
-        return [
-            (f'({axis_label(xv)},{axis_label(yv)})', xv, yv)
-            for xv in at_xs for yv in at_ys
-        ]
+        for at_x in at_xs:
+            x_number = float(at_x)
+            x_label = str(int(x_number)) if x_number.is_integer() else f'{x_number:g}'
+            for at_y in at_ys:
+                y_number = float(at_y)
+                y_label = str(int(y_number)) if y_number.is_integer() else f'{y_number:g}'
+                coords.append((f'({x_label},{y_label})', at_x, at_y))
+        return coords, 'xy'
     if at_xs is not None:
-        return [(axis_label(xv), xv, None) for xv in at_xs]
+        for at_x in at_xs:
+            number = float(at_x)
+            label = str(int(number)) if number.is_integer() else f'{number:g}'
+            coords.append((label, at_x, None))
+        return coords, 'x'
     if at_ys is not None:
-        return [(axis_label(yv), None, yv) for yv in at_ys]
-    return []
-
-
-def overlay_axis(at_xs, at_ys):
-    """``'xy'`` / ``'x'`` / ``'y'`` / ``None`` matching :func:`overlay_coords`."""
-    if at_xs is not None and at_ys is not None:
-        return 'xy'
-    if at_xs is not None:
-        return 'x'
-    if at_ys is not None:
-        return 'y'
-    return None
+        for at_y in at_ys:
+            number = float(at_y)
+            label = str(int(number)) if number.is_integer() else f'{number:g}'
+            coords.append((label, None, at_y))
+        return coords, 'y'
+    return [], None
 
 
 def overlay_reds(n_overlay):
-    """Red shades for per-overlay traces plus a darker scope trace."""
+    """Red shades for per-overlay traces plus a darker primary v_readout trace."""
     n = n_overlay + 1
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
 
@@ -405,7 +309,7 @@ def plot_std_band(ax, t, v_readout, std, *, color=None, alpha=None, label=r'$\pm
     )
 
 
-def _series_points(t, y, ts=None):
+def _trace_points(t, y, ts=None):
     """Return finite ``(x, y)`` points, optionally subsampled by integer ``ts``."""
     if y is None:
         return None, None
@@ -422,21 +326,35 @@ def _series_points(t, y, ts=None):
     return t[mask], y[mask]
 
 
+def traces_with_cost_ts(traces, readouts, *, entry_radius=None):
+    """Copy ``traces`` with sparse cost ``ts`` per contrast readout."""
+    out = []
+    for trace in traces:
+        item = dict(trace)
+        contrast = trace["contrast"]
+        readout = readouts[contrast]
+        session = readout.session
+        item["ts"] = (
+            None if session is None else train.pack_cost_abs_ts(
+                session.primary_pack, readout.t_onset, entry_radius=entry_radius,
+            )
+        )
+        out.append(item)
+    return out
+
+
 def plot_trace(
     ax,
     t,
     trace,
     *,
-    pre_end=0,
+    t_onset=0,
     color=V_READOUT_COLOR,
     linestyle='-',
-    linewidth=TRACE_LW,
+    linewidth=TRACE_LINE_W,
     label=None,
 ):
-    """Plot a 1-D trace: dashed before ``pre_end``, solid after.
-
-    ``pre_end`` is the first post-onset index (samples ``[0, pre_end)`` are pre).
-    """
+    """Plot a 1-D trace: dashed before ``t_onset``, solid after."""
     if trace is None:
         return
     t = np.asarray(t)
@@ -454,18 +372,18 @@ def plot_trace(
             f'trace={getattr(trace, "shape", None)}'
         )
     n = int(trace.shape[0])
-    split = max(0, min(int(pre_end or 0), n))
-    if split > 0:
+    t_onset = max(0, min(int(t_onset or 0), n))
+    if t_onset > 0:
         # Include the onset sample so dashed and solid traces meet.
-        end_pre = min(split + 1, n)
+        end_pre = min(t_onset + 1, n)
         ax.plot(
             t[:end_pre], trace[:end_pre],
             color=color, linewidth=linewidth, linestyle='--',
         )
-    if split >= n:
+    if t_onset >= n:
         return
     ax.plot(
-        t[split:], trace[split:],
+        t[t_onset:], trace[t_onset:],
         color=color, linewidth=linewidth, linestyle=linestyle, label=label,
     )
 
@@ -477,64 +395,64 @@ def plot_timecourse(
     *,
     show_std=True,
     title=None,
-    title_fs=7,
+    title_fontsize=7,
     v_th=None,
     e_leak=None,
     show_ylabel=False,
     ylabel='mV',
     ticksize=6,
     style_xaxis=None,
-    pre_end=0,
-    t_onset=None,
-    t_sti_end=None,
+    t_onset=0,
+    gt_from_t=None,
 ):
     """v_readout (red) vs gt (gray) time courses for one or more contrast traces.
 
     ``traces``: sequence of dicts with keys ``v_readout``, ``gt``, optional
     ``std``, ``linestyle`` (default ``'-'``), ``ts``.
     When ``ts`` is set, gray gt is drawn as open dots at those samples
-    (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
-    post-onset line. Red v_readout is dashed before ``pre_end`` and solid after.
-    ``t_onset`` / ``t_sti_end``: white sti-on band ``[t_onset, t_sti_end]``.
+    (still never draws ``[0, gt_from_t)`` via line); otherwise gt is a solid
+    line from ``gt_from_t``. Red v_readout is dashed before ``t_onset`` and
+    solid after. ``gt_from_t`` defaults to ``t_onset``; pass ``0`` to draw gt
+    from the first sample while keeping the v_readout split at ``t_onset``.
     Y-limits / ticks: matplotlib autoscale.
     """
     traces = list(traces or ())
-    mark_spot(ax, t_onset, t_sti_end)
-    split = max(0, int(pre_end or 0))
-    for tr in traces:
-        v_readout = tr.get("v_readout")
-        gt = tr.get("gt")
-        std = tr.get("std")
-        linestyle = tr.get("linestyle", "-")
-        ts = tr.get("ts")
-        if ts is not None:
-            x_gt, y_gt = _series_points(t, gt, ts=ts)
-            if x_gt is not None:
+    t_onset = max(0, int(t_onset or 0))
+    gt_start = t_onset if gt_from_t is None else max(0, int(gt_from_t))
+    for trace in traces:
+        v_readout = trace.get("v_readout")
+        gt = trace.get("gt")
+        std = trace.get("std")
+        linestyle = trace.get("linestyle", "-")
+        cost_ts = trace.get("ts")
+        if cost_ts is not None:
+            gt_time, gt_value = _trace_points(t, gt, ts=cost_ts)
+            if gt_time is not None:
                 ax.plot(
-                    x_gt, y_gt, linestyle='none', marker='o', markersize=4,
+                    gt_time, gt_value, linestyle='none', marker='o', markersize=4,
                     fillstyle='none', markeredgewidth=1.0, color=GT_COLOR,
                 )
         elif gt is not None:
-            t_gt = np.asarray(t)
+            time_gt = np.asarray(t)
             gt = np.asarray(gt, dtype=np.float64)
-            if t_gt.shape[0] > gt.shape[0]:
-                t_gt = t_gt[: gt.shape[0]]
+            if time_gt.shape[0] > gt.shape[0]:
+                time_gt = time_gt[: gt.shape[0]]
             n_gt = int(gt.shape[0])
-            post = max(0, min(split, n_gt))
-            if post < n_gt:
+            gt_start_clamped = max(0, min(gt_start, n_gt))
+            if gt_start_clamped < n_gt:
                 ax.plot(
-                    t_gt[post:], gt[post:],
-                    color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+                    time_gt[gt_start_clamped:], gt[gt_start_clamped:],
+                    color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LINE_W,
                 )
         if v_readout is not None:
             if show_std and std is not None:
                 plot_std_band(ax, t, v_readout, std)
             plot_trace(
-                ax, t, v_readout, pre_end=split,
-                color=V_READOUT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+                ax, t, v_readout, t_onset=t_onset,
+                color=V_READOUT_COLOR, linestyle=linestyle, linewidth=TRACE_LINE_W,
             )
     if title is not None:
-        ax.set_title(title, fontsize=title_fs, pad=2)
+        ax.set_title(title, fontsize=title_fontsize, pad=2)
     if style_xaxis is not None:
         style_xaxis(ax)
     if show_ylabel:
@@ -543,7 +461,7 @@ def plot_timecourse(
     annotate_v_th(ax, v_th, e_leak=e_leak)
 
 
-_MPL_DASH = {
+_MATPLOT_LINE_DASH = {
     '-': 'solid',
     '--': 'dash',
     '-.': 'dashdot',
@@ -554,28 +472,25 @@ _MPL_DASH = {
 }
 
 
-def figure_file_ext(*, html=False):
-    """Figure extension: ``.png`` (default) or ``.html`` when ``html``."""
-    return '.html' if html else '.png'
-
-
-def _mpl_color_hex(color):
-    from matplotlib.colors import to_hex
-
-    try:
-        return to_hex(color, keep_alpha=False)
-    except (ValueError, TypeError):
-        return '#1f77b4'
-
-
-def _mpl_color_rgba(color):
+def _plotly_color(color, *, alpha=None, fallback=None):
+    """Matplotlib artist color → plotly ``#rrggbb`` or ``rgba(...)`` (keeps alpha)."""
     from matplotlib.colors import to_rgba
 
-    try:
-        r, g, b, a = to_rgba(color)
-    except (ValueError, TypeError):
-        return 'rgba(31,119,180,1)'
-    return f'rgba({int(round(r * 255))},{int(round(g * 255))},{int(round(b * 255))},{a:g})'
+    if color in (None, 'auto', 'none', 'None'):
+        if fallback is None:
+            raise ValueError(f'invalid plotly color: {color!r}')
+        color = fallback
+    red, green, blue, color_alpha = to_rgba(color, alpha=alpha)
+    if color_alpha >= 1.0:
+        return (
+            f'#{int(round(red * 255)):02x}'
+            f'{int(round(green * 255)):02x}'
+            f'{int(round(blue * 255)):02x}'
+        )
+    return (
+        f'rgba({int(round(red * 255))},{int(round(green * 255))},'
+        f'{int(round(blue * 255))},{color_alpha:g})'
+    )
 
 
 def _save_interactive_html(fig, path):
@@ -586,8 +501,8 @@ def _save_interactive_html(fig, path):
 
     fig.canvas.draw()
     visible_axes = [ax for ax in fig.axes if ax.get_visible()]
-    plot_bg = (
-        _mpl_color_hex(visible_axes[0].get_facecolor())
+    plot_bg = _plotly_color(
+        visible_axes[0].get_facecolor()
         if visible_axes else plt.rcParams['axes.facecolor']
     )
     traces = []
@@ -596,11 +511,11 @@ def _save_interactive_html(fig, path):
         'autosize': False,
         'width': max(400, int(fig.get_figwidth() * 100)),
         'height': max(300, int(fig.get_figheight() * 100)),
-        'margin': dict(l=40, radius=20, t=60, b=40),
+        'margin': dict(l=40, r=20, t=60, b=40),
         'hovermode': 'closest',
         'showlegend': False,
         'plot_bgcolor': plot_bg,
-        'paper_bgcolor': _mpl_color_hex(fig.get_facecolor()),
+        'paper_bgcolor': _plotly_color(fig.get_facecolor()),
     }
     if fig._suptitle is not None:
         layout['title'] = dict(text=fig._suptitle.get_text(), x=0.5, xanchor='center')
@@ -613,29 +528,32 @@ def _save_interactive_html(fig, path):
         xkey = 'xaxis' if axis_i == 1 else f'xaxis{axis_i}'
         ykey = 'yaxis' if axis_i == 1 else f'yaxis{axis_i}'
         pos = ax.get_position()
-        layout[xkey] = dict(
-            domain=[float(pos.x0), float(pos.x1)],
-            anchor=yaxis,
-            title=ax.get_xlabel() or None,
+        spine_color = _plotly_color(ax.spines['bottom'].get_edgecolor())
+        gridlines = ax.xaxis.get_gridlines()
+        grid_color = (
+            _plotly_color(gridlines[0].get_color())
+            if gridlines else _plotly_color(plt.rcParams['grid.color'])
+        )
+        axis_style = dict(
             showgrid=True,
             zeroline=False,
             mirror=True,
             ticks='outside',
             showline=True,
-            linecolor='#444',
-            gridcolor='#ddd',
+            linecolor=spine_color,
+            gridcolor=grid_color,
+        )
+        layout[xkey] = dict(
+            domain=[float(pos.x0), float(pos.x1)],
+            anchor=yaxis,
+            title=ax.get_xlabel() or None,
+            **axis_style,
         )
         layout[ykey] = dict(
             domain=[float(pos.y0), float(pos.y1)],
             anchor=xaxis,
             title=ax.get_ylabel() or None,
-            showgrid=True,
-            zeroline=False,
-            mirror=True,
-            ticks='outside',
-            showline=True,
-            linecolor='#444',
-            gridcolor='#ddd',
+            **axis_style,
         )
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
@@ -668,66 +586,93 @@ def _save_interactive_html(fig, path):
                 x1=x1,
                 y0=0,
                 y1=1,
-                fillcolor=_mpl_color_rgba(patch.get_facecolor()),
+                fillcolor=_plotly_color(patch.get_facecolor()),
                 line=dict(width=0),
                 layer='below',
             ))
 
         # STD fill_between etc. before line traces (same stacking as PNG).
-        for coll in ax.collections:
-            if not isinstance(coll, PolyCollection):
+        for collection in ax.collections:
+            if not isinstance(collection, PolyCollection):
                 continue
-            fcs = coll.get_facecolors()
-            if fcs is None or len(fcs) == 0:
+            face_colors = collection.get_facecolors()
+            if face_colors is None or len(face_colors) == 0:
                 continue
-            for pi, coll_path in enumerate(coll.get_paths()):
-                verts = np.asarray(coll_path.vertices, dtype=float)
-                if verts.size == 0:
+            for path_index, collection_path in enumerate(collection.get_paths()):
+                vertices = np.asarray(collection_path.vertices, dtype=float)
+                if vertices.size == 0:
                     continue
-                fc = fcs[min(pi, len(fcs) - 1)]
+                face_color = face_colors[min(path_index, len(face_colors) - 1)]
+                face_color_str = _plotly_color(face_color)
                 traces.append(go.Scatter(
-                    x=verts[:, 0],
-                    y=verts[:, 1],
+                    x=vertices[:, 0],
+                    y=vertices[:, 1],
                     mode='lines',
                     fill='toself',
-                    fillcolor=_mpl_color_rgba(fc),
-                    line=dict(width=0, color=_mpl_color_rgba(fc)),
+                    fillcolor=face_color_str,
+                    line=dict(width=0, color=face_color_str),
                     hoverinfo='skip',
                     showlegend=False,
                     xaxis=xaxis,
                     yaxis=yaxis,
                 ))
 
-        for li, line in enumerate(ax.get_lines()):
-            xd = np.asarray(line.get_xdata(), dtype=float)
-            yd = np.asarray(line.get_ydata(), dtype=float)
-            if xd.size == 0:
+        for line_index, line in enumerate(ax.get_lines()):
+            line_x = np.asarray(line.get_xdata(), dtype=float)
+            line_y = np.asarray(line.get_ydata(), dtype=float)
+            if line_x.size == 0:
                 continue
             label = line.get_label()
             if not label or str(label).startswith('_'):
-                label = ax.get_title() or f'trace{li}'
-            ls = line.get_linestyle()
-            if isinstance(ls, (tuple, list)):
-                dash = 'dash' if ls not in (None, 'None', 'none', '-', 'solid') else 'solid'
+                label = ax.get_title() or f'trace{line_index}'
+            line_style = line.get_linestyle()
+            if isinstance(line_style, (tuple, list)):
+                dash = (
+                    'dash'
+                    if line_style not in (None, 'None', 'none', '-', 'solid')
+                    else 'solid'
+                )
             else:
-                dash = _MPL_DASH.get(str(ls), 'solid')
+                dash = _MATPLOT_LINE_DASH.get(str(line_style), 'solid')
             marker = line.get_marker()
             mode = 'lines'
             if marker not in (None, 'None', 'none', ''):
                 mode = 'lines+markers' if dash != 'solid' or line.get_linewidth() else 'markers'
                 if line.get_linestyle() in ('None', 'none', ''):
                     mode = 'markers'
+            line_alpha = line.get_alpha()
+            line_color = _plotly_color(line.get_color(), alpha=line_alpha)
+            if line.get_fillstyle() == 'none':
+                marker_face_color = 'rgba(0,0,0,0)'
+            else:
+                marker_face_color = _plotly_color(
+                    line.get_markerfacecolor(),
+                    alpha=line_alpha,
+                    fallback=line.get_color(),
+                )
+            marker_edge_color = _plotly_color(
+                line.get_markeredgecolor(),
+                alpha=line_alpha,
+                fallback=line.get_color(),
+            )
             traces.append(go.Scatter(
-                x=xd,
-                y=yd,
+                x=line_x,
+                y=line_y,
                 mode=mode,
                 name=str(label),
                 line=dict(
-                    color=_mpl_color_hex(line.get_color()),
+                    color=line_color,
                     width=float(line.get_linewidth() or 1.0),
                     dash=dash,
                 ),
-                marker=dict(size=max(4.0, float(line.get_markersize() or 4.0))),
+                marker=dict(
+                    size=max(4.0, float(line.get_markersize() or 4.0)),
+                    color=marker_face_color,
+                    line=dict(
+                        color=marker_edge_color,
+                        width=float(line.get_markeredgewidth() or 0.0),
+                    ),
+                ),
                 xaxis=xaxis,
                 yaxis=yaxis,
                 hovertemplate='x=%{x}<br>y=%{y}<extra>%{fullData.name}</extra>',
@@ -735,8 +680,8 @@ def _save_interactive_html(fig, path):
 
     if shapes:
         layout['shapes'] = shapes
-    pfig = go.Figure(data=traces, layout=layout)
-    pfig.write_html(path, include_plotlyjs=True, full_html=True, config={
+    plotly_figure = go.Figure(data=traces, layout=layout)
+    plotly_figure.write_html(path, include_plotlyjs=True, full_html=True, config={
         'displayModeBar': True,
         'scrollZoom': True,
     })
@@ -764,167 +709,31 @@ def save_figure(fig, path, dpi=150, rasterize=False, *, timer=None):
     timer.log(path)
 
 
-def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
-    """Plot train cost; total + grouped subplots with role colors.
-
-    Rules (applies to spot / moving_bar / future tasks):
-    - All curves are solid (``linestyle='-'``).
-    - Colors are assigned by *role order* (R0, R1, R2, ... for spot radii; PD/ND/DSI for moving bar).
-    - Cell layout follows canonical order rows: first block log + shared ylim, then
-      linear total + linear per-panel ylim (original).
-    """
-    from network.construction import CELL_ROWS, cell_rows
-
-    timer = ElapsedTimer()
-    timer.end_prep()
-    if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
-        raise ValueError("plot_cost requires non-empty `costs`")
-
-    def _save_total_only():
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
-        _cost_yscale(ax, costs)
-        ax.set_xlabel('step')
-        ax.set_ylabel('cost [% gt power]')
-        ax.set_title(f'Train cost ({len(costs)} steps)')
-        ax.grid(True, alpha=0.3, which='both')
-        fig.tight_layout()
-        timer.end_draw()
-        save_figure(fig, path, dpi=150, timer=timer)
-
-    if not costs_by_part:
-        _save_total_only()
-        return
-
-    part_keys = list(part_order) if part_order else list(costs_by_part.keys())
-    part_keys = [k for k in part_keys if k in costs_by_part and len(costs_by_part[k])]
-
-    if not part_keys:
-        _save_total_only()
-        return
-
-    def _spot_parse(part_key: str):
-        from task.spread.sti_spec import CONTRASTS
-        for contrast in CONTRASTS:
-            head = f"spot_{contrast}_"
-            if part_key[:len(head)] != head:
-                continue
-            pos = part_key.rfind("_r")
-            if pos < 0:
-                return None
-            radius_token = part_key[pos + 2:]
-            try:
-                radius = int(radius_token)
-            except ValueError:
-                return None
-            cell = part_key[len(head):pos]
-            return cell, contrast, radius
-        return None
-
-    def _moving_bar_parse(part_key: str):
-        from task.spread.sti_spec import CONTRASTS
-        from task.moving_bar.sti_spec import PD_ND_LABELS
-        for contrast in CONTRASTS:
-            head = f"moving_bar_{contrast}_"
-            if part_key[:len(head)] != head:
-                continue
-            rest = part_key[len(head):]
-            if rest == "DSI":
-                return None, contrast, "DSI"
-            for role in PD_ND_LABELS:
-                suf = f"_{role}"
-                if rest == role:
-                    return None, contrast, role
-                if len(rest) > len(suf) and rest[-len(suf):] == suf:
-                    cell = rest[:-len(suf)]
-                    return cell, contrast, role
-        return None
-
-    # series universe (for color indexing)
-    spot_radii: set = set()
-    moving_roles: set = set()
-    other_series_order: list = []
-    other_series_seen: set = set()
-
-    curves_by_cell: dict[str, list] = {}
-    curves_global: list = []
-
-    for part_key in part_keys:
-        curve = np.asarray(costs_by_part[part_key], dtype=np.float64)
-        if curve.size == 0:
-            continue
-
-        parsed_spot = _spot_parse(part_key)
-        if parsed_spot is not None:
-            cell, contrast, radius = parsed_spot
-            spot_radii.add(radius)
-            series = ("spot_radius", radius)
-            label = f"R{radius} ({contrast})" if contrast else f"R{radius}"
-            curves_by_cell.setdefault(cell, []).append((series, label, curve))
-            continue
-
-        parsed_moving = _moving_bar_parse(part_key)
-        if parsed_moving is not None:
-            cell, contrast, role = parsed_moving
-            moving_roles.add(role)
-            series = ("moving_role", role)
-            label = f"{role} ({contrast})" if contrast else role
-            if cell is None:
-                curves_global.append((series, label, curve))
-            else:
-                curves_by_cell.setdefault(cell, []).append((series, label, curve))
-            continue
-
-        # unknown / future task parts:
-        # - try to place into cell grid if the part_key contains a known cell substring
-        # - otherwise treat as global (global panels come after cell panels).
-        series = ("other", part_key)
-        if series not in other_series_seen:
-            other_series_seen.add(series)
-            other_series_order.append(series)
-        known_cell = {n for row in CELL_ROWS for n in row}
-        matches = [cell for cell in known_cell if cell and cell in part_key]
-        if matches:
-            cell = max(matches, key=len)
-            curves_by_cell.setdefault(cell, []).append((series, part_key, curve))
-        else:
-            curves_global.append((series, part_key, curve))
-
-    # Build deterministic color mapping:
-    # - spot radii first: R0, R1, R2, ...
-    # - then moving bar roles: PD, ND, DSI
-    # - then other series in the order they appear in `part_order`.
-    palette = list(plt.get_cmap("tab20").colors)
-    series_order: list = []
-    for radius in sorted(spot_radii, key=lambda x: (isinstance(x, float), x)):
-        series_order.append(("spot_radius", radius))
-
-    moving_role_order = [role for role in ("PD", "ND", "DSI") if role in moving_roles]
-    extra_moving = sorted([role for role in moving_roles if role not in moving_role_order])
-    moving_role_order.extend(extra_moving)
-    for role in moving_role_order:
-        series_order.append(("moving_role", role))
-
-    series_order.extend(other_series_order)
-
-    color_from_series = dict(zip(
-        series_order, islice(cycle(palette), len(series_order)),
-    ))
-
-    # Layout: [total log + parts log] then [total linear + parts linear].
+def plot_cost_figure(
+    costs,
+    path,
+    *,
+    curves_by_cell,
+    curves_global,
+    series_order,
+    color_from_series,
+    rows,
+    timer=None,
+):
+    """Shared cost-curve grid: total + per-cell parts (log then linear blocks)."""
+    timer = timer or ElapsedTimer()
+    if timer._prep_time is None:
+        timer.end_prep()
     n_col = N_COL_GT
-    active_cells = set(curves_by_cell.keys())
-    rows = cell_rows(sorted(active_cells))
-    n_cell_row = len(rows)
-
     n_global_axis = len(curves_global)
     n_global_row = (n_global_axis + n_col - 1) // n_col if n_global_axis else 0
+    n_cell_row = len(rows)
     n_part_row = n_cell_row + n_global_row
     n_block_row = 1 + n_part_row
     n_row = 2 * n_block_row
 
     fig = plt.figure(figsize=(PANEL_W * n_col, PANEL_H * n_row))
-    gs = fig.add_gridspec(
+    grid_spec = fig.add_gridspec(
         n_row, n_col,
         hspace=0.55, wspace=0.45,
         top=0.95, bottom=0.06, left=0.07, right=0.98,
@@ -940,11 +749,11 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         cell_curves_list = curves_by_cell.get(cell) or []
         return sorted(
             cell_curves_list,
-            key=lambda x: series_order.index(x[0]) if x[0] in series_order else 10**9,
+            key=lambda item: series_order.index(item[0]) if item[0] in series_order else 10**9,
         )
 
     def _draw_total(row, *, log):
-        ax = fig.add_subplot(gs[row, :])
+        ax = fig.add_subplot(grid_spec[row, :])
         ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
         if log:
             _cost_yscale(ax, costs)
@@ -956,11 +765,11 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     def _draw_part_block(row0, *, log, shared_cell_ylim, with_legend):
         legend_done = False
-        for gi, row_cells in enumerate(rows):
-            row = row0 + gi
+        for row_group, row_cells in enumerate(rows):
+            row = row0 + row_group
             start = (n_col - len(row_cells)) // 2
             for j, cell in enumerate(row_cells):
-                ax = fig.add_subplot(gs[row, start + j])
+                ax = fig.add_subplot(grid_spec[row, start + j])
                 cell_curves_list = _sorted_curves(cell)
                 curves = []
                 for series, label, curve in cell_curves_list:
@@ -983,13 +792,13 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                 if with_legend and (not legend_done) and len(cell_curves_list) > 1:
                     ax.legend(fontsize=7)
                     legend_done = True
-                if gi == n_cell_row - 1:
+                if row_group == n_cell_row - 1:
                     ax.set_xlabel("step")
 
-        for gi, (series, label, curve) in enumerate(curves_global):
-            row = row0 + n_cell_row + gi // n_col
-            col = gi % n_col
-            ax = fig.add_subplot(gs[row, col])
+        for row_group, (series, label, curve) in enumerate(curves_global):
+            row = row0 + n_cell_row + row_group // n_col
+            col = row_group % n_col
+            ax = fig.add_subplot(grid_spec[row, col])
             ax.plot(curve, color=color_from_series.get(series), linewidth=2, linestyle='-')
             if log:
                 _cost_yscale(ax, curve)
@@ -999,7 +808,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             ax.grid(True, alpha=0.3, which='both' if log else 'major')
             if col == 0:
                 ax.set_ylabel("cost [% gt power]", fontsize=8)
-            if gi // n_col == n_global_row - 1:
+            if row_group // n_col == n_global_row - 1:
                 ax.set_xlabel("step")
 
     _draw_total(0, log=True)
@@ -1008,6 +817,24 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     _draw_part_block(n_block_row + 1, log=False, shared_cell_ylim=False, with_legend=False)
 
     fig.suptitle(f'Train cost ({len(costs)} steps)', fontsize=12, y=1.01)
+    fig.tight_layout()
+    timer.end_draw()
+    save_figure(fig, path, dpi=150, timer=timer)
+
+
+def plot_cost_total(costs, path, *, timer=None):
+    """Plot train cost total curve only."""
+    timer = timer or ElapsedTimer()
+    timer.end_prep()
+    if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
+        raise ValueError("plot_cost_total requires non-empty `costs`")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
+    _cost_yscale(ax, costs)
+    ax.set_xlabel('step')
+    ax.set_ylabel('cost [% gt power]')
+    ax.set_title(f'Train cost ({len(costs)} steps)')
+    ax.grid(True, alpha=0.3, which='both')
     fig.tight_layout()
     timer.end_draw()
     save_figure(fig, path, dpi=150, timer=timer)

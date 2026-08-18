@@ -375,12 +375,12 @@ def _format_param(param_vals) -> str:
     return " ".join(parts) if parts else "none"
 
 
-def _trace_series(rep: dict) -> np.ndarray:
-    """Full-length series from ``analyze_spot_average`` report: ``ca`` or ``v_post``."""
+def _trace_from_report(rep: dict) -> np.ndarray:
+    """Full-length trace from ``analyze_spot_average`` report: ``ca`` or ``v_post``."""
     if rep.get("filter") == "ca":
         if "ca" not in rep:
             raise SystemExit(
-                f"report for {rep.get('cell')!r} has filter=ca but no ca series"
+                f"report for {rep.get('cell')!r} has filter=ca but no ca trace"
             )
         return np.asarray(rep["ca"], dtype=float)
     return np.asarray(rep["v_post"], dtype=float)
@@ -487,7 +487,7 @@ def _print_oscillation(cells, reports, delta_ms, analyze) -> None:
             print(f"{cell:<12} {'?':<6} {'no_report':<12}", flush=True)
             continue
         v = _slice_ms(
-            _trace_series(rep), analyze[0], analyze[1], delta_ms=delta_ms,
+            _trace_from_report(rep), analyze[0], analyze[1], delta_ms=delta_ms,
         )
         result = detect_oscillation(
             v,
@@ -533,7 +533,7 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline) -> None:
         if rep is None:
             print(f"{cell:<12} {'?':<6} {'no_report':<12}", flush=True)
             continue
-        trace = _trace_series(rep)
+        trace = _trace_from_report(rep)
         base = _baseline_mean(trace, baseline, delta_ms=delta_ms)
         v = _slice_ms(trace, analyze[0], analyze[1], delta_ms=delta_ms)
         result = detect_flat(
@@ -580,7 +580,7 @@ def _print_drift(cells, reports, delta_ms, analyze) -> None:
             print(f"{cell:<12} {'?':<6} {'no_report':<12}", flush=True)
             continue
         v = _slice_ms(
-            _trace_series(rep), analyze[0], analyze[1], delta_ms=delta_ms,
+            _trace_from_report(rep), analyze[0], analyze[1], delta_ms=delta_ms,
         )
         result = detect_drift(
             v,
@@ -621,7 +621,7 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline) -> None:
         if rep is None:
             print(f"{cell:<12} {'?':<16} {'?':<5} {'?':<8} {'?':<5}", flush=True)
             continue
-        trace = _trace_series(rep)
+        trace = _trace_from_report(rep)
         base = _baseline_mean(trace, baseline, delta_ms=delta_ms)
         v = _slice_ms(trace, analyze[0], analyze[1], delta_ms=delta_ms)
         result = detect_stability(

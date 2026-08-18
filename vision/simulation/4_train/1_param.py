@@ -155,13 +155,13 @@ def effective_init(spec, node):
     return _node_param_key(spec, node, "init")
 
 
-def _param_names(spec, connectome):
+def _param_names(param, spec, connectome):
     """``(names, node_from)`` for this param — cell / radius / pair / edge."""
     if spec.get("radii") is not None:
         names = [str(radius) for radius in spec["radii"]]
-    elif spec["kind"] == "edge_pair":
+    elif param == "syn_strength_cell":
         names = pairs_from_connectome(connectome)
-    elif spec["kind"] == "edge":
+    elif param == "syn_strength_edge":
         names = edges_from_connectome(connectome)
     else:
         names = cells_from_connectome(connectome)
@@ -314,7 +314,7 @@ def _remap_node_vals(node_vals, cells, pairs, schema, connectome, *, fill):
     connectome_cells = cells_from_connectome(connectome)
     connectome_pairs = (
         pairs_from_connectome(connectome)
-        if any(spec['kind'] == 'edge_pair' for spec in schema.values())
+        if "syn_strength_cell" in schema
         else []
     )
     cell_idx = dict(zip(cells, range(len(cells))))
@@ -329,11 +329,11 @@ def _remap_node_vals(node_vals, cells, pairs, schema, connectome, *, fill):
         if src is None:
             return vals
         src = np.asarray(src, dtype=np.float64).reshape(-1)
-        if spec['kind'] == 'edge_pair':
+        if param == "syn_strength_cell":
             for pair in connectome_pairs:
                 if pair in pair_idx and pair_idx[pair] < src.shape[0]:
                     vals[connectome_pair_idx[pair]] = float(src[pair_idx[pair]])
-        elif spec['kind'] == 'edge':
+        elif param == "syn_strength_edge":
             if src.shape[0] == n_node:
                 vals[:] = src
         elif spec.get("radii") is not None:
@@ -381,19 +381,19 @@ def _vals_from_z_slice(spec, z_slice):
     return vals
 
 
-def _expand_param(spec, vals, connectome):
-    """Map per-node vals to a usable parameter tensor, per its 'kind'.
+def _expand_param(param, spec, vals, connectome):
+    """Map packed vals to the tensor consumed by dynamics.
 
-    ``node``: ``(n_cell,)`` → ``(n_node,)`` via ``conn.node_cells``.
-    ``output`` / ``edge_pair`` / ``edge``: vals already full-w.
+    Per-cell neuron params: ``(n_cell,)`` → ``(n_node,)`` via ``conn.node_cells``.
+    ``a_gt`` / ``bias_gt`` stay ``(n_cell,)``; syn / ``a_sti_radius`` stay full-w.
     """
-    kind = spec['kind']
     device = connectome.conn.node_cells.device
-    if kind == 'node':
-        return vals[connectome.conn.node_cells].to(device)
-    if kind in ('output', 'edge_pair', 'edge'):
+    if (
+        param in ("a_gt", "bias_gt", "syn_strength_cell", "syn_strength_edge")
+        or spec.get("radii") is not None
+    ):
         return vals.to(device)
-    raise ValueError(f"unknown param kind: {kind}")
+    return vals[connectome.conn.node_cells].to(device)
 
 
 def assign_params(z, schema, connectome):
@@ -401,7 +401,7 @@ def assign_params(z, schema, connectome):
     params = {}
     for param, spec, start, stop in schema_params(schema):
         params[param] = _expand_param(
-            spec, _vals_from_z_slice(spec, z[start:stop]), connectome,
+            param, spec, _vals_from_z_slice(spec, z[start:stop]), connectome,
         )
     return params
 
@@ -484,7 +484,7 @@ def override_params(z, schema, session, param_vals=None):
         spec = schema.get(param)
         if spec is None:
             raise ValueError(f"param_vals {param}: unknown param (have {sorted(schema)})")
-        _, node_from = _param_names(spec, session.connectome)
+        _, node_from = _param_names(param, spec, session.connectome)
         if isinstance(bag, dict):
             rows = []
             for name, val in bag.items():

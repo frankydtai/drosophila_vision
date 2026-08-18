@@ -7,19 +7,120 @@ import os
 import numpy as np
 import torch
 import hydra
+import matplotlib.pyplot as plt
 
 import import_bootstrap  # noqa: F401
 import train
 from task.spot.sti_geo import resolve_spot
 from figure import moving_bar
 from figure import spot
+from figure import spread
 from figure.panel import (
     network_hex_count,
     filter_figure_token,
     session_filter_figure_token,
+    ElapsedTimer,
+    plot_cost_figure,
+    plot_cost_total,
 )
 from train.session import run_data_dir
 from train.implementation import resolve_run_dir
+from network.construction import CELL_ROWS, cell_rows
+
+
+def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
+    """Plot train cost; delegates part parsing to task figure modules."""
+    from itertools import cycle, islice
+
+    timer = ElapsedTimer()
+    timer.end_prep()
+    if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
+        raise ValueError("plot_cost requires non-empty `costs`")
+
+    if not costs_by_part:
+        plot_cost_total(costs, path, timer=timer)
+        return
+
+    part_keys = list(part_order) if part_order else list(costs_by_part.keys())
+    part_keys = [key for key in part_keys if key in costs_by_part and len(costs_by_part[key])]
+
+    if not part_keys:
+        plot_cost_total(costs, path, timer=timer)
+        return
+
+    spot_radii = set()
+    pd_nd_labels = set()
+    other_series_order = []
+    other_series_seen = set()
+    curves_by_cell = {}
+    curves_global = []
+
+    for part_key in part_keys:
+        curve = np.asarray(costs_by_part[part_key], dtype=np.float64)
+        if curve.size == 0:
+            continue
+
+        parsed = spot.spot_cost_curve(part_key, curve)
+        if parsed is not None:
+            cell, series, label, curve = parsed
+            spot_radii.add(series[1])
+            curves_by_cell.setdefault(cell, []).append((series, label, curve))
+            continue
+
+        parsed = moving_bar.moving_bar_cost_curve(part_key, curve)
+        if parsed is not None:
+            cell, series, label, curve = parsed
+            pd_nd_labels.add(series[1])
+            if cell is None:
+                curves_global.append((series, label, curve))
+            else:
+                curves_by_cell.setdefault(cell, []).append((series, label, curve))
+            continue
+
+        series = ("other", part_key)
+        if series not in other_series_seen:
+            other_series_seen.add(series)
+            other_series_order.append(series)
+        known_cell = {name for row in CELL_ROWS for name in row}
+        matches = [cell for cell in known_cell if cell and cell in part_key]
+        if matches:
+            cell = max(matches, key=len)
+            curves_by_cell.setdefault(cell, []).append((series, part_key, curve))
+        else:
+            curves_global.append((series, part_key, curve))
+
+    palette = list(plt.get_cmap("tab20").colors)
+    series_order = []
+    for radius in sorted(spot_radii, key=lambda value: (isinstance(value, float), value)):
+        series_order.append(("spot_radius", radius))
+
+    pd_nd_label_order = [
+        pd_nd_label for pd_nd_label in ("PD", "ND", "DSI") if pd_nd_label in pd_nd_labels
+    ]
+    extra_pd_nd = sorted([
+        pd_nd_label for pd_nd_label in pd_nd_labels if pd_nd_label not in pd_nd_label_order
+    ])
+    pd_nd_label_order.extend(extra_pd_nd)
+    for pd_nd_label in pd_nd_label_order:
+        series_order.append(("moving_bar_pd_nd", pd_nd_label))
+
+    series_order.extend(other_series_order)
+
+    color_from_series = dict(zip(
+        series_order, islice(cycle(palette), len(series_order)),
+    ))
+
+    rows = cell_rows(sorted(curves_by_cell.keys()))
+    plot_cost_figure(
+        costs,
+        path,
+        curves_by_cell=curves_by_cell,
+        curves_global=curves_global,
+        series_order=series_order,
+        color_from_series=color_from_series,
+        rows=rows,
+        timer=timer,
+    )
 
 
 def _plot_device_label():
@@ -34,6 +135,14 @@ def spot_readout_fns(session):
         spot.network_spot_trace_readout,
         spot.plot_network_spot_gt,
         spot.plot_network_spot_all,
+    )
+
+
+def spread_readout_fns(session):
+    return (
+        spread.network_spread_trace_readout,
+        spread.plot_network_spread_gt,
+        spread.plot_network_spread_all,
     )
 
 
@@ -364,14 +473,63 @@ def _stored_cost_parts(outdir):
 
 
 def _plot_path(outdir, stem, file_suffix="", *, html=False):
-    from figure.panel import figure_file_ext
-
-    return os.path.join(outdir, f"{stem}{file_suffix}{figure_file_ext(html=html)}")
+    return os.path.join(outdir, f"{stem}{file_suffix}{'.html' if html else '.png'}")
 
 
 def _readout_figure_stem(prefix, session):
     """``spot_gt_v`` / ``spot_gt_ca`` (filter chooses ``v`` or ``ca``, not both)."""
     return f"{prefix}_{session_filter_figure_token(session)}"
+
+
+def _plot_spread_tasks(session, z, outdir, suffix, model_all,
+                       gts=None,
+                       file_suffix="", html=False, ms_shown=None,
+                       cost_parts=None):
+    """Plot spread; both contrasts in one figure when session has bright and dark."""
+    build_readout, plot_gt, plot_all = spread_readout_fns(session)
+    figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
+    token = session_filter_figure_token(session)
+    readout_kwargs = dict(ms_shown=ms_shown)
+    contrasts = tuple(session.contrasts)
+    if set(contrasts) >= {"bright", "dark"}:
+        readouts = {
+            contrast: build_readout(
+                session_from_task(session, "spread", contrast), z, **readout_kwargs,
+            )
+            for contrast in ("bright", "dark")
+        }
+        mvd = _plot_path(outdir, _readout_figure_stem('spread_gt', session), file_suffix, html=html)
+        plot_gt(
+            mvd, readouts=readouts,
+            title=f'Spread {token}-gt ({suffix})',
+            **figure_kwargs,
+        )
+        allc = None
+        if model_all:
+            allc = _plot_path(outdir, _readout_figure_stem('spread_all', session), file_suffix, html=html)
+            plot_all(
+                allc, readouts=readouts,
+                title=f'Spread {token}-all ({suffix})',
+                **figure_kwargs,
+            )
+        return mvd, allc
+    for contrast in contrasts:
+        one = session_from_task(session, "spread", contrast)
+        readout = build_readout(one, z, **readout_kwargs)
+        readouts = {contrast: readout}
+        mvd = _plot_path(outdir, _readout_figure_stem('spread_gt', session), file_suffix, html=html)
+        plot_gt(
+            mvd, readouts=readouts,
+            title=f'spread {contrast} {token}-gt ({suffix})',
+            **figure_kwargs,
+        )
+        if model_all:
+            allc = _plot_path(outdir, _readout_figure_stem('spread_all', session), file_suffix, html=html)
+            plot_all(
+                allc, readouts=readouts,
+                title=f'spread {contrast} {token}-all ({suffix})',
+                **figure_kwargs,
+            )
 
 
 def _plot_spot_tasks(session, z, outdir, suffix, model_all,
@@ -558,6 +716,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
     if plot_tasks is not None:
         tasks = [t for t in tasks if t in plot_tasks]
 
+    has_spread = "spread" in tasks
     has_spot = "spot" in tasks
     has_moving_bar = "moving_bar" in tasks
     if (at_x is not None or at_y is not None) and not has_moving_bar and not has_spot:
@@ -570,6 +729,15 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
         if not has_moving_bar:
             raise SystemExit('--align-xy applies to moving_bar overlay plots only')
 
+    if has_spread:
+        _plot_spread_tasks(
+            session, z, outdir, suffix, model_all,
+            gts=gts,
+            file_suffix=file_suffix,
+            html=html,
+            ms_shown=ms_shown,
+            cost_parts=cost_parts,
+        )
     if has_spot:
         _plot_spot_tasks(
             session, z, outdir, suffix, model_all,
@@ -716,7 +884,6 @@ def plot_trained_run(
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(hydra_config):
     from config import (
-        RUN_PATH,
         active_config,
         apply_config,
         resolve_figure_kwargs,
@@ -725,7 +892,7 @@ def main(hydra_config):
 
     apply_config(hydra_config)
     figure_kwargs = resolve_figure_kwargs(hydra_config)
-    outdir = resolve_run_dir(RUN_PATH)
+    outdir = resolve_run_dir(active_config()["run_path"])
     session_kwargs = session_kwargs_from_cli(hydra_config)
     plot_trained_run(
         outdir,

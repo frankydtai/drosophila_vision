@@ -175,7 +175,7 @@ Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angula
 ### `gt` / `gts`
 
 Definition: Ground truth target signal(s) used as the train/evaluation reference (e.g. spot/moving-bar response waveforms), and the cell set that participates in the train cost via those targets.
-- ``gt`` (singular): one target waveform — one entry’s `(T,)` trace, one cell’s one-radius curve, a spot cell’s `(RF_N_RADII, n_t)` gt, or a plot series that draws a single GT line.
+- ``gt`` (singular): one target waveform — one entry’s `(T,)` trace, one cell’s one-radius curve, a spot cell’s `(RF_N_RADII, n_t)` gt, or a plot line that draws a single GT waveform.
 - ``gts`` (plural): a stack/bag of those waveforms — Pack/SpotGt/MovingBarGt field ``gts`` shaped `(n_cost, T')`, or any `(n, T)` / `(n_cell, …)` tensor that holds multiple gt rows.
 - Cost cell set: ``gt_cells`` / ``GT_CELLS`` / ``active_gt_cells`` — cell types optimized against gt (not a separate ``fit`` concept).
 Example: `gts = torch.cat([pack.gts, extra_gts], dim=0)`, `pack.gts`, `_gather_cost_time(..., gts)`, `load_gt(...)`, `spot_gts(...)`, `gt_cells`, `GT_CELLS`
@@ -239,7 +239,7 @@ Forbidden: ``n_iter_done``. Library ``torch.optim.Adam`` key ``step`` may remain
 
 Definition: A lookup table from one key space to another — a dict or idx lookup. **Quantity conversion** (different roles/types) uses ``_from_`` with a real result noun that is not bare ``idx`` (``node_from_id``, ``t_from_ms``, ``cell_from_node``, ``cell_idx_from_node_id``). **Label→position tables** (same axis vocabulary → int position) are named ``<noun>_idx`` (lookup ``cell_idx[cell]``), not ``idx_from_<noun>``. **Same quantity keyed by a subset axis** uses ``_by_`` (`nodes_by_cell`) — see ``### _by_`` / ``### _from_``.
 Example: `cell_from_node(nodes_by_cell)` → `dict[int, str]`; `node_from_id`; `cell_idx = {cell: i for i, cell in enumerate(cells)}`; `cell_idx_from_node_id`
-Forbidden: `_to_` in map names (`node_to_cell`, `id_to_node`, `name_to_i`). Bare ``idx_from_*`` (see ``### idx``). Do not use `name` / `names` in map identifiers — use the real source noun (`cell`, `param`, `radius`, …).
+Forbidden: `_to_` in map names (`node_to_cell`, `id_to_node`, `name_to_i`). Bare ``idx_from_*`` (see ``### idx``). Do not use `name` / `names` in map identifiers — use the real source noun (`cell`, `param`, `radius`, …). **Forbidden type/container naming token ``dict`` / ``*_dict`` (project-wide):** never in project identifiers for a bag or lookup (``load_config_dict``, ``config_dict``, ``expand_gt_dict``, ``_plotly_face_color_dict``, ``<role>_dict``, …) — name the domain bag (``<noun>_idx``, ``<quantity>_by_<subset>``, ``<role>_kwargs``, ``opts``, ``config``, plural nouns); Python builtin ``dict(...)``, type hints ``dict[...]``, and library APIs (``state_dict``, ``dict.setdefault``) may remain at call sites only.
 
 ### `mask` / `masks`
 
@@ -310,8 +310,8 @@ Forbidden: `output` for persisted run files or sidecar tables — use `data`. Do
 
 ### `overlay` / `overlays`
 
-Definition: Figure-layer bag of secondary labeled curves drawn beside the scope mean — one entry per selected hex / ``(x,y)`` from ``--x``/``--y`` — not the main scope average and not a time-axis cut.
-Example: `overlay[label]`, `_spot_overlay(...)`, `_moving_bar_overlay_traces(...)`, `has_overlays`, subtitle `overlay + scope`, `overlay_reds(n_overlay)`
+Definition: Figure-layer bag of secondary labeled curves drawn beside the hexes aggregate — one entry per selected hex / ``(x,y)`` from ``--x``/``--y`` — not the main hexes aggregate and not a time-axis cut.
+Example: `overlay[label]`, `_spot_overlay(...)`, `_moving_bar_overlay_traces(...)`, `has_overlays`, subtitle `overlay + hexes`, `overlay_reds(n_overlay)`
 Forbidden: `slice` / `slice_overlay` / `slice_xs` (etc.) for this role — that is time-axis ``slice`` only. Do not use `overlay` for analyze multi-`report` co-plot mode — use `compare` / `multi_report` / `reports_by_cell`. Do not use `overlay` for cost-window coordinate remap — use ``_cost_window_xy``.
 
 ### `pack` / `packs`
@@ -387,7 +387,7 @@ Example: `for i in range(n_run): ...`
 
 ### `schema` / `schemas`
 
-Definition: Ordered ``dict[param, spec]`` describing how params are packed into the trainable space `z` and decoded back. ``spec`` holds packing fields (``kind``, ``init``, ``modes``, ``z_mode``, …) with no self-id ``"param"`` field. Param attribute ``z_mode`` ∈ ``{linear, log, inv}`` selects the z↔param encoding (not a numeric multiplier).
+Definition: Ordered ``dict[param, spec]`` describing how params are packed into the trainable space `z` and decoded back. ``spec`` holds packing fields (``init``, ``modes``, ``z_mode``, …) with no self-id ``"param"`` field. Param attribute ``z_mode`` ∈ ``{linear, log, inv}`` selects the z↔param encoding (not a numeric multiplier).
 Example: `for param, spec, start, stop in schema_params(schema): ...`, `spec.get("z_mode", "linear")`, `param_from_z`, `z_from_param`
 Forbidden: do not use ``scale`` or ``z_map`` for the z↔param encoding key — that is ``z_mode``. Do not use ``physical`` for the decoded param value. Do not use ``segment`` / ``segments`` for schema elements — that is ``param`` / ``params``. Do not keep a list-of-dicts schema with ``spec["param"]``.
 
@@ -402,20 +402,21 @@ Forbidden: ``column`` (for CSV); ``key`` / ``param_key`` (for YAML param fields)
 Definition: A sub-option under a named parent — never the parent itself. Identifiers must use ``<parent>_key`` / ``<parent>_keys``; bare ``key`` / ``keys`` as project naming tokens are forbidden.
 - ``param_key``: which attribute under a ``param`` a YAML / Hydra field sets — ``lo`` | ``hi`` | ``jit`` | ``init`` | ``val`` | ``mode`` (not the param name ``a_h``). ``lo``/``hi`` are the edges of a param ``clamp`` (see ``### clamp``). Per-node bags are ``inits`` / ``los`` / ``his`` / ``jits`` / ``modes`` keyed by cell / radius / pair / edge name (built spec stores ``int`` node). ``shared`` nodes must share one ``lo``, one ``hi``, and one ``jit``. Leftover ``mode`` applies to unlisted nodes; ``modes`` holds exceptions only.
 - ``i_sti_key`` / ``I_STI_KEYS``: bright / baseline / dark slots of ``i_sti``.
-Example: `params.a_h.inits.L1=0.5` → param ``a_h``, param_key ``init``; `I_STI_KEYS`
-Forbidden: bare ``key`` / ``keys`` in project identifiers. Calling a ``param`` (``a_h``) a ``key`` / ``param_key``. ``field`` (for YAML param fields); CSV ``field``. Do not call the param token ``NAME`` / ``name`` in project identifiers. Do not use ``tag`` / ``_tag`` / ``*_tag`` as a CLI / opts / parse-grammar atom — that is ``token``; e.g. ``parse_<x>_tag`` → ``parse_<x>``, filename stem ``<x>_tag`` → ``<x>_token``.
+- ``gt_report_key``: which GT field on an analyze ``report`` — ``gt_v`` | ``gt_ca``.
+Example: `params.a_h.inits.L1=0.5` → param ``a_h``, param_key ``init``; `I_STI_KEYS`; report GT field ``gt_report_key`` (``gt_v`` / ``gt_ca``)
+Forbidden: bare ``key`` / ``keys`` in project identifiers. Calling a ``param`` (``a_h``) a ``key`` / ``param_key``. ``field`` (for YAML param fields); CSV ``field``. Do not call the param token ``NAME`` / ``name`` in project identifiers. Do not use ``tag`` / ``_tag`` / ``*_tag`` as a CLI / opts / parse-grammar atom — that is ``token``; e.g. ``parse_<x>_tag`` → ``parse_<x>``, filename stem ``<x>_tag`` → ``<x>_token``. Do not name a report GT field ``gt_series`` — that is ``gt_report_key``.
 
 ### `kwarg` / `kwargs`
 
 Definition: Named keyword-argument bag forwarded into a callee (``dict`` or ``**`` unpack) — not CLI / session ``opt`` / ``opts``. Singular ``kwarg`` is the concept; plural ``kwargs`` is the bag, catch-all parameter, or collection of such bags. Compounds always use plural ``<role>_kwargs`` (``figure_kwargs``, ``timing_kwargs``). Catch-all signature form is always ``**kwargs`` (never ``**kw``).
 Example: `resolve_figure_kwargs(args)`, `figure_kwargs`, `resolve_train_kwargs`, `resolve_run_kwargs`, `**kwargs`, `run_train_and_plot(**kwargs)`
-Forbidden: `kw` as a naming token (`figure_kw`, `timing_kw`, bare `kw`, `_take_figure_kw`, `**kw`, …). Do not use `opt` / `opts` for a forwarding bag. Do not use `args` for this bag (`args` is the argparse namespace). Library API spellings that literally require a key named `subplot_kw` / `gridspec_kw` may remain only at that library call-site key; project locals / params still use `*_kwargs`.
+Forbidden: `kw` as a naming token (`figure_kw`, `timing_kw`, bare `kw`, `_take_figure_kw`, `**kw`, …). Do not use `opt` / `opts` for a forwarding bag. Do not use `args` for this bag (`args` is the argparse namespace). Do not suffix forwarded callee bags with ``_dict`` — use ``<role>_kwargs`` (see ``### map`` for other bag roles). Library API spellings that literally require a key named `subplot_kw` / `gridspec_kw` may remain only at that library call-site key; project locals / params still use `*_kwargs`.
 
 ### `label` / `labels`
 
 Definition: Human-facing display name of a figure / report series, overlay, snapshot stage, axis, formula fragment, or console row — the string shown to the reader and, when used as a bag key, the same string. Singular ``label`` is one such name; plural ``labels`` is the ordered bag.
 Example: `overlay[label]`, `overlay_labels`, `labels = ("start", "mid", "exit")`, `_BLACK_TRACE_LABELS`, `baseline_label`, formula row ``for label, series in formula``, `axis_label` returning a display ``label``.
-Forbidden: ``text`` / ``*_text`` as project identifiers (library ``ax.text`` / ``get_text`` / ``set_text`` / ``write_text`` / plotly kwargs ``text=`` may remain). Do not use ``label`` as the raw CLI / opts parse input — that is ``token``. Do not use ``label`` for connectome types (``cell``), CSV columns (``field``), or param-axis CLI ids. When a formula tuple pairs a drawn string with a color-source curve name, the drawn string is ``label`` and the color source is ``series`` (not a second ``label``). Do not use ``tag`` / ``_tag`` / ``*_tag`` / ``*tag*`` for any human-facing display string, figure/report series name, overlay key, snapshot stage, axis label, or display dedup-suffix — that is ``label`` (e.g. ``hex_scope_tag`` → ``hex_scope_label``, ``_network_spot_tag`` → ``_network_spot_label``, ``row_tag`` → ``row_label``, ``panel_tag`` → ``panel_label``, ``radius_tag`` → ``radius_label``, ``*_display_tag`` → ``*_display_label``).
+Forbidden: ``text`` / ``*_text`` as project identifiers (library ``ax.text`` / ``get_text`` / ``set_text`` / ``write_text`` / plotly kwargs ``text=`` may remain). Do not use ``label`` as the raw CLI / opts parse input — that is ``token``. Do not use ``label`` for connectome types (``cell``), CSV columns (``field``), or param-axis CLI ids. When a formula tuple pairs a drawn string with a color-source curve name, the drawn string is ``label`` and the color source is ``series`` (not a second ``label``). Do not use ``tag`` / ``_tag`` / ``*_tag`` / ``*tag*`` for any human-facing display string, figure/report series name, overlay key, snapshot stage, axis label, or display dedup-suffix — that is ``label`` (e.g. ``hex_scope_tag`` → ``at_xy_label``, ``_network_spot_tag`` → ``_network_spot_label``, ``row_tag`` → ``row_label``, ``panel_tag`` → ``panel_label``, ``radius_tag`` → ``radius_label``, ``*_display_tag`` → ``*_display_label``).
 
 ### `list` / `lists`
 
@@ -448,6 +449,12 @@ Forbidden: `second` / `seconds` as naming tokens (spell the unit ``s``, as ``ms`
 Definition: A non-``a_*`` multiplicative coefficient — how much a quantity counts or is stretched outside network ``a_*`` params. Primary uses: cost contribution (`cost_scales`, `part_cost_scales`, `dsi_scales`, `spot_cost_radius_scale`, `_part_scale`), RF coefficients (`RF_surrnd_scale`), and other non-edge multipliers. Compounds: `<role>_scale` / plural bag `scales` / `part_cost_scales`.
 Example: `pack.cost_scales`, `session.part_cost_scales`, `--part-cost-scale`, `SPOT_COST_RADIUS_SCALE`, `_scaled_cost_from_parts`, `backward_part_sums`
 Forbidden: `weight` for this role (`cost_weight`, …); `factor`; `gain`. Do not use `scale` for network params — use `a_*`. Do not use `scale` for edge synaptic strength — use `weight` / `edge_weights`. Do not use `scale` for schema z↔param encoding — use `z_mode`. Do not use `scale` for Euler \(\Delta t/\tau\) step factors (`hp_scale`, `lp_scale`, `*_alpha`, …) — write the implicit|explicit update with \(\Delta t/\tau\) directly. Library matplotlib `yscale` / `set_yscale` may remain.
+
+### `series`
+
+Definition: Figure / analyze curve identity key paired with ``label`` — selects plot color, a component-step field, or a cost-curve family. Singular ``series`` is one such key (a string token or a typed tuple). Not the waveform data and not the human-facing legend string.
+Example: `for label, series in formula`, `color_from_series[series]`, `("spot_radius", radius)`, `step[series]`
+Forbidden: ``label`` for this role; ``trace`` / ``traces`` for the color key. Do not use ``series`` for a ``list[dict]`` contrast plot bag — that is ``traces`` (see ``### trace``). Do not use ``series`` for a report GT field name (``gt_v`` / ``gt_ca``) — that is ``gt_report_key`` (see ``### key``).
 
 ### `session` / `sessions`
 
@@ -526,8 +533,9 @@ Forbidden: do not use for cardinalities (`n_*`), sum bags (`sums`), plot scope/a
 
 ### `trace` / `traces`
 
-Definition: A time sequence of a signal (e.g., voltage readout waveform) represented as a tensor over time idxs.
-Example: `trace, onset_trace = _forward_readout_and_onset_trace(...)`
+Definition: A time sequence of a signal (e.g., voltage readout waveform) represented as a tensor over time idxs. Plural ``traces`` is a bag of those sequences, including a figure-layer contrast plot bag (``list[dict]`` with ``v_readout`` / ``gt`` / ``std`` / ``ts``).
+Example: `trace, onset_trace = _forward_readout_and_onset_trace(...)`, `plot_timecourse(..., traces)`, `traces_with_cost_ts(traces, readouts)`
+Forbidden: ``series`` for a contrast plot bag or a time-sequence waveform — that is ``traces`` / ``trace``. The color / identity key paired with ``label`` is ``series`` (see ``### series``).
 
 ### `train`
 
@@ -609,7 +617,7 @@ Forbidden: `make` — use `build` instead.
 
 Definition: Expand shorthand/alias inputs into a concrete list/dictionary of explicit targets.
 Example: `tl = expand_tasks(list(tasks))`, `expand_gt(...)`, `expand_part_cost_scale(...)`
-Forbidden: suffixing expanders with ``_dict`` (`expand_gt_dict`, `expand_part_cost_scale_dict`, …) — ``expand`` already yields the concrete bag. Comma-list CLI shape uses ``expand_<cli_name>_list`` only (see ``### list``). Do not use ``expand`` for enum validation or non-alias coerce (`standardize` / `parse`).
+Forbidden: suffixing expanders with ``_dict`` (`expand_gt_dict`, `expand_part_cost_scale_dict`, …) — ``expand`` already yields the concrete bag (general ``*_dict`` bag naming — see ``### map``). Comma-list CLI shape uses ``expand_<cli_name>_list`` only (see ``### list``). Do not use ``expand`` for enum validation or non-alias coerce (`standardize` / `parse`).
 
 ### `inject`
 
