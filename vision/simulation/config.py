@@ -145,14 +145,6 @@ def _bind_config(config_dict: dict) -> None:
         "y": config_dict.get("y"),
         "align_xy": config_dict.get("align_xy"),
         "ms_shown": config_dict.get("ms_shown"),
-        "euler": config_dict.get("plot_euler"),
-        "filter": config_dict.get("plot_filter"),
-        "ms_pre": config_dict.get("plot_ms_pre"),
-        "ms_sti": config_dict.get("plot_ms_sti"),
-        "ms_response": config_dict.get("plot_ms_response"),
-        "ms_post": config_dict.get("plot_ms_post"),
-        "delta_ms": config_dict.get("plot_delta_ms"),
-        "delta_ms_pre": config_dict.get("plot_delta_ms_pre"),
     }
     FIGURE_PLOT_STI_SPOT = {
         "spot_radii": config_dict.get("spot_radii"),

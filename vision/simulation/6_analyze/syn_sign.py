@@ -355,10 +355,10 @@ def save_syn_sign_figures(outdir, *, post=False, bins=None) -> None:
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
-def main(cfg) -> None:
+def main(hydra_config) -> None:
     from config import apply_config
 
-    apply_config(cfg)
+    apply_config(hydra_config)
     post = bool(ANALYZE_SYN_SIGN["post"])
     bins = int(ANALYZE_SYN_SIGN["bins"])
     for run in ANALYZE_RUNS:

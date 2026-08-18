@@ -165,8 +165,8 @@ def plot_multi_spot_tiling(
 
 
 @hydra.main(version_base=None, config_path="../../conf", config_name="config")
-def main(cfg) -> None:
-    apply_config(cfg)
+def main(hydra_config) -> None:
+    apply_config(hydra_config)
     plot_multi_spot_tiling(
         network=str(NETWORK_PATH["network"]),
         spot_radii=FIGURE_PLOT_STI_SPOT.get("spot_radii") or [0.5, 1.0, 1.5, 2.0],

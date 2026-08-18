@@ -723,13 +723,10 @@ def _forward_spot_readout(
 ):
     """One forward; cost-radius node readout over all network types."""
     pack = session.primary_pack
-    schema = train.schema_copy(session.schema)
-    params = train.override_val_from(
-        train.assign_params(z, schema, session.connectome), session,
-    )
+    params = train.params_from_z(z, session)
     a_sti_radius = {}
     if "a_sti_radius" in params:
-        spec = schema.get("a_sti_radius")
+        spec = session.schema.get("a_sti_radius")
         if spec is not None:
             radii = [str(n) for n in (spec.get("radii") or ())]
             raw = params["a_sti_radius"].detach().cpu().numpy().reshape(-1)
@@ -738,14 +735,7 @@ def _forward_spot_readout(
                 radii[:n_radius], map(float, raw[:n_radius]),
             ))
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    v = train.forward_v(session, params, i_sti, pack=pack)
-    t0 = train.pack_t_onset(pack)
-    if str((session.train_opts or {}).get("filter", "none")) == "ca":
-        v_ca = train.v_ca_from_v(v, params, session)
-        trace = train.ca_from_v_ca(v_ca, params, session, t_onset=t0)
-    else:
-        trace = v
-    train.override_val_from(params, session, onset_trace=trace, t_onset=t0)
+    trace = train.forward_pack(session, params, i_sti, pack)
     connectome = session.connectome
     cells = list(connectome.cells)
     mt = int(i_sti.shape[1])
@@ -984,7 +974,10 @@ def _plot_spot_figure(
     gt_by_contrast = resolve_spot_gts(sessions, gts)
 
     center_only = bool(primary.center_only)
-    radii = _trained_radii(cost_parts, order, center_only=center_only)
+    part_keys = list(cost_parts or ()) or list(
+        train.session_cost_part_keys(primary.session)
+    )
+    radii = _trained_radii(part_keys, order, center_only=center_only)
     center_radius = int(RF_CENTER_RADIUS)
     order_hs = [
         1 + len(radii) for _ in rows

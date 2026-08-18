@@ -115,11 +115,8 @@ def v_spot_markers_by_cell(z, session):
 
     Uses ``session.primary_pack`` sti (``i_sti`` + ``pack_t_onset``).
     """
-    schema = train.schema_copy(session.schema)
     z = torch.as_tensor(z, dtype=session.sim_dtype, device=session.device)
-    params = train.override_val_from(
-        train.assign_params(z, schema, session.connectome), session,
-    )
+    params = train.params_from_z(z, session)
     pack = session.primary_pack
     i_sti = session.pack_i_sti(pack)
     t_onset = train.pack_t_onset(pack)
@@ -131,6 +128,9 @@ def v_spot_markers_by_cell(z, session):
         )
         v_ca = train.v_ca_from_v(v, params, session) if use_ca else None
         ca = train.ca_from_v_ca(v_ca, params, session, t_onset=t_onset) if use_ca else None
+        train.override_val_from(
+            params, session, onset_trace=ca if use_ca else v, t_onset=t_onset,
+        )
     # v: (B, T, N)
     n_t = int(v.shape[1])
     if t_onset < 0 or t_onset >= n_t:

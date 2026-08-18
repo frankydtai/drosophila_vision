@@ -187,14 +187,6 @@ x: null
 y: null
 align_xy: null
 ms_shown: null
-plot_euler: null
-plot_filter: null
-plot_ms_pre: null
-plot_ms_sti: null
-plot_ms_response: null
-plot_ms_post: null
-plot_delta_ms: null
-plot_delta_ms_pre: null
 
 # ---------------------------------------------------------------------------
 # 6   analyze

@@ -13,32 +13,38 @@ Checks
 * ``drift``: linear trend on ``--ms-shown`` (rising / falling / none)
 * ``stability``: osc → drift → flat priority on ``--ms-shown``
 
-``--param`` / ``--filter`` reuse ``figure.plot`` (same as cell_dynamics).
+``param_tokens=[...]`` and Hydra keys already in ``config.yaml`` (``euler`` /
+``filter`` / ``ms_pre`` / …) rebuild the session in memory via
+``figure.plot.override_session``; they do not write ``train_opts.json``.
+Keys omitted on the Hydra CLI keep the run's train opts.
+
 Usage (from ``vision/simulation/``)::
 
-    ../.venv/bin/python 6_analyze/trace.py \\
-      --run hp_lp/28693664-... --check oscillation --ms-shown 0,1000
+    ../.venv/bin/python -m analyze.trace \\
+      check=oscillation ms_shown=0,1000
 
-    ../.venv/bin/python 6_analyze/trace.py \\
-      --check flat --filter ca --ms-shown 1000,1100 \\
-      --baseline-ms-shown 800,1000
+    ../.venv/bin/python -m analyze.trace \\
+      check=flat filter=ca ms_shown=1000,1100 baseline_ms_shown=800,1000
 
-    ../.venv/bin/python 6_analyze/trace.py \\
-      --run hp_lp/28704173-... --check stability --ms-shown 0,1000 \\
-      --baseline-ms-shown 0,200
+    ../.venv/bin/python -m analyze.trace \\
+      analyze_runs=hp_lp/28704173-... check=stability ms_shown=0,1000 \\
+      baseline_ms_shown=0,200
 
-    ../.venv/bin/python 6_analyze/trace.py \\
-      --run hp_lp/28704173-... --check drift --ms-shown 0,1000 \\
-      --cells TmY11,Mi1,Tm3 --param a_slow.TmY11=1 a_slow.Mi1=1 a_slow.Tm3=1
+    ../.venv/bin/python -m analyze.trace \\
+      analyze_runs=hp_lp/28704173-... check=drift ms_shown=0,1000 \\
+      cells=TmY11,Mi1,Tm3 'param_tokens=[a_slow.TmY11=1,a_slow.Mi1=1,a_slow.Tm3=1]'
 """
 from __future__ import annotations
 
 from config import (
+    ANALYZE_CELL_DYNAMICS,
+    ANALYZE_RUNS,
     ANALYZE_TRACE,
-    RUN_PATH,
+    FIGURE_PLOT,
+    TRAIN_CONFIG,
+    parse_cells,
 )
 
-import argparse
 import csv
 import os
 import sys
@@ -50,6 +56,7 @@ if ROOT not in sys.path:
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
+import hydra
 import numpy as np
 import torch
 
@@ -57,7 +64,7 @@ import figure.plot as plot
 import train
 from analyze.cell_dynamics import TimeWindow, analyze_spot_average
 from import_bootstrap import parse_comma_list
-from train.cli import resolve_sti_timing_kwargs
+from train.cli import session_kwargs_from_cli
 
 CHECK_OSCILLATION = "oscillation"
 CHECK_FLAT = "flat"

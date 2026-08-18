@@ -395,19 +395,8 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
     """Run one forward; t_first_sti-aligned v_readout traces."""
     t_prep0 = time.perf_counter()
     pack = session.packs[task][contrast]
-    schema = train.schema_copy(session.schema)
-    params = train.override_val_from(
-        train.assign_params(z, schema, session.connectome), session,
-    )
-    v = train.forward_v(session, params, pack.i_sti, pack=pack)
-    t0 = train.pack_t_onset(pack)
-    if str((session.train_opts or {}).get("filter", "none")) == "ca":
-        v_ca = train.v_ca_from_v(v, params, session)
-        plot_t = train.ca_from_v_ca(v_ca, params, session, t_onset=t0)
-    else:
-        v_ca = None
-        plot_t = v
-    train.override_val_from(params, session, onset_trace=plot_t, t_onset=t0)
+    params = train.params_from_z(z, session)
+    plot_t = train.forward_pack(session, params, pack.i_sti, pack)
     trace = plot_t.detach().cpu().numpy()
     specs = bar_specs_from_task(session, task)
     spec_tokens = [spec.token for spec in specs]

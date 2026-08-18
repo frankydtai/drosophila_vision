@@ -199,11 +199,11 @@ def override_session(
         return session, z, {}
 
     if delta_ms is not None and float(delta_ms) <= 0:
-        raise SystemExit(f"plot_delta_ms={delta_ms} must be > 0")
+        raise SystemExit(f"delta_ms={delta_ms} must be > 0")
     if delta_ms_pre is not None and float(delta_ms_pre) <= 0:
-        raise SystemExit(f"plot_delta_ms_pre={delta_ms_pre} must be > 0")
+        raise SystemExit(f"delta_ms_pre={delta_ms_pre} must be > 0")
     if ms_post is not None and float(ms_post) < 0:
-        raise SystemExit("plot_ms_post must be >= 0")
+        raise SystemExit("ms_post must be >= 0")
 
     opts = load_train_opts(run_dir)
     if opts is None:
@@ -285,11 +285,20 @@ def euler_filename_suffix(euler=None):
     return _suffix(euler)
 
 
-def _figure_cost_parts(session, z):
-    """Unscaled per-part costs at ``z`` for panel titles."""
-    with torch.no_grad():
-        parts = train.calc_cost_parts(z, session)
-    return {k: float(v.item()) for k, v in parts.items()}
+def _stored_cost_parts(outdir):
+    """Best-run per-part costs from ``costs_by_part.npz`` (no forward)."""
+    import train.implementation as train_mod
+
+    final_costs, _, _, final_costs_by_part = train_mod.load_stored_costs(outdir)
+    if not final_costs_by_part or final_costs is None or len(final_costs) == 0:
+        return {}
+    run_i = int(np.argmin(np.asarray(final_costs)))
+    out = {}
+    for key, arr in final_costs_by_part.items():
+        vals = np.asarray(arr).reshape(-1)
+        if run_i < vals.size:
+            out[key] = float(vals[run_i])
+    return out
 
 
 def _plot_path(outdir, stem, file_suffix="", *, html=False):
@@ -307,11 +316,10 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
                        gts=None,
                        at_x=None, at_y=None, show_pre=True,
                        file_suffix="", html=False, ms_shown=None,
-                       center_only=False):
+                       center_only=False, cost_parts=None):
     """Plot spot; both contrasts in one figure when session has bright and dark."""
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
     net_label = _network_spot_label(session, "spot")
-    cost_parts = _figure_cost_parts(session, z)
     figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
     token = session_filter_figure_token(session)
     readout_kwargs = dict(
@@ -360,9 +368,9 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
 def _plot_bar_readouts(session, z, outdir, suffix, model_all, *,
                       plot_right_only=True, at_x=None, at_y=None,
                       align_at_x=None, align_at_y=None,
-                      show_pre=True, file_suffix="", html=False, ms_shown=None):
+                      show_pre=True, file_suffix="", html=False, ms_shown=None,
+                      cost_parts=None):
     """Plot moving-bar; bright left | dark right when session has both contrasts."""
-    cost_parts = _figure_cost_parts(session, z)
     token = session_filter_figure_token(session)
     readout_kwargs = dict(
         at_xs=at_x, at_ys=at_y,
@@ -427,8 +435,6 @@ def _plot_one_spot(session, z, outdir, contrast, suffix, model_all,
     allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
     net_label = _network_spot_label(session, "spot")
-    if cost_parts is None:
-        cost_parts = _figure_cost_parts(session, z)
     figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
     readout = build_readout(
         session, z,
@@ -459,7 +465,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    show_pre=True, file_suffix="", html=False, ms_shown=None,
-                   center_only=False):
+                   center_only=False, recompute_cost=False):
     import train.implementation as train_mod
 
     os.makedirs(outdir, exist_ok=True)
@@ -480,6 +486,13 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
         params, session, final_costs=final_costs,
     )
     z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
+    if recompute_cost:
+        with torch.no_grad():
+            parts = train.calc_cost_parts(z, session)
+            cost_parts = {k: float(v.item()) for k, v in parts.items()}
+            best_cost = float(train.calc_cost(z, session, parts=parts).item())
+    else:
+        cost_parts = _stored_cost_parts(outdir)
 
     suffix = f'trained, cost {best_cost:.2f}'
     cost_norm = (session.train_opts or {}).get("cost_norm", "a_gt2")
@@ -513,6 +526,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
             html=html,
             ms_shown=ms_shown,
             center_only=center_only,
+            cost_parts=cost_parts,
         )
     if has_moving_bar:
         _plot_bar_readouts(
@@ -524,6 +538,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
+            cost_parts=cost_parts,
         )
 
     if save_data:
@@ -646,6 +661,10 @@ def plot_trained_run(
         param_clamps=param_clamps, param_jits=param_jits,
     )
     session = session.with_schema(schema)
+    recompute_cost = bool(
+        ms_changed or euler is not None or filter is not None
+        or param_inits or param_vals
+    )
     file_suffix = (
         ms_filename_suffix(**ms_changed)
         + euler_filename_suffix(euler)
@@ -663,31 +682,30 @@ def plot_trained_run(
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
         save_data=not (param_inits or param_vals),
+        recompute_cost=recompute_cost,
         **figure_kwargs,
     )
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
-def main(cfg):
+def main(hydra_config):
     from config import (
-        FIGURE_PLOT,
         RUN_PATH,
         active_config,
         apply_config,
         resolve_figure_kwargs,
     )
 
-    apply_config(cfg)
-    figure_kwargs = resolve_figure_kwargs(cfg)
+    apply_config(hydra_config)
+    figure_kwargs = resolve_figure_kwargs(hydra_config)
     outdir = resolve_run_dir(RUN_PATH)
-    from train.cli import plot_ms_kwargs
+    from train.cli import session_kwargs_from_cli
+    session_kwargs = session_kwargs_from_cli(hydra_config)
     plot_trained_run(
         outdir,
         figure_kwargs=figure_kwargs,
-        euler=FIGURE_PLOT.get("euler"),
-        filter=FIGURE_PLOT.get("filter"),
         param_tokens=list(active_config().get("param_tokens") or []),
-        **plot_ms_kwargs(FIGURE_PLOT),
+        **session_kwargs,
     )
 
 

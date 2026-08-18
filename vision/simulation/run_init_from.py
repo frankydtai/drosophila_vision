@@ -25,9 +25,9 @@ from run import run_train_and_plot
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
-def main(cfg) -> None:
+def main(hydra_config) -> None:
     try:
-        kwargs = resolve_run_kwargs(cfg)
+        kwargs = resolve_run_kwargs(hydra_config)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     if not kwargs.get("init_from"):

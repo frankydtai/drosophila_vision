@@ -86,12 +86,12 @@ def run_train_and_plot(**kwargs):
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
-def main(cfg) -> None:
+def main(hydra_config) -> None:
     try:
-        kwargs = resolve_run_kwargs(cfg)
+        kwargs = resolve_run_kwargs(hydra_config)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    print(f"config: {cfg}")
+    print(f"config: {hydra_config}")
     run_train_and_plot(**kwargs)
 
 

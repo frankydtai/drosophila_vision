@@ -35,7 +35,6 @@ pairs. ``gt_power`` is recomputed on the subsample.
 from __future__ import annotations
 
 from config import (
-    NEURON_SCHEMA,
     TRAIN_OPTIMIZATION,
 )
 
@@ -46,10 +45,8 @@ import numpy as np
 import torch
 
 from neuron.forward import (
-    ca_from_v_ca,
-    forward_v,
+    forward_trace,
     pack_t_onset,
-    v_ca_from_v,
 )
 from neuron.readout import (
     pack_needs_waveform_mse,
@@ -155,43 +152,21 @@ def gt_affine_from_nodes(
     return a_gt, bias
 
 
-def _session_bias_gt_val_from(session: TrainSession) -> bool:
-    opts = session.train_opts or {}
-    return val_from_enabled(opts, "bias_gt")
-
-
-def _session_filter(session: TrainSession) -> str:
-    opts = session.train_opts or {}
-    return str(opts.get("filter", NEURON_SCHEMA['filter']))
-
-
-def _forward_readout_and_onset_trace(session, params, i_sti, pack):
-    """``(readout_trace, onset_bias_trace)``; onset uses readout trace."""
-    v = forward_v(session, params, i_sti, pack=pack)
-    if _session_filter(session) != "ca":
-        return v, v
-    t_onset = pack_t_onset(pack)
-    ca = ca_from_v_ca(v_ca_from_v(v, params, session), params, session, t_onset=t_onset)
-    return ca, ca
+def forward_pack(session, params, i_sti, pack):
+    """Readout trace ``(B, T, N)`` then ``val_from`` from onset (mutates ``params``)."""
+    trace = forward_trace(session, params, i_sti, pack=pack)
+    override_val_from(params, session, onset_trace=trace, t_onset=pack_t_onset(pack))
+    return trace
 
 
 def gt_affine_from_pack(
     params,
     pack: Pack,
     session: TrainSession,
-    onset_trace: Optional[torch.Tensor] = None,
     *,
-    b_offset: int = 0,
     b=None,
 ):
-    """Schema ``a_gt`` / ``bias_gt`` after :func:`override_val_from`."""
-    if _session_bias_gt_val_from(session):
-        if onset_trace is None:
-            raise ValueError("val_from bias_gt=v_onset requires onset_trace")
-        override_val_from(
-            params, session, onset_trace=onset_trace, t_onset=pack_t_onset(pack),
-        )
-    _ = b_offset
+    """Schema ``a_gt`` / ``bias_gt`` after :func:`forward_pack` ``val_from``."""
     a_gt, bias_gt = gt_affine_from_nodes(
         params, pack.entry_nodes, session.connectome,
         sim_dtype=session.sim_dtype, session=session,
@@ -709,11 +684,9 @@ def _pack_cost_forward(params, pack: Pack, session: TrainSession, b=None):
         if not bool(mask.any()):
             return None
     i_sti = pack.i_sti if b is None else pack.i_sti[b:b + 1]
-    trace, onset_trace = _forward_readout_and_onset_trace(
-        session, params, i_sti, pack,
-    )
+    trace = forward_pack(session, params, i_sti, pack)
     a_gt, bias_gt = gt_affine_from_pack(
-        params, pack, session, onset_trace, b=b,
+        params, pack, session, b=b,
     )
     pd_nd = pack.cost_pd_nds
     if b is not None:
@@ -769,12 +742,12 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
             else:
                 i_sti = torch.cat([pack.i_sti for pack in fused.packs], dim=0)
             # Compatible packs share t_onset; pass one pack for prepare.
-            trace, onset_trace = _forward_readout_and_onset_trace(
+            trace = forward_pack(
                 session, params, i_sti, fused.packs[0],
             )
             for pack, off in zip(fused.packs, fused.b_offsets):
                 a_gt, bias_gt = gt_affine_from_pack(
-                    params, pack, session, onset_trace, b_offset=off,
+                    params, pack, session,
                 )
                 v_readout, v_readout_dsi = _readout_from_trace(
                     trace, pack, b_offset=off,
@@ -858,8 +831,10 @@ def _scaled_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSessio
     return total / scale_sum
 
 
-def calc_cost(z, session: TrainSession):
-    return _scaled_cost_from_parts(calc_cost_parts(z, session), session)
+def calc_cost(z, session: TrainSession, parts=None):
+    if parts is None:
+        parts = calc_cost_parts(z, session)
+    return _scaled_cost_from_parts(parts, session)
 
 
 def _pack_spec_tokens(session: TrainSession, pack: Pack) -> Tuple[str, ...]:

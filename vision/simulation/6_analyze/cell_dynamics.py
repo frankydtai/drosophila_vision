@@ -55,7 +55,7 @@ from task.spot.sti_geo import (
     resolve_spot,
     spot_sti_bs,
 )
-from train.cli import plot_ms_kwargs
+from train.cli import session_kwargs_from_cli
 from train.cost import node_vals_from_param
 
 __doc__ = """Borst / hp_lp v component analysis.
@@ -67,7 +67,7 @@ Time axis (read this before ``ms_shown`` / ``TimeWindow``)
 ------------------------------------------------------------
 Two *different* knobs — do not mix them:
 
-1. **Stimulus length** (``plot_ms_pre=50`` / ``plot_ms_sti=160`` / …):
+1. **Stimulus length** (``ms_pre=50`` / ``ms_sti=160`` / …):
    rebuilds the session sti (via ``figure.plot.override_session``).
    Unset = keep the run's train opts. These change *how long*
    pre/spot/response *are*, not which slice of an existing trace you plot.
@@ -100,7 +100,7 @@ Programmatic reuse
 * Spot R0 / R1 average: ``analyze_spot_average`` (omit hex; ``radius=0|1``).
 * Spot one hex: ``analyze_spot_hex``.
 * Bar average / hex: ``analyze_bar_average`` / ``analyze_bar_hex``.
-* Load run: ``figure.plot.load_best`` + ``assign_params``; do not invent a
+* Load run: ``figure.plot.load_best`` + ``params_from_z``; do not invent a
   second forward path.
 
 Hydra (from ``simulation/``)
@@ -114,8 +114,9 @@ Default run is ``RUN_PATH``. Pass comma lists in one process.
 * Multiple x/y: rejected.
 
 ``analyze_figure=true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
-``param_tokens=[...]`` / ``plot_euler=im|ex`` / ``plot_filter=none|ca`` /
-``plot_ms_pre=...``: same Hydra keys as ``figure.plot``.
+``param_tokens=[...]`` / ``euler=im|ex`` / ``filter=none|ca`` /
+``ms_pre=...``: CLI session overrides (same Hydra keys as ``figure.plot``).
+Unset = keep the run ``train_opts.json``.
 
 Examples
 --------
@@ -148,7 +149,8 @@ class TimeWindow:
         Integer t offsets from the |v_post_d| peak (``t_rel_start`` /
         ``t_rel_stop``).
 
-    Stimulus length uses ``plot_ms_*`` (rebuilds the session), not this window.
+    Stimulus length uses CLI ``ms_pre`` / ``ms_sti`` / … (rebuilds the session),
+    not this window.
     """
 
     kind: str  # "t_rel" | "ms"
@@ -2590,10 +2592,10 @@ def _print_sign_compare(
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
-def main(cfg) -> None:
+def main(hydra_config) -> None:
     from config import active_config, apply_config
 
-    apply_config(cfg)
+    apply_config(hydra_config)
     cli = resolve_shared_cli()
     radius = int(ANALYZE_CELL_DYNAMICS["radius"])
     node = ANALYZE_CELL_DYNAMICS.get("node")
@@ -2602,8 +2604,9 @@ def main(cfg) -> None:
     do_figure = bool(ANALYZE_CELL_DYNAMICS["figure"])
     do_json = bool(ANALYZE_CELL_DYNAMICS["json"])
     html = bool(FIGURE_PLOT.get("html", False))
-    euler = FIGURE_PLOT.get("euler")
-    filter = FIGURE_PLOT.get("filter")
+    session_kwargs = session_kwargs_from_cli(hydra_config)
+    euler = session_kwargs["euler"]
+    filter = session_kwargs["filter"]
     t_rel_start = ANALYZE_CELL_DYNAMICS.get("t_rel_start")
     t_rel_stop = ANALYZE_CELL_DYNAMICS.get("t_rel_stop")
     ms_shown = FIGURE_PLOT.get("ms_shown")
@@ -2652,7 +2655,6 @@ def main(cfg) -> None:
     param_inits, param_vals, param_clamps, param_jits = plot.parse_param_init_val_tokens(
         list(active_config().get("param_tokens") or []),
     )
-    ms_kwargs = plot_ms_kwargs(FIGURE_PLOT)
 
     for run_idx, run_arg in enumerate(ANALYZE_RUNS):
         run_dir = plot.resolve_run_dir(run_arg)
@@ -2664,9 +2666,7 @@ def main(cfg) -> None:
             run_dir=run_dir,
             session=session,
             z=z,
-            **ms_kwargs,
-            euler=euler,
-            filter=filter,
+            **session_kwargs,
         )
         file_suffix = (
             plot.ms_filename_suffix(**ms_changed)
@@ -2691,10 +2691,15 @@ def main(cfg) -> None:
             param_clamps=param_clamps, param_jits=param_jits,
         )
         session = session.with_schema(schema)
-        params = train.override_val_from(
-            train.assign_params(z, schema, session.connectome), session,
+        params = train.params_from_z(z, session)
+        recompute_cost = bool(
+            ms_changed or euler is not None or filter is not None
+            or param_inits or param_vals
         )
-        cost = float(train.calc_cost(z, session).item())
+        cost = (
+            float(train.calc_cost(z, session).item()) if recompute_cost
+            else float(best_cost)
+        )
 
         spot_session_cache: dict[tuple[str, str], object] = {}
         bar_meta_cache: dict[tuple[str, str], tuple] = {}

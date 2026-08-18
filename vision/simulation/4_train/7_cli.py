@@ -59,16 +59,25 @@ def param_filename_suffix(param_inits=None, param_vals=None):
     return "_" + "_".join(parts)
 
 
-def plot_ms_kwargs(figure_plot) -> dict:
-    """Hydra ``plot_ms_*`` scalars for :func:`figure.plot.override_session`."""
-    return {
-        "ms_pre": figure_plot.get("ms_pre"),
-        "ms_response": figure_plot.get("ms_response"),
-        "ms_post": figure_plot.get("ms_post"),
-        "ms_sti": figure_plot.get("ms_sti"),
-        "delta_ms": figure_plot.get("delta_ms"),
-        "delta_ms_pre": figure_plot.get("delta_ms_pre"),
-    }
+def session_kwargs_from_cli(hydra_config) -> dict:
+    """CLI ``key=value`` bag for :func:`figure.plot.override_session`.
+
+    Keys not on the Hydra CLI stay ``None`` so re-plot keeps ``train_opts.json``.
+    """
+    from hydra.core.hydra_config import HydraConfig
+    from omegaconf import OmegaConf
+
+    keys = (
+        "euler", "filter", "ms_pre", "ms_sti", "ms_response", "ms_post",
+        "delta_ms", "delta_ms_pre",
+    )
+    hit = set()
+    if HydraConfig.initialized():
+        for token in HydraConfig.get().overrides.task:
+            hit.add(str(token).lstrip("+~").split("=", 1)[0])
+    if not isinstance(hydra_config, dict):
+        hydra_config = OmegaConf.to_container(hydra_config, resolve=True)
+    return {key: (hydra_config.get(key) if key in hit else None) for key in keys}
 
 
 def override_train_opts_timing(

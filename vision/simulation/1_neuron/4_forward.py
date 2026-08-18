@@ -191,12 +191,16 @@ def forward_ca(session, params, i_sti, *, pack=None):
     return ca_from_v_ca(v_ca_from_v(v, params, session), params, session, t_onset=pack_t_onset(pack))
 
 
-def forward_nodes(session, params, nodes=None, i_sti=None, pack=None):
-    """``forward_v`` / ``forward_ca`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``.
+def forward_trace(session, params, i_sti, *, pack=None):
+    """Readout trace ``(B, T, N)``: ``forward_ca`` when ``filter=ca``, else ``forward_v``."""
+    pack = pack or session.primary_pack
+    if _session_filter(session) == "ca":
+        return forward_ca(session, params, i_sti, pack=pack)
+    return forward_v(session, params, i_sti, pack=pack)
 
-    ``session.train_opts['filter']``: ``none`` → :func:`forward_v`; ``ca`` →
-    :func:`forward_ca`.
-    """
+
+def forward_nodes(session, params, nodes=None, i_sti=None, pack=None):
+    """``forward_trace`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
     pack = pack or session.primary_pack
     if nodes is None:
         nodes = pack.entry_nodes
@@ -204,10 +208,7 @@ def forward_nodes(session, params, nodes=None, i_sti=None, pack=None):
         i_sti = session.pack_i_sti(pack)
     squeeze = i_sti.dim() == 2
     i_sti_b = i_sti.unsqueeze(0) if squeeze else i_sti
-    if _session_filter(session) == "ca":
-        trace = forward_ca(session, params, i_sti_b, pack=pack)
-    else:
-        trace = forward_v(session, params, i_sti_b, pack=pack)
+    trace = forward_trace(session, params, i_sti_b, pack=pack)
     trace = trace[:, :, nodes]
     if squeeze:
         trace = trace.squeeze(0)
