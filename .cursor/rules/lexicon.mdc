@@ -11,7 +11,7 @@ Only words with an unambiguous single definition are included here.
 
 When asked whether a word fits this lexicon or “has a definition,” judge **meaning in `vision/` code**, not whether the token appears in lexicon.
 
-**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `at_uv` `` / `` `at_xy` ``, `` `u` `` / `` `v` `` / `` `du` `` / `` `dv` ``, `` `_by_` ``, `` `mean` ``, `` `_from_` ``, `` `_over_` ``, or `` `a_*` ``). Established task compounds that are one concept in prose (`moving_bar`, `spot`) may appear as compounds. Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`).
+**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `at_uv` `` / `` `at_xy` ``, `` `u` `` / `` `v` `` / `` `du` `` / `` `dv` ``, `` `_by_` ``, `` `mean` ``, `` `_from_` ``, `` `_over_` ``, or `` `a_*` ``). Established task compounds that are one concept in prose (`mbar`, `spot`) may appear as compounds; lexicon-listed short nouns include ``mbar`` (moving bar) and future ``sbar`` (static bar). Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`).
 
 **Banned words never get a headword.** A token that is only a forbidden substitute (listed under another concept’s **Forbidden**) must **not** have its own ``### \`word\`` entry — not even an entry whose body says “Forbidden / do not use.” Ban it only by naming it under the canonical concept’s Forbidden line. Creating ``### \`name\`` / ``### \`tag\`` / ``### \`gain\`` / ``### \`polarity\`` (etc.) solely to forbid them is itself a lexicon violation.
 
@@ -265,10 +265,11 @@ Definition: A string token selected from a fixed enumeration, identifying which 
 Example: `for mode in PARAM_MODES: s[mode] = list(modes[mode])`, `param.get("z_mode", "linear")`, `vote_mode ∈ {"partner","syn"}`
 Forbidden: `bucket`, `mode_bucket` — never name a mode token or the modes bag with ``bucket``. Do not use ``z_map`` for the z↔param encoding — that is ``z_mode``. Do not use ``vote_by_syn`` / ``weight_by_syn`` for column-assignment vote tally — that is ``vote_mode``. Do not use ``tag`` / ``_tag`` / ``*_tag`` to name an enum mode string or its bag — that is ``mode`` (e.g. ``*_mode_tag`` → ``mode`` / ``*_mode``).
 
-### `moving_bar` / `moving_bars`
+### `mbar` / `mbars`
 
-Definition: The moving-bar sti task family (and its related task variants) used to generate inputs and corresponding targets.
-Example: `if pack.task in MOVING_BAR_TASKS: ...`
+Definition: The moving-bar sti task family (and its related task variants) used to generate inputs and corresponding targets. ``mbar`` is a lexicon-listed short noun for ``moving_bar``; all identifiers use ``mbar`` (never the long form). Future static-bar family will use ``sbar``.
+Example: `if pack.task in MBAR_TASKS: ...`
+Forbidden: `moving_bar` / `moving_bars` / `MovingBar` / `MOVING_BAR` — use `mbar` / `mbars` / `Mbar` / `MBAR`.
 
 ### `ms` / `mss`
 

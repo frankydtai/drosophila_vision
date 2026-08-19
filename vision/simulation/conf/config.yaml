@@ -124,7 +124,8 @@ bar_radius: 2
 # 4.2   train.session
 # ---------------------------------------------------------------------------
 tasks: "spread"
-gt_by_task: null
+gt_by_task:
+  spread: [L1, L2, L3, L4, L5, Mi1, Tm3, Mi4, Mi9, Tm1, Tm2, Tm4, Tm9]
 cost_radius: null
 
 # ---------------------------------------------------------------------------
@@ -152,7 +153,7 @@ cost_norm: "a_gt2"
 # cost_ms: post-onset cost sample times (spread + spot; same for every radius).
 #   interval — scalar ms step: cost_ms: 10.0  → 0, 10, 20, … ms until ms_response
 #   explicit — comma-separated ms: cost_ms: "0,160"
-cost_ms: 10.0
+cost_ms: 80,160
 pre_steady: "solve"
 pre_steady_n_iter: 50
 pre_steady_damp: 0.1

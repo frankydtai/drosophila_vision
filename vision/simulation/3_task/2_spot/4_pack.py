@@ -23,7 +23,7 @@ from network.construction import (
     standardize_cost_radius,
 )
 from neuron.borst import t_from_ms
-from task.spread.gt import GT_CELLS, RF_SIGN, contrast_sign, spread_gt_active
+from task.spread.gt import GT_CELLS, RF_SIGN, gt_sign, spread_gt_active
 from task.spread.pack import (
     Pack,
     CostPartPlotSpec,
@@ -324,7 +324,7 @@ def build_spot_gt(
                     a_radius
                     * ir[gt_idx][resp]
                     * gt_amp
-                    * float(contrast_sign(contrast))
+                    * gt_sign(contrast, rf_sign)
                 )
                 trace_cache[cache_digest] = trace
             trace = trace_cache[cache_digest]

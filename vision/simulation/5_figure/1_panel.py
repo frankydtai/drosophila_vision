@@ -416,11 +416,11 @@ def plot_timecourse(
     t_onset = max(0, int(t_onset or 0))
     gt_start = t_onset if gt_from_t is None else max(0, int(gt_from_t))
     for trace in traces:
-        v_readout = (
-            trace.get("v_readout_mean_cell_mean_radius")
-            or trace.get("v_readout_mean_cell")
-            or trace.get("ca_mean_cell")
-        )
+        v_readout = trace.get("v_readout_mean_cell_mean_radius")
+        if v_readout is None:
+            v_readout = trace.get("v_readout_mean_cell")
+        if v_readout is None:
+            v_readout = trace.get("ca_mean_cell")
         gt = trace.get("gt")
         std = trace.get("std")
         linestyle = trace.get("linestyle", "-")

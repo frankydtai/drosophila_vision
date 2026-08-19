@@ -166,10 +166,12 @@ def contrast_sign(contrast: str) -> int:
     raise ValueError(f"contrast must be 'bright' or 'dark', got {contrast!r}")
 
 
+def gt_sign(contrast: str, rf_sign: int) -> float:
+    return float(int(rf_sign) * contrast_sign(contrast))
+
+
 def spread_gt_active(spread_gt_mode: str, contrast: str, rf_sign: int) -> bool:
-    return (str(spread_gt_mode) == "all") or (
-        int(rf_sign) * contrast_sign(contrast) > 0
-    )
+    return (str(spread_gt_mode) == "all") or (gt_sign(contrast, rf_sign) > 0)
 
 
 def load_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="none"):

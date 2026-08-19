@@ -36,7 +36,7 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from task.spread.gt import (
     GT_CELLS,
     RF_SIGN,
-    contrast_sign,
+    gt_sign,
     load_ir,
     spread_gt_active,
 )
@@ -141,7 +141,11 @@ def spread_gts(
             t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter,
         )
-        gt_rows = irs * gt_amp * float(contrast_sign(contrast))
+        signs = np.array(
+            [gt_sign(contrast, RF_SIGN[cell]) for cell in GT_CELLS],
+            dtype=np.float64,
+        )[:, None]
+        gt_rows = irs * gt_amp * signs
         gts[contrast] = {
             str(cell): gt_rows[cell_idx[cell]]
             for cell in GT_CELLS

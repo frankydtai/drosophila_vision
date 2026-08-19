@@ -16,8 +16,8 @@ from task.moving_bar.sti_spec import PD_ND_LABELS
 from task.spread.gt import (
     GT_CELLS,
     RF_SIGN,
-    contrast_sign,
     expand_gt_cells,
+    gt_sign,
     load_ir,
     spread_gt_active,
 )
@@ -169,7 +169,7 @@ def build_spread_gt(
     for cell in gt_cells:
         if not spread_gt_active(spread_gt_mode, contrast, int(RF_SIGN[cell])):
             continue
-        gt = ir[cell_idx[cell]][slice(t_onset, n_t_gt)] * gt_amp * float(contrast_sign(contrast))
+        gt = ir[cell_idx[cell]][slice(t_onset, n_t_gt)] * gt_amp * gt_sign(contrast, RF_SIGN[cell])
         for node in nodes_by_cell[cell]:
             entry_nodes.append(int(node))
             gts.append(gt)

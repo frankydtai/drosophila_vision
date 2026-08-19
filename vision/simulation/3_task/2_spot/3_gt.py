@@ -9,7 +9,7 @@ import numpy as np
 from task.spread.gt import (
     GT_CELLS,
     RF_SIGN,
-    contrast_sign,
+    gt_sign,
     load_ir,
     spread_gt_active,
     expand_gt_cells,
@@ -106,7 +106,7 @@ def _spot_gt(
         if not spot_gt_active(spread_gt_mode, contrast, rf_sign):
             gts[gt_cell_idx[cell]] = 0.0
         else:
-            gts[gt_cell_idx[cell]] *= float(contrast_sign(contrast))
+            gts[gt_cell_idx[cell]] *= gt_sign(contrast, rf_sign)
     return gts
 
 
