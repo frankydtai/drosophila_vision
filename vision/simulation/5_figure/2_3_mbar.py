@@ -10,20 +10,20 @@ import numpy as np
 import torch
 
 import train
-from task.moving_bar.gt import (
+from task.mbar.gt import (
     GT_CELLS,
     fig1_trace_from_sti,
     load_fig1_trace,
     motion_preference,
-    moving_bar_cell_title,
+    mbar_cell_title,
     dsi_from_trace_map,
 )
-from task.moving_bar.pack import (
+from task.mbar.pack import (
     bar_specs_from_task,
     cell_part_key,
     nodes_from_hexes,
-    moving_bar_specs_by_cell,
-    moving_bar_session_t0_grids,
+    mbar_specs_by_cell,
+    mbar_session_t0_grids,
 )
 from figure.spread import pack_cells
 from network.construction import cells_in_order
@@ -51,25 +51,25 @@ from figure.panel import (
     is_single_hex_cost,
     v_th_from_z,
 )
-from task.moving_bar.sti_spec import PD_ND_LABELS
+from task.mbar.sti_spec import PD_ND_LABELS
 from task.spread.sti_spec import CONTRASTS
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
-from task.moving_bar.sti_geo import (
+from task.mbar.sti_geo import (
     filter_sti_hexes,
-    moving_bar_cost_hexes,
+    mbar_cost_hexes,
     network_uv_np,
     sti_hexes,
 )
-from task.moving_bar.sti_spec import (
+from task.mbar.sti_spec import (
     COST_WINDOW_AFTER_MS,
     COST_WINDOW_BEFORE_MS,
 )
 from neuron.borst import t_from_ms
 
-MOVING_BAR_DPI = 100
+MBAR_DPI = 100
 
 
-def format_moving_bar_cell_cost_lines(cell, cost_parts, contrasts):
+def format_mbar_cell_cost_lines(cell, cost_parts, contrasts):
     """Lines ``ON: xx @PD yy @ND`` / ``OFF: …`` for moving-bar titles."""
     label_map = {
         'bright': 'ON',
@@ -95,7 +95,7 @@ PLOT_PAIRED = True
 
 
 @dataclass
-class MovingBarWindowTraces:
+class MbarWindowTraces:
     ca_mean_cell: dict
     ca_std: dict
     ca_n: dict
@@ -107,7 +107,7 @@ class MovingBarWindowTraces:
 
 
 @dataclass
-class MovingBarTraceReadout:
+class MbarTraceReadout:
     task: str
     contrast: str
     cells: list
@@ -118,7 +118,7 @@ class MovingBarTraceReadout:
     e_leak_by_cell: dict
     gt_traces: dict
     n_t: int
-    traces: MovingBarWindowTraces
+    traces: MbarWindowTraces
     session: object
     at_x: int | None = None
     at_y: int | None = None
@@ -135,7 +135,7 @@ class MovingBarTraceReadout:
     ms_shown: tuple[float, float] | None = None
 
 
-def _moving_bar_figure(n_row, n_col, *, sharex='col'):
+def _mbar_figure(n_row, n_col, *, sharex='col'):
     fig, axes = plt.subplots(
         n_row, n_col, figsize=(2.2 * n_col, 1.8 * n_row), sharex=sharex,
     )
@@ -146,7 +146,7 @@ def _moving_bar_figure(n_row, n_col, *, sharex='col'):
     return fig, axes
 
 
-def _moving_bar_cell_title(
+def _mbar_cell_title(
     token,
     ca_mean_cell,
     gt_traces,
@@ -160,10 +160,10 @@ def _moving_bar_cell_title(
 ):
     head = token
     if cost_parts is not None and cost_contrasts:
-        cost_lines = format_moving_bar_cell_cost_lines(cell, cost_parts, cost_contrasts)
+        cost_lines = format_mbar_cell_cost_lines(cell, cost_parts, cost_contrasts)
         if cost_lines:
             head = '\n'.join([f'{cell} Cost', *cost_lines, head])
-    return moving_bar_cell_title(
+    return mbar_cell_title(
         head,
         ca_dsi=ca_dsi_from_trace.get(key),
         gt_dsi=gt_dsi_from_trace.get(key),
@@ -229,7 +229,7 @@ def _windows_by_b(trace, t0_bn, n_t_by_b):
     return windows_by_b
 
 
-def _moving_bar_ca_mean_cell(
+def _mbar_ca_mean_cell(
     windows_by_b, t0_bn, cell_idxs, cells, spec_tokens, single_hex, *,
     hex_mask=None,
 ):
@@ -281,7 +281,7 @@ def t0_bn_from_align_at_xy(
 ):
     """Copy ``t0_bn`` with at_xy nodes forced to the ref hex ``t0`` (plot only)."""
     connectome = session.connectome
-    cost_hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
+    cost_hexes = mbar_cost_hexes(connectome, cost_radius=cost_radius)
     ref_hexes = filter_sti_hexes(cost_hexes, at_x=align_at_x, at_y=align_at_y)
     if len(ref_hexes) != 1:
         raise SystemExit(
@@ -299,7 +299,7 @@ def t0_bn_from_align_at_xy(
     return t0_bn
 
 
-def _moving_bar_ca_mean_cell_mean_hex(
+def _mbar_ca_mean_cell_mean_hex(
     session, task, contrast, trace, base_traces, spec_tokens, *, at_x=None, at_y=None,
     align_at_x=None, align_at_y=None,
 ):
@@ -312,7 +312,7 @@ def _moving_bar_ca_mean_cell_mean_hex(
     t0_bn = base_traces.t0_bn
     n_b = len(spec_tokens)
     connectome = session.connectome
-    hexes = moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius)
+    hexes = mbar_cost_hexes(connectome, cost_radius=pack.cost_radius)
     hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
     if not hexes:
         return None
@@ -328,7 +328,7 @@ def _moving_bar_ca_mean_cell_mean_hex(
             session=session, cost_radius=pack.cost_radius,
         )
     windows_by_b = _windows_by_b(trace, t0_bn_aligned, n_t_by_b)
-    ca_mean_cell_mean_hex, _, _ = _moving_bar_ca_mean_cell(
+    ca_mean_cell_mean_hex, _, _ = _mbar_ca_mean_cell(
         windows_by_b, t0_bn_aligned, cell_idxs, cells, spec_tokens, True, hex_mask=hex_mask,
     )
     return ca_mean_cell_mean_hex
@@ -343,7 +343,7 @@ def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
     return trace - float(trace[0])
 
 
-def _load_moving_bar_gt_traces(session, task, contrast, cells, specs, side):
+def _load_mbar_gt_traces(session, task, contrast, cells, specs, side):
     gt_traces = {}
     row_cells = cells_in_order(pack_cells(session, task, contrast))
     for cell in row_cells:
@@ -366,7 +366,7 @@ def _traces_from_forward(
     cost_radius = pack.cost_radius
     n_t = int(session.n_t)
     _t_onset = train.pack_t_onset(pack)
-    grids = moving_bar_session_t0_grids(
+    grids = mbar_session_t0_grids(
         session, specs, cost_radius, n_t, at_x=at_x, at_y=at_y,
         t_onset=_t_onset, delta_ms=session.delta_ms,
     )
@@ -384,10 +384,10 @@ def _traces_from_forward(
         for token in spec_tokens
     ]
     windows_by_b = _windows_by_b(trace, t0_bn, n_t_by_b)
-    ca_mean_cell, ca_std, ca_n = _moving_bar_ca_mean_cell(
+    ca_mean_cell, ca_std, ca_n = _mbar_ca_mean_cell(
         windows_by_b, t0_bn, cell_idxs, cells, spec_tokens, single_hex,
     )
-    return MovingBarWindowTraces(
+    return MbarWindowTraces(
         ca_mean_cell=ca_mean_cell,
         ca_std=ca_std,
         ca_n=ca_n,
@@ -400,7 +400,7 @@ def _traces_from_forward(
 
 
 @torch.no_grad()
-def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
+def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
                             at_xs=None, at_ys=None,
                             align_at_x=None, align_at_y=None,
                             ms_shown=None):
@@ -418,7 +418,7 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
     )
     v_th = v_th_from_z(z, session)
     if connectome is not None:
-        hexes = moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius)
+        hexes = mbar_cost_hexes(connectome, cost_radius=pack.cost_radius)
         if at_x is not None or at_y is not None:
             hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
         nodes_by_cell = {
@@ -436,7 +436,7 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
     e_leak = e_leak_from_z(z, session)
     v_th_by_cell = {cell: v_th.get(cell, np.nan) for cell in nodes_by_cell}
     e_leak_by_cell = {cell: e_leak.get(cell, np.nan) for cell in nodes_by_cell}
-    gt_traces = _load_moving_bar_gt_traces(
+    gt_traces = _load_mbar_gt_traces(
         session, task, contrast, cells, specs, side,
     )
     gt_affine_by_cell = {
@@ -451,7 +451,7 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
         mean_hex_by_label = {}
         labels = []
         for label, at_x, at_y in expand_at_xy(at_xs, at_ys)[0]:
-            ca_mean_cell_mean_hex = _moving_bar_ca_mean_cell_mean_hex(
+            ca_mean_cell_mean_hex = _mbar_ca_mean_cell_mean_hex(
                 session, task, contrast, trace, traces, spec_tokens,
                 at_x=at_x, at_y=at_y,
                 align_at_x=align_at_x, align_at_y=align_at_y,
@@ -464,7 +464,7 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
         if not mean_hex_by_label:
             mean_hex_by_label = None
             labels = None
-    return MovingBarTraceReadout(
+    return MbarTraceReadout(
         task=task,
         contrast=contrast,
         cells=cells,
@@ -493,7 +493,7 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
     )
 
 
-def _moving_bar_t_onset(readout, cell, token):
+def _mbar_t_onset(readout, cell, token):
     """Median relative index of global ``t_onset`` within the plotted trace."""
     t_onset = readout.t_onset
     window_traces = readout.traces
@@ -527,7 +527,7 @@ def _cost_window_xy(cost_trace, before_t, delta_ms):
     return x, trace
 
 
-def _moving_bar_hexes_label(session, *, at_x=None, at_y=None, n_hex=None):
+def _mbar_hexes_label(session, *, at_x=None, at_y=None, n_hex=None):
     pack = session.primary_pack
     cost_radius = pack.cost_radius
     connectome = session.connectome
@@ -540,12 +540,12 @@ def _moving_bar_hexes_label(session, *, at_x=None, at_y=None, n_hex=None):
             parts.insert(0, f'cost_radius={cost_radius}')
         return ', '.join(parts)
     if cost_radius is not None:
-        n_sti_hex = len(moving_bar_cost_hexes(connectome, cost_radius=cost_radius))
+        n_sti_hex = len(mbar_cost_hexes(connectome, cost_radius=cost_radius))
         return f'cost_radius={cost_radius} ({n_sti_hex} sti hexes)'
     return f'avg over {len(sti_hexes(connectome))} sti hexes'
 
 
-def _style_moving_bar_relative_axis(
+def _style_mbar_relative_axis(
     ax, before_t, n_t_figure, *,
     delta_ms,
     show_tick_labels=True, mark_cost_window=False,
@@ -579,7 +579,7 @@ def _style_moving_bar_relative_axis(
                 ax.axvline(x, color='0.75', linewidth=0.6, linestyle='--', zorder=0)
 
 
-def _moving_bar_spec_linestyle(side, cell, token):
+def _mbar_spec_linestyle(side, cell, token):
     """Solid for PD stis, dashed for ND (Gruntman fig1 convention)."""
     if cell not in GT_CELLS:
         return '-'
@@ -593,7 +593,7 @@ def _moving_bar_spec_linestyle(side, cell, token):
     return '--' if pref.pd_nd == 'ND' else '-'
 
 
-def _plot_moving_bar_cell(
+def _plot_mbar_cell(
     ax,
     ca_trace,
     std_trace,
@@ -619,7 +619,7 @@ def _plot_moving_bar_cell(
         gt_x, gt_y = _cost_window_xy(gt_trace, before_t, delta_ms)
 
     def style_xaxis(ax):
-        _style_moving_bar_relative_axis(
+        _style_mbar_relative_axis(
             ax, before_t, n_t_figure,
             delta_ms=delta_ms,
             show_tick_labels=show_tick_labels,
@@ -649,7 +649,7 @@ def _plot_moving_bar_cell(
         ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LINE_W, linestyle=linestyle)
 
 
-def _plot_moving_bar_cell_at_xy(
+def _plot_mbar_cell_at_xy(
     ax,
     v_readout,
     std_trace,
@@ -677,7 +677,7 @@ def _plot_moving_bar_cell_at_xy(
         gt_x, gt_y = _cost_window_xy(gt_trace, before_t, delta_ms)
 
     def style_xaxis(ax):
-        _style_moving_bar_relative_axis(
+        _style_mbar_relative_axis(
             ax, before_t, n_t_figure,
             delta_ms=delta_ms,
             show_tick_labels=show_tick_labels,
@@ -711,7 +711,7 @@ def _plot_moving_bar_cell_at_xy(
         ax.legend(fontsize=5, loc='upper right', framealpha=0.85)
 
 
-def _moving_bar_all_hexes_label(readout):
+def _mbar_all_hexes_label(readout):
     if readout.at_xs is not None or readout.at_ys is not None:
         pack = readout.session.primary_pack
         cost_radius = pack.cost_radius
@@ -727,17 +727,17 @@ def _moving_bar_all_hexes_label(readout):
         if cost_radius is not None:
             parts.insert(0, f'cost_radius={cost_radius}')
         return ', '.join(parts)
-    return _moving_bar_hexes_label(readout.session)
+    return _mbar_hexes_label(readout.session)
 
 
-def _moving_bar_cost_contrasts(readout, paired_readout=None):
+def _mbar_cost_contrasts(readout, paired_readout=None):
     contrasts = [readout.contrast]
     if paired_readout is not None and paired_readout.contrast not in contrasts:
         contrasts.append(paired_readout.contrast)
     return contrasts
 
 
-def _moving_bar_all_figure(readout, paired_readout, title, *, right_only=True, cost_parts=None):
+def _mbar_all_figure(readout, paired_readout, title, *, right_only=True, cost_parts=None):
     single_hex = readout.single_hex
     cells = readout.cells
     window_traces = readout.traces
@@ -752,7 +752,7 @@ def _moving_bar_all_figure(readout, paired_readout, title, *, right_only=True, c
     paired_window_traces = None
     labels = list(readout.labels or ())
     has_at_xy = readout.ca_mean_cell_mean_hex_by_label is not None
-    cost_contrasts = _moving_bar_cost_contrasts(readout, paired_readout)
+    cost_contrasts = _mbar_cost_contrasts(readout, paired_readout)
     if paired_readout is not None:
         paired_window_traces = paired_readout.traces
         spec_tokens = list(spec_tokens) + list(
@@ -777,7 +777,7 @@ def _moving_bar_all_figure(readout, paired_readout, title, *, right_only=True, c
         paired_gt_dsi = dsi_from_trace_map(
             paired_readout.gt_traces, cells, paired_readout.spec_tokens,
         )
-    fig, axes = _moving_bar_figure(n_row, n_col)
+    fig, axes = _mbar_figure(n_row, n_col)
     for row, cell in enumerate(cells):
         for col, token in enumerate(spec_tokens):
             ax = axes[row, col]
@@ -794,7 +794,7 @@ def _moving_bar_all_figure(readout, paired_readout, title, *, right_only=True, c
                 e_leak = paired_e_leak_by_cell.get(cell)
             before_t = panel_traces.before_t[token]
             use_readout_dsi = col < n_col_readout
-            cell_title = _moving_bar_cell_title(
+            cell_title = _mbar_cell_title(
                 token, ca_mean_cell, gt_traces,
                 ca_dsi if use_readout_dsi else paired_ca_dsi,
                 gt_dsi if use_readout_dsi else paired_gt_dsi,
@@ -815,7 +815,7 @@ def _moving_bar_all_figure(readout, paired_readout, title, *, right_only=True, c
                 plot_labels = [
                     label for label in labels if label in ca_mean_cell_mean_hex_by_label
                 ]
-                _plot_moving_bar_cell_at_xy(
+                _plot_mbar_cell_at_xy(
                     ax, ca_mean_cell[key], ca_std.get(key),
                     ca_mean_cell_mean_hex_by_label, plot_labels,
                     cell_title, before_t,
@@ -828,13 +828,13 @@ def _moving_bar_all_figure(readout, paired_readout, title, *, right_only=True, c
                     mark_cost_window=True,
                     v_th=v_th,
                     e_leak=e_leak,
-                    t_onset=_moving_bar_t_onset(panel_readout, cell, token),
+                    t_onset=_mbar_t_onset(panel_readout, cell, token),
                     delta_ms=panel_readout.session.delta_ms,
                     ms_shown=panel_readout.ms_shown,
                 )
             else:
                 src = panel_readout or readout
-                _plot_moving_bar_cell(
+                _plot_mbar_cell(
                     ax, ca_mean_cell[key], ca_std.get(key),
                     cell_title, before_t,
                     gt_trace=gt_trace_affine(src, cell, gt_traces.get(key)),
@@ -845,31 +845,31 @@ def _moving_bar_all_figure(readout, paired_readout, title, *, right_only=True, c
                     mark_cost_window=True,
                     v_th=v_th,
                     e_leak=e_leak,
-                    t_onset=_moving_bar_t_onset(src, cell, token),
+                    t_onset=_mbar_t_onset(src, cell, token),
                     delta_ms=src.session.delta_ms,
                     ms_shown=src.ms_shown,
                 )
         axes[row, 0].set_ylabel(cell_ylabel(cell, ca_n), fontsize=8, labelpad=12)
     if title is None:
         title = 'Moving-bar ca-all (right only)' if right_only else 'Moving-bar ca-all'
-    hexes_label = _moving_bar_all_hexes_label(readout)
+    hexes_label = _mbar_all_hexes_label(readout)
     fig.suptitle(title + f'  [{hexes_label}, t_first_sti-aligned trace]', fontsize=12)
     fig.subplots_adjust(top=0.90, bottom=0.08, hspace=0.50, wspace=0.35)
     return fig
 
 
 @torch.no_grad()
-def plot_moving_bar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=None):
-    """Plot ca-gt figure from a :class:`MovingBarTraceReadout`."""
+def plot_mbar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=None):
+    """Plot ca-gt figure from a :class:`MbarTraceReadout`."""
     timer = ElapsedTimer(prior_prep=readout_prep_s(readout, paired_readout))
     timer.end_prep()
     single_hex = readout.single_hex
-    row_specs = moving_bar_specs_by_cell(readout.session, readout.task, readout.side)
+    row_specs = mbar_specs_by_cell(readout.session, readout.task, readout.side)
     gt_cells = list(row_specs.keys())
     n_col_half = max((len(specs) for specs in row_specs.values()), default=8)
-    cost_contrasts = _moving_bar_cost_contrasts(readout, paired_readout)
+    cost_contrasts = _mbar_cost_contrasts(readout, paired_readout)
     if paired_readout is not None:
-        paired_row_specs = moving_bar_specs_by_cell(
+        paired_row_specs = mbar_specs_by_cell(
             paired_readout.session, paired_readout.task, paired_readout.side,
         )
         n_col_half = max(
@@ -880,7 +880,7 @@ def plot_moving_bar_gt(path, *, readout, paired_readout=None, title=None, cost_p
         paired_row_specs = None
         n_col = n_col_half
     n_row = len(gt_cells)
-    fig, axes = _moving_bar_figure(n_row, n_col)
+    fig, axes = _mbar_figure(n_row, n_col)
 
     ca_dsi = dsi_from_trace_map(readout.traces.ca_mean_cell, gt_cells, readout.spec_tokens)
     gt_dsi = dsi_from_trace_map(readout.gt_traces, gt_cells, readout.spec_tokens)
@@ -902,14 +902,14 @@ def plot_moving_bar_gt(path, *, readout, paired_readout=None, title=None, cost_p
                 ax.axis('off')
                 continue
             before_t = window_traces.before_t[token]
-            cell_title = _moving_bar_cell_title(
+            cell_title = _mbar_cell_title(
                 token, window_traces.ca_mean_cell, row_readout.gt_traces,
                 row_ca_dsi, row_gt_dsi, key,
                 cell=cell,
                 cost_parts=cost_parts,
                 cost_contrasts=cost_contrasts,
             )
-            _plot_moving_bar_cell(
+            _plot_mbar_cell(
                 ax, window_traces.ca_mean_cell[key], window_traces.ca_std[key],
                 cell_title, before_t,
                 gt_trace=gt_trace_affine(
@@ -919,8 +919,8 @@ def plot_moving_bar_gt(path, *, readout, paired_readout=None, title=None, cost_p
                 mark_cost_window=True,
                 v_th=row_readout.v_th_by_cell.get(cell),
                 e_leak=row_readout.e_leak_by_cell.get(cell),
-                linestyle=_moving_bar_spec_linestyle(side, cell, token),
-                t_onset=_moving_bar_t_onset(row_readout, cell, token),
+                linestyle=_mbar_spec_linestyle(side, cell, token),
+                t_onset=_mbar_t_onset(row_readout, cell, token),
                 delta_ms=row_readout.session.delta_ms,
                 ms_shown=row_readout.ms_shown,
             )
@@ -937,34 +937,34 @@ def plot_moving_bar_gt(path, *, readout, paired_readout=None, title=None, cost_p
         )
     if title is None:
         title = 'Moving-bar ca-gt'
-    hexes_label = _moving_bar_hexes_label(readout.session)
+    hexes_label = _mbar_hexes_label(readout.session)
     fig.suptitle(
         title + f'  [{hexes_label}, t_first_sti-aligned trace]',
         fontsize=12,
     )
     fig.subplots_adjust(top=0.90, bottom=0.08, hspace=0.50, wspace=0.35)
     timer.end_plot()
-    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True, timer=timer)
+    save_figure(fig, path, dpi=MBAR_DPI, rasterize=True, timer=timer)
 
 
 @torch.no_grad()
-def plot_moving_bar_all(path, *, readout, paired_readout=None, title=None, right_only=True,
+def plot_mbar_all(path, *, readout, paired_readout=None, title=None, right_only=True,
                         cost_parts=None):
-    """Plot ca-all figure from a :class:`MovingBarTraceReadout`."""
+    """Plot ca-all figure from a :class:`MbarTraceReadout`."""
     timer = ElapsedTimer(prior_prep=readout_prep_s(readout, paired_readout))
     timer.end_prep()
-    fig = _moving_bar_all_figure(
+    fig = _mbar_all_figure(
         readout, paired_readout, title, right_only=right_only, cost_parts=cost_parts,
     )
     timer.end_plot()
-    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True, timer=timer)
+    save_figure(fig, path, dpi=MBAR_DPI, rasterize=True, timer=timer)
 
 
-_TASK = "moving_bar"
+_TASK = "mbar"
 
 
 def build_readout(session, z, contrast, **readout_kwargs):
-    return moving_bar_trace_readout(
+    return mbar_trace_readout(
         session_from_task(session, _TASK, contrast), z, _TASK, contrast, **readout_kwargs,
     )
 
@@ -976,20 +976,20 @@ def figure_titles(session, suffix, token, *, contrast=None):
             f'Moving-bar {token}-all ({suffix})',
         )
     return (
-        f'moving_bar {contrast} {token}-gt ({suffix})',
-        f'moving_bar {contrast} {token}-all ({suffix})',
+        f'mbar {contrast} {token}-gt ({suffix})',
+        f'mbar {contrast} {token}-all ({suffix})',
     )
 
 
 def plot_gt(path, *, readout, paired_readout=None, title, cost_parts=None, right_only=True):
-    plot_moving_bar_gt(
+    plot_mbar_gt(
         path, readout=readout, paired_readout=paired_readout,
         title=title, cost_parts=cost_parts,
     )
 
 
 def plot_all(path, *, readout, paired_readout=None, title, cost_parts=None, right_only=True):
-    plot_moving_bar_all(
+    plot_mbar_all(
         path, readout=readout, paired_readout=paired_readout,
         title=title, cost_parts=cost_parts, right_only=right_only,
     )

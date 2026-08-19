@@ -1,12 +1,12 @@
 """Visualise moving-bar hex i_sti (demo only).
 
-Connectome: hex sti from ``task.moving_bar.sti_geo``.
+Connectome: hex sti from ``task.mbar.sti_geo``.
 
 Usage (from simulation/, project .venv):
 
-    ../.venv/bin/python 5_figure/plot_sti/moving_bar.py
-    ../.venv/bin/python 5_figure/plot_sti/moving_bar.py moving_bar_plot_gif=true
-    ../.venv/bin/python 5_figure/plot_sti/moving_bar.py moving_bar_plot_direction=down
+    ../.venv/bin/python 5_figure/plot_sti/mbar.py
+    ../.venv/bin/python 5_figure/plot_sti/mbar.py mbar_plot_gif=true
+    ../.venv/bin/python 5_figure/plot_sti/mbar.py mbar_plot_direction=down
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ import hydra
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-PLOT_DIR = os.path.join(HERE, "plotted_moving_bar")
+PLOT_DIR = os.path.join(HERE, "plotted_mbar")
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
@@ -30,9 +30,9 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
 from config import (
-    FIGURE_PLOT_STI_MOVING_BAR,
+    FIGURE_PLOT_STI_MBAR,
     MODEL,
-    MOVING_BAR_INPUT_GEO,
+    MBAR_INPUT_GEO,
     NEURON_SCHEMA,
     NETWORK_PATH,
     TRAIN_CONFIG,
@@ -48,14 +48,14 @@ from build_hex import (
     set_axis_labels,
     xy_deg_from_uv,
 )
-from task.moving_bar.sti_geo import sti_hexes
-from task.moving_bar.sti_spec import (
+from task.mbar.sti_geo import sti_hexes
+from task.mbar.sti_spec import (
     GRUNTMAN_DIRECTIONS,
     bar_lane_rects,
-    build_moving_bar_signals,
-    gruntman_moving_bar_specs,
+    build_mbar_signals,
+    gruntman_mbar_specs,
     i_baseline_from_i_sti,
-    moving_bar_transit_times,
+    mbar_transit_times,
 )
 from task.spread.sti_spec import CONTRASTS
 from path import network_run_token, resolve_network_json
@@ -156,10 +156,10 @@ def save_snapshots(
     snapshot_t = list(snapshot_t or [])
     if snapshot_t:
         if any(t < 0 for t in snapshot_t):
-            raise SystemExit("moving_bar_plot_t must be non-negative t idxs")
+            raise SystemExit("mbar_plot_t must be non-negative t idxs")
         bad = [t for t in snapshot_t if t >= n_t]
         if bad:
-            raise SystemExit(f"moving_bar_plot_t out of range (n_t={n_t}): {bad}")
+            raise SystemExit(f"mbar_plot_t out of range (n_t={n_t}): {bad}")
     xlim, ylim = _field_limits(figure_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
     xspan = xlim[1] - xlim[0]
     yspan = ylim[1] - ylim[0]
@@ -178,7 +178,7 @@ def save_snapshots(
             times = snapshot_t
             labels = [f"t={t}" for t in times]
         else:
-            start_t, mid_t, exit_t = moving_bar_transit_times(
+            start_t, mid_t, exit_t = mbar_transit_times(
                 spec, view_deg, bar_radius, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
             )
             times = [start_t, mid_t, exit_t]
@@ -218,7 +218,7 @@ def save_animation(
     stride = max(1, t_stride)
     times = set()
     for spec in showcase:
-        t0, _, t1 = moving_bar_transit_times(
+        t0, _, t1 = mbar_transit_times(
             spec, view_deg, bar_radius, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
         )
         times.update(range(t0, t1 + 1, stride))
@@ -255,7 +255,7 @@ def save_animation(
     print(f"wrote {path}  ({len(times)} frames, t={times[0]}..{times[-1]})")
 
 
-def plot_moving_bar_sti(
+def plot_mbar_sti(
     *,
     network: str,
     direction: str,
@@ -271,7 +271,7 @@ def plot_moving_bar_sti(
     direction = str(direction)
     if direction not in GRUNTMAN_DIRECTIONS:
         raise SystemExit(
-            f"moving_bar_plot_direction must be one of {GRUNTMAN_DIRECTIONS}; got {direction!r}"
+            f"mbar_plot_direction must be one of {GRUNTMAN_DIRECTIONS}; got {direction!r}"
         )
     sti = list(contrasts)
     if not sti:
@@ -281,7 +281,7 @@ def plot_moving_bar_sti(
         raise SystemExit(f"contrasts supports only {CONTRASTS}; got {bad_sti}")
 
     showcase = [
-        spec for spec in gruntman_moving_bar_specs(contrasts=tuple(sti))
+        spec for spec in gruntman_mbar_specs(contrasts=tuple(sti))
         if spec.direction == direction
     ]
     i_sti_spec = TRAIN_CONFIG["i_sti"]
@@ -294,8 +294,8 @@ def plot_moving_bar_sti(
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     token = f"2{direction}_{network_run_token(network_json, connectome.meta)}"
-    fallback_png = os.path.join(PLOT_DIR, f"moving_bar_{token}.png")
-    fallback_gif = os.path.join(PLOT_DIR, f"moving_bar_{token}.gif")
+    fallback_png = os.path.join(PLOT_DIR, f"mbar_{token}.png")
+    fallback_gif = os.path.join(PLOT_DIR, f"mbar_{token}.gif")
     path = path or fallback_png
     bar_radius = int(bar_radius)
     i_sti_hex_parts = []
@@ -305,7 +305,7 @@ def plot_moving_bar_sti(
         contrast_specs = [spec for spec in showcase if spec.contrast == contrast]
         if not contrast_specs:
             continue
-        T = build_moving_bar_signals(
+        T = build_mbar_signals(
             connectome,
             specs=contrast_specs,
             bar_radius=bar_radius,
@@ -355,17 +355,17 @@ def plot_moving_bar_sti(
 @hydra.main(version_base=None, config_path="../../conf", config_name="config")
 def main(hydra_config) -> None:
     apply_config(hydra_config)
-    plot_moving_bar_sti(
+    plot_mbar_sti(
         network=str(NETWORK_PATH["network"]),
-        direction=str(FIGURE_PLOT_STI_MOVING_BAR["direction"]),
+        direction=str(FIGURE_PLOT_STI_MBAR["direction"]),
         contrasts=TRAIN_CONFIG["contrasts"],
-        path=FIGURE_PLOT_STI_MOVING_BAR.get("output"),
-        gif=bool(FIGURE_PLOT_STI_MOVING_BAR["gif"]),
-        gif_output=FIGURE_PLOT_STI_MOVING_BAR.get("gif_output"),
-        t_stride=int(FIGURE_PLOT_STI_MOVING_BAR["t_stride"]),
-        snapshot_t=FIGURE_PLOT_STI_MOVING_BAR.get("t"),
-        bar_radius=int(MOVING_BAR_INPUT_GEO["bar_radius"]),
-        multi_bar=bool(MOVING_BAR_INPUT_GEO["multi_bar"]),
+        path=FIGURE_PLOT_STI_MBAR.get("output"),
+        gif=bool(FIGURE_PLOT_STI_MBAR["gif"]),
+        gif_output=FIGURE_PLOT_STI_MBAR.get("gif_output"),
+        t_stride=int(FIGURE_PLOT_STI_MBAR["t_stride"]),
+        snapshot_t=FIGURE_PLOT_STI_MBAR.get("t"),
+        bar_radius=int(MBAR_INPUT_GEO["bar_radius"]),
+        multi_bar=bool(MBAR_INPUT_GEO["multi_bar"]),
     )
 
 

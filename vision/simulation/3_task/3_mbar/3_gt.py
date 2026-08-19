@@ -5,9 +5,9 @@ GT literals and helpers in this module are **owned here** — fig1 digitized
 population Vm (:data:`FIG1_CI_NPZ`), T4/T5 motion preference, and hardcoded
 axis DSI targets (:data:`FIG1_ABS_DSI`).
 
-Network mapping, cost hexes, sti ``i_sti``, and :class:`task.moving_bar.pack.MovingBarGt`
-packing live in :mod:`task.moving_bar.pack`. Bar geometry and hex currents live in
-:mod:`task.moving_bar.sti_geo` and :mod:`task.moving_bar.sti_spec`.
+Network mapping, cost hexes, sti ``i_sti``, and :class:`task.mbar.pack.MbarGt`
+packing live in :mod:`task.mbar.pack`. Bar geometry and hex currents live in
+:mod:`task.mbar.sti_geo` and :mod:`task.mbar.sti_spec`.
 """
 from __future__ import annotations
 
@@ -19,15 +19,15 @@ import numpy as np
 import torch
 
 from neuron.borst import t_from_ms
-from task.moving_bar.sti_geo import GRUNTMAN_WS_DEG
-from task.moving_bar.sti_spec import (
+from task.mbar.sti_geo import GRUNTMAN_WS_DEG
+from task.mbar.sti_spec import (
     COST_ALIGNED_FIRST_STI_MS,
     COST_WINDOW_MS,
-    MovingBarSpec,
+    MbarSpec,
 )
 
 # Gruntman Fig. 1 Ci/Cii digitized population Vm (figure_digitization/gruntman21/1ci.py).
-# gt.py → moving_bar → task → simulation → vision → repo root.
+# gt.py → mbar → task → simulation → vision → repo root.
 FIG1_CI_NPZ = (
     Path(__file__).resolve().parents[4]
     / "figure_digitization"
@@ -84,7 +84,7 @@ def dsi_sequential_b_sets(spec_tokens: Sequence[str]) -> Tuple[Tuple[int, ...], 
     """Minimal sti-b sets for sequential DSI: one b_set per axis x w."""
     bs_by_dir_w: dict[tuple[str, str], list[int]] = {}
     for b, token in enumerate(spec_tokens):
-        direction, _contrast, w_token = parse_moving_bar_spec(token)
+        direction, _contrast, w_token = parse_mbar_spec(token)
         bs_by_dir_w.setdefault((direction, w_token), []).append(int(b))
     b_sets: list[tuple[int, ...]] = []
     for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
@@ -179,17 +179,17 @@ def motion_preference(
 def fig1_trace_from_sti(
     side: str,
     subtype: str,
-    spec: Union[MovingBarSpec, str],
+    spec: Union[MbarSpec, str],
     contrast: Optional[str] = None,
     w_deg: Optional[float] = None,
 ) -> Optional[str]:
     """fig1 trace token for ``(side, subtype, sti)``, or ``None`` if orthogonal."""
-    if isinstance(spec, MovingBarSpec):
+    if isinstance(spec, MbarSpec):
         direction, contrast, w_deg = spec.direction, spec.contrast, spec.w_deg
     else:
         direction = str(spec)
         if contrast is None or w_deg is None:
-            raise ValueError("contrast and w_deg required when spec is not MovingBarSpec")
+            raise ValueError("contrast and w_deg required when spec is not MbarSpec")
     pref = motion_preference(side, subtype, direction, contrast)
     if pref is None:
         return None
@@ -207,7 +207,7 @@ def active_stis_from_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str
     ]
 
 
-def parse_moving_bar_spec(token: str) -> Tuple[str, str, str]:
+def parse_mbar_spec(token: str) -> Tuple[str, str, str]:
     direction, contrast, w_token = str(token).split("_", 2)
     return direction, contrast, w_token
 
@@ -226,7 +226,7 @@ def axis_dsi_torch(peak_pos: torch.Tensor, peak_neg: torch.Tensor) -> torch.Tens
     return torch.where(denom > 0, (peak_pos - peak_neg) / denom, torch.zeros_like(denom))
 
 
-def hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optional[float]:
+def hardcoded_axis_dsi(side: str, subtype: str, spec: MbarSpec) -> Optional[float]:
     """Signed axis DSI from ``FIG1_ABS_DSI`` for the pos-side sti ``spec``."""
     pos_trace = fig1_trace_from_sti(side, subtype, spec)
     if pos_trace is None:
@@ -242,13 +242,13 @@ def hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optional
     raise ValueError(f"expected PD/ND suffix in {pos_trace!r}")
 
 
-def moving_bar_dsi_from_spec(
+def mbar_dsi_from_spec(
     trace_map: Mapping[tuple, np.ndarray],
     cell: str,
     token: str,
 ) -> Optional[float]:
     """DSI for one cell x spec: (this dir - opposite) / (this + opposite)."""
-    direction, contrast, w_token = parse_moving_bar_spec(token)
+    direction, contrast, w_token = parse_mbar_spec(token)
     if direction not in _DIR_TO_AXIS:
         return None
     pos_dir, neg_dir = _DIR_TO_AXIS[direction]
@@ -273,13 +273,13 @@ def dsi_from_trace_map(
     spec_tokens: Sequence[str],
 ) -> dict[tuple[str, str], Optional[float]]:
     return {
-        (cell, spec): moving_bar_dsi_from_spec(trace_map, cell, spec)
+        (cell, spec): mbar_dsi_from_spec(trace_map, cell, spec)
         for cell in cells
         for spec in spec_tokens
     }
 
 
-def moving_bar_cell_title(
+def mbar_cell_title(
     head: str,
     ca_dsi: Optional[float] = None,
     gt_dsi: Optional[float] = None,

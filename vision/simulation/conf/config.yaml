@@ -115,7 +115,7 @@ spot_cost_radius_scale:
   2: 0.3333333333333333
 
 # ---------------------------------------------------------------------------
-# 3.3.1   task.moving_bar.sti_geo
+# 3.3.1   task.mbar.sti_geo
 # ---------------------------------------------------------------------------
 multi_bar: true
 bar_radius: 2
@@ -184,14 +184,14 @@ spot_radii: "0.5,1.0,1.5,2.0"
 spot_plot_output: null
 
 # ---------------------------------------------------------------------------
-# 5.3.1   figure.plot_sti.moving_bar
+# 5.3.1   figure.plot_sti.mbar
 # ---------------------------------------------------------------------------
-moving_bar_plot_output: null
-moving_bar_plot_gif: false
-moving_bar_plot_gif_output: null
-moving_bar_plot_t_stride: 2
-moving_bar_plot_t: null
-moving_bar_plot_direction: left
+mbar_plot_output: null
+mbar_plot_gif: false
+mbar_plot_gif_output: null
+mbar_plot_t_stride: 2
+mbar_plot_t: null
+mbar_plot_direction: left
 
 # ---------------------------------------------------------------------------
 # 5.4   figure.plot

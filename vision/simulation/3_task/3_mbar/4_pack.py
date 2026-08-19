@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Moving-bar pack: bind GT numbers to the network for cost.
 
-Cost hexes, sti ``i_sti``, :class:`MovingBarGt` packing, and DSI entry CSR.
-GT traces and motion preference come from :mod:`task.moving_bar.gt`.
+Cost hexes, sti ``i_sti``, :class:`MbarGt` packing, and DSI entry CSR.
+GT traces and motion preference come from :mod:`task.mbar.gt`.
 :class:`~task.spread.pack.Pack` assembly lives here.
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ from network.construction import (
 from task.spread.pack import Pack, CostPartPlotSpec, cost_hex_label
 from task.spread.sti_spec import i_baseline_from_i_sti
 from task.spread.gt import contrast_sign
-from task.moving_bar.gt import (
+from task.mbar.gt import (
     FIG1_CI_NPZ,
     GT_CELLS,
     active_stis_from_subtype,
@@ -35,30 +35,30 @@ from task.moving_bar.gt import (
     motion_preference,
     w_token,
 )
-from task.moving_bar.sti_geo import (
+from task.mbar.sti_geo import (
     BAR_RADIUS,
     _as_int64_np,
     filter_sti_hexes,
-    moving_bar_cost_hexes,
+    mbar_cost_hexes,
     network_uv_np,
     sti_hexes,
 )
-from task.moving_bar.sti_spec import (
+from task.mbar.sti_spec import (
     COST_ALIGNED_FIRST_STI_MS,
     COST_WINDOW_AFTER_MS,
-    MovingBarSpec,
+    MbarSpec,
     ND_IDX,
     PD_IDX,
-    build_moving_bar_signals,
-    build_moving_bar_t0_grids,
-    gruntman_moving_bar_specs,
+    build_mbar_signals,
+    build_mbar_t0_grids,
+    gruntman_mbar_specs,
     hex_first_sti_t,
 )
 
 
 
 @dataclass
-class MovingBarGt:
+class MbarGt:
     i_sti: torch.Tensor
     gts: torch.Tensor
     power: torch.Tensor
@@ -84,14 +84,14 @@ class MovingBarGt:
 
 
 def cell_part_key(contrast: str, cell: str, pd_nd_label: str) -> str:
-    return f"moving_bar_{contrast}_{cell}_{pd_nd_label}"
+    return f"mbar_{contrast}_{cell}_{pd_nd_label}"
 
 
 def dsi_part_key(contrast: str) -> str:
-    return f"moving_bar_{contrast}_DSI"
+    return f"mbar_{contrast}_DSI"
 
 
-def _moving_bar_cost_part_plot_specs(
+def _mbar_cost_part_plot_specs(
     entry_part_keys: Sequence[str],
     entry_nodes: torch.Tensor,
     cost_scales: torch.Tensor,
@@ -115,13 +115,13 @@ def _moving_bar_cost_part_plot_specs(
             f"{pd_nd_label} ({contrast})" if contrast else pd_nd_label
         )
         specs[part_key] = CostPartPlotSpec(
-            part_key, cell, ("moving_bar_pd_nd", pd_nd_label), label,
+            part_key, cell, ("mbar_pd_nd", pd_nd_label), label,
         )
     if dsi_part_key_val and dsi_part_key_val not in specs:
         specs[dsi_part_key_val] = CostPartPlotSpec(
             dsi_part_key_val,
             None,
-            ("moving_bar_pd_nd", "DSI"),
+            ("mbar_pd_nd", "DSI"),
             f"DSI ({contrast})" if contrast else "DSI",
         )
     return specs
@@ -162,8 +162,8 @@ def filter_requested_specs(
     return list(requested)
 
 
-def assemble_moving_bar_dsi_groups(
-    specs: Sequence[MovingBarSpec],
+def assemble_mbar_dsi_groups(
+    specs: Sequence[MbarSpec],
     entry_bs: Sequence[int],
     entry_cells: Sequence[str],
     entry_cost_scales: Sequence[float],
@@ -231,7 +231,7 @@ def _csr_from_groups(
     return entries_t, ptr_t
 
 
-def pack_moving_bar_dsi(pos_groups, neg_groups, dsi_vals, scales, *, device, sim_dtype):
+def pack_mbar_dsi(pos_groups, neg_groups, dsi_vals, scales, *, device, sim_dtype):
     if not pos_groups:
         empty_long = torch.zeros(0, dtype=torch.long, device=device)
         empty = torch.zeros(0, dtype=sim_dtype, device=device)
@@ -365,9 +365,9 @@ def cost_dsi_from_v_readout_dsi(
     return torch.sum(pack.dsi_scales * diff ** 2) / pack.dsi_power * 100.0
 
 
-def _assemble_moving_bar_readouts(
+def _assemble_mbar_readouts(
     *,
-    specs: Sequence[MovingBarSpec],
+    specs: Sequence[MbarSpec],
     i_sti_hex: np.ndarray,
     cost_hex_idxs: Sequence[int],
     i_baseline: float,
@@ -439,7 +439,7 @@ def _assemble_moving_bar_readouts(
     )
 
 
-def _pack_moving_bar_entries(
+def _pack_mbar_entries(
     entry_bs, entry_nodes, entry_gts, entry_cost_scales, entry_cost_t0s, entry_cost_pd_nds,
     *, device, sim_dtype,
     waveform_mse: bool = True,
@@ -461,7 +461,7 @@ def _pack_moving_bar_entries(
     return gts, cost_scales, entry_bs, entry_nodes, cost_t0s, cost_pd_nds, power
 
 
-def build_moving_bar_gt(
+def build_mbar_gt(
     connectome,
     device: Optional[str] = None,
     t_onset: int = None,
@@ -478,14 +478,14 @@ def build_moving_bar_gt(
     gt_cells: Optional[Sequence[str]] = None,
     sim_dtype: torch.dtype,
     waveform_mse: bool = True,
-) -> MovingBarGt:
+) -> MbarGt:
     """Build multi-bar sti + T4/T5 cost readouts."""
     device = device or connectome.device
     side = connectome.meta.get("side", "right")
 
-    specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
+    specs = gruntman_mbar_specs(contrasts=tuple(contrasts))
     i_baseline_val = float(i_baseline)
-    sti = build_moving_bar_signals(
+    sti = build_mbar_signals(
         connectome, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
         bar_radius=bar_radius, multi_bar=bool(multi_bar),
         device=device, use_cache=use_cache,
@@ -500,7 +500,7 @@ def build_moving_bar_gt(
     after_t = t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
 
     active = active_gt_cells(
-        gt_cells, GT_CELLS, connectome.cells, context="moving_bar",
+        gt_cells, GT_CELLS, connectome.cells, context="mbar",
     )
 
     cells = node_cells(connectome)
@@ -508,7 +508,7 @@ def build_moving_bar_gt(
         (int(hex.u), int(hex.v)): hex_idx
         for hex_idx, hex in enumerate(sti_hexes(connectome))
     }
-    hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
+    hexes = mbar_cost_hexes(connectome, cost_radius=cost_radius)
     cost_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
     hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_idxs)}
 
@@ -516,7 +516,7 @@ def build_moving_bar_gt(
         hex = hex_by_idx[hex_idx]
         return connectome.nodes_at_uv(hex.u, hex.v, cell, cells=cells)
 
-    rows = _assemble_moving_bar_readouts(
+    rows = _assemble_mbar_readouts(
         specs=sti.specs,
         i_sti_hex=sti.i_sti_hex,
         cost_hex_idxs=cost_hex_idxs,
@@ -540,7 +540,7 @@ def build_moving_bar_gt(
         raise ValueError("no moving-bar cost nodes (check subtypes and sti hexes)")
 
     gts, cost_scales, entry_bs, entry_nodes, cost_t0s, cost_pd_nds, power = (
-        _pack_moving_bar_entries(
+        _pack_mbar_entries(
             entry_bs, entry_nodes, entry_gts, entry_cost_scales,
             entry_cost_t0s, entry_cost_pd_nds,
             device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
@@ -549,15 +549,15 @@ def build_moving_bar_gt(
     (
         dsi_pos_entries, dsi_neg_entries, dsi_pos_ptr, dsi_neg_ptr,
         dsi_tgt, dsi_w, dsi_pow,
-    ) = pack_moving_bar_dsi(
-        *assemble_moving_bar_dsi_groups(
+    ) = pack_mbar_dsi(
+        *assemble_mbar_dsi_groups(
             sti.specs, entry_bs.tolist(), entry_cells, cost_scales.tolist(), side=side,
         ),
         device=device,
         sim_dtype=sim_dtype,
     )
 
-    return MovingBarGt(
+    return MbarGt(
         i_sti=sti.i_sti,
         gts=gts,
         power=power,
@@ -584,7 +584,7 @@ def build_moving_bar_gt(
 
 
 @dataclass
-class MovingBarSessionT0:
+class MbarSessionT0:
     t0_bn: np.ndarray
     before_t: Dict[str, int]
     after_t: Dict[str, int]
@@ -592,15 +592,15 @@ class MovingBarSessionT0:
     n_hex: int
 
 
-def bar_specs_from_task(session, task, contrast) -> List[MovingBarSpec]:
+def bar_specs_from_task(session, task, contrast) -> List[MbarSpec]:
     """Gruntman bar specs for ``task``×``contrast``."""
     contrast_sign(contrast)
-    return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
+    return list(gruntman_mbar_specs(contrasts=(contrast,)))
 
 
-def moving_bar_session_t0_grids(
+def mbar_session_t0_grids(
     session,
-    specs: Sequence[MovingBarSpec],
+    specs: Sequence[MbarSpec],
     cost_radius,
     n_t: int,
     *,
@@ -608,14 +608,14 @@ def moving_bar_session_t0_grids(
     at_y=None,
     t_onset: int = None,
     delta_ms: float,
-) -> MovingBarSessionT0:
+) -> MbarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
     connectome = session.connectome
     i_sti = (session.train_opts or {}).get("i_sti") or {}
     i_baseline = i_baseline_from_i_sti(i_sti)
 
     side = connectome.meta.get('side', 'right')
-    hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
+    hexes = mbar_cost_hexes(connectome, cost_radius=cost_radius)
     if at_x is not None or at_y is not None:
         filt_hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
         if not filt_hexes:
@@ -629,7 +629,7 @@ def moving_bar_session_t0_grids(
         raise ValueError(
             f"train opts i_sti missing contrast {contrast!r}"
         )
-    sti = build_moving_bar_signals(
+    sti = build_mbar_signals(
         connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
         device=connectome.node_cells.device, i_baseline=i_baseline,
         i_sti=float(i_sti[contrast]),
@@ -641,14 +641,14 @@ def moving_bar_session_t0_grids(
     }
     hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
     filt_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in filt_hexes]
-    grids = build_moving_bar_t0_grids(
+    grids = build_mbar_t0_grids(
         sti.i_sti_hex, specs, n_t, i_baseline,
         hex_idxs=hex_idxs,
         filt_hex_idxs=filt_hex_idxs,
         connectome=connectome,
         filt_network_hexes=filt_hexes,
     )
-    return MovingBarSessionT0(
+    return MbarSessionT0(
         t0_bn=grids.t0_bn,
         before_t=grids.before_t,
         after_t=grids.after_t,
@@ -673,7 +673,7 @@ def _pack_cells(session, task: str, contrast: str) -> List[str]:
     ))
 
 
-def moving_bar_specs_by_cell(session, task: str, contrast: str, side: str) -> Dict[str, List[str]]:
+def mbar_specs_by_cell(session, task: str, contrast: str, side: str) -> Dict[str, List[str]]:
     """Per-readout-cell active bar spec tokens for ``side`` and task contrast."""
     contrast_sign(contrast)
     return {
@@ -686,7 +686,7 @@ def moving_bar_specs_by_cell(session, task: str, contrast: str, side: str) -> Di
     }
 
 
-def build_moving_bar_sti_opts(
+def build_mbar_sti_opts(
     *,
     ms_pre,
     delta_ms,
@@ -706,8 +706,8 @@ def build_moving_bar_sti_opts(
     return sti_opts
 
 
-def resolve_moving_bar_sti_opts(opts, **_):
-    return build_moving_bar_sti_opts(
+def resolve_mbar_sti_opts(opts, **_):
+    return build_mbar_sti_opts(
         ms_pre=opts["ms_pre"],
         delta_ms=opts["delta_ms"],
         delta_ms_pre=opts["delta_ms_pre"],
@@ -716,8 +716,8 @@ def resolve_moving_bar_sti_opts(opts, **_):
     )
 
 
-def moving_bar_sti_opts(
-    moving_bar_sti_opts: Optional[dict],
+def mbar_sti_opts(
+    mbar_sti_opts: Optional[dict],
     *,
     ms_pre,
     delta_ms: float,
@@ -725,9 +725,9 @@ def moving_bar_sti_opts(
     multi_bar: bool,
 ) -> dict:
     """Build moving-bar sti opts when CLI sidecar is absent."""
-    if moving_bar_sti_opts:
-        return dict(moving_bar_sti_opts)
-    return build_moving_bar_sti_opts(
+    if mbar_sti_opts:
+        return dict(mbar_sti_opts)
+    return build_mbar_sti_opts(
         ms_pre=ms_pre,
         delta_ms=delta_ms,
         delta_ms_pre=delta_ms_pre,
@@ -735,7 +735,7 @@ def moving_bar_sti_opts(
     )
 
 
-def build_moving_bar_pack(
+def build_mbar_pack(
     connectome,
     *,
     contrast: str,
@@ -743,24 +743,24 @@ def build_moving_bar_pack(
     device: str,
     sim_dtype: torch.dtype,
     i_sti: Dict[str, float],
-    moving_bar_sti_opts: Optional[dict],
+    mbar_sti_opts: Optional[dict],
     filter: str,
     delta_ms: float,
     delta_ms_pre: float,
     ms_pre,
     multi_bar: bool,
 ):
-    task = "moving_bar"
+    task = "mbar"
     device = device or connectome.device
-    opts = moving_bar_sti_opts(
-        moving_bar_sti_opts,
+    opts = mbar_sti_opts(
+        mbar_sti_opts,
         ms_pre=ms_pre,
         delta_ms=delta_ms,
         delta_ms_pre=delta_ms_pre,
         multi_bar=multi_bar,
     )
     cost_radius = standardize_cost_radius(opts.get("cost_radius"))
-    moving_bar_gt = build_moving_bar_gt(
+    mbar_gt = build_mbar_gt(
         connectome=connectome,
         device=device,
         sim_dtype=sim_dtype,
@@ -778,56 +778,56 @@ def build_moving_bar_pack(
         waveform_mse=True,
     )
     sti_opts = dict(opts)
-    sti_opts["n_t"] = int(moving_bar_gt.n_t)
-    sti_opts["spec_tokens"] = list(moving_bar_gt.spec_tokens)
+    sti_opts["n_t"] = int(mbar_gt.n_t)
+    sti_opts["spec_tokens"] = list(mbar_gt.spec_tokens)
     if cost_radius is not None:
         sti_opts["cost_radius"] = int(cost_radius)
-    sti_opts["gt_cells"] = list(moving_bar_gt.active_gts)
+    sti_opts["gt_cells"] = list(mbar_gt.active_gts)
     dsi_key = (
         dsi_part_key(contrast)
-        if moving_bar_gt.dsi_pos_ptr is not None
-        and int(moving_bar_gt.dsi_pos_ptr.numel()) > 1
+        if mbar_gt.dsi_pos_ptr is not None
+        and int(mbar_gt.dsi_pos_ptr.numel()) > 1
         else None
     )
     pack = Pack(
         task=task,
         contrast=contrast,
-        i_sti=moving_bar_gt.i_sti,
-        gts=moving_bar_gt.gts,
-        power=moving_bar_gt.power,
-        cost_scales=moving_bar_gt.cost_scales,
-        entry_bs=moving_bar_gt.entry_bs,
-        entry_nodes=moving_bar_gt.entry_nodes,
-        cost_t0s=moving_bar_gt.cost_t0s,
+        i_sti=mbar_gt.i_sti,
+        gts=mbar_gt.gts,
+        power=mbar_gt.power,
+        cost_scales=mbar_gt.cost_scales,
+        entry_bs=mbar_gt.entry_bs,
+        entry_nodes=mbar_gt.entry_nodes,
+        cost_t0s=mbar_gt.cost_t0s,
         cost_radius=cost_radius,
-        cost_pd_nds=moving_bar_gt.cost_pd_nds,
-        dsi_pos_entries=moving_bar_gt.dsi_pos_entries,
-        dsi_neg_entries=moving_bar_gt.dsi_neg_entries,
-        dsi_pos_ptr=moving_bar_gt.dsi_pos_ptr,
-        dsi_neg_ptr=moving_bar_gt.dsi_neg_ptr,
-        dsi_gts=moving_bar_gt.dsi_gts,
-        dsi_scales=moving_bar_gt.dsi_scales,
-        dsi_power=moving_bar_gt.dsi_power,
-        waveform_mse=bool(moving_bar_gt.waveform_mse),
-        entry_part_keys=moving_bar_gt.entry_part_keys,
+        cost_pd_nds=mbar_gt.cost_pd_nds,
+        dsi_pos_entries=mbar_gt.dsi_pos_entries,
+        dsi_neg_entries=mbar_gt.dsi_neg_entries,
+        dsi_pos_ptr=mbar_gt.dsi_pos_ptr,
+        dsi_neg_ptr=mbar_gt.dsi_neg_ptr,
+        dsi_gts=mbar_gt.dsi_gts,
+        dsi_scales=mbar_gt.dsi_scales,
+        dsi_power=mbar_gt.dsi_power,
+        waveform_mse=bool(mbar_gt.waveform_mse),
+        entry_part_keys=mbar_gt.entry_part_keys,
         dsi_part_key=dsi_key,
         cost_part_plot_specs=(
-            _moving_bar_cost_part_plot_specs(
-                moving_bar_gt.entry_part_keys,
-                moving_bar_gt.entry_nodes,
-                moving_bar_gt.cost_scales,
-                moving_bar_gt.cost_pd_nds,
+            _mbar_cost_part_plot_specs(
+                mbar_gt.entry_part_keys,
+                mbar_gt.entry_nodes,
+                mbar_gt.cost_scales,
+                mbar_gt.cost_pd_nds,
                 connectome,
                 contrast,
                 dsi_key,
             )
-            if moving_bar_gt.cost_pd_nds is not None
+            if mbar_gt.cost_pd_nds is not None
             else None
         ),
     )
-    hex_label = cost_hex_label(cost_radius, moving_bar_gt.n_cost_hex)
+    hex_label = cost_hex_label(cost_radius, mbar_gt.n_cost_hex)
     label = (
-        f"moving-bar {contrast} (B={moving_bar_gt.n_b} stis, "
-        f"{int(moving_bar_gt.entry_bs.shape[0])} cost nodes, {hex_label})"
+        f"moving-bar {contrast} (B={mbar_gt.n_b} stis, "
+        f"{int(mbar_gt.entry_bs.shape[0])} cost nodes, {hex_label})"
     )
     return pack, sti_opts, label

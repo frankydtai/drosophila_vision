@@ -12,7 +12,7 @@ from import_bootstrap import parse_comma_list
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from network.construction import gt_cells_from_opts
 from neuron.borst import t_from_ms
-from task.moving_bar.sti_spec import PD_ND_LABELS
+from task.mbar.sti_spec import PD_ND_LABELS
 from task.spread.gt import (
     GT_CELLS,
     RF_SIGN,

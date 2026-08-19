@@ -3,13 +3,13 @@
 
 Owns sti-opts finalisation (CLI tokens -> per-task sidecar dicts),
 connectome loading, and delegates per-task×contrast ``Pack`` assembly to
-:mod:`task.spread.pack`, :mod:`task.spot.pack`, and :mod:`task.moving_bar.pack`.
+:mod:`task.spread.pack`, :mod:`task.spot.pack`, and :mod:`task.mbar.pack`.
 """
 from __future__ import annotations
 
 from config import (
-    MOVING_BAR_INPUT_GEO,
-    MOVING_BAR_INPUT_SPEC,
+    MBAR_INPUT_GEO,
+    MBAR_INPUT_SPEC,
     NEURON_FORWARD,
     MODEL,
     NEURON_SCHEMA,
@@ -58,16 +58,16 @@ from task.spot.pack import (
     build_spot_pack,
     resolve_spot_sti_opts,
 )
-from task.moving_bar.gt import expand_gt_cells as expand_moving_bar_gt_cells
-from task.moving_bar.pack import (
-    build_moving_bar_pack,
-    resolve_moving_bar_sti_opts,
+from task.mbar.gt import expand_gt_cells as expand_mbar_gt_cells
+from task.mbar.pack import (
+    build_mbar_pack,
+    resolve_mbar_sti_opts,
 )
 from network.construction import (
     load_network, Network,
 )
 
-TASKS = ("spread", "spot", "moving_bar")
+TASKS = ("spread", "spot", "mbar")
 RUN_DATA_SUBDIR = "data"
 
 
@@ -181,7 +181,7 @@ def load_train_connectome(
 _GT_CELLS_EXPAND = {
     "spread": expand_spread_gt_cells,
     "spot": expand_spot_gt_cells,
-    "moving_bar": expand_moving_bar_gt_cells,
+    "mbar": expand_mbar_gt_cells,
 }
 
 
@@ -196,7 +196,7 @@ def resolve_gt_cells_by_task(by_task) -> Dict[str, List[str]]:
 _STI_TRAIN_OPT_KEYS = (
     ("spread", "spread_sti_opts"),
     ("spot", "spot_sti_opts"),
-    ("moving_bar", "moving_bar_sti_opts"),
+    ("mbar", "mbar_sti_opts"),
 )
 
 _STI_OPTS_BY_TASK = {
@@ -220,11 +220,11 @@ _STI_OPTS_BY_TASK = {
         "multi_spot": SPOT_INPUT_GEO["multi_spot"],
         "fully_inside": SPOT_INPUT_GEO["fully_inside"],
     },
-    "moving_bar": {
-        "ms_pre": MOVING_BAR_INPUT_SPEC["ms_pre"],
+    "mbar": {
+        "ms_pre": MBAR_INPUT_SPEC["ms_pre"],
         "delta_ms": MODEL["delta_ms"],
         "delta_ms_pre": MODEL["delta_ms_pre"],
-        "multi_bar": MOVING_BAR_INPUT_GEO["multi_bar"],
+        "multi_bar": MBAR_INPUT_GEO["multi_bar"],
     },
 }
 
@@ -240,7 +240,7 @@ def resolve_i_sti(i_sti=None) -> Dict[str, float]:
 _RESOLVE_STI_OPTS = {
     "spread": resolve_spread_sti_opts,
     "spot": resolve_spot_sti_opts,
-    "moving_bar": resolve_moving_bar_sti_opts,
+    "mbar": resolve_mbar_sti_opts,
 }
 
 
@@ -282,7 +282,7 @@ def resolve_train_opts(
     i_sti=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
     cost_ms=None,
-    moving_bar_sti_opts=None,
+    mbar_sti_opts=None,
     spread_sti_opts=None,
     spot_sti_opts=None,
     network_json=None,
@@ -345,7 +345,7 @@ def resolve_train_opts(
     sti_opts_by_task = {
         "spread": spread_sti_opts,
         "spot": spot_sti_opts,
-        "moving_bar": moving_bar_sti_opts,
+        "mbar": mbar_sti_opts,
     }
     sti_opts = {}
     for task, sti_opts_key in _STI_TRAIN_OPT_KEYS:
@@ -444,7 +444,7 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
         "network_json": str(opts["network_json"]),
         "spread_sti_opts": _sti("spread_sti_opts"),
         "spot_sti_opts": _sti("spot_sti_opts"),
-        "moving_bar_sti_opts": _sti("moving_bar_sti_opts"),
+        "mbar_sti_opts": _sti("mbar_sti_opts"),
     }
     if opts.get("params"):
         train_opts["params"] = copy.deepcopy(opts["params"])
@@ -630,13 +630,13 @@ def open_session(
                     cost_ms=opts.get("cost_ms", TRAIN_OPTIMIZATION['cost_ms']),
                     contrast=contrast, **pack_kwargs,
                 )
-            elif task == "moving_bar":
-                pack, sti_opts, _label = build_moving_bar_pack(
-                    moving_bar_sti_opts=opts.get("moving_bar_sti_opts"),
+            elif task == "mbar":
+                pack, sti_opts, _label = build_mbar_pack(
+                    mbar_sti_opts=opts.get("mbar_sti_opts"),
                     delta_ms=delta_ms,
                     delta_ms_pre=delta_ms_pre,
-                    ms_pre=MOVING_BAR_INPUT_SPEC["ms_pre"],
-                    multi_bar=MOVING_BAR_INPUT_GEO['multi_bar'],
+                    ms_pre=MBAR_INPUT_SPEC["ms_pre"],
+                    multi_bar=MBAR_INPUT_GEO['multi_bar'],
                     contrast=contrast, **pack_kwargs,
                 )
             elif task == "spot":

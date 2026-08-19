@@ -39,16 +39,16 @@ from figure.plot import filter_figure_token, session_filter_figure_token
 from neuron.filter_ca import filter_ca
 from neuron.schema import param_from_entry
 from network.construction import hex2gt
-from task.moving_bar.pack import (
+from task.mbar.pack import (
     bar_specs_from_task,
     filter_requested_specs,
     nodes_from_hexes,
-    moving_bar_specs_by_cell,
-    moving_bar_session_t0_grids,
+    mbar_specs_by_cell,
+    mbar_session_t0_grids,
 )
-from task.moving_bar.sti_geo import (
+from task.mbar.sti_geo import (
     filter_sti_hexes,
-    moving_bar_cost_hexes,
+    mbar_cost_hexes,
 )
 from task.spot.pack import build_spot_center_readout
 from task.spot.sti_geo import (
@@ -83,7 +83,7 @@ Two *different* knobs — do not mix them:
   ``ms_shown=0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
   Negative START is wrong for spot (aligned index goes negative; sum window
   collapses).
-* **moving_bar**: aligned ``t = 0`` is bar ``t0`` at the node (crossing), so
+* **mbar**: aligned ``t = 0`` is bar ``t0`` at the node (crossing), so
   ``ms_shown`` is ms relative to that ``t0`` (negative START is valid).
 
 ``t_rel_start`` / ``t_rel_stop`` are **t-index offsets from the |v_post_d|
@@ -108,7 +108,7 @@ Hydra (from ``simulation/``)
 Default run is ``RUN_PATH``. Pass comma lists in one process.
 
 * Omit ``x`` / ``y``: cost-radius **average** (optional ``radius=0|1``).
-* Exactly one ``x`` and one ``y``: **hex** (spot or moving_bar; one cell).
+* Exactly one ``x`` and one ``y``: **hex** (spot or mbar; one cell).
   Incompatible with ``radius`` (hex is sti-on only).
 * Multiple x/y: rejected.
 
@@ -127,7 +127,7 @@ Examples
     cells=L3 tasks=spot contrasts=bright x=1 y=0
 
   ../.venv/bin/python -m analyze.cell_dynamics \\
-    cells=T4a tasks=moving_bar contrasts=bright \\
+    cells=T4a tasks=mbar contrasts=bright \\
     spec=left_bright_w4,right_bright_w4 \\
     param_vals.syn_strength_cell.'Mi4:T4a'=2.0 \\
     param_vals.syn_strength_cell.'Mi9:T4a'=1.0 \\
@@ -1432,7 +1432,7 @@ def _bar_meta(session, task: str, contrast: str):
     """One-shot ``(specs, grids)`` for a moving-bar task×contrast."""
     specs = bar_specs_from_task(session, task)
     pack = session.packs[task][contrast]
-    grids = moving_bar_session_t0_grids(
+    grids = mbar_session_t0_grids(
         session, specs, pack.cost_radius, int(session.n_t),
         t_onset=train.pack_t_onset(pack),
         delta_ms=float(session.delta_ms),
@@ -1459,7 +1459,7 @@ def _bar_specs_requested(
             return filter_requested_specs(specs, requested)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    specs_by_cell = moving_bar_specs_by_cell(session, task, grids.side)
+    specs_by_cell = mbar_specs_by_cell(session, task, grids.side)
     spec_tokens: list[str] = []
     for cell in cells:
         for token in specs_by_cell.get(cell, specs):
@@ -1478,7 +1478,7 @@ def _resolve_bar_spec_i_sti(
     grids=None,
 ):
     """Validate specs; return ``(pack, specs, grids, spec_bs, i_sti, t0_bn)``."""
-    if task != "moving_bar":
+    if task != "mbar":
         raise SystemExit(f"unsupported task {task!r}")
     if not spec_tokens:
         raise SystemExit("bar component forward requires at least one spec")
@@ -1711,7 +1711,7 @@ def analyze_bar_average(
     def nodes_from_b(b, spec, *, pack, t0_bn):
         connectome = session.connectome
         if not cols_holder:
-            cols_holder.append(moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius))
+            cols_holder.append(mbar_cost_hexes(connectome, cost_radius=pack.cost_radius))
         hexes = cols_holder[0]
         nodes_by_cell: dict[str, np.ndarray] = {}
         for cell in cells:
@@ -1938,7 +1938,7 @@ def analyze_spot_average(
 def _hex_nodes(session, cell: str, *, at_x: float, at_y: float, cost_radius: int):
     connectome = session.connectome
     hexes = filter_sti_hexes(
-        moving_bar_cost_hexes(connectome, cost_radius=cost_radius),
+        mbar_cost_hexes(connectome, cost_radius=cost_radius),
         at_x=at_x,
         at_y=at_y,
     )
@@ -2761,7 +2761,7 @@ def main(hydra_config) -> None:
                             file_suffix=file_suffix,
                             html=html,
                         )
-                elif task == "moving_bar":
+                elif task == "mbar":
                     at_x = cli.xs[0] if hex_mode else None
                     at_y = cli.ys[0] if hex_mode else None
                     cache_key = (task, contrast)

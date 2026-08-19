@@ -60,8 +60,8 @@ from train.param import (
 )
 from train.session import Pack, TrainSession
 from task.spread.pack import CostPartPlotSpec
-from task.moving_bar.gt import dsi_sequential_b_sets
-from task.moving_bar.pack import (
+from task.mbar.gt import dsi_sequential_b_sets
+from task.mbar.pack import (
     bar_specs_from_task,
     cost_dsi_from_v_readout_dsi,
     remap_dsi_entries,
@@ -633,7 +633,7 @@ def _pack_cost_forward(params, pack: Pack, session: TrainSession, b=None):
 
 
 def _pack_cost_parts_from_params(params, pack: Pack, session: TrainSession, b=None):
-    """Unscaled cost parts for one pack (PD/ND split for moving_bar)."""
+    """Unscaled cost parts for one pack (PD/ND split for mbar)."""
     fwd = _pack_cost_forward(params, pack, session, b)
     if fwd is None:
         return {}

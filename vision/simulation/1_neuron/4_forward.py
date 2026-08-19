@@ -66,7 +66,7 @@ def pack_t_onset(pack) -> int:
     """Stimulus onset index for ``pack``.
 
     Prefer explicit ``pack.t_onset`` (spot when ``ms_post`` extends ``i_sti`` past
-    ``gts``). Else ``n_t - gts.shape[1]`` (moving_bar / ``ms_post=0``).
+    ``gts``). Else ``n_t - gts.shape[1]`` (mbar / ``ms_post=0``).
     """
     t = getattr(pack, "t_onset", None)
     if t is not None:

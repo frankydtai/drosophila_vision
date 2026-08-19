@@ -17,7 +17,7 @@ Experimental reference traces come from **[`figure_digitization/gruntman21/1ci_d
 | `time_ms`    | Time relative to bar onset (ms) |
 | `vm_mv`      | Population potential (mV) |
 
-The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 ws × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_trace_for_sti` → `T4_PC_w1_PD` style tokens). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
+The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 ws × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_trace_for_sti` → `T4_PC_w1_PD` style tokens). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.mbar.gt`).
 
 ## Contrast (pathway)
 
@@ -39,7 +39,7 @@ Same for T4 and T5 within one eye (Maisak et al. 2013):
 
 ## Plot / sti axis convention
 
-`moving_bar_sti` directions (`right`, `left`, `up`, `down`) are in column **degree** coordinates
+`mbar_sti` directions (`right`, `left`, `up`, `down`) are in column **degree** coordinates
 (`xy_from_uv` then ``× DEG``: ``x_deg = DEG×v``, ``y_deg = DEG×(u+v/2)``; ``DEG = 4.5``).
 
 | Eye             | anterior → posterior on retina                        | posterior → anterior             |

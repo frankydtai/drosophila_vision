@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Spread sti spec: ``sti_mask`` and bright/dark ``contrast`` (shared by spot / spread / moving_bar)."""
+"""Spread sti spec: ``sti_mask`` and bright/dark ``contrast`` (shared by spot / spread / mbar)."""
 from __future__ import annotations
 
 import numpy as np

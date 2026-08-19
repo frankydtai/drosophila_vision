@@ -12,8 +12,8 @@ from __future__ import annotations
 from config import (
     ANALYZE_CELL_DYNAMICS,
     MODEL,
-    MOVING_BAR_INPUT_GEO,
-    MOVING_BAR_INPUT_SPEC,
+    MBAR_INPUT_GEO,
+    MBAR_INPUT_SPEC,
     NEURON_FORWARD,
     NEURON_SCHEMA,
     NETWORK_PATH,
@@ -51,7 +51,7 @@ from neuron import (
 
 from task.spread.sti_spec import CONTRASTS
 from task.spread.pack import cost_hex_label
-from task.moving_bar.sti_spec import PD_ND_LABELS
+from task.mbar.sti_spec import PD_ND_LABELS
 from train.param import (
     PAIR_SEP,
     PARAM_MODES,
@@ -118,5 +118,5 @@ from train.optimization import (
 )
 
 from task.spot.pack import build_spot_sti_opts
-from task.moving_bar.pack import build_moving_bar_sti_opts
-from task.moving_bar.sti_spec import i_baseline_from_i_sti
+from task.mbar.pack import build_mbar_sti_opts
+from task.mbar.sti_spec import i_baseline_from_i_sti

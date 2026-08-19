@@ -28,7 +28,7 @@ BUILT_HEXES_DIR = DATA_DIR / "2_built_hexes"
 # Assigned-column CSVs (r1_6_<side>_post.csv etc., from 3_assign_column.py) live here.
 ASSIGNED_COLUMNS_DIR = DATA_DIR / "3_assigned_columns"
 # Per-network moving-bar column-current cache (under each 4_built_networks run folder).
-MOVING_BAR_CACHE_DIRNAME = "moving_bar_cache"
+MBAR_CACHE_DIRNAME = "mbar_cache"
 
 
 def network_json_path(side: str, min_neuron_count: int = 1) -> Path:

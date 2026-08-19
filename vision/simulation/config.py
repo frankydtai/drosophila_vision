@@ -26,15 +26,15 @@ SPREAD_INPUT_SPEC: Dict[str, object] = {}
 SPREAD_GT: Dict[str, object] = {}
 SPOT_INPUT_GEO: Dict[str, object] = {}
 SPOT_PACK: Dict[str, object] = {}
-MOVING_BAR_INPUT_GEO: Dict[str, object] = {}
-MOVING_BAR_INPUT_SPEC: Dict[str, object] = {}
+MBAR_INPUT_GEO: Dict[str, object] = {}
+MBAR_INPUT_SPEC: Dict[str, object] = {}
 TRAIN_CONFIG: Dict[str, object] = {}
 VAL_FROM: Dict[str, object] = {}
 TRAIN_OPTIMIZATION: Dict[str, object] = {}
 TRAIN_SESSION: Dict[str, object] = {}
 FIGURE_PLOT: Dict[str, object] = {}
 FIGURE_PLOT_STI_SPOT: Dict[str, object] = {}
-FIGURE_PLOT_STI_MOVING_BAR: Dict[str, object] = {}
+FIGURE_PLOT_STI_MBAR: Dict[str, object] = {}
 ANALYZE_RUNS: List[str] = []
 ANALYZE_CELL_DYNAMICS: Dict[str, object] = {}
 ANALYZE_SYN_SIGN: Dict[str, object] = {}
@@ -93,9 +93,9 @@ def _bind_config(config: dict) -> None:
     global RUN_NAME, RUN_PATH
     global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
     global SPREAD_INPUT_SPEC, SPREAD_GT, SPOT_INPUT_GEO, SPOT_PACK
-    global MOVING_BAR_INPUT_GEO, MOVING_BAR_INPUT_SPEC
+    global MBAR_INPUT_GEO, MBAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
-    global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, FIGURE_PLOT_STI_MOVING_BAR, ANALYZE_RUNS
+    global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, FIGURE_PLOT_STI_MBAR, ANALYZE_RUNS
     global ANALYZE_CELL_DYNAMICS, ANALYZE_SYN_SIGN, ANALYZE_TRACE
     global ANALYZE_COST_PART
 
@@ -137,11 +137,11 @@ def _bind_config(config: dict) -> None:
         "a_sti_radii": _comma_int_list(config["a_sti_radii"], key="a_sti_radii"),
         "spot_cost_radius_scale": config["spot_cost_radius_scale"],
     }
-    MOVING_BAR_INPUT_GEO = {
+    MBAR_INPUT_GEO = {
         "multi_bar": config["multi_bar"],
         "bar_radius": config["bar_radius"],
     }
-    MOVING_BAR_INPUT_SPEC = {
+    MBAR_INPUT_SPEC = {
         "ms_pre": config["ms_pre"],
     }
     tasks = _comma_str_list(config["tasks"], key="tasks")
@@ -181,18 +181,18 @@ def _bind_config(config: dict) -> None:
         ),
         "output": config.get("spot_plot_output"),
     }
-    plot_t = config.get("moving_bar_plot_t")
-    FIGURE_PLOT_STI_MOVING_BAR = {
-        "output": config.get("moving_bar_plot_output"),
-        "gif": bool(config.get("moving_bar_plot_gif", False)),
-        "gif_output": config.get("moving_bar_plot_gif_output"),
-        "t_stride": int(config.get("moving_bar_plot_t_stride") or 2),
+    plot_t = config.get("mbar_plot_t")
+    FIGURE_PLOT_STI_MBAR = {
+        "output": config.get("mbar_plot_output"),
+        "gif": bool(config.get("mbar_plot_gif", False)),
+        "gif_output": config.get("mbar_plot_gif_output"),
+        "t_stride": int(config.get("mbar_plot_t_stride") or 2),
         "t": (
-            _comma_int_list(plot_t, key="moving_bar_plot_t")
+            _comma_int_list(plot_t, key="mbar_plot_t")
             if plot_t not in (None, "")
             else None
         ),
-        "direction": str(config.get("moving_bar_plot_direction", "left")),
+        "direction": str(config.get("mbar_plot_direction", "left")),
     }
     analyze_runs = config.get("analyze_runs")
     if not analyze_runs:
@@ -401,8 +401,8 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         "delta_ms": float(MODEL["delta_ms"]),
         "delta_ms_pre": float(MODEL["delta_ms_pre"]),
     }
-    moving_bar_sti_opts = {
-        "multi_bar": MOVING_BAR_INPUT_GEO["multi_bar"],
+    mbar_sti_opts = {
+        "multi_bar": MBAR_INPUT_GEO["multi_bar"],
         "ms_pre": timing["ms_pre"],
         "delta_ms": timing["delta_ms"],
         "delta_ms_pre": timing["delta_ms_pre"],
@@ -414,7 +414,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
 
     gt_cells_by_task = train.resolve_gt_cells_by_task(TRAIN_CONFIG.get("gt_by_task"))
     if gt_cells_by_task:
-        gt_opts = {"moving_bar": moving_bar_sti_opts, "spot": spot_sti_opts, "spread": spread_sti_opts}
+        gt_opts = {"mbar": mbar_sti_opts, "spot": spot_sti_opts, "spread": spread_sti_opts}
         for task, cells in gt_cells_by_task.items():
             gt_opts[task]["gt_cells"] = list(cells)
 
@@ -450,7 +450,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         spot_radius=SPOT_INPUT_GEO["spot_radius"],
         multi_spot=SPOT_INPUT_GEO["multi_spot"],
         fully_inside=SPOT_INPUT_GEO["fully_inside"],
-        moving_bar_sti_opts=moving_bar_sti_opts,
+        mbar_sti_opts=mbar_sti_opts,
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
         euler=str(MODEL["euler"]),

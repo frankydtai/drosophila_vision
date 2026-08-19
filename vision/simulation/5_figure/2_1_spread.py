@@ -1,4 +1,4 @@
-"""Spread plotting and shared trace figures for spot / moving_bar."""
+"""Spread plotting and shared trace figures for spot / mbar."""
 
 from __future__ import annotations
 

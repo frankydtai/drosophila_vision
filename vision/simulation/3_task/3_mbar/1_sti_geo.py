@@ -336,7 +336,7 @@ def sti_hexes(connectome) -> List[StiHex]:
     return [by_uv[k] for k in sorted(by_uv)]
 
 
-def moving_bar_cost_hexes(connectome, cost_radius=None) -> List[StiHex]:
+def mbar_cost_hexes(connectome, cost_radius=None) -> List[StiHex]:
     """Sti hexes used for moving-bar cost (optional central hex disc)."""
     hexes = sti_hexes(connectome)
     if cost_radius is None:

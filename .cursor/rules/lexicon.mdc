@@ -44,7 +44,7 @@ Forbidden: `gain` (including `GAIN_*`, prose “gain param”); do not name thes
 
 ### `alias` / `aliases`
 
-Definition: Registered CLI / opts group shorthand that expands to a fixed set of concrete ``task`` tokens (or related part keys) — singular ``alias`` is one such token (``spot``, ``moving_bar``); plural ``aliases`` is the bag or a collection of those tokens. Allowed only in the established bags ``TASK_ALIASES``, ``PART_COST_SCALE_ALIASES``, and ``I_CLI_*_TASKS`` (and resolvers / expanders that consume them).
+Definition: Registered CLI / opts group shorthand that expands to a fixed set of concrete ``task`` tokens (or related part keys) — singular ``alias`` is one such token (``spot``, ``mbar``); plural ``aliases`` is the bag or a collection of those tokens. Allowed only in the established bags ``TASK_ALIASES``, ``PART_COST_SCALE_ALIASES``, and ``I_CLI_*_TASKS`` (and resolvers / expanders that consume them).
 Example: `TASK_ALIASES`, `resolve_i_sti_alias("spot_bright")` → ``"spot"``, `expand_tasks`, `--i-sti spot=…`
 Forbidden: `paradigm` (including ``I_STI_PARADIGMS``, ``resolve_i_sti_paradigm``, prose “sti paradigm” / “per-paradigm”). Do not coin a second surface spelling for the same concrete task outside those bags (see coding-rules alias ban).
 
@@ -110,11 +110,11 @@ Forbidden: do not use `network` to refer to the connectome object or its biologi
 
 ### `contrast` / `contrasts`
 
-Definition: Bright vs dark sti variant (``"bright"`` | ``"dark"``) for spot / moving-bar tasks — which light polarity the sti uses, not a ±1 multiplier.
-- ``contrast`` (singular): one token ``"bright"`` or ``"dark"`` (param, pack info field, MovingBarSpec field, dict key).
+Definition: Bright vs dark sti variant (``"bright"`` | ``"dark"``) for spot / mbar tasks — which light polarity the sti uses, not a ±1 multiplier.
+- ``contrast`` (singular): one token ``"bright"`` or ``"dark"`` (param, pack info field, MbarSpec field, dict key).
 - ``contrasts`` (plural): a list/set/tuple of those tokens.
 The ±1 for a contrast is ``contrast_sign`` (see ``sign``), not ``contrast`` itself.
-Example: `contrast_sign(contrast)`, `SPOT_CONTRASTS`, `MOVING_BAR_CONTRASTS`, `GRUNTMAN_CONTRASTS`, `MovingBarSpec.contrast`, `contrast_for_task`, `contrasts=(contrast,)`, pack info ``"contrast"``, figure keys `{contrast: readout}`
+Example: `contrast_sign(contrast)`, `SPOT_CONTRASTS`, `MBAR_CONTRASTS`, `GRUNTMAN_CONTRASTS`, `MbarSpec.contrast`, `contrast_for_task`, `contrasts=(contrast,)`, pack info ``"contrast"``, figure keys `{contrast: readout}`
 Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do not use `contrast` for a ±1 — that is `sign` / `contrast_sign`. Do not use `contrast` for intensity / adapt gates or other non-bright/dark senses.
 
 ### `cost` / `costs`
@@ -180,9 +180,9 @@ Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angula
 
 ### `gt` / `gts`
 
-Definition: Ground truth target signal(s) used as the train/evaluation reference (e.g. spot/moving-bar response waveforms), and the cell set that participates in the train cost via those targets.
+Definition: Ground truth target signal(s) used as the train/evaluation reference (e.g. spot/mbar response waveforms), and the cell set that participates in the train cost via those targets.
 - ``gt`` (singular): one target waveform — one entry’s `(T,)` trace, one cell’s one-radius curve, a spot cell’s `(RF_N_RADII, n_t)` gt, or a plot line that draws a single GT waveform.
-- ``gts`` (plural): a stack/bag of those waveforms — Pack/SpotGt/MovingBarGt field ``gts`` shaped `(n_cost, T')`, or any `(n, T)` / `(n_cell, …)` tensor that holds multiple gt rows.
+- ``gts`` (plural): a stack/bag of those waveforms — Pack/SpotGt/MbarGt field ``gts`` shaped `(n_cost, T')`, or any `(n, T)` / `(n_cell, …)` tensor that holds multiple gt rows.
 - Cost cell set: ``gt_cells`` / ``GT_CELLS`` / ``active_gt_cells`` — cell types optimized against gt (not a separate ``fit`` concept).
 Example: `gts = torch.cat([pack.gts, extra_gts], dim=0)`, `pack.gts`, `_gather_cost_time(..., gts)`, `load_gt(...)`, `spot_gts(...)`, `gt_cells`, `GT_CELLS`
 Forbidden: `fit` / `fits` / `fit_cell` / `fit_cells` / `fit_gts` / `z_fit` / `fit_parts` / `mirror` / `mirrors` / `pack_mirrors` / `mirror_sign` / `mirror_cell` / `mirror_cells` / “fit cells” / “fitted parameters” — use ``gt_cells`` / ``gts`` / ``z_best`` / ``final_parts`` / ``parameters``; update verb is ``optimize``, process noun is ``train``. Naming a multi-row gt tensor ``gt`` (use ``gts``). Naming a single waveform ``gts``. Do not use ``all_gt``. Do not suffix spot GT with ``_rt`` (`gt_rt`, `spot_gt_rts`) — radius×time shape is implied; use ``gt`` / ``gts``. Do not name pre-GT components ``rf_gt`` / ``ir_gt``. Module paths (`task.spot.gt`), CLI ``--gt``, and params ``a_gt`` / ``bias_gt`` are compounds — not this singular/plural rule.
@@ -190,7 +190,7 @@ Forbidden: `fit` / `fits` / `fit_cell` / `fit_cells` / `fit_gts` / `z_fit` / `fi
 ### `group` / `groups`
 
 Definition: A biological grouping in cell or DSI semantics — e.g. a cell-type family band in figure layout (`cell_rows`), or a PD/ND entry list pair in one DSI comparison unit. Not a cost-layer sum term.
-Example: `pos_groups`, `neg_groups` in `assemble_moving_bar_dsi_groups`; `cell_rows`, `CELL_ROWS`
+Example: `pos_groups`, `neg_groups` in `assemble_mbar_dsi_groups`; `cell_rows`, `CELL_ROWS`
 Forbidden: do not use `group` for cost entries summed into sub-costs — use `part`. Do not use `group` for sti b tuples forwarded together — use `b_set`.
 
 ### `h` / `hs`
@@ -202,7 +202,7 @@ Forbidden: `height` / `heights` / ``HEIGHT`` / any project identifier containing
 ### `hex` / `hexes`
 
 Definition: A single hexagonal spatial position in the connectome, identified by its axial `(u, v)`.
-Example: `for hex in moving_bar_cost_hexes(connectome, cost_radius=cost_radius): ...`, `shell_hexes(shell)`, `radius_hexes(radius)`
+Example: `for hex in mbar_cost_hexes(connectome, cost_radius=cost_radius): ...`, `shell_hexes(shell)`, `radius_hexes(radius)`
 Forbidden: do not use `column` to refer to a hex position. `hex` is a spatial `(u, v)` location; `column` is a connectome position id (`column_id` / bag `column_ids`). Forbidden: ``member`` / ``members`` as naming tokens for hex bags or hex builders (`members_at_shell`, `members_in_radius`, `members_by_radius`, …) — use ``hex`` / ``hexes`` / ``shell_hexes`` / ``radius_hexes``. Forbidden: ``hexes_by_radius`` (thin ``shell_hexes`` bag wrapper) — call ``shell_hexes`` directly.
 
 ### `id` / `ids`
@@ -255,8 +255,8 @@ Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_
 
 ### `mid` / `mids`
 
-Definition: Geometric or temporal midpoint along a path, lane, or bin axis — not hex-lattice radius 0. Moving-bar transit: trail midpoint in degrees (`trail_mid`), time sample between entry and exit (`mid_t`, return slot ``mid`` of ``moving_bar_transit_times``, snapshot labels ``"mid"``). Histogram: bin midpoint (`bin_midpoints`).
-Example: `trail_mid = origin + 0.5 * (...)`, `start_t, mid_t, exit_t = moving_bar_transit_times(...)`, `labels = ("start", "mid", "exit")`, `bin_midpoints = 0.5 * (edges_bins[:-1] + edges_bins[1:])`
+Definition: Geometric or temporal midpoint along a path, lane, or bin axis — not hex-lattice radius 0. Moving-bar transit: trail midpoint in degrees (`trail_mid`), time sample between entry and exit (`mid_t`, return slot ``mid`` of ``mbar_transit_times``, snapshot labels ``"mid"``). Histogram: bin midpoint (`bin_midpoints`).
+Example: `trail_mid = origin + 0.5 * (...)`, `start_t, mid_t, exit_t = mbar_transit_times(...)`, `labels = ("start", "mid", "exit")`, `bin_midpoints = 0.5 * (edges_bins[:-1] + edges_bins[1:])`
 Forbidden: do not use `mid` for sti-on hex / hex-lattice radius 0 — use `center`. Do not use `center` for these midpoints.
 
 ### `mode` / `modes`
@@ -267,9 +267,9 @@ Forbidden: `bucket`, `mode_bucket` — never name a mode token or the modes bag 
 
 ### `mbar` / `mbars`
 
-Definition: The moving-bar sti task family (and its related task variants) used to generate inputs and corresponding targets. ``mbar`` is a lexicon-listed short noun for ``moving_bar``; all identifiers use ``mbar`` (never the long form). Future static-bar family will use ``sbar``.
+Definition: The moving-bar sti task family (and its related task variants) used to generate inputs and corresponding targets. ``mbar`` is a lexicon-listed short noun for ``mbar``; all identifiers use ``mbar`` (never the long form). Future static-bar family will use ``sbar``.
 Example: `if pack.task in MBAR_TASKS: ...`
-Forbidden: `moving_bar` / `moving_bars` / `MovingBar` / `MOVING_BAR` — use `mbar` / `mbars` / `Mbar` / `MBAR`.
+Forbidden: `mbar` / `mbars` / `Mbar` / `MBAR` — use `mbar` / `mbars` / `Mbar` / `MBAR`.
 
 ### `ms` / `mss`
 
@@ -336,7 +336,7 @@ Forbidden: ``segment`` / ``segments`` for this concept or schema packing unit. `
 
 ### `part` / `parts`
 
-Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entries` sharing the same `part_key` are summed via `part_idxs` into one `part`. The total cost is `Σ W·part / Σ W` over parts with non-zero scale.
+Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"mbar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entries` sharing the same `part_key` are summed via `part_idxs` into one `part`. The total cost is `Σ W·part / Σ W` over parts with non-zero scale.
 Example: `parts[part_key] = part` in `calc_cost_parts`
 
 ### `prep`
@@ -476,8 +476,8 @@ Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do n
 
 ### `spec` / `specs`
 
-Definition: One moving-bar sti condition — direction × contrast × ``w`` (and speed), identified by token ``left_bright_w1`` / ``right_dark_w4`` / …. Type ``MovingBarSpec``; plural ``specs`` is a list of those conditions; string id is ``spec_token`` / bag ``spec_tokens``. Orthogonal to ``task`` (``moving_bar_bright`` holds many specs). Analyze report field ``"spec"`` and CLI ``--spec`` select this condition.
-Example: `MovingBarSpec(direction=..., contrast=..., w_deg=...)`, `spec.token`, `gruntman_moving_bar_specs()`, `bar_specs_from_task(...)`, `parse_moving_bar_spec(token)`, `reports_by_spec[spec][cell]`, `--spec right_bright_w1`
+Definition: One moving-bar sti condition — direction × contrast × ``w`` (and speed), identified by token ``left_bright_w1`` / ``right_dark_w4`` / …. Type ``MbarSpec``; plural ``specs`` is a list of those conditions; string id is ``spec_token`` / bag ``spec_tokens``. Orthogonal to ``task`` (``mbar_bright`` holds many specs). Analyze report field ``"spec"`` and CLI ``--spec`` select this condition.
+Example: `MbarSpec(direction=..., contrast=..., w_deg=...)`, `spec.token`, `gruntman_mbar_specs()`, `bar_specs_from_task(...)`, `parse_mbar_spec(token)`, `reports_by_spec[spec][cell]`, `--spec right_bright_w1`
 Forbidden: component-plot layout bags (`_ComponentLayout` / ``layout``); generic config / curve / at_xy bags; connectome run or path strings; ``condition`` / ``variant`` as naming tokens for this concept. Do not use ``tag`` / ``_tag`` / ``*_tag`` for a moving-bar condition id or its bag — that is ``spec`` (e.g. ``left_bright_tag`` → ``left_bright`` or ``spec_token``, ``*_spec_tag`` → ``*_spec_token``). Module files ``sti_spec`` (timing / ``i_sti`` assembly) may keep that basename. Library ``gridspec`` / ``ModuleSpec`` / ``inspect`` may remain.
 
 ### `spot` / `spots`
@@ -495,7 +495,7 @@ Forbidden: `stimulus`, `stim`, `stimuli`, `input`, `is_input`, `PR`, `photorecep
 
 Definition: A running total of values (or a bag of such totals keyed by component/cell), and the fold of many contributions into that total or into a destination tensor / cost / gradient. Singular ``sum`` is one total or the concept; plural ``sums`` is a bag of those totals. Compounds name the destination or role (``_target_sums``, ``part_sums``, ``backward_part_sums``, ``n_syn_sum``, ``b_sums``).
 Example: `forward_sums.sums`, `sums[cell] += ...`, `n_syn_sum`, `part_sums`, `_target_sums`, `backward_part_sums(z, session)`
-Forbidden: `accumulate` / `accum` / `acc` / `aggregate` as naming tokens or prose substitutes (``_accumulate_target`` → ``_target_sums``; ``backward_accumulate_scaled_cost`` → ``backward_part_sums``; ``accumulate_all`` → ``partner_syn_by_label``). Do not use `total` for a sum bag — `total` is the scaled cost scalar only. Do not use `count` / `counts` for a sum or cardinality. Mean/std reductions that are not sum bags use the result noun with ``mean`` / ``std`` modifiers (e.g. ``_moving_bar_ca_mean_cell``), not ``sum``.
+Forbidden: `accumulate` / `accum` / `acc` / `aggregate` as naming tokens or prose substitutes (``_accumulate_target`` → ``_target_sums``; ``backward_accumulate_scaled_cost`` → ``backward_part_sums``; ``accumulate_all`` → ``partner_syn_by_label``). Do not use `total` for a sum bag — `total` is the scaled cost scalar only. Do not use `count` / `counts` for a sum or cardinality. Mean/std reductions that are not sum bags use the result noun with ``mean`` / ``std`` modifiers (e.g. ``_mbar_ca_mean_cell``), not ``sum``.
 
 ### `sum_sq` / `sum_sqs`
 
@@ -517,13 +517,13 @@ Forbidden: `win`, `win_len`, `win_lens`, `wl`, `win_idx`, `win_t`, `n_steps` —
 
 ### `task` / `tasks`
 
-Definition: A train/evaluation task type (e.g., `spot_bright`, `spot_dark`, `moving_bar_bright`, `moving_bar_dark`).
+Definition: A train/evaluation task type (e.g., `spot_bright`, `spot_dark`, `mbar_bright`, `mbar_dark`).
 Example: `for name in session.tasks: ...`
 
 ### `token` / `tokens`
 
 Definition: (1) CLI / opts / parse grammar atom — one raw string unit still being decoded by ``parse_*``, ``split``, or ``partition`` (argv value, comma-list piece, ``KEY=VALUE`` / ``SOURCE:BOOL`` slice, ``part_key`` substring awaiting cast, or enum string id such as ``spec.token`` / mode / contrast); or (2) a stem / suffix fragment written into a **filename** (run / figure path). Singular ``token`` is one such atom; plural ``tokens`` is the ordered bag.
-Example: `parse_comma_list(token)`, `parse_bool(token)`, `parse_moving_bar_spec(token)`, `enabled_token`, `radius_token = part_key[pos + 2:]`, `spec.token`, `spec_tokens`, `filter_figure_token`, `_format_filename_token`, filename stem ``filter_token``.
+Example: `parse_comma_list(token)`, `parse_bool(token)`, `parse_mbar_spec(token)`, `enabled_token`, `radius_token = part_key[pos + 2:]`, `spec.token`, `spec_tokens`, `filter_figure_token`, `_format_filename_token`, filename stem ``filter_token``.
 Forbidden: ``text`` / ``*_text`` as project identifiers (library APIs may remain — see ``### label``). Do not use ``token`` for legend / at_xy / formula / title / subtitle / console display names — that is ``label``. Do not use ``token`` for ``cell``, CSV ``field``, or arbitrary ``str`` locals that are neither parse/opts atoms nor filename fragments. Do not use ``tag`` / ``_tag`` / ``*_tag`` for any CLI / opts parse atom or filename stem fragment — that is ``token`` (e.g. ``w_tag(w_deg)`` → ``w_token(w_deg)``, ``network_run_tag`` → ``network_run_token``, ``_cell_tag`` → ``_cell_token``, ``checkpoint_iter_tag`` → ``checkpoint_iter_token``).
 
 ### `total`
@@ -653,7 +653,7 @@ Forbidden: `fit`, `train` (as a verb) — use `optimize` for the update loop. Do
 ### `parse`
 
 Definition: Decode a raw string or token sequence into a structured in-memory value.
-Example: `parse_moving_bar_spec(token)` → `(direction, contrast, w_token)`, `parse_at_xs(token)` → `at_xs`
+Example: `parse_mbar_spec(token)` → `(direction, contrast, w_token)`, `parse_at_xs(token)` → `at_xs`
 
 ### `plot`
 
@@ -708,7 +708,7 @@ Forbidden: using ``_by_`` when the bag is an average — that is ``mean`` (``v_r
 ### `mean`
 
 Definition: Same word class as ``_by_``. Marks that the quantity was averaged within each class of a grouping unit — not a partition of the unaveraged values. Pattern: `<quantity>_mean_<unit>`; each grouping unit used in that average is one ``_mean_<unit>`` (``v_readout_mean_cell``, ``v_readout_mean_cell_mean_radius``, ``v_readout_mean_cell_mean_radius_mean_hex``, ``ca_mean_cell``, ``ca_mean_cell_mean_hex``). ``_by_<unit>`` is classify-only (no average).
-Example: `TraceReadout.v_readout_mean_cell`, `SpotTraceReadout.v_readout_mean_cell_mean_radius`, `_spot_v_readout_mean_cell_mean_radius(...)`, `_spot_v_readout_mean_cell_mean_radius_mean_hex(...)`, `MovingBarWindowTraces.ca_mean_cell`, `_moving_bar_ca_mean_cell(...)`, `_moving_bar_ca_mean_cell_mean_hex(...)`
+Example: `TraceReadout.v_readout_mean_cell`, `SpotTraceReadout.v_readout_mean_cell_mean_radius`, `_spot_v_readout_mean_cell_mean_radius(...)`, `_spot_v_readout_mean_cell_mean_radius_mean_hex(...)`, `MbarWindowTraces.ca_mean_cell`, `_mbar_ca_mean_cell(...)`, `_mbar_ca_mean_cell_mean_hex(...)`
 Forbidden: ``*_by_cell`` / ``*_by_radius`` for averaged traces (`v_readout_by_cell`); ``cell_mean`` / ``radius_mean`` as naming tokens; ``*_from_readout``; ``fill`` / ``_fill_*`` for writing a mean; ``*_trace_means``. Library ``np.mean`` / ``.mean()`` and a short-lived local ``mean = sum_ / n`` may remain.
 
 ### `_from_`
