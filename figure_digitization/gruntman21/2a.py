@@ -3,7 +3,8 @@
 
 Figure 2A shows baseline-subtracted T4 and T5 responses to 160 ms,
 4-LED-wide bar flashes at 12 positions along the PD--ND axis.  Values are
-approximate raster digitizations of the published mean traces, not raw data.
+approximate raster digitizations of the published mean traces, not raw data,
+resampled at 5 ms intervals.
 
 Outputs ``2a_digitized.csv`` and ``2a_digitized.png`` beside this script.
 
@@ -34,6 +35,7 @@ STIMULUS_MS = 160.0
 STIMULUS_PX = 27.0
 PX_PER_MS = STIMULUS_PX / STIMULUS_MS
 PX_PER_MV = 108.0 / 10.0
+SAMPLE_INTERVAL_MS = 5.0
 
 # The 12 small multiples are evenly spaced in the supplied raster.
 PANEL_X0 = 187
@@ -41,24 +43,24 @@ PANEL_STEP = 174
 PANEL_WIDTH = 186
 TRACE_ROWS = {"T4": (145, 520), "T5": (520, 990)}
 STIM_ONSET_LOCAL_X = 60
-POSITION_ZERO_COLUMN = 5
+POSITION_ZERO_COLUMN = 6
 
 # T4 negative-going pixels extend below the old y=440 crop. Black captions
 # below the row overlap some panels, so keep NC extraction inside panel-local
 # bounds while allowing green PC traces to use the full extended crop.
 T4_NC_MAX_Y = {
+    -6: 310,
     -5: 310,
-    -4: 310,
-    -3: 315,
-    -2: 325,
-    -1: 345,
-    0: 335,
+    -4: 315,
+    -3: 325,
+    -2: 345,
+    -1: 335,
+    0: 310,
     1: 310,
     2: 310,
     3: 310,
     4: 310,
     5: 310,
-    6: 310,
 }
 
 # Core line colours.  Lighter colours are SEM bands and are intentionally
@@ -218,6 +220,19 @@ def digitize(image: np.ndarray) -> pd.DataFrame:
                     py = np.concatenate((np.full(len(pad_x), baseline_y), py))
                     time_ms = (px - STIM_ONSET_LOCAL_X) / PX_PER_MS
                 vm_mv = (baseline_y - py) / PX_PER_MV
+                sample_start_ms = (
+                    np.ceil(time_ms[0] / SAMPLE_INTERVAL_MS) * SAMPLE_INTERVAL_MS
+                )
+                sample_stop_ms = (
+                    np.floor(time_ms[-1] / SAMPLE_INTERVAL_MS) * SAMPLE_INTERVAL_MS
+                )
+                sample_time_ms = np.arange(
+                    sample_start_ms,
+                    sample_stop_ms + SAMPLE_INTERVAL_MS / 2.0,
+                    SAMPLE_INTERVAL_MS,
+                )
+                vm_mv = np.interp(sample_time_ms, time_ms, vm_mv)
+                time_ms = sample_time_ms
                 trace_id = f"{cell_type}_{contrast}_pos{position:+d}"
                 rf_side = "leading" if position < 0 else (
                     "center" if position == 0 else "trailing"

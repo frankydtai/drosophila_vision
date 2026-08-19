@@ -204,31 +204,33 @@ def xy_deg_from_uv(
     return xy_deg_from_xy(*xy_from_uv(u, v), deg=deg)
 
 
+_HEX_OFFSETS = np.array([
+    [DEG / 3, DEG / 2],
+    [2 * DEG / 3, 0],
+    [DEG / 3, -DEG / 2],
+    [-DEG / 3, -DEG / 2],
+    [-2 * DEG / 3, 0],
+    [-DEG / 3, DEG / 2],
+], dtype=np.float64)
+
+HEX_AREA = DEG ** 2
+
+
 def hex_vertices(
     cx: float,
     cy: float,
-    radius: float = HEX_PATCH_RADIUS,
 ) -> np.ndarray:
-    """Degree-space hex polygon vertices centred at ``(cx, cy)``.
+    """Degree-space tiling hex vertices centred at ``(cx, cy)``.
 
-    Matches ``matplotlib.patches.RegularPolygon`` with ``orientation`` =
-    :data:`HEX_PATCH_ORIENTATION` (unit polygon includes matplotlib's ``pi/2``
-    "points-up" offset, then ``scale(radius).rotate(orientation)``).
+    Non-regular hexagon that tiles the oblique lattice defined by
+    ``xy_deg_from_uv`` without gaps or overlaps.
     """
-    angles = (
-        np.pi / 2
-        + HEX_PATCH_ORIENTATION
-        + (2.0 * np.pi / 6.0) * np.arange(6, dtype=np.float64)
-    )
-    vx = cx + radius * np.cos(angles)
-    vy = cy + radius * np.sin(angles)
-    return np.column_stack([vx, vy])
+    return _HEX_OFFSETS + np.array([[float(cx), float(cy)]])
 
 
 def view_bounds_from_vertices(
     x,
     y,
-    radius: float = HEX_PATCH_RADIUS,
 ) -> Tuple[float, float, float, float]:
     """Axis-aligned extent in degrees from hex patch vertices at ``(x, y)``."""
     xs = np.asarray(x, dtype=float)
@@ -237,7 +239,7 @@ def view_bounds_from_vertices(
         return 0.0, 0.0, 0.0, 0.0
     xmins, ymins, xmaxs, ymaxs = [], [], [], []
     for cx, cy in zip(xs, ys):
-        v = hex_vertices(float(cx), float(cy), radius)
+        v = hex_vertices(float(cx), float(cy))
         xmins.append(float(v[:, 0].min()))
         ymins.append(float(v[:, 1].min()))
         xmaxs.append(float(v[:, 0].max()))
@@ -251,15 +253,12 @@ def plot_hex_patches(
     y,
     facecolor,
     edgecolor: str = "0.35",
-    hex_radius_px: Optional[float] = None,
     linewidth: float = 0.15,
     alpha: float = 0.95,
 ) -> None:
-    """Draw hex patches at degree-space centres (same primitive as column_map)."""
-    from matplotlib.patches import RegularPolygon
+    """Draw tiling hex patches at degree-space centres."""
+    from matplotlib.patches import Polygon
 
-    if hex_radius_px is None:
-        hex_radius_px = HEX_PATCH_RADIUS
     xs = np.asarray(x, dtype=float)
     ys = np.asarray(y, dtype=float)
     if np.ndim(facecolor) == 0 or (
@@ -270,11 +269,9 @@ def plot_hex_patches(
         facecolors = list(facecolor)
     for xi, yi, fc in zip(xs, ys, facecolors):
         ax.add_patch(
-            RegularPolygon(
-                (float(xi), float(yi)),
-                numVertices=6,
-                radius=hex_radius_px,
-                orientation=HEX_PATCH_ORIENTATION,
+            Polygon(
+                hex_vertices(float(xi), float(yi)),
+                closed=True,
                 facecolor=fc,
                 edgecolor=edgecolor,
                 linewidth=linewidth,
@@ -305,13 +302,12 @@ def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
         ax.set_ylabel(Y_AXIS_LABEL, fontsize=fontsize)
 
 
-def _plot_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
+def _plot_hexes(ax, u, v, labels, facecolor, edgecolor, fontsize=3):
     """Draw labeled hexagons at the given axial (u, v)."""
     xs, ys = xy_deg_from_uv(np.asarray(u), np.asarray(v))
     plot_hex_patches(
         ax, xs, ys, facecolor,
         edgecolor=edgecolor,
-        hex_radius_px=hex_radius,
         linewidth=1,
         alpha=0.6,
     )
@@ -329,7 +325,6 @@ def plot_fafb_columns(
     ax,
     df: pd.DataFrame,
     radius: Optional[int] = None,
-    hex_radius_px: Optional[float] = None,
     label: bool = True,
     fontsize: int = 3,
     inside_color: Tuple[str, str] = INSIDE_COLOR,
@@ -341,8 +336,6 @@ def plot_fafb_columns(
     disc split is computed here from the shared ``radius_mask(u, v, radius)`` --
     ``radius`` None or < 0 means every column is in the disc (one colour).
     """
-    if hex_radius_px is None:
-        hex_radius_px = HEX_PATCH_RADIUS
     mask = radius_mask(df["u"].values, df["v"].values,
                        -1 if radius is None else radius)
     inside = df[mask]
@@ -355,11 +348,11 @@ def plot_fafb_columns(
     )
     _plot_hexes(
         ax, inside["u"].values, inside["v"].values, in_labels,
-        inside_color[0], inside_color[1], hex_radius_px, fontsize,
+        inside_color[0], inside_color[1], fontsize,
     )
     _plot_hexes(
         ax, outside["u"].values, outside["v"].values, out_labels,
-        outside_color[0], outside_color[1], hex_radius_px, fontsize,
+        outside_color[0], outside_color[1], fontsize,
     )
 
 
@@ -390,7 +383,6 @@ def plot_column_map(
     from matplotlib.patches import Patch
 
     classify = radius is not None and radius >= 0
-    hex_radius_px = HEX_PATCH_RADIUS
     iu, iv = ideal_grid.us, ideal_grid.vs
 
     ix, iy = xy_deg_from_uv(iu, iv)
@@ -407,7 +399,7 @@ def plot_column_map(
     _plot_hexes(
         axes[0], iu, iv,
         [f"({int(a)},{int(b)})" for a, b in zip(iu, iv)],
-        "lightblue", "darkblue", hex_radius_px, fontsize=3.5,
+        "lightblue", "darkblue", fontsize=3.5,
     )
     axes[0].set_title(
         f"Axial (u, v)\n{ideal_grid.n_hex} hexes, "
@@ -416,7 +408,7 @@ def plot_column_map(
     )
 
     def _plot_fafb(ax, df, side_label):
-        plot_fafb_columns(ax, df, radius=radius, hex_radius_px=hex_radius_px)
+        plot_fafb_columns(ax, df, radius=radius)
         if classify:
             mask = radius_mask(df["u"].values, df["v"].values, radius)
             n_in, n_out = int(mask.sum()), int((~mask).sum())

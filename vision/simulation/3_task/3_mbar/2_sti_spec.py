@@ -24,7 +24,7 @@ from task.mbar.sti_geo import (
     bar_rect_lane_clipped,
     clip_rect_areas,
     view_bounds,
-    i_sti_nodes_from_hex,
+    i_sti_nodes_from_hexes,
     lane_sweep_trail_range,
     motion_lanes,
     sti_hexes,
@@ -33,7 +33,7 @@ from task.mbar.sti_geo import (
 logger = logging.getLogger(__name__)
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
-GRUNTMAN_SPEED_DEG_OVER_S = 56.0
+GRUNTMAN_SPEED_DEG_OVER_S = 56.25
 
 # Moving-bar per-hex cost window relative to first-sti alignment.
 COST_WINDOW_MS = 900.0
@@ -332,15 +332,15 @@ def mbar_spec_horizon(t_first_stis: Sequence[int], n_t: int) -> Tuple[int, int, 
 
 def mbar_network_t0_bn(connectome, filt_hexes: Sequence[StiHex], n_b: int, t0_map: dict) -> np.ndarray:
     """Expand per-hex ``t0`` values to a full node grid ``(B, N_nodes)``."""
-    node_u_np = np.asarray(connectome.us, dtype=np.int64)
-    node_v_np = np.asarray(connectome.vs, dtype=np.int64)
+    node_us = np.asarray(connectome.us, dtype=np.int64)
+    node_vs = np.asarray(connectome.vs, dtype=np.int64)
     t0_bn = np.full((n_b, connectome.n_node), -1, dtype=np.int64)
     for b in range(n_b):
         for hex in filt_hexes:
             t0 = t0_map.get((b, int(hex.u), int(hex.v)))
             if t0 is None:
                 continue
-            on_hex = (node_u_np == int(hex.u)) & (node_v_np == int(hex.v))
+            on_hex = (node_us == int(hex.u)) & (node_vs == int(hex.v))
             t0_bn[b, on_hex] = t0
     return t0_bn
 
@@ -521,7 +521,7 @@ def build_mbar_signals(
         if cache_path is not None and use_cache:
             _save_mbar_hex_cache(cache_path, i_sti_hex)
 
-    i_sti_np = i_sti_nodes_from_hex(i_sti_hex, sti, n_node)
+    i_sti_np = i_sti_nodes_from_hexes(i_sti_hex, sti, n_node)
 
     return MbarSti(
         i_sti=torch.as_tensor(i_sti_np, dtype=sim_dtype, device=device),

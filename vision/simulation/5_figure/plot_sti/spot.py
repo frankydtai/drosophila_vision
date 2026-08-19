@@ -38,7 +38,6 @@ import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401
 from build_hex import (
     FIELD_VIEW_PAD_DEG,
-    HEX_PATCH_RADIUS,
     _HEX_DIRECTIONS,
     plot_fafb_columns,
     view_bounds_from_vertices,
@@ -120,7 +119,7 @@ def plot_multi_spot_tiling(
     axes_flat = np.atleast_1d(axes).ravel()
     n_by_spot_radius = {}
     for ax, spot_radius in zip(axes_flat, spot_radii):
-        plot_fafb_columns(ax, df_hexes, hex_radius_px=HEX_PATCH_RADIUS, label=False)
+        plot_fafb_columns(ax, df_hexes, label=False)
         centers = build_spot(
             connectome,
             spot_radius=spot_radius,

@@ -63,7 +63,7 @@ import build_hex
 from task.mbar.sti_geo import (
     filter_sti_hexes,
     mbar_cost_hexes,
-    network_uv_np,
+    node_us_vs,
 )
 from task.spot.sti_geo import (
     resolve_spot,
@@ -678,10 +678,10 @@ def _spot_readout_hex_mask(connectome, nodes, cost_radius, *, at_x=None, at_y=No
     )
     if not hexes:
         return np.zeros(len(nodes), dtype=bool)
-    node_u_np, node_v_np = network_uv_np(connectome)
+    node_us, node_vs = node_us_vs(connectome)
     hex_uv = {(int(hex.u), int(hex.v)) for hex in hexes}
     return np.array(
-        [(int(node_u_np[node]), int(node_v_np[node])) in hex_uv for node in nodes],
+        [(int(node_us[node]), int(node_vs[node])) in hex_uv for node in nodes],
         dtype=bool,
     )
 

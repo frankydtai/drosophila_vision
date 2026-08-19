@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
-from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, xy_from_uv, xy_deg_from_uv
+from build_hex import DEG, HEX_AREA, hex_vertices, xy_from_uv, xy_deg_from_uv
 from network.construction import cost_radius_mask
 
 GRUNTMAN_WS_DEG = (2.25, 9.0)
@@ -19,7 +19,7 @@ GRUNTMAN_DIRECTIONS = ("right", "left", "up", "down")
 # Per-lane spacing w in hex nodes (``spacing_deg = bar_radius * DEG``).
 BAR_RADIUS = 2
 
-_HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
+_HEX_AREA = float(HEX_AREA)
 
 
 class _BarGeo(Protocol):
@@ -344,15 +344,16 @@ def mbar_cost_hexes(connectome, cost_radius=None) -> List[StiHex]:
     return [hex for hex in hexes if cost_radius_mask(hex.u, hex.v, cost_radius)]
 
 
-def _as_int64_np(x) -> np.ndarray:
-    if torch.is_tensor(x):
-        return np.asarray(x.detach().cpu().numpy(), dtype=np.int64)
-    return np.asarray(x, dtype=np.int64)
-
-
-def network_uv_np(connectome) -> Tuple[np.ndarray, np.ndarray]:
+def node_us_vs(connectome) -> Tuple[np.ndarray, np.ndarray]:
     """connectome axial ``(u, v)`` per node as int64 numpy."""
-    return _as_int64_np(connectome.us), _as_int64_np(connectome.vs)
+    return (
+        np.asarray(connectome.us.detach().cpu().numpy(), dtype=np.int64)
+        if torch.is_tensor(connectome.us)
+        else np.asarray(connectome.us, dtype=np.int64),
+        np.asarray(connectome.vs.detach().cpu().numpy(), dtype=np.int64)
+        if torch.is_tensor(connectome.vs)
+        else np.asarray(connectome.vs, dtype=np.int64),
+    )
 
 
 def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
@@ -374,24 +375,18 @@ def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
     ]
 
 
-def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
-    hex_idxs: List[int] = []
-    nodes: List[int] = []
-    for hex_idx, hex in enumerate(hexes):
-        for node in np.asarray(hex.nodes).ravel():
-            hex_idxs.append(hex_idx)
-            nodes.append(int(node))
-    return (
-        np.asarray(hex_idxs, dtype=np.int64),
-        np.asarray(nodes, dtype=np.int64),
-    )
-
-
-def i_sti_nodes_from_hex(i_sti_hex, hexes, n_node):
+def i_sti_nodes_from_hexes(i_sti_hex, hexes, n_node):
     """Map ``(B, T, n_hex)`` i_sti_hex to ``(B, T, n_node)`` by hex→node index."""
     n_b, n_t, _ = i_sti_hex.shape
     i_sti = np.zeros((n_b, n_t, n_node), dtype=np.float64)
-    hex_idxs, nodes = _hex_node_map(hexes)
+    hex_idxs = []
+    nodes = []
+    for hex_idx, sti_hex in enumerate(hexes):
+        for node in np.asarray(sti_hex.nodes).ravel():
+            hex_idxs.append(hex_idx)
+            nodes.append(int(node))
     if len(hex_idxs):
+        hex_idxs = np.asarray(hex_idxs, dtype=np.int64)
+        nodes = np.asarray(nodes, dtype=np.int64)
         i_sti[:, :, nodes] = i_sti_hex[:, :, hex_idxs]
     return i_sti

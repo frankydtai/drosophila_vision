@@ -336,7 +336,7 @@ def uv_from_node_id(nodes: List[dict]) -> Dict[int, Tuple[float, float]]:
     return m
 
 
-def ids_by_cell(
+def build_ids_by_cell(
     nodes: List[dict],
     *,
     at_u: Optional[int] = None,
@@ -357,7 +357,7 @@ def ids_by_cell(
     has_xy = at_x is not None or at_y is not None
     if has_radius + has_shell + has_uv + has_xy != 1:
         raise ValueError(
-            "ids_by_cell requires exactly one of radius, shell, at_u/at_v, at_x/at_y"
+            "build_ids_by_cell requires exactly one of radius, shell, at_u/at_v, at_x/at_y"
         )
     ids_by_cell: Dict[str, Set[int]] = {}
     for n in nodes:
@@ -728,7 +728,7 @@ def resolve_xy_ids(
     single_xy = at_x is not None and at_y is not None
     if single_xy:
         hu, hv = uv_from_xy(at_x, at_y)
-        ids_by_cell = ids_by_cell(nodes, at_u=hu, at_v=hv)
+        ids_by_cell = build_ids_by_cell(nodes, at_u=hu, at_v=hv)
         at_ref_xy = (float(at_x), float(at_y))
         hex_note = (
             f" at (x,y)=({_format_table_scalar(at_ref_xy[0])},"
@@ -745,7 +745,7 @@ def resolve_xy_ids(
         )
         return ids_by_cell, hex_note, at_ref_xy, True
 
-    ids_by_cell = ids_by_cell(nodes, at_x=at_x, at_y=at_y)
+    ids_by_cell = build_ids_by_cell(nodes, at_x=at_x, at_y=at_y)
     if not any(ids_by_cell.values()):
         raise ValueError(f"no ids match --x={at_x!r} --y={at_y!r}")
     parts = []
@@ -936,14 +936,13 @@ def main(argv: List[str] | None = None) -> int:
 
     family_from_cell_all = family_from_cell_csv(json_path)
 
-    _build_ids_by_cell = ids_by_cell
     ids_by_cell: Optional[Dict[str, Set[int]]] = None
     hex_note = ""
     at_ref_uv: Optional[Tuple[float, float]] = None
     at_ref_xy: Optional[Tuple[float, float]] = None
 
     if args.radius is not None:
-        ids_by_cell = _build_ids_by_cell(nodes, radius=args.radius)
+        ids_by_cell = build_ids_by_cell(nodes, radius=args.radius)
         n_hex = 3 * args.radius * (args.radius + 1) + 1
         hex_note += f" radius={args.radius} ({n_hex} hexes)"
         logger.info(
@@ -954,7 +953,7 @@ def main(argv: List[str] | None = None) -> int:
             sum(1 for ids in ids_by_cell.values() if ids),
         )
     elif args.shell is not None:
-        ids_by_cell = _build_ids_by_cell(nodes, shell=args.shell)
+        ids_by_cell = build_ids_by_cell(nodes, shell=args.shell)
         n_hex = 1 if args.shell == 0 else 6 * args.shell
         hex_note += f" shell={args.shell} ({n_hex} hexes)"
         logger.info(
@@ -967,7 +966,7 @@ def main(argv: List[str] | None = None) -> int:
     elif has_uv_filter:
         if single_uv_hex:
             hu, hv = at_u, at_v
-            ids_by_cell = _build_ids_by_cell(nodes, at_u=hu, at_v=hv)
+            ids_by_cell = build_ids_by_cell(nodes, at_u=hu, at_v=hv)
             at_ref_uv = (float(hu), float(hv))
             hx, hy = (float(v) for v in xy_from_uv(hu, hv))
             at_ref_xy = (hx, hy)
@@ -986,7 +985,7 @@ def main(argv: List[str] | None = None) -> int:
                 sum(1 for ids in ids_by_cell.values() if ids),
             )
         else:
-            ids_by_cell = _build_ids_by_cell(nodes, at_u=at_u, at_v=at_v)
+            ids_by_cell = build_ids_by_cell(nodes, at_u=at_u, at_v=at_v)
             if not any(ids_by_cell.values()):
                 logger.error("no ids match --u=%r --v=%r", at_u, at_v)
                 return 1

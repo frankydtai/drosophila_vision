@@ -57,7 +57,7 @@ import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
 from task.mbar.sti_geo import (
     filter_sti_hexes,
     mbar_cost_hexes,
-    network_uv_np,
+    node_us_vs,
     sti_hexes,
 )
 from task.mbar.sti_spec import (
@@ -256,18 +256,18 @@ def _mbar_ca_mean_cell(
 
 
 def _network_hex_node_mask(connectome, hexes, n_b):
-    node_u_np, node_v_np = network_uv_np(connectome)
+    node_us, node_vs = node_us_vs(connectome)
     hex_uv = {(int(hex.u), int(hex.v)) for hex in hexes}
     hex_mask = np.array(
-        [(int(hex_u), int(hex_v)) in hex_uv for hex_u, hex_v in zip(node_u_np, node_v_np)],
+        [(int(u), int(v)) in hex_uv for u, v in zip(node_us, node_vs)],
         dtype=bool,
     )
     return np.broadcast_to(hex_mask, (n_b, connectome.n_node)).copy()
 
 
 def _t0_from_align_hex(t0_bn, b, ref_hex, *, connectome):
-    node_u_np, node_v_np = network_uv_np(connectome)
-    ref_hex_mask = (node_u_np == int(ref_hex.u)) & (node_v_np == int(ref_hex.v))
+    node_us, node_vs = node_us_vs(connectome)
+    ref_hex_mask = (node_us == int(ref_hex.u)) & (node_vs == int(ref_hex.v))
     t0_ref = int(t0_bn[b, ref_hex_mask][0])
     if t0_ref < 0:
         loc = f'({int(ref_hex.u)},{int(ref_hex.v)})'
@@ -289,12 +289,12 @@ def t0_bn_from_align_at_xy(
             f'got {len(ref_hexes)} for x={align_at_x!r} y={align_at_y!r}',
         )
     ref_hex = ref_hexes[0]
-    node_u_np, node_v_np = network_uv_np(connectome)
+    node_us, node_vs = node_us_vs(connectome)
     t0_bn = t0_bn.copy()
     for b in range(n_b):
         t0_ref = _t0_from_align_hex(t0_bn, b, ref_hex, connectome=connectome)
         for hex in hexes:
-            on_hex = (node_u_np == int(hex.u)) & (node_v_np == int(hex.v))
+            on_hex = (node_us == int(hex.u)) & (node_vs == int(hex.v))
             t0_bn[b, on_hex] = t0_ref
     return t0_bn
 

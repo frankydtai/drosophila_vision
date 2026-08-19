@@ -36,7 +36,6 @@ import path  # noqa: E402
 from build_hex import (  # noqa: E402
     EMPTY_COLOR,
     EXTENT,
-    HEX_PATCH_RADIUS,
     INSIDE_COLOR,
     OUTSIDE_COLOR,
     _plot_hexes,
@@ -228,14 +227,14 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
             face, edge = _shade(shade, n_neuron)
             _plot_hexes(
                 ax, np.array(u), np.array(v), [None] * len(ids),
-                face, edge, HEX_PATCH_RADIUS,
+                face, edge,
             )
             n += len(ids)
         return n
 
     def _panel(ax, n_by_column, title):
         # Background: every right column in light grey (reuse _plot_hexes).
-        _plot_hexes(ax, bg_u, bg_v, bg_labels, EMPTY_COLOR[0], EMPTY_COLOR[1], HEX_PATCH_RADIUS)
+        _plot_hexes(ax, bg_u, bg_v, bg_labels, EMPTY_COLOR[0], EMPTY_COLOR[1])
         # Discrete per-n colors (INSIDE_SHADE / OUTSIDE_SHADE).
         n_in = _fill(ax, n_by_column, lambda c: c in inside_ids, INSIDE_SHADE)
         n_out = _fill(ax, n_by_column, lambda c: c not in inside_ids, OUTSIDE_SHADE)

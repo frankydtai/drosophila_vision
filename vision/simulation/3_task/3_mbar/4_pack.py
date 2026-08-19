@@ -37,10 +37,9 @@ from task.mbar.gt import (
 )
 from task.mbar.sti_geo import (
     BAR_RADIUS,
-    _as_int64_np,
     filter_sti_hexes,
     mbar_cost_hexes,
-    network_uv_np,
+    node_us_vs,
     sti_hexes,
 )
 from task.mbar.sti_spec import (
@@ -134,10 +133,10 @@ def nodes_from_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
     if cell not in connectome.cells:
         raise ValueError(f"unknown cell {cell!r}; known: {list(connectome.cells)}")
     cell_idx = int(connectome.cells.index(cell))
-    node_u_np, node_v_np = network_uv_np(connectome)
-    cell_idxs = _as_int64_np(connectome.node_cells)
-    uv_span = int(max(np.max(np.abs(node_u_np)), np.max(np.abs(node_v_np)), 1)) + 1
-    pack = (node_u_np + uv_span) * (2 * uv_span + 1) + (node_v_np + uv_span)
+    node_us, node_vs = node_us_vs(connectome)
+    cell_idxs = np.array(connectome.node_cells, dtype=np.int64)
+    uv_span = int(max(np.max(np.abs(node_us)), np.max(np.abs(node_vs)), 1)) + 1
+    pack = (node_us + uv_span) * (2 * uv_span + 1) + (node_vs + uv_span)
     hex_pack = np.array(
         [
             (int(hex.u) + uv_span) * (2 * uv_span + 1) + (int(hex.v) + uv_span)
