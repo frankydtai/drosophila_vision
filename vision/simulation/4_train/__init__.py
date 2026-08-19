@@ -50,6 +50,7 @@ from neuron import (
 )
 
 from task.spread.sti_spec import CONTRASTS
+from task.spread.pack import cost_hex_label
 from task.moving_bar.sti_spec import PD_ND_LABELS
 from train.param import (
     PAIR_SEP,
@@ -69,7 +70,6 @@ from train.param import (
     remap_node_vals,
     override_val_from,
     bias_gt_from_onset_trace,
-    parse_val_from_tokens,
     resolve_val_from,
     val_from_enabled,
     schema_clamps,
@@ -86,7 +86,6 @@ from train.session import (
     Pack,
     TrainSession,
     TASKS,
-    _cost_hex_label,
     load_train_connectome,
     resolve_train_opts,
     resolve_i_sti,
@@ -102,15 +101,13 @@ from train.cost import (
     FusedPacks,
     calc_cost,
     calc_cost_parts,
+    cost_radii_from_packs,
     forward_pack,
     gt_affine_from_cell,
     gt_affine_from_nodes,
-    moving_bar_cell_cost_part_key,
-    moving_bar_cost_part_key,
     pack_cost_abs_ts,
     session_cost_part_keys,
-    spread_cost_part_key,
-    spot_cost_part_key,
+    session_cost_part_plot_specs,
 )
 from train.optimization import (
     TrainResult,

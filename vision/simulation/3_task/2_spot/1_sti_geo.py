@@ -146,10 +146,10 @@ def resolve_spot(
 ) -> Spot:
     """Build :class:`Spot` with configurable sub-spot shift radius."""
     if sti_opts is not None:
-        spot_radius = float(sti_opts["spot_radius"])
-        shift_radius = int(sti_opts["shift_radius"])
-        multi_spot = bool(sti_opts["multi_spot"])
-        fully_inside = bool(sti_opts["fully_inside"])
+        spot_radius = sti_opts["spot_radius"]
+        shift_radius = sti_opts["shift_radius"]
+        multi_spot = sti_opts["multi_spot"]
+        fully_inside = sti_opts["fully_inside"]
     if (
         spot_radius is None
         or shift_radius is None

@@ -198,15 +198,11 @@ def resolve_shared_cli() -> SharedCli:
     cells = parse_cells(ANALYZE_CELL_DYNAMICS.get("cells"))
     if not cells:
         raise SystemExit("cells is required")
-    tasks = TRAIN_CONFIG["tasks"]
-    tasks = parse_comma_list(tasks) if isinstance(tasks, str) else list(tasks)
-    contrasts = TRAIN_CONFIG["contrasts"]
-    contrasts = (
-        parse_comma_list(contrasts) if isinstance(contrasts, str) else list(contrasts)
-    )
+    tasks = list(TRAIN_CONFIG["tasks"])
+    contrasts = list(TRAIN_CONFIG["contrasts"])
     specs_req = parse_cells(ANALYZE_CELL_DYNAMICS.get("spec"))
-    xs = plot.parse_axis_coords(FIGURE_PLOT.get("x"))
-    ys = plot.parse_axis_coords(FIGURE_PLOT.get("y"))
+    xs = plot.parse_at_xs(FIGURE_PLOT.get("x"))
+    ys = plot.parse_at_xs(FIGURE_PLOT.get("y"))
     return SharedCli(
         cells=cells,
         tasks=tasks,
@@ -488,7 +484,6 @@ class _ComponentLayout:
 
 def _component_layout(model: str, euler: str, *, filter: str = "v") -> _ComponentLayout:
     """Build plot/component layout. ``filter`` is plot token ``v``|``ca`` (row-0 Ca cols)."""
-    euler = train.expand_euler(euler)
     use_ca = str(filter) == "ca"
     if model == "borst":
         if euler == "implicit":
@@ -623,12 +618,13 @@ def _model_driver(session):
 
 
 def _drive_from_i_sti(session, params, i_sti: torch.Tensor) -> torch.Tensor:
-    """Model ``standardize_i_sti`` + spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
+    """Spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
     from neuron.forward import inject_a_sti_radius
 
     pack = session.primary_pack
-    drive = _model_driver(session).standardize_i_sti(session, params, i_sti, pack)
-    return inject_a_sti_radius(drive, params, pack)
+    if i_sti.dim() == 2:
+        i_sti = i_sti.unsqueeze(0)
+    return inject_a_sti_radius(i_sti, params, pack)
 
 
 def _equilibrate(session, params, i_sti_b: torch.Tensor, t_onset: int):
@@ -2258,7 +2254,7 @@ def _plot_component_reports(
     if len(kinds) != 1:
         raise SystemExit(f"compare requires one time_window_kind; got {sorted(kinds)}")
     eulers = {
-        train.expand_euler((one_report.get("globals") or {}).get("euler", "implicit"))
+        str((one_report.get("globals") or {}).get("euler", "implicit"))
         for one_report in reports
     }
     if len(eulers) != 1:
@@ -2621,7 +2617,7 @@ def main(hydra_config) -> None:
         use_ms = False
     elif ms_shown is not None:
         try:
-            ms_range = plot.parse_ms_shown_range(ms_shown, flag="ms_shown")
+            ms_range = plot.parse_ms_shown(ms_shown, flag="ms_shown")
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
         use_ms = True

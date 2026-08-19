@@ -113,7 +113,7 @@ def locate_neurons(
         (where <dir> is 'post' for direction='post' and 'pre' for
         direction='pre'), votes (descending per-column vote counts as a string,
         e.g. "5, 5, 5, 3"; sums to n_<dir>_with_column), majority_column_id
-        (Int64, NA if unresolved). When ``uv_from_column`` is given, also per-coordinate
+        (Int64, NA if unresolved). When ``uv_from_column`` is given, also per u/v/x/y
         mean/max/min for u, v (hex) and x, y (hex-step via build_hex.xy_from_uv): mean_* is the
         vote-scaled average over the column partners, max_*/min_* the range
         (all NA if unresolved). In this case ``majority_column_id`` keeps the
@@ -207,20 +207,20 @@ def locate_neurons(
         )
         # Vote-scaled mean position (scale = per-column vote count).
         vu["w"] = vu["votes"].astype("float")
-        for coord in ("u", "v", "x", "y"):
-            vu[f"_w{coord}"] = vu[coord].astype("float") * vu["w"]
+        for uv_xy in ("u", "v", "x", "y"):
+            vu[f"_w{uv_xy}"] = vu[uv_xy].astype("float") * vu["w"]
         g = vu.groupby(self_id)
         w_sum = g["w"].sum()
         mean = {
-            coord: g[f"_w{coord}"].sum() / w_sum for coord in ("u", "v", "x", "y")
+            uv_xy: g[f"_w{uv_xy}"].sum() / w_sum for uv_xy in ("u", "v", "x", "y")
         }
-        # Per coordinate, arrange as mean (weighted), max, min.
-        for coord, dtype in (("u", "Int64"), ("v", "Int64"), ("x", "Float64"), ("y", "Float64")):
-            located[f"mean_{coord}"] = (
-                located["root_id"].map(mean[coord].round(3)).astype("Float64")
+        # Per u/v/x/y, arrange as mean (weighted), max, min.
+        for uv_xy, dtype in (("u", "Int64"), ("v", "Int64"), ("x", "Float64"), ("y", "Float64")):
+            located[f"mean_{uv_xy}"] = (
+                located["root_id"].map(mean[uv_xy].round(3)).astype("Float64")
             )
-            located[f"max_{coord}"] = located["root_id"].map(g[coord].max()).astype(dtype)
-            located[f"min_{coord}"] = located["root_id"].map(g[coord].min()).astype(dtype)
+            located[f"max_{uv_xy}"] = located["root_id"].map(g[uv_xy].max()).astype(dtype)
+            located[f"min_{uv_xy}"] = located["root_id"].map(g[uv_xy].min()).astype(dtype)
 
         # Majority column: keep the top-voted column when it holds >50% of the
         # votes; otherwise use the column nearest (Euclidean in u,v) to the

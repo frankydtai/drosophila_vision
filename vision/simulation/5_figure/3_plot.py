@@ -18,7 +18,7 @@ from figure.panel import (
 )
 from train.session import run_data_dir
 from train.implementation import resolve_run_dir
-from network.construction import CELL_ROWS, cell_rows
+from network.construction import cell_rows
 
 
 def filter_figure_token(filter=None) -> str:
@@ -52,8 +52,8 @@ def _figure_module(task):
     return importlib.import_module('figure.' + task)
 
 
-def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
-    """Plot train cost; delegates part parsing to task figure modules."""
+def plot_cost(costs, path, *, costs_by_part=None, part_order=None, session=None):
+    """Plot train cost grouped by cell / series from ``session`` pack metadata."""
     from itertools import cycle, islice
 
     timer = ElapsedTimer()
@@ -65,6 +65,10 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         plot_cost_total(costs, path, timer=timer)
         return
 
+    if session is None:
+        raise ValueError("plot_cost with costs_by_part requires session")
+
+    part_specs = train.session_cost_part_plot_specs(session)
     part_keys = list(part_order) if part_order else list(costs_by_part.keys())
     part_keys = [key for key in part_keys if key in costs_by_part and len(costs_by_part[key])]
 
@@ -72,8 +76,6 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         plot_cost_total(costs, path, timer=timer)
         return
 
-    other_series_order = []
-    other_series_seen = set()
     costs_by_cell = {}
     costs_global = []
     series_order = []
@@ -84,39 +86,17 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         if part_costs.size == 0:
             continue
 
-        parsed = None
-        for task in train.TASKS:
-            parse = getattr(_figure_module(task), 'parse_cost_part', None)
-            if parse is None:
-                continue
-            parsed = parse(part_key, part_costs)
-            if parsed is not None:
-                break
-
-        if parsed is not None:
-            cell, series, label, part_costs = parsed
-            if series not in series_seen:
-                series_seen.add(series)
-                series_order.append(series)
-            if cell is None:
-                costs_global.append((series, label, part_costs))
-            else:
-                costs_by_cell.setdefault(cell, []).append((series, label, part_costs))
-            continue
-
-        series = ("other", part_key)
-        if series not in other_series_seen:
-            other_series_seen.add(series)
-            other_series_order.append(series)
-        known_cells = {cell for row in CELL_ROWS for cell in row}
-        matches = [cell for cell in known_cells if cell and cell in part_key]
-        if matches:
-            cell = max(matches, key=len)
-            costs_by_cell.setdefault(cell, []).append((series, part_key, part_costs))
+        spec = part_specs.get(part_key)
+        if spec is None:
+            raise ValueError(f"unknown cost part_key {part_key!r} for session packs")
+        cell, series, label = spec.cell, spec.series, spec.label
+        if series not in series_seen:
+            series_seen.add(series)
+            series_order.append(series)
+        if cell is None:
+            costs_global.append((series, label, part_costs))
         else:
-            costs_global.append((series, part_key, part_costs))
-
-    series_order.extend(other_series_order)
+            costs_by_cell.setdefault(cell, []).append((series, label, part_costs))
 
     palette = list(plt.get_cmap("tab20").colors)
     colors_by_series = dict(zip(
@@ -414,11 +394,8 @@ def euler_filename_suffix(euler=None):
     if euler is None:
         return ""
     token = str(euler)
-    if token in ("implicit", "explicit"):
-        token = "im" if token == "implicit" else "ex"
-    elif token not in ("im", "ex"):
-        token = train.expand_euler(token)
-        token = "im" if token == "implicit" else "ex"
+    if token not in ("im", "ex"):
+        raise ValueError(f"euler filename suffix expects im|ex, got {euler!r}")
     return f"_{token}"
 
 
@@ -673,39 +650,35 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
     return best, best_cost
 
 
-def parse_axis_coords(token):
-    """Parse comma-separated ``--x`` / ``--y`` values (empty -> ``None``)."""
-    if token is None or token == "":
+def parse_at_xs(token):
+    """Parse comma-separated ``--x`` / ``--y`` values (``null`` → ``None``)."""
+    if token is None:
         return None
-    if isinstance(token, (list, tuple)):
-        vals = [float(x) for x in token]
-    else:
-        vals = [float(x) for x in import_bootstrap.parse_comma_list(str(token))]
+    if not isinstance(token, str):
+        raise ValueError(f"x/y must be a comma-separated string or null, got {token!r}")
+    vals = [float(x) for x in import_bootstrap.parse_comma_list(token)]
     if not vals:
-        raise ValueError("empty comma-separated axis coord")
+        raise ValueError("empty comma-separated at_x/at_y value")
     return vals
 
 
 def parse_align_xy(token):
-    """Parse ``--align-xy X,Y`` reference sti hex (empty -> ``None``)."""
-    if token is None or token == "":
+    """Parse ``--align-xy X,Y`` reference sti hex (``null`` → ``None``)."""
+    if token is None:
         return None
-    if isinstance(token, (list, tuple)):
-        if len(token) != 2:
-            raise ValueError("align_xy requires exactly two values X,Y")
-        return float(token[0]), float(token[1])
-    parts = import_bootstrap.parse_comma_list(str(token))
+    if not isinstance(token, str):
+        raise ValueError(f"align_xy must be a comma-separated string or null, got {token!r}")
+    parts = import_bootstrap.parse_comma_list(token)
     if len(parts) != 2:
         raise ValueError("--align-xy requires exactly two comma-separated values X,Y")
     return float(parts[0]), float(parts[1])
 
 
-def parse_ms_shown_range(token, *, flag="ms_shown"):
-    """Parse ``START,STOP`` ms (comma string or two-value sequence)."""
-    if isinstance(token, (list, tuple)):
-        parts = [str(x) for x in token]
-    else:
-        parts = import_bootstrap.parse_comma_list(token)
+def parse_ms_shown(token, *, flag="ms_shown"):
+    """Parse ``START,STOP`` ms as a comma-separated string."""
+    if not isinstance(token, str):
+        raise ValueError(f"{flag} must be START,STOP as a comma-separated string")
+    parts = import_bootstrap.parse_comma_list(token)
     if len(parts) != 2:
         raise ValueError(f"{flag} must be START,STOP")
     start, stop = float(parts[0]), float(parts[1])

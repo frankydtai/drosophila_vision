@@ -20,6 +20,7 @@ from task.moving_bar.gt import (
 )
 from task.moving_bar.pack import (
     bar_specs_from_task,
+    cell_part_key,
     nodes_from_hexes,
     moving_bar_specs_by_cell,
     moving_bar_session_t0_grids,
@@ -46,11 +47,10 @@ from figure.panel import (
     pack_center_mask,
     save_figure,
     std_from_traces,
-    at_xy_coords,
+    expand_at_xy,
     is_single_hex_cost,
     v_th_from_z,
 )
-from train.cost import moving_bar_cell_cost_part_key
 from task.moving_bar.sti_spec import PD_ND_LABELS
 from task.spread.sti_spec import CONTRASTS
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
@@ -81,47 +81,12 @@ def format_moving_bar_cell_cost_lines(cell, cost_parts, contrasts):
     for contrast in contrasts:
         bits = []
         for pd_nd_label in PD_ND_LABELS:
-            part_key = moving_bar_cell_cost_part_key("moving_bar", contrast, cell, pd_nd_label)
+            part_key = cell_part_key(contrast, cell, pd_nd_label)
             if part_key in cost_parts:
                 bits.append(f'{float(cost_parts[part_key]):.1f} @{pd_nd_label}')
         if bits:
             lines.append(f'{label_map.get(contrast, contrast)}: {" ".join(bits)}')
     return lines
-
-
-def parse_moving_bar_cost_part_key(part_key):
-    """Return ``(cell, contrast, pd_nd_label)`` or ``None``."""
-    for contrast in CONTRASTS:
-        head = f"moving_bar_{contrast}_"
-        if part_key[:len(head)] != head:
-            continue
-        rest = part_key[len(head):]
-        if rest == "DSI":
-            return None, contrast, "DSI"
-        for pd_nd_label in PD_ND_LABELS:
-            pd_nd_suffix = f"_{pd_nd_label}"
-            if rest == pd_nd_label:
-                return None, contrast, pd_nd_label
-            if len(rest) > len(pd_nd_suffix) and rest[-len(pd_nd_suffix):] == pd_nd_suffix:
-                cell = rest[:-len(pd_nd_suffix)]
-                return cell, contrast, pd_nd_label
-    return None
-
-
-def moving_bar_cost(part_key, costs):
-    """Moving-bar part → ``(cell_or_none, series, label, costs)`` or ``None``."""
-    parsed = parse_moving_bar_cost_part_key(part_key)
-    if parsed is None:
-        return None
-    cell, contrast, pd_nd_label = parsed
-    series = ("moving_bar_pd_nd", pd_nd_label)
-    label = f"{pd_nd_label} ({contrast})" if contrast else pd_nd_label
-    return cell, series, label, np.asarray(costs, dtype=np.float64)
-
-
-def parse_cost_part(part_key, costs):
-    """Cost plot hook for ``figure.plot.plot_cost``."""
-    return moving_bar_cost(part_key, costs)
 
 
 PLOT_AT_XY = True
@@ -338,7 +303,7 @@ def _moving_bar_ca_mean_cell_mean_hex(
     session, task, contrast, trace, base_traces, spec_tokens, *, at_x=None, at_y=None,
     align_at_x=None, align_at_y=None,
 ):
-    """Per at_xy mean_hex: cell mean over matching ``at_x``/``at_y`` hexes."""
+    """Per at_xy mean_hex: cell mean over ``at_x``/``at_y`` hexes."""
     if base_traces.t0_bn is None or base_traces.cell_idxs is None or base_traces.cells is None:
         raise ValueError("base_traces missing cached t0_bn/cells for at_xy mean_hex")
     pack = session.packs[task][contrast]
@@ -483,24 +448,22 @@ def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None
     mean_hex_by_label = None
     labels = None
     if at_xs is not None or at_ys is not None:
-        coords, _at_xy_mode = at_xy_coords(at_xs, at_ys)
-        if coords:
-            mean_hex_by_label = {}
-            labels = []
-            for label, at_x, at_y in coords:
-                ca_mean_cell_mean_hex = _moving_bar_ca_mean_cell_mean_hex(
-                    session, task, contrast, trace, traces, spec_tokens,
-                    at_x=at_x, at_y=at_y,
-                    align_at_x=align_at_x, align_at_y=align_at_y,
-                )
-                if ca_mean_cell_mean_hex is None:
-                    print(f'skip at_xy {label}: no hex within cost_radius')
-                    continue
-                mean_hex_by_label[label] = ca_mean_cell_mean_hex
-                labels.append(label)
-            if not mean_hex_by_label:
-                mean_hex_by_label = None
-                labels = None
+        mean_hex_by_label = {}
+        labels = []
+        for label, at_x, at_y in expand_at_xy(at_xs, at_ys)[0]:
+            ca_mean_cell_mean_hex = _moving_bar_ca_mean_cell_mean_hex(
+                session, task, contrast, trace, traces, spec_tokens,
+                at_x=at_x, at_y=at_y,
+                align_at_x=align_at_x, align_at_y=align_at_y,
+            )
+            if ca_mean_cell_mean_hex is None:
+                print(f'skip at_xy {label}: no hex within cost_radius')
+                continue
+            mean_hex_by_label[label] = ca_mean_cell_mean_hex
+            labels.append(label)
+        if not mean_hex_by_label:
+            mean_hex_by_label = None
+            labels = None
     return MovingBarTraceReadout(
         task=task,
         contrast=contrast,
@@ -554,7 +517,7 @@ def _moving_bar_t_onset(readout, cell, token):
 
 
 def _cost_window_xy(cost_trace, before_t, delta_ms):
-    """Map cost_window GT onto trace x/y coordinates."""
+    """Map cost_window GT onto trace hex-step x/y."""
     i0 = before_t - t_from_ms(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
     trace = np.asarray(cost_trace, dtype=np.float64)
     if i0 < 0:
@@ -752,7 +715,7 @@ def _moving_bar_all_hexes_label(readout):
     if readout.at_xs is not None or readout.at_ys is not None:
         pack = readout.session.primary_pack
         cost_radius = pack.cost_radius
-        _, at_xy_mode = at_xy_coords(readout.at_xs, readout.at_ys)
+        _, at_xy_mode = expand_at_xy(readout.at_xs, readout.at_ys)
         at_x = readout.at_xs if at_xy_mode in ('x', 'xy') else None
         at_y = readout.at_ys if at_xy_mode in ('y', 'xy') else None
         parts = [at_xy_label(at_x, at_y), 'at_xy + hexes']

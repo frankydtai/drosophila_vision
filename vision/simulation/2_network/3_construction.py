@@ -100,35 +100,35 @@ class Network:
         """Sti nodes on hex (u, v)."""
         return np.where((self.us == u) & (self.vs == v) & self.is_sti)[0]
 
+    def nodes_at_uv(
+        self,
+        u: int,
+        v: int,
+        cell: str,
+        *,
+        cells: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Nodes of ``cell`` on hex ``(u, v)``."""
+        if cells is None:
+            cells = node_cells(self)
+        return np.where(
+            (self.us == int(u)) & (self.vs == int(v)) & (cells == cell),
+        )[0]
+
 
 def node_cells(connectome: Network) -> np.ndarray:
     """(n_node,) cell NAME per node."""
     return np.asarray(connectome.cells)[connectome.node_cells.detach().cpu().numpy()]
 
 
-def hex2gt(
-    connectome: Network,
-    u: int,
-    v: int,
-    gt_type: str,
-    node_cell: np.ndarray | None = None,
-) -> np.ndarray:
-    """Nodes of cell ``gt_type`` on hex (u, v)."""
-    if node_cell is None:
-        node_cell = node_cells(connectome)
-    return np.where(
-        (connectome.us == int(u)) & (connectome.vs == int(v)) & (node_cell == gt_type),
-    )[0]
-
-
 def standardize_cost_radius(cost_radius=None):
     """``None`` or ``-1`` → unrestricted (all hexes); else non-negative int."""
     if cost_radius is None:
         return None
-    v = int(cost_radius)
-    if v == -1:
+    cost_radius = int(cost_radius)
+    if cost_radius == -1:
         return None
-    return v
+    return cost_radius
 
 
 def cost_radius_mask(u, v, cost_radius=None) -> bool:

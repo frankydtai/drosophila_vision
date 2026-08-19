@@ -4,7 +4,7 @@
 Shared model helpers (time/ms conversion, ``syn_strength``, ``expand_euler``)
 live here; ``1_2_hp_lp`` imports them.
 
-Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Ca
+Dynamics only: ``pre_steady`` / ``step``. Ca
 forward lives in ``neuron.forward``. Scalars are injected kwargs
 (from ``session`` flat fields), never nested under Physics.
 
@@ -78,12 +78,10 @@ def e_h_rev(e_leak, e_h: float):
 
 
 def expand_euler(token: str) -> str:
-    """Map CLI ``im``/``ex`` (or already-expanded name) → ``implicit``/``explicit``."""
-    key = EULER_CLI.get(str(token), str(token))
-    if key not in EULER_MODES:
-        raise ValueError(
-            f"euler {token!r} not in CLI {tuple(EULER_CLI)} or modes {EULER_MODES}"
-        )
+    """Map CLI ``im`` / ``ex`` → ``implicit`` / ``explicit``."""
+    key = EULER_CLI.get(str(token))
+    if key is None:
+        raise ValueError(f"euler {token!r} not in CLI {tuple(EULER_CLI)}")
     return key
 
 
@@ -142,7 +140,6 @@ def update_v(
     return_component: bool = False,
 ):
     """One borst step; reversal / cap scalars are required kwargs."""
-    euler = expand_euler(euler)
     conn = connectome.conn
     i_h_mask = (a_h + a_h_rev) != 0
     g_h = u.new_zeros(u.shape)
@@ -205,7 +202,6 @@ def v_component_from_g(
     euler: str,
 ):
     """Numerator / denom terms matching ``update_v`` (torch or numpy)."""
-    euler = expand_euler(euler)
     dt = float(delta_ms)
     dt_over_cap = dt / cap
     e_h_rev_val = e_h_rev(e_leak, e_h)
@@ -238,12 +234,6 @@ def v_component_from_g(
         "num": num,
         "den": den,
     }
-
-
-def standardize_i_sti(session, params, i_sti, pack):
-    """Sti current ``(B, T, N)`` (no rescale)."""
-    del params, pack
-    return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
 def _i_h_ss(v, a_h, a_h_rev, v_mid_h_g, h_slope, v_mid_h_g_rev, h_slope_rev, *, h_g_max: float):

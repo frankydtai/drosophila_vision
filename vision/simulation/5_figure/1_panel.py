@@ -235,37 +235,44 @@ def at_xy_label(at_x, at_y):
     parts = []
     if at_x is not None:
         at_x_list = at_x if isinstance(at_x, (list, tuple)) else [at_x]
-        parts.append('x=' + ','.join(label for label, _, _ in at_xy_coords(at_x_list, None)[0]))
+        parts.append('x=' + ','.join(label for label, _, _ in expand_at_xy(at_x_list, None)[0]))
     if at_y is not None:
         at_y_list = at_y if isinstance(at_y, (list, tuple)) else [at_y]
-        parts.append('y=' + ','.join(label for label, _, _ in at_xy_coords(None, at_y_list)[0]))
+        parts.append('y=' + ','.join(label for label, _, _ in expand_at_xy(None, at_y_list)[0]))
     return ', '.join(parts)
 
 
-def at_xy_coords(at_xs, at_ys):
+def expand_at_xy(at_xs, at_ys):
     """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` and ``at_xy_mode``."""
-    coords = []
     if at_xs is not None and at_ys is not None:
-        for at_x in at_xs:
-            x_number = float(at_x)
-            x_label = str(int(x_number)) if x_number.is_integer() else f'{x_number:g}'
-            for at_y in at_ys:
-                y_number = float(at_y)
-                y_label = str(int(y_number)) if y_number.is_integer() else f'{y_number:g}'
-                coords.append((f'({x_label},{y_label})', at_x, at_y))
-        return coords, 'xy'
+        return [
+            (
+                f'({str(int(xn)) if (xn := float(at_x)).is_integer() else f"{xn:g}"},'
+                f'{str(int(yn)) if (yn := float(at_y)).is_integer() else f"{yn:g}"})',
+                at_x,
+                at_y,
+            )
+            for at_x in at_xs
+            for at_y in at_ys
+        ], 'xy'
     if at_xs is not None:
-        for at_x in at_xs:
-            number = float(at_x)
-            label = str(int(number)) if number.is_integer() else f'{number:g}'
-            coords.append((label, at_x, None))
-        return coords, 'x'
+        return [
+            (
+                str(int(number)) if (number := float(at_x)).is_integer() else f'{number:g}',
+                at_x,
+                None,
+            )
+            for at_x in at_xs
+        ], 'x'
     if at_ys is not None:
-        for at_y in at_ys:
-            number = float(at_y)
-            label = str(int(number)) if number.is_integer() else f'{number:g}'
-            coords.append((label, None, at_y))
-        return coords, 'y'
+        return [
+            (
+                str(int(number)) if (number := float(at_y)).is_integer() else f'{number:g}',
+                None,
+                at_y,
+            )
+            for at_y in at_ys
+        ], 'y'
     return [], None
 
 

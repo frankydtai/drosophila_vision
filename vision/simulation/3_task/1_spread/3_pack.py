@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 
+from import_bootstrap import parse_comma_list
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
+from network.construction import gt_cells_from_opts
 from neuron.borst import t_from_ms
+from task.moving_bar.sti_spec import PD_ND_LABELS
 from task.spread.gt import (
     GT_CELLS,
     RF_SIGN,
@@ -18,7 +21,80 @@ from task.spread.gt import (
     load_ir,
     spread_gt_active,
 )
-from task.spread.sti_spec import sti_mask
+from task.spread.sti_spec import i_baseline_from_i_sti, sti_mask
+
+
+@dataclass(frozen=True)
+class CostPartPlotSpec:
+    part_key: str
+    cell: Optional[str]
+    series: tuple
+    label: str
+
+
+@dataclass(frozen=True)
+class Pack:
+    """One train pack: task×contrast drive + entries + gts."""
+
+    task: str
+    contrast: str
+    i_sti: torch.Tensor  # (B, T, N)
+    gts: torch.Tensor  # (n_cost, T')
+    power: torch.Tensor  # scalar
+    cost_scales: torch.Tensor  # (n_cost,)
+    entry_bs: torch.Tensor  # (n_cost,)
+    entry_nodes: torch.Tensor  # (n_cost,)
+    cost_t0s: Optional[torch.Tensor] = None
+    cost_radius: Optional[int] = None
+    entry_radii: Optional[torch.Tensor] = None
+    cost_sti_us: Optional[torch.Tensor] = None
+    cost_sti_vs: Optional[torch.Tensor] = None
+    cost_pd_nds: Optional[torch.Tensor] = None
+    dsi_pos_entries: Optional[torch.Tensor] = None
+    dsi_neg_entries: Optional[torch.Tensor] = None
+    dsi_pos_ptr: Optional[torch.Tensor] = None
+    dsi_neg_ptr: Optional[torch.Tensor] = None
+    dsi_gts: Optional[torch.Tensor] = None
+    dsi_scales: Optional[torch.Tensor] = None
+    dsi_power: Optional[torch.Tensor] = None
+    cost_ts: Optional[torch.Tensor] = None
+    cost_time_mask: Optional[torch.Tensor] = None
+    waveform_mse: bool = True
+    t_onset: Optional[int] = None
+    i_sti_pulse: Optional[torch.Tensor] = None
+    sti_bs: Optional[torch.Tensor] = None
+    sti_nodes: Optional[torch.Tensor] = None
+    a_sti_radius_idxs: Optional[torch.Tensor] = None
+    a_sti_radius_mask: Optional[torch.Tensor] = None
+    entry_part_keys: Tuple[str, ...] = ()
+    dsi_part_key: Optional[str] = None
+    cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
+
+
+def part_key(contrast: str, cell: str) -> str:
+    return f"spread_{contrast}_{cell}"
+
+
+def _spread_cost_part_plot_specs(
+    entry_part_keys: Sequence[str],
+    entry_nodes: torch.Tensor,
+    cost_scales: torch.Tensor,
+    connectome,
+    contrast: str,
+) -> Dict[str, CostPartPlotSpec]:
+    specs: Dict[str, CostPartPlotSpec] = {}
+    node_cells = connectome.node_cells[entry_nodes].detach().cpu().numpy()
+    cells = connectome.cells
+    for entry, part_key in enumerate(entry_part_keys):
+        if float(cost_scales[entry]) <= 0.0:
+            continue
+        if part_key in specs:
+            continue
+        cell = str(cells[int(node_cells[entry])])
+        specs[part_key] = CostPartPlotSpec(
+            part_key, cell, ("spread", contrast), contrast,
+        )
+    return specs
 
 
 @dataclass
@@ -27,6 +103,7 @@ class SpreadGt:
     gts: torch.Tensor
     entry_bs: torch.Tensor
     entry_nodes: torch.Tensor
+    entry_part_keys: Tuple[str, ...] = ()
 
 
 def build_spread_gt(
@@ -88,6 +165,7 @@ def build_spread_gt(
         i_sti[:, :, sti_nodes] = float(i_baseline) + i_sti_pulse[:, None]
     entry_nodes = []
     gts = []
+    entry_part_keys: List[str] = []
     for cell in gt_cells:
         if not spread_gt_active(spread_gt_mode, contrast, int(RF_SIGN[cell])):
             continue
@@ -95,6 +173,7 @@ def build_spread_gt(
         for node in nodes_by_cell[cell]:
             entry_nodes.append(int(node))
             gts.append(gt)
+            entry_part_keys.append(part_key(contrast, cell))
     if not entry_nodes:
         raise ValueError("no spread cost nodes (check gt cells)")
     gts = torch.tensor(np.asarray(gts), dtype=sim_dtype, device=device)
@@ -104,4 +183,169 @@ def build_spread_gt(
         gts=gts,
         entry_bs=torch.zeros(len(entry_nodes), dtype=torch.long, device=device),
         entry_nodes=entry_nodes,
+        entry_part_keys=tuple(entry_part_keys),
     )
+
+
+def post_onset_n_t(opts) -> tuple[int, float]:
+    ms_response = float(opts["ms_response"])
+    if opts.get("ms_sti") is not None:
+        ms_response = max(ms_response, float(opts["ms_sti"]))
+    delta_ms = float(opts["delta_ms"])
+    return int(t_from_ms(ms_response, delta_ms=delta_ms)) + 1, delta_ms
+
+
+def cost_mss(cost_ms, *, post, delta_ms) -> list:
+    """``cost_ms`` scalar → interval grid; sequence → explicit post-onset ``mss``."""
+    if isinstance(cost_ms, bool) or cost_ms is None:
+        raise ValueError("cost_ms must be an interval or a list of ms")
+    if isinstance(cost_ms, dict):
+        raise ValueError("cost_ms must be an interval or a list of ms, not a radius map")
+    if isinstance(cost_ms, (int, float)):
+        interval = float(cost_ms)
+        if interval <= 0:
+            raise ValueError("cost_ms interval must be > 0")
+        if post <= 0:
+            raise ValueError("post-onset window must be > 0 for cost_ms")
+        step = max(1, int(round(interval / delta_ms)))
+        return [t * delta_ms for t in range(0, post, step)]
+    if isinstance(cost_ms, str):
+        tokens = parse_comma_list(cost_ms)
+        if len(tokens) == 1:
+            return cost_mss(float(tokens[0]), post=post, delta_ms=delta_ms)
+        cost_ms = tokens
+    mss = [float(ms) for ms in cost_ms]
+    if not mss:
+        raise ValueError("cost_ms list must have at least one ms")
+    return mss
+
+
+def build_cost_ts(opts, *, cost_ms, device):
+    post, delta_ms = post_onset_n_t(opts)
+    ts = set()
+    for ms in cost_mss(cost_ms, post=post, delta_ms=delta_ms):
+        t = int(round(float(ms) / delta_ms))
+        if t < 0 or t >= post:
+            raise ValueError(
+                f"cost time {ms} ms post-onset t out of range [0,{post})"
+            )
+        ts.add(t)
+    return torch.tensor(sorted(ts), dtype=torch.long, device=device)
+
+
+def cost_hex_label(cost_radius, n_cost_hex) -> str:
+    radius_label = "all hexes" if cost_radius is None else f"radius={int(cost_radius)}"
+    if isinstance(n_cost_hex, dict):
+        hex_labels = ", ".join(
+            f"b{int(b)}={int(n_hex)}"
+            for b, n_hex in sorted(n_cost_hex.items())
+        )
+        return f"cost hexes per b [{hex_labels}], {radius_label}"
+    return f"{int(n_cost_hex)} cost hexes, {radius_label}"
+
+
+def resolve_spread_sti_opts(opts, **_):
+    ms_sti = opts["ms_sti"]
+    gt_cells = opts.get("gt_cells")
+    sti_opts = {
+        "ms_pre": opts["ms_pre"],
+        "ms_response": opts["ms_response"],
+        "ms_post": opts["ms_post"],
+        "delta_ms": opts["delta_ms"],
+        "delta_ms_pre": opts["delta_ms_pre"],
+    }
+    if ms_sti is not None:
+        sti_opts["ms_sti"] = ms_sti
+    if gt_cells is not None:
+        sti_opts["gt_cells"] = list(gt_cells)
+    ms_response = sti_opts.get("ms_response")
+    if ms_sti is not None and ms_response is not None:
+        sti_opts["ms_response"] = max(float(ms_response), float(ms_sti))
+    return sti_opts
+
+
+def build_spread_pack(
+    connectome,
+    *,
+    contrast: str,
+    gt_amp: float,
+    device: str,
+    sim_dtype: torch.dtype,
+    i_sti: Dict[str, float],
+    spread_sti_opts: Optional[dict],
+    filter: str,
+    spread_gt_mode: str,
+    cost_ms,
+) -> Tuple[Pack, dict, str]:
+    task = "spread"
+    if not spread_sti_opts:
+        raise ValueError("spread requires sti opts (from resolve_train_opts / CLI)")
+    opts = dict(spread_sti_opts)
+    ms_sti = opts.get("ms_sti")
+    ms_response = opts.get("ms_response")
+    if ms_sti is not None and ms_response is not None:
+        opts["ms_response"] = max(float(ms_response), float(ms_sti))
+    for key in ("ms_pre", "ms_response", "delta_ms", "delta_ms_pre"):
+        if opts.get(key) is None:
+            raise ValueError(f"spread sti opts require {key}")
+    ms_pre = float(opts["ms_pre"])
+    ms_response = float(opts["ms_response"])
+    delta_ms = float(opts["delta_ms"])
+    delta_ms_pre = float(opts["delta_ms_pre"])
+    ms_post = float(opts.get("ms_post", 0.0))
+    ms_sti = opts.get("ms_sti")
+    device = device or connectome.device
+    t_onset = int(t_from_ms(ms_pre, delta_ms=delta_ms_pre))
+    n_t = int(
+        t_onset
+        + t_from_ms(ms_response, delta_ms=delta_ms)
+        + t_from_ms(ms_post, delta_ms=delta_ms)
+        + 1
+    )
+    i_baseline = i_baseline_from_i_sti(i_sti)
+    spread_gt = build_spread_gt(
+        connectome,
+        n_t=n_t,
+        t_onset=t_onset,
+        i_baseline=i_baseline,
+        i_sti=float(i_sti[contrast]),
+        contrast=contrast,
+        gt_amp=gt_amp,
+        delta_ms=delta_ms,
+        device=device,
+        sim_dtype=sim_dtype,
+        ms_sti=ms_sti,
+        ms_response=ms_response,
+        gt_cells=gt_cells_from_opts(opts),
+        filter=str(filter),
+        spread_gt_mode=str(spread_gt_mode),
+    )
+    cost_ts = build_cost_ts(
+        opts,
+        cost_ms=cost_ms,
+        device=device,
+    )
+    pack = Pack(
+        task=task,
+        contrast=contrast,
+        i_sti=spread_gt.i_sti,
+        gts=spread_gt.gts,
+        power=torch.zeros((), dtype=sim_dtype, device=spread_gt.gts.device),
+        cost_scales=torch.ones(spread_gt.gts.shape[0], dtype=sim_dtype, device=spread_gt.gts.device),
+        entry_bs=spread_gt.entry_bs,
+        entry_nodes=spread_gt.entry_nodes,
+        cost_t0s=None,
+        cost_ts=cost_ts,
+        waveform_mse=True,
+        t_onset=int(t_onset),
+        entry_part_keys=spread_gt.entry_part_keys,
+        cost_part_plot_specs=_spread_cost_part_plot_specs(
+            spread_gt.entry_part_keys,
+            spread_gt.entry_nodes,
+            torch.ones(spread_gt.gts.shape[0], dtype=sim_dtype, device=spread_gt.gts.device),
+            connectome,
+            contrast,
+        ),
+    )
+    label = f"spread {contrast} ({int(spread_gt.gts.shape[0])} cost nodes)"
+    return pack, dict(opts), label

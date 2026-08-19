@@ -316,13 +316,13 @@ def _resolve_windows(
     baseline_ms: float,
 ):
     if ms_shown is not None:
-        analyze = plot.parse_ms_shown_range(str(ms_shown), flag="ms_shown")
+        analyze = plot.parse_ms_shown(str(ms_shown), flag="ms_shown")
     else:
         analyze = _resolve_ms_shown(check, ms_pre, ms_sti, ms_response)
 
     need_baseline = check in (CHECK_FLAT, CHECK_STABILITY)
     if baseline_ms_shown is not None:
-        baseline = plot.parse_ms_shown_range(
+        baseline = plot.parse_ms_shown(
             str(baseline_ms_shown), flag="baseline_ms_shown",
         )
     elif need_baseline:
@@ -674,12 +674,8 @@ def main(hydra_config) -> None:
             f"got {check!r}"
         )
 
-    tasks = TRAIN_CONFIG["tasks"]
-    tasks = parse_comma_list(tasks) if isinstance(tasks, str) else list(tasks)
-    contrasts = TRAIN_CONFIG["contrasts"]
-    contrasts = (
-        parse_comma_list(contrasts) if isinstance(contrasts, str) else list(contrasts)
-    )
+    tasks = list(TRAIN_CONFIG["tasks"])
+    contrasts = list(TRAIN_CONFIG["contrasts"])
     task = tasks[0]
     contrast = contrasts[0]
     radius = int(ANALYZE_CELL_DYNAMICS.get("radius") or 0)

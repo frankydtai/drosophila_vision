@@ -515,28 +515,14 @@ def override_params(z, schema, session, param_vals=None):
     return z, schema
 
 
-def parse_val_from_tokens(tokens):
-    val_from = {}
-    for token in tokens or []:
-        target, _, rest = token.partition("=")
-        if not target or not rest:
-            raise ValueError(f"--val-from expected TARGET=SOURCE:BOOL, got {token!r}")
-        source, _, enabled_token = rest.partition(":")
-        if not source or not enabled_token:
-            raise ValueError(f"--val-from expected TARGET=SOURCE:BOOL, got {token!r}")
-        val_from[target] = {"source": source, "enabled": enabled_token.lower() in ("1", "true", "yes")}
-    return val_from
-
-
 def resolve_val_from(val_from=None):
-    return {
-        **{param: dict(entry) for param, entry in VAL_FROM.items()},
-        **(
-            {target: dict(entry) for target, entry in val_from.items()}
-            if isinstance(val_from, dict)
-            else parse_val_from_tokens(val_from) if val_from else {}
-        ),
-    }
+    merged = {param: dict(entry) for param, entry in VAL_FROM.items()}
+    if not val_from:
+        return merged
+    if not isinstance(val_from, dict):
+        raise ValueError(f"val_from must be a config dict, got {type(val_from).__name__}")
+    merged.update({target: dict(entry) for target, entry in val_from.items()})
+    return merged
 
 
 def val_from_enabled(opts, param):

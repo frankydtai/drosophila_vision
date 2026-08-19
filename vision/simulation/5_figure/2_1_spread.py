@@ -41,7 +41,7 @@ from task.spread.gt import (
     spread_gt_active,
 )
 from task.spread.sti_spec import CONTRASTS, t_sti_end
-from train.cost import spread_cost_part_key
+from task.spread.pack import part_key as spread_part_key
 
 
 def cells_from_nodes(session, nodes):
@@ -281,7 +281,7 @@ def _format_spread_cell_time_title(cell, cost_parts, contrasts):
         return cell
     lines = [cell]
     for contrast in contrasts:
-        part_key = spread_cost_part_key("spread", contrast, cell)
+        part_key = spread_part_key(contrast, cell)
         if part_key in cost_parts:
             lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
     return '\n'.join(lines)

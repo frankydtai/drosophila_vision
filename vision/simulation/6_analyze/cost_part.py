@@ -43,11 +43,11 @@ from train.cost import (
     _parts_from_entries,
     _pack_cost_forward,
     _session_cost_norm,
-    _spot_entries_by_part,
     _scaled_mse_terms,
-    spot_cost_part_key,
     calc_cost_parts,
+    entries_by_part,
 )
+from task.spot.pack import part_key as spot_part_key
 from train.param import params_from_z
 
 
@@ -63,9 +63,7 @@ def _resolve_part_key(args) -> str:
         return str(args.part).strip()
     if args.cell is None or args.radius is None:
         raise SystemExit("need --part KEY, or both --cell and --radius")
-    return spot_cost_part_key(
-        args.task, args.contrast, str(args.cell), float(args.radius),
-    )
+    return spot_part_key(args.contrast, str(args.cell), float(args.radius))
 
 
 def _task_contrast_from_part_key(part_key: str) -> tuple[str, str]:
@@ -102,7 +100,7 @@ def cost_part(session, z, part_key: str) -> dict:
         raise SystemExit(f"waveform v_readout required for {task!r}/{contrast!r}")
     v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, gts)
 
-    part_idxs, part_keys = _spot_entries_by_part(pack, session.connectome)
+    part_idxs, part_keys = entries_by_part(pack)
     if part_key not in part_keys:
         raise SystemExit(
             f"part {part_key!r} not in pack parts; available:\n  "

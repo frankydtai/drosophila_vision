@@ -314,11 +314,7 @@ class MovingBarSti:
     multi_bar: bool
 
 
-def i_baseline_from_i_sti(i_sti: dict) -> float:
-    """Midpoint of bright/dark sti currents."""
-    return 0.5 * (float(i_sti["bright"]) + float(i_sti["dark"]))
-
-
+from task.spread.sti_spec import i_baseline_from_i_sti
 @dataclass
 class MovingBarT0Grids:
     t0_bn: np.ndarray

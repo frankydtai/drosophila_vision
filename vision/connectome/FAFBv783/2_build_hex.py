@@ -1,10 +1,9 @@
 """Hex-grid geometry for the 721-column FAFB construction.
 
 This module owns all hex-lattice math so the rest of the pipeline never restates
-coordinate formulas:
+(u, v) / (x, y) formulas:
 
-  - ``radius_hexes`` / ``get_hex_coords`` enumerate axial (u, v) on a hex
-    disc.
+  - ``radius_hexes`` enumerates axial (u, v) on a hex disc.
   - ``uv_from_pq(p, q, side)`` converts FAFB ``column_assignment`` (p, q) idxs to
     axial (u, v), which differs per hemisphere.
   - ``radius_mask(u, v, radius)`` is the shared hex-disc membership predicate.
@@ -12,7 +11,7 @@ coordinate formulas:
     ``xy_deg_from_xy`` scales hex-step by :data:`DEG`; ``xy_deg_from_uv`` composes both.
   - ``hex_vertices`` / ``plot_hex_patches`` plot degree-space hex patches
     (shared by column maps, moving-bar sti, and plots).
-  - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
+  - :class:`HexGrid` holds an ideal disc's axial (u, v) (the plot reference
     panel); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
 
 Run a sanity summary with the project venv:
@@ -144,24 +143,18 @@ def radius_hexes(radius) -> list:
     return hexes
 
 
-def get_hex_coords(radius: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Axial (u, v) coordinates of a hex disc (shell order via :func:`radius_hexes`)."""
-    hexes = radius_hexes(int(radius))
-    u = np.array([u for u, _v in hexes], dtype=np.int64)
-    v = np.array([v for _u, v in hexes], dtype=np.int64)
-    return u, v
-
-
 class HexGrid:
-    """The (u, v) axial coordinates of an ideal hex disc of a given radius.
+    """The (u, v) axial hexes of an ideal hex disc of a given radius.
 
-    A pure coordinate container (used as the reference disc for plotting and as
+    A pure (u, v) container (used as the reference disc for plotting and as
     panel); FAFB column (u, v) come from :func:`columns_with_uv`.
     """
 
     def __init__(self, radius: int = DEFAULT_RADIUS) -> None:
         self.radius = radius
-        self.us, self.vs = get_hex_coords(radius)
+        hexes = radius_hexes(radius)
+        self.us = np.array([u for u, _v in hexes], dtype=np.int64)
+        self.vs = np.array([v for _u, v in hexes], dtype=np.int64)
         self.n_hex = len(self.us)
         logger.info("HexGrid radius=%d -> %d hexes", radius, self.n_hex)
 
@@ -174,7 +167,7 @@ def xy_from_uv(u, v) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]
 
 
 def uv_from_xy(x, y) -> Tuple[int, int]:
-    """Inverse of :func:`xy_from_uv` for hex centres (integer axial coords).
+    """Inverse of :func:`xy_from_uv` for hex centres (integer axial u, v).
 
     Raises:
         ValueError: if ``(x, y)`` is not (within tolerance) a hex centre.
@@ -313,7 +306,7 @@ def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
 
 
 def _plot_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
-    """Draw labeled hexagons at the given axial coordinates."""
+    """Draw labeled hexagons at the given axial (u, v)."""
     xs, ys = xy_deg_from_uv(np.asarray(u), np.asarray(v))
     plot_hex_patches(
         ax, xs, ys, facecolor,
@@ -417,7 +410,7 @@ def plot_column_map(
         "lightblue", "darkblue", hex_radius_px, fontsize=3.5,
     )
     axes[0].set_title(
-        f"Axial (u, v) coordinates\n{ideal_grid.n_hex} hexes, "
+        f"Axial (u, v)\n{ideal_grid.n_hex} hexes, "
         f"radius={ideal_grid.radius}",
         fontsize=12, fontweight="bold",
     )

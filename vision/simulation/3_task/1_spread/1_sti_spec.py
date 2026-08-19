@@ -10,6 +10,11 @@ from neuron.borst import t_from_ms
 CONTRASTS = ("bright", "dark")
 
 
+def i_baseline_from_i_sti(i_sti: dict) -> float:
+    """Midpoint of bright/dark sti currents."""
+    return 0.5 * (float(i_sti["bright"]) + float(i_sti["dark"]))
+
+
 def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
     t0 = int(t_onset)
     mt = int(n_t)

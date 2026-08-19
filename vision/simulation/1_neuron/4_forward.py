@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Shared absolute ``v`` / ``ca`` forward for all neuron models.
 
-Per-model modules supply only ``standardize_i_sti`` / ``pre_steady`` / ``step``.
+Per-model modules supply only ``pre_steady`` / ``step``.
 This module owns the time loop. Train / plots read absolute ``v``
 when ``train_opts['filter']=='none'``; with ``'ca'``, readout is ``ca`` from
 ``neuron.filter_ca`` on ``v_ca = relu(v − v_th_ca)·a_ca``. Cost compares the
@@ -15,7 +15,7 @@ import neuron.borst as _borst
 import neuron.hp_lp as _hp_lp
 from neuron.filter_ca import filter_ca
 
-# Per-model dynamics for ``forward_v`` / ``forward_ca`` (standardize_i_sti / pre_steady / step only).
+# Per-model dynamics for ``forward_v`` / ``forward_ca`` (pre_steady / step only).
 MODEL_DRIVERS = {
     "borst": _borst,
     "hp_lp": _hp_lp,
@@ -123,7 +123,7 @@ def forward_v(session, params, i_sti, *, pack=None):
     """``v`` trace ``(B, T, N)`` (no Ca filter).
 
     Time index ``t`` is post-update at sample ``t``. Drive comes from
-    ``MODEL_DRIVERS[model].standardize_i_sti`` / ``pre_steady`` / ``step``.
+    ``MODEL_DRIVERS[model].pre_steady`` / ``step``.
 
     ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
     with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` and model
@@ -137,9 +137,9 @@ def forward_v(session, params, i_sti, *, pack=None):
         )
     drv = MODEL_DRIVERS[session.model]
     pack = pack or session.primary_pack
-    i_sti = inject_a_sti_radius(
-        drv.standardize_i_sti(session, params, i_sti, pack), params, pack,
-    )
+    if i_sti.dim() == 2:
+        i_sti = i_sti.unsqueeze(0)
+    i_sti = inject_a_sti_radius(i_sti, params, pack)
     n_b, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])

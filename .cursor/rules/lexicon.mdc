@@ -82,7 +82,7 @@ Forbidden: do not use `node` to refer to a cell type. `cell` is a connectome typ
 
 Definition: Spot / RF / cost readout locus at hex-lattice radius 0 — the sti anchor hex (`du=dv=0`), the `entry_radii==0` slot, the RF axis index 0, or the plot row / time trace for that radius. Compounds: `spot_centers` (simultaneous sti anchor hexes), `center_entry_mask`, `center_hex` (sole cost hex when `cost_radius==0`), `pack_center_mask`, `build_spot_center_readout`, `RF_CENTER_RADIUS`, `gt_center`, `v_readout_center`.
 Example: `center_entry_mask = (du == 0) & (dv == 0)`, `spot.centers`, `RF_CENTER_RADIUS = 0`
-Forbidden: do not use `center` for bar-trail midpoint, histogram bin midpoint, node `(u,v)` lookup, or hex-patch vertex bounds — use `mid`, ``bound`` / ``bounds``, or non-`center` hex coords. Do not use `r0` / `R0` as naming tokens (see coding-rules). Library matplotlib layout kwargs (`xanchor='center'`, `ha='center'`) may remain.
+Forbidden: do not use `center` for bar-trail midpoint, histogram bin midpoint, node `(u,v)` lookup, or hex-patch vertex bounds — use `mid`, ``bound`` / ``bounds``, or non-`center` hex ``(u,v)``. Do not use `r0` / `R0` as naming tokens (see coding-rules). Library matplotlib layout kwargs (`xanchor='center'`, `ha='center'`) may remain.
 
 ### `clamp` / `clamps`
 
@@ -201,7 +201,7 @@ Forbidden: `height` / `heights` / ``HEIGHT`` / any project identifier containing
 
 ### `hex` / `hexes`
 
-Definition: A single hexagonal spatial position in the connectome, identified by its axial coordinates `(u, v)`.
+Definition: A single hexagonal spatial position in the connectome, identified by its axial `(u, v)`.
 Example: `for hex in moving_bar_cost_hexes(connectome, cost_radius=cost_radius): ...`, `shell_hexes(shell)`, `radius_hexes(radius)`
 Forbidden: do not use `column` to refer to a hex position. `hex` is a spatial `(u, v)` location; `column` is a connectome position id (`column_id` / bag `column_ids`). Forbidden: ``member`` / ``members`` as naming tokens for hex bags or hex builders (`members_at_shell`, `members_in_radius`, `members_by_radius`, …) — use ``hex`` / ``hexes`` / ``shell_hexes`` / ``radius_hexes``. Forbidden: ``hexes_by_radius`` (thin ``shell_hexes`` bag wrapper) — call ``shell_hexes`` directly.
 
@@ -227,7 +227,7 @@ Forbidden: `implement` — use `implementation`. Do not use for the top-level pl
 
 Definition: Total input to a neuron — light sti (`sti`) plus presynaptic/synaptic contributions. At current level (borst): `i_sti + Σ gE`; at voltage level (hp_lp): `v_in = v_syn + v_sti`. Synaptic input `a_*` param: `a_in`.
 Example: `v_in = v_syn + v_sti`, `params["a_in"]`, `C dv/dt = i_sti + Σ g_i (E_i − v)`
-Forbidden: `input`, `is_input`, `_in` on sti-only quantities (`u_in`, `v_in` for sti hex coords, `pr_idx`, `n_input_node`). Do not use `in` for light sti alone — use `sti`.
+Forbidden: `input`, `is_input`, `_in` on sti-only quantities (`u_in`, `v_in` for sti hex ``(u,v)``, `pr_idx`, `n_input_node`). Do not use `in` for light sti alone — use `sti`.
 
 ### `init` / `inits`
 
@@ -274,8 +274,8 @@ Example: `if pack.task in MOVING_BAR_TASKS: ...`
 
 Definition: A time duration or absolute clock offset measured in milliseconds — sti / cost / filter timing literals and bags, never a sample index along the trace axis (that is ``t`` / ``n_t``). Parallel SI-second unit token is ``s`` / ``ss`` (see ``### s``).
 - ``ms`` (singular): one millisecond value (``ms_pre``, ``ms_sti``, loop local ``ms``, ``delta_ms``).
-- ``mss`` (plural): a bag/tuple/set of those values (e.g. post-onset cost sample times for one radius).
-Example: `t_from_ms(ms_pre, delta_ms=delta_ms)`, `for ms in mss:`, `cost_ms` (radius → ``mss``), `IR_delay_ms[cell]`
+- ``mss`` (plural): a bag/tuple/set of those values (e.g. post-onset cost sample times).
+Example: `t_from_ms(ms_pre, delta_ms=delta_ms)`, `for ms in mss:`, `cost_ms` (interval or explicit ``mss``), `IR_delay_ms[cell]`
 Forbidden: `ms_list` / `*_ms_list` (see ``list`` — use ``mss``); `millisecond` / `milliseconds` as naming tokens; do not use ``ms`` for a time-sample index — use ``t``; do not use ``ms`` for SI seconds — use ``s``.
 
 ### `n` / `n_<noun>`
@@ -547,7 +547,7 @@ Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, im
 
 Definition: Axial hex-lattice coordinates and their deltas — one hex is ``(u, v)``; an offset from a reference hex is ``(du, dv)``. Absolute axis locals / params are bare ``u`` / ``v`` (or role compounds ``center_u`` / ``center_v``, ``sti_u`` / ``sti_v``, bags ``us`` / ``vs``). Delta axis locals / params / edge fields are bare ``du`` / ``dv`` (pair from ``radius_hexes`` / ``shell_hexes`` / ``shifts``, or bags ``du`` / ``dv`` on cost entries). Same concept as the UV frame in ``at_uv`` (see ``### at_uv``); not hex-step ``x`` / ``y`` and not degree ``x_deg`` / ``y_deg``.
 Example: `for u, v in hexes`, `for du, dv in spot.shifts`, `center_u + du`, `center_entry_mask = (du == 0) & (dv == 0)`, edge JSON ``"du"`` / ``"dv"``, `xy_deg_from_uv(u, v)`
-Forbidden: ``cu`` / ``cv`` for a hex or center (use ``u`` / ``v`` or ``center_u`` / ``center_v``). ``offset_u`` / ``offset_v`` / ``delta_u`` / ``delta_v`` as substitutes for ``du`` / ``dv``. Do not use ``u`` / ``v`` / ``du`` / ``dv`` for hex-step XY or degree axes. Do not use bare ``u`` for sti drive / membrane state (borst) — that is a different concept; keep model-symbol ``u`` / ``u_rev`` only at the neuron-step call site.
+Forbidden: ``cu`` / ``cv`` for a hex or center (use ``u`` / ``v`` or ``center_u`` / ``center_v``). ``offset_u`` / ``offset_v`` / ``delta_u`` / ``delta_v`` as substitutes for ``du`` / ``dv``. Do not use ``u`` / ``v`` / ``du`` / ``dv`` for hex-step XY or degree axes. Do not use bare ``u`` for sti drive / membrane state (borst) — that is a different concept; keep model-symbol ``u`` / ``u_rev`` only at the neuron-step call site. ``coord`` / ``coords`` / ``coordinate`` / ``coordinates`` / ``_UvCoord`` / ``_Uv`` / ``float_coords`` / ``uv_float`` / ``labeled_at_xy`` / ``xys`` as naming tokens — use ``u``/``v`` / ``us``/``vs`` / ``radius_hexes`` / inline ``Tuple[float, float]`` or ``Set[Tuple[float, float]]`` on ``uvs`` bags.
 
 ### `val` / `vals`
 
@@ -577,7 +577,7 @@ Forbidden: do not use `weight` for cost / DSI / RF multipliers — use `scale`. 
 
 Definition: The packed trainable parameter vector that optimize updates — schema packs `param` values into ``z`` and decodes them back (``param_from_z`` / ``z_from_param``; per-param encoding via ``z_mode`` ∈ {linear, log, inv}). One packed scalar (vector element or decode input) is still ``z``. Compounds: ``z_best`` (post-optimize), ``z_mode``, ``z_clamps`` (optimize numeric range bag — see ``### clamp``), ``z_init`` (cold-start vector), ``z_idx`` (position along one param's pack into ``z``), ``param_n_z``, ``schema_n_z`` (``z`` width). Builder from schema ``init``/``inits`` (+ ``jit``): ``z_init_from_schema``.
 Example: `z_best, adam = optimize_staged(z, ...)`, `params_from_z(z, session)`, `param_from_z(spec, z, node=…)`, `z_from_param(spec, val)`, `z_init_from_schema(schema)`, `param.get("z_mode", "linear")`, `z_slice[z_idx]`
-Forbidden: ``theta``, ``x`` as names for this vector; bare ``w`` as a name for this vector (``w`` is extent — see ``### w``); ``physical`` for decoded values (use ``param``); ``z_fit`` / ``fit`` for the returned vector (use ``z_best``; see ``### gt`` Forbidden); ``z_map`` for the encoding key (use ``z_mode``); ``guess`` / ``schema_guess`` / prose “initial guess” for the cold-start vector or its builder (use ``z_init`` / ``z_init_from_schema``); ``z_bounds`` (use ``z_clamps`` — see ``### clamp``). Do not use bare ``z`` for hex coords, trace time, or other axes. **Forbidden pack-position junk:** ``z_slot``, ``z_slot_idx`` — scalar is ``z``; pack position is ``z_idx``. **Forbidden type/container naming token ``tensor`` / ``tensors`` / ``array`` / ``arrays`` (project-wide):** never in identifiers (``*_tensor``, ``*_tensors``, ``*_array``, ``pack_*_tensors``, ``_p_tensors``, ``z_tensor``, ``m_array``, …) — name the real quantity (``params``, ``dsi``, ``entries``, ``component``, ``vals``, …). Library ``torch.Tensor`` / ``torch.tensor`` / ``as_tensor`` / ``is_tensor`` / ``.new_tensor`` / ``np.ndarray`` / ``np.array`` / ``np.asarray`` may remain. **Also forbidden on the train vector:** ``z_t``, ``z_np``, ``z_array``, ``z_cpu``, ``z_cuda``, and any other ``z_<dtype|device|container>`` coinage — the live vector is always ``z`` (role-qualified only as ``z_best`` / ``z_init``). Trace-oscillation ``z_threshold`` is a different concept (not this vector).
+Forbidden: ``theta``, ``x`` as names for this vector; bare ``w`` as a name for this vector (``w`` is extent — see ``### w``); ``physical`` for decoded values (use ``param``); ``z_fit`` / ``fit`` for the returned vector (use ``z_best``; see ``### gt`` Forbidden); ``z_map`` for the encoding key (use ``z_mode``); ``guess`` / ``schema_guess`` / prose “initial guess” for the cold-start vector or its builder (use ``z_init`` / ``z_init_from_schema``); ``z_bounds`` (use ``z_clamps`` — see ``### clamp``). Do not use bare ``z`` for hex ``(u,v)``, trace time, or other axes. **Forbidden pack-position junk:** ``z_slot``, ``z_slot_idx`` — scalar is ``z``; pack position is ``z_idx``. **Forbidden type/container naming token ``tensor`` / ``tensors`` / ``array`` / ``arrays`` (project-wide):** never in identifiers (``*_tensor``, ``*_tensors``, ``*_array``, ``pack_*_tensors``, ``_p_tensors``, ``z_tensor``, ``m_array``, …) — name the real quantity (``params``, ``dsi``, ``entries``, ``component``, ``vals``, …). Library ``torch.Tensor`` / ``torch.tensor`` / ``as_tensor`` / ``is_tensor`` / ``.new_tensor`` / ``np.ndarray`` / ``np.array`` / ``np.asarray`` may remain. **Also forbidden on the train vector:** ``z_t``, ``z_np``, ``z_array``, ``z_cpu``, ``z_cuda``, and any other ``z_<dtype|device|container>`` coinage — the live vector is always ``z`` (role-qualified only as ``z_best`` / ``z_init``). Trace-oscillation ``z_threshold`` is a different concept (not this vector).
 
 ## Adjectives (A-Z)
 
@@ -616,7 +616,7 @@ Forbidden: `make` — use `build` instead.
 ### `expand`
 
 Definition: Expand shorthand/alias inputs into a concrete list/dictionary of explicit targets.
-Example: `tl = expand_tasks(list(tasks))`, `expand_gt(...)`, `expand_part_cost_scale(...)`
+Example: `tl = expand_tasks(list(tasks))`, `expand_gt(...)`, `expand_part_cost_scale(...)`, `expand_at_xy(at_xs, at_ys)`
 Forbidden: suffixing expanders with ``_dict`` (`expand_gt_dict`, `expand_part_cost_scale_dict`, …) — ``expand`` already yields the concrete bag (general ``*_dict`` bag naming — see ``### map``). Comma-list CLI shape uses ``expand_<cli_name>_list`` only (see ``### list``). Do not use ``expand`` for enum validation or non-alias coerce (`standardize` / `parse`).
 
 ### `inject`
@@ -652,7 +652,7 @@ Forbidden: `fit`, `train` (as a verb) — use `optimize` for the update loop. Do
 ### `parse`
 
 Definition: Decode a raw string or token sequence into a structured in-memory value.
-Example: `parse_moving_bar_spec(token)` → `(direction, contrast, w_token)`
+Example: `parse_moving_bar_spec(token)` → `(direction, contrast, w_token)`, `parse_at_xs(token)` → `at_xs`
 
 ### `plot`
 
@@ -695,8 +695,8 @@ Forbidden: do not use `step` to mean an optimizer iteration — use `iter` inste
 ### `at_uv` / `at_xy`
 
 Definition: Spatial locus filter — select hexes / nodes / ids at a connectome position. Always spelled with the coordinate frame: ``at_uv`` (axial ``u``/``v``) or ``at_xy`` (hex-step ``x``/``y``, not degree ``x_deg``/``y_deg``). Axis scalars are ``at_u``/``at_v`` or ``at_x``/``at_y``; bags ``at_xs``/``at_ys``. Network axial lookup uses UV (``sti_nodes_at_uv``; ``ids_by_cell(..., at_u=, at_v=)``). Figure / analyze hex filters and CLI ``--x``/``--y`` use XY (``filter_sti_hexes(..., at_x=, at_y=)``, ``align_at_x``/``align_at_y``). Connectome analyze allows either frame, mutually exclusive.
-Example: `sti_nodes_at_uv(u, v)`, `filter_sti_hexes(..., at_x=, at_y=)`, `ids_by_cell(nodes, at_u=..., at_v=...)`, `ids_by_cell(nodes, at_x=..., at_y=...)`, `align_at_x`/`align_at_y`, `cli_xy_filter`, `--x`/`--y`, `--u`/`--v`
-Forbidden: bare ``at`` / ``_at_`` without ``uv`` or ``xy`` (never ``ids_at_hex``, ``sti_nodes_at``, ``_nodes_at_hex``, ``hex_at_scope_label``, ``hex_at_scope_token``). Do not use ``at`` for time / node / radius-disc sampling (``bar_lane_rects_at_t``, ``_spec_at``, ``v_at_onset``, ``_component_at_nodes_*``, ``n_node_t``) — name those with the real axis noun, not ``at`` (``bar_lane_rects``, ``_node_param_key``, ``v_onset``, ``_component_nodes_*``, ``n_node_t``). Exact-distance hex selection is ``shell`` (``shell_hexes``, ``--shell``, ``ids_by_cell(..., shell=)`` — see ``### shell``), not an ``at_*`` frame. Do not use ``in``/``on``/``inside`` as naming glue for spatial membership (``inside_mask``, ``hex_in_cost_radius``, ``*_in_disc``, ``*_on_shell``, ``*_on_hex``, ``*_on_uv_line``, ``*_on_xy_line``) — use ``radius_mask`` / ``cost_radius_mask`` / ``nodes_from_hexes`` / ``hex_mask``, or ``ids_by_cell(...)`` with ``radius``/``shell``/``at_u``/``at_v``/``at_x``/``at_y``. Per-label at_xy curves live in ``*_mean_hex_by_label`` on readout; ``at_xs``/``at_ys`` hold the CLI filter. Library ``np.add.at`` may remain.
+Example: `sti_nodes_at_uv(u, v)`, `filter_sti_hexes(..., at_x=, at_y=)`, `ids_by_cell(nodes, at_u=..., at_v=...)`, `ids_by_cell(nodes, at_x=..., at_y=...)`, `align_at_x`/`align_at_y`, `cli_xy_filter`, `--x`/`--y`, `--u`/`--v`, `expand_at_xy(at_xs, at_ys)`, `parse_at_xs(token)`
+Forbidden: bare ``at`` / ``_at_`` without ``uv`` or ``xy`` (never ``ids_at_hex``, ``sti_nodes_at``, ``_nodes_at_hex``, ``hex_at_scope_label``, ``hex_at_scope_token``). Do not use ``at`` for time / node / radius-disc sampling (``bar_lane_rects_at_t``, ``_spec_at``, ``v_at_onset``, ``_component_at_nodes_*``, ``n_node_t``) — name those with the real axis noun, not ``at`` (``bar_lane_rects``, ``_node_param_key``, ``v_onset``, ``_component_nodes_*``, ``n_node_t``). Exact-distance hex selection is ``shell`` (``shell_hexes``, ``--shell``, ``ids_by_cell(..., shell=)`` — see ``### shell``), not an ``at_*`` frame. Do not use ``in``/``on``/``inside`` as naming glue for spatial membership (``inside_mask``, ``hex_in_cost_radius``, ``*_in_disc``, ``*_on_shell``, ``*_on_hex``, ``*_on_uv_line``, ``*_on_xy_line``) — use ``radius_mask`` / ``cost_radius_mask`` / ``nodes_from_hexes`` / ``hex_mask``, or ``ids_by_cell(...)`` with ``radius``/``shell``/``at_u``/``at_v``/``at_x``/``at_y``. Per-label at_xy curves live in ``*_mean_hex_by_label`` on readout; ``at_xs``/``at_ys`` hold the CLI filter; ``expand_at_xy(at_xs, at_ys)[0]`` yields ``(label, at_x, at_y)`` rows — iterate directly, do not bind to an intermediate bag. ``coord`` / ``coords`` / ``coordinate`` / ``coordinates`` / ``labeled_at_xy`` / ``xys`` / ``uv_float`` / ``_Uv`` / ``_UvCoord`` as naming tokens (``at_xy_coords``, ``parse_axis_coords``, ``get_hex_coords``, ``float_coords``, ``*_coords``, ``axis_coord``, ``axis_filter``, prose "axis coord") — use ``at_xy`` / ``at_xs``/``at_ys`` / ``label`` / ``expand_at_xy`` / ``parse_at_xs`` / ``partner_xy`` / ``filter_sti_hexes`` / ``hex_mask`` / ``u``/``v``/``x``/``y`` as appropriate. ``match`` / ``matches`` / ``matched`` / ``matching`` / ``*_match`` / ``*_matches`` / ``*_matched`` / ``*_matching`` as naming tokens (``_coord_matches``, ``_at_xy_value_matches``, ``axis_filter``) — inline ``np.isclose`` in ``filter_sti_hexes`` or build ``hex_mask``; use ``fused`` for same-shape/onset pack join (see ``### fused``). Library ``np.add.at`` / matplotlib ``xycoords`` / ``textcoords`` may remain at call sites only.
 
 ### `_by_`
 

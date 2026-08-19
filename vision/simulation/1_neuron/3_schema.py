@@ -13,6 +13,8 @@ dict key; ``spec`` has no self-id field. Per-node bags on ``spec`` are
 """
 from __future__ import annotations
 
+from import_bootstrap import parse_comma_list
+
 SYN_MODES = ("per_cell", "per_edge")
 PARAM_MODES = ("indi", "shared", "fixed", "frozen")
 _PARAM_ENTRY_KEYS = frozenset({
@@ -121,6 +123,8 @@ def build_param_spec(
             raise ValueError(
                 f"{param}: unknown mode {m!r}; expected one of {PARAM_MODES}"
             )
+        if isinstance(group, str):
+            group = parse_comma_list(group)
         for name in group:
             name = str(name)
             if name not in node_from:

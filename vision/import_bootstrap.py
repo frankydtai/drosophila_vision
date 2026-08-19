@@ -8,8 +8,8 @@ Roots (tried in order):
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
 logical. Renumbering is rename-only; this finder has no per-file registry.
 
-Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists),
-:func:`parse_bool` (CLI true/false tokens), and :func:`standardize_option_dashes`
+Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists)
+and :func:`standardize_option_dashes`
 (single-dash long options → double-dash; applied to all ``argparse`` parses via
 :func:`install`).
 
@@ -43,16 +43,6 @@ _ARGPARSE_DASH_PATCHED = False
 def parse_comma_list(token: str) -> List[str]:
     """Split a comma-separated token list (empty string → ``[]``)."""
     return [t.strip() for t in str(token or "").split(",") if t.strip()]
-
-
-def parse_bool(token) -> bool:
-    """Parse CLI boolean (true/false, 1/0, yes/no)."""
-    v = str(token).lower()
-    if v in ("true", "1", "yes"):
-        return True
-    if v in ("false", "0", "no"):
-        return False
-    raise ValueError(f"expected true|false, got {token!r}")
 
 
 def standardize_option_dashes(argv: Sequence[str]) -> List[str]:
@@ -111,20 +101,20 @@ def _iter_children(directory: Path) -> Iterable[Path]:
 
 def child_by_logical(directory: Path, want: str) -> Optional[Path]:
     """Return the child whose logical name equals ``want``, or None."""
-    matched: Optional[Path] = None
+    child_path: Optional[Path] = None
     for child in _iter_children(directory):
         if child.name == "__init__.py":
             continue
         key = logical_name(child.stem if child.is_file() else child.name)
         if key != want:
             continue
-        if matched is not None:
+        if child_path is not None:
             raise ImportError(
                 f"ambiguous logical name under {directory}: "
                 f"multiple children map to {want!r}"
             )
-        matched = child
-    return matched
+        child_path = child
+    return child_path
 
 
 def resolve_parts_under(root: Path, parts: Sequence[str]) -> Optional[Path]:
@@ -148,7 +138,7 @@ def resolve_parts_under(root: Path, parts: Sequence[str]) -> Optional[Path]:
 
 
 def resolve_parts(parts: Sequence[str]) -> Optional[Path]:
-    """Resolve logical dotted parts under the first matching root."""
+    """Resolve logical dotted parts under the first root that contains them."""
     for root in _ROOTS:
         hit = resolve_parts_under(root, parts)
         if hit is not None:

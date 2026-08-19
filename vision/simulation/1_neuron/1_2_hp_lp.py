@@ -22,7 +22,7 @@ HP / LP Euler (``session.euler`` = ``implicit`` | ``explicit``):
     implicit LP:  v ← (v + (Δt/τ_lp) (e_leak + v_hp)) / (1 + Δt/τ_lp)
     explicit LP:  v ← v + (Δt/τ_lp) (−(v − e_leak) + v_hp)
 
-Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. ``v``
+Dynamics only: ``pre_steady`` / ``step``. ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
 t=0 uses ``session.pre_steady`` (``--pre-steady …``):
@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import torch
 
-from neuron.borst import expand_euler, standardize_i_sti, syn_strength
+from neuron.borst import syn_strength
 
 
 def update_v(
@@ -43,7 +43,6 @@ def update_v(
     return_component: bool = False,
 ):
     """One HP→LP step; returns ``(v, v_slow)`` or component extras."""
-    euler = expand_euler(euler)
     e_leak = params["e_leak"]
     dt = float(delta_ms)
     tau_lp = torch.clamp(params["tau_lp"], min=dt)

@@ -73,6 +73,7 @@ def run_train_and_plot(**kwargs):
             ),
             costs_by_part=result.costs_by_part,
             part_order=list(train.session_cost_part_keys(session)),
+            session=session,
         )
     plot_rf_t(
         result.run_params,

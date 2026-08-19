@@ -3,7 +3,7 @@
 
 Cost hexes, sti ``i_sti``, :class:`MovingBarGt` packing, and DSI entry CSR.
 GT traces and motion preference come from :mod:`task.moving_bar.gt`.
-``Pack`` wrapping lives in the ``train`` layer.
+:class:`~task.spread.pack.Pack` assembly lives here.
 """
 from __future__ import annotations
 
@@ -16,10 +16,13 @@ import torch
 
 from neuron.borst import t_from_ms
 from network.construction import (
-    hex2gt,
     active_gt_cells,
     node_cells,
+    gt_cells_from_opts,
+    standardize_cost_radius,
 )
+from task.spread.pack import Pack, CostPartPlotSpec, cost_hex_label
+from task.spread.sti_spec import i_baseline_from_i_sti
 from task.spread.gt import contrast_sign
 from task.moving_bar.gt import (
     FIG1_CI_NPZ,
@@ -50,7 +53,6 @@ from task.moving_bar.sti_spec import (
     build_moving_bar_t0_grids,
     gruntman_moving_bar_specs,
     hex_first_sti_t,
-    i_baseline_from_i_sti,
 )
 
 
@@ -78,6 +80,51 @@ class MovingBarGt:
     dsi_gts: Optional[torch.Tensor] = None
     dsi_scales: Optional[torch.Tensor] = None
     dsi_power: Optional[torch.Tensor] = None
+    entry_part_keys: Tuple[str, ...] = ()
+
+
+def cell_part_key(contrast: str, cell: str, pd_nd_label: str) -> str:
+    return f"moving_bar_{contrast}_{cell}_{pd_nd_label}"
+
+
+def dsi_part_key(contrast: str) -> str:
+    return f"moving_bar_{contrast}_DSI"
+
+
+def _moving_bar_cost_part_plot_specs(
+    entry_part_keys: Sequence[str],
+    entry_nodes: torch.Tensor,
+    cost_scales: torch.Tensor,
+    cost_pd_nds: torch.Tensor,
+    connectome,
+    contrast: str,
+    dsi_part_key_val: Optional[str],
+) -> Dict[str, CostPartPlotSpec]:
+    specs: Dict[str, CostPartPlotSpec] = {}
+    pd_nd = cost_pd_nds.detach().cpu().numpy()
+    node_cells = connectome.node_cells[entry_nodes].detach().cpu().numpy()
+    cells = connectome.cells
+    for entry, part_key in enumerate(entry_part_keys):
+        if float(cost_scales[entry]) <= 0.0:
+            continue
+        if part_key in specs:
+            continue
+        pd_nd_label = PD_ND_LABELS[int(pd_nd[entry])]
+        cell = str(cells[int(node_cells[entry])])
+        label = (
+            f"{pd_nd_label} ({contrast})" if contrast else pd_nd_label
+        )
+        specs[part_key] = CostPartPlotSpec(
+            part_key, cell, ("moving_bar_pd_nd", pd_nd_label), label,
+        )
+    if dsi_part_key_val and dsi_part_key_val not in specs:
+        specs[dsi_part_key_val] = CostPartPlotSpec(
+            dsi_part_key_val,
+            None,
+            ("moving_bar_pd_nd", "DSI"),
+            f"DSI ({contrast})" if contrast else "DSI",
+        )
+    return specs
 
 
 def nodes_from_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
@@ -117,28 +164,28 @@ def filter_requested_specs(
 
 def assemble_moving_bar_dsi_groups(
     specs: Sequence[MovingBarSpec],
-    r_bs: Sequence[int],
-    r_subtype: Sequence[str],
-    r_scale: Sequence[float],
+    entry_bs: Sequence[int],
+    entry_cells: Sequence[str],
+    entry_cost_scales: Sequence[float],
     *,
     side: str,
 ) -> Tuple[List[List[int]], List[List[int]], List[float], List[float]]:
-    """One DSI group per ``(subtype, contrast, w_token, axis)``."""
+    """One DSI group per ``(cell, contrast, w_token, axis)``."""
     bs_by_condition: dict[tuple[str, str, str], list[int]] = {}
     for b, spec in enumerate(specs):
         key = (spec.direction, spec.contrast, w_token(spec.w_deg))
         bs_by_condition.setdefault(key, []).append(b)
 
-    entries_by_subtype_b: dict[tuple[str, int], list[int]] = {}
-    for entry, (b, subtype) in enumerate(zip(r_bs, r_subtype)):
-        entries_by_subtype_b.setdefault((str(subtype), int(b)), []).append(entry)
+    entries_by_cell_b: dict[tuple[str, int], list[int]] = {}
+    for entry, (b, cell) in enumerate(zip(entry_bs, entry_cells)):
+        entries_by_cell_b.setdefault((str(cell), int(b)), []).append(entry)
 
     pos_groups: List[List[int]] = []
     neg_groups: List[List[int]] = []
     dsi_vals: List[float] = []
     scales: List[float] = []
-    subtypes = sorted({str(subtype) for subtype in r_subtype})
-    for subtype in subtypes:
+    cells = sorted({str(cell) for cell in entry_cells})
+    for cell in cells:
         for pos_dir, neg_dir in (("right", "left"), ("up", "down")):
             contrast_ws = {
                 (contrast, w_token)
@@ -152,17 +199,17 @@ def assemble_moving_bar_dsi_groups(
                     continue
                 pos_entries: list[int] = []
                 for pb in pos_bs:
-                    pos_entries.extend(entries_by_subtype_b.get((subtype, pb), []))
+                    pos_entries.extend(entries_by_cell_b.get((cell, pb), []))
                 neg_entries: list[int] = []
                 for nb in neg_bs:
-                    neg_entries.extend(entries_by_subtype_b.get((subtype, nb), []))
+                    neg_entries.extend(entries_by_cell_b.get((cell, nb), []))
                 if not pos_entries or not neg_entries:
                     continue
-                dsi = hardcoded_axis_dsi(side, subtype, specs[pos_bs[0]])
+                dsi = hardcoded_axis_dsi(side, cell, specs[pos_bs[0]])
                 if dsi is None:
                     continue
-                w_pos = float(np.mean([float(r_scale[entry]) for entry in pos_entries]))
-                w_neg = float(np.mean([float(r_scale[entry]) for entry in neg_entries]))
+                w_pos = float(np.mean([float(entry_cost_scales[entry]) for entry in pos_entries]))
+                w_neg = float(np.mean([float(entry_cost_scales[entry]) for entry in neg_entries]))
                 pos_groups.append(pos_entries)
                 neg_groups.append(neg_entries)
                 dsi_vals.append(float(dsi))
@@ -333,10 +380,10 @@ def _assemble_moving_bar_readouts(
     nodes_from_hex_type: Callable[[int, int, str], Sequence[int]],
     waveform_mse: bool = True,
 ) -> Tuple[
-    List[int], List[int], List[str], List[np.ndarray], List[float], List[int], List[int], int,
+    List[int], List[int], List[str], List[np.ndarray], List[float], List[int], List[int], List[str], int,
 ]:
-    r_bs, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd = (
-        [], [], [], [], [], [], [],
+    entry_bs, entry_nodes, entry_cells, entry_gts, entry_cost_scales, entry_cost_t0s, entry_cost_pd_nds, entry_part_keys = (
+        [], [], [], [], [], [], [], [],
     )
     skipped_orthogonal = 0
     i_baseline = float(i_baseline)
@@ -355,55 +402,59 @@ def _assemble_moving_bar_readouts(
                     )
                 t0_by_hex[hex_idx] = t0
         for hex_idx in cost_hex_idxs:
-            for subtype in active:
-                pref = motion_preference(side, subtype, spec.direction, spec.contrast)
+            for cell in active:
+                pref = motion_preference(side, cell, spec.direction, spec.contrast)
                 if pref is None:
                     skipped_orthogonal += 1
                     continue
-                nodes = nodes_from_hex_type(b, hex_idx, subtype)
+                nodes = nodes_from_hex_type(b, hex_idx, cell)
                 if len(nodes) == 0:
                     continue
                 gt_trace = None
                 if waveform_mse:
                     if fig1 is None:
                         raise ValueError("fig1 traces required when waveform_mse=True")
-                    trace_token = fig1_trace_from_sti(side, subtype, spec)
+                    trace_token = fig1_trace_from_sti(side, cell, spec)
                     if trace_token not in fig1:
                         raise KeyError(f"fig1 trace missing: {trace_token}")
                     gt_trace = fig1[trace_token]
                 pd_nd_idx = PD_IDX if pref.pd_nd == "PD" else ND_IDX
+                pd_nd_label = PD_ND_LABELS[pd_nd_idx]
                 t0 = t0_by_hex.get(hex_idx, 0)
                 for node in nodes:
-                    r_bs.append(b)
-                    r_node.append(int(node))
-                    r_subtype.append(str(subtype))
+                    entry_bs.append(b)
+                    entry_nodes.append(int(node))
+                    entry_cells.append(str(cell))
                     if gt_trace is not None:
-                        r_readout.append(gt_trace)
-                    r_scale.append(1.0)
+                        entry_gts.append(gt_trace)
+                    entry_cost_scales.append(1.0)
                     if waveform_mse:
-                        r_t0.append(t0)
-                        r_pd_nd.append(pd_nd_idx)
+                        entry_cost_t0s.append(t0)
+                        entry_cost_pd_nds.append(pd_nd_idx)
+                        entry_part_keys.append(cell_part_key(spec.contrast, cell, pd_nd_label))
     return (
-        r_bs, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd,
+        entry_bs, entry_nodes, entry_cells, entry_gts, entry_cost_scales,
+        entry_cost_t0s, entry_cost_pd_nds, entry_part_keys,
         skipped_orthogonal,
     )
 
 
 def _pack_moving_bar_entries(
-    r_bs, r_node, r_readout, r_scale, r_t0, r_pd_nd, *, device, sim_dtype,
+    entry_bs, entry_nodes, entry_gts, entry_cost_scales, entry_cost_t0s, entry_cost_pd_nds,
+    *, device, sim_dtype,
     waveform_mse: bool = True,
 ):
-    n = len(r_bs)
-    cost_scales = torch.tensor(np.asarray(r_scale), dtype=sim_dtype, device=device)
-    entry_bs = torch.tensor(np.asarray(r_bs), dtype=torch.long, device=device)
-    entry_nodes = torch.tensor(np.asarray(r_node), dtype=torch.long, device=device)
+    n = len(entry_bs)
+    cost_scales = torch.tensor(np.asarray(entry_cost_scales), dtype=sim_dtype, device=device)
+    entry_bs = torch.tensor(np.asarray(entry_bs), dtype=torch.long, device=device)
+    entry_nodes = torch.tensor(np.asarray(entry_nodes), dtype=torch.long, device=device)
     if not waveform_mse:
         gts = torch.zeros((n, 0), dtype=sim_dtype, device=device)
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
         return gts, cost_scales, entry_bs, entry_nodes, None, None, power
-    cost_pd_nds = torch.tensor(np.asarray(r_pd_nd), dtype=torch.long, device=device)
-    gts = torch.tensor(np.asarray(r_readout), dtype=sim_dtype, device=device)
-    cost_t0s = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
+    cost_pd_nds = torch.tensor(np.asarray(entry_cost_pd_nds), dtype=torch.long, device=device)
+    gts = torch.tensor(np.asarray(entry_gts), dtype=sim_dtype, device=device)
+    cost_t0s = torch.tensor(np.asarray(entry_cost_t0s), dtype=torch.long, device=device)
     power = torch.sum(cost_scales[:, None] * gts ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
@@ -452,7 +503,7 @@ def build_moving_bar_gt(
         gt_cells, GT_CELLS, connectome.cells, context="moving_bar",
     )
 
-    node_cell = node_cells(connectome)
+    cells = node_cells(connectome)
     hex_idx = {
         (int(hex.u), int(hex.v)): hex_idx
         for hex_idx, hex in enumerate(sti_hexes(connectome))
@@ -461,9 +512,9 @@ def build_moving_bar_gt(
     cost_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
     hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_idxs)}
 
-    def _nodes_from_hex_type(b, hex_idx, subtype):
+    def _nodes_from_hex_type(b, hex_idx, cell):
         hex = hex_by_idx[hex_idx]
-        return hex2gt(connectome, hex.u, hex.v, subtype, node_cell)
+        return connectome.nodes_at_uv(hex.u, hex.v, cell, cells=cells)
 
     rows = _assemble_moving_bar_readouts(
         specs=sti.specs,
@@ -480,16 +531,18 @@ def build_moving_bar_gt(
         waveform_mse=waveform_mse,
     )
     (
-        r_bs, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd,
+        entry_bs, entry_nodes, entry_cells, entry_gts, entry_cost_scales,
+        entry_cost_t0s, entry_cost_pd_nds, entry_part_keys,
         _,
     ) = rows
 
-    if not r_bs:
+    if not entry_bs:
         raise ValueError("no moving-bar cost nodes (check subtypes and sti hexes)")
 
     gts, cost_scales, entry_bs, entry_nodes, cost_t0s, cost_pd_nds, power = (
         _pack_moving_bar_entries(
-            r_bs, r_node, r_readout, r_scale, r_t0, r_pd_nd,
+            entry_bs, entry_nodes, entry_gts, entry_cost_scales,
+            entry_cost_t0s, entry_cost_pd_nds,
             device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
         )
     )
@@ -498,7 +551,7 @@ def build_moving_bar_gt(
         dsi_tgt, dsi_w, dsi_pow,
     ) = pack_moving_bar_dsi(
         *assemble_moving_bar_dsi_groups(
-            sti.specs, r_bs, r_subtype, r_scale, side=side,
+            sti.specs, entry_bs.tolist(), entry_cells, cost_scales.tolist(), side=side,
         ),
         device=device,
         sim_dtype=sim_dtype,
@@ -526,6 +579,7 @@ def build_moving_bar_gt(
         dsi_gts=dsi_tgt,
         dsi_scales=dsi_w,
         dsi_power=dsi_pow,
+        entry_part_keys=tuple(entry_part_keys),
     )
 
 
@@ -650,3 +704,130 @@ def build_moving_bar_sti_opts(
     if gt_cells is not None:
         sti_opts["gt_cells"] = list(gt_cells)
     return sti_opts
+
+
+def resolve_moving_bar_sti_opts(opts, **_):
+    return build_moving_bar_sti_opts(
+        ms_pre=opts["ms_pre"],
+        delta_ms=opts["delta_ms"],
+        delta_ms_pre=opts["delta_ms_pre"],
+        multi_bar=opts["multi_bar"],
+        gt_cells=opts.get("gt_cells"),
+    )
+
+
+def moving_bar_sti_opts(
+    moving_bar_sti_opts: Optional[dict],
+    *,
+    ms_pre,
+    delta_ms: float,
+    delta_ms_pre: float,
+    multi_bar: bool,
+) -> dict:
+    """Build moving-bar sti opts when CLI sidecar is absent."""
+    if moving_bar_sti_opts:
+        return dict(moving_bar_sti_opts)
+    return build_moving_bar_sti_opts(
+        ms_pre=ms_pre,
+        delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
+        multi_bar=multi_bar,
+    )
+
+
+def build_moving_bar_pack(
+    connectome,
+    *,
+    contrast: str,
+    gt_amp: float,
+    device: str,
+    sim_dtype: torch.dtype,
+    i_sti: Dict[str, float],
+    moving_bar_sti_opts: Optional[dict],
+    filter: str,
+    delta_ms: float,
+    delta_ms_pre: float,
+    ms_pre,
+    multi_bar: bool,
+):
+    task = "moving_bar"
+    device = device or connectome.device
+    opts = moving_bar_sti_opts(
+        moving_bar_sti_opts,
+        ms_pre=ms_pre,
+        delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
+        multi_bar=multi_bar,
+    )
+    cost_radius = standardize_cost_radius(opts.get("cost_radius"))
+    moving_bar_gt = build_moving_bar_gt(
+        connectome=connectome,
+        device=device,
+        sim_dtype=sim_dtype,
+        t_onset=t_from_ms(
+            float(opts["ms_pre"]),
+            delta_ms=float(opts["delta_ms_pre"]),
+        ),
+        delta_ms=float(opts["delta_ms"]),
+        cost_radius=cost_radius,
+        i_baseline=i_baseline_from_i_sti(i_sti),
+        i_sti=float(i_sti[contrast]),
+        contrasts=(contrast,),
+        gt_cells=gt_cells_from_opts(opts),
+        multi_bar=bool(opts.get("multi_bar", multi_bar)),
+        waveform_mse=True,
+    )
+    sti_opts = dict(opts)
+    sti_opts["n_t"] = int(moving_bar_gt.n_t)
+    sti_opts["spec_tokens"] = list(moving_bar_gt.spec_tokens)
+    if cost_radius is not None:
+        sti_opts["cost_radius"] = int(cost_radius)
+    sti_opts["gt_cells"] = list(moving_bar_gt.active_gts)
+    dsi_key = (
+        dsi_part_key(contrast)
+        if moving_bar_gt.dsi_pos_ptr is not None
+        and int(moving_bar_gt.dsi_pos_ptr.numel()) > 1
+        else None
+    )
+    pack = Pack(
+        task=task,
+        contrast=contrast,
+        i_sti=moving_bar_gt.i_sti,
+        gts=moving_bar_gt.gts,
+        power=moving_bar_gt.power,
+        cost_scales=moving_bar_gt.cost_scales,
+        entry_bs=moving_bar_gt.entry_bs,
+        entry_nodes=moving_bar_gt.entry_nodes,
+        cost_t0s=moving_bar_gt.cost_t0s,
+        cost_radius=cost_radius,
+        cost_pd_nds=moving_bar_gt.cost_pd_nds,
+        dsi_pos_entries=moving_bar_gt.dsi_pos_entries,
+        dsi_neg_entries=moving_bar_gt.dsi_neg_entries,
+        dsi_pos_ptr=moving_bar_gt.dsi_pos_ptr,
+        dsi_neg_ptr=moving_bar_gt.dsi_neg_ptr,
+        dsi_gts=moving_bar_gt.dsi_gts,
+        dsi_scales=moving_bar_gt.dsi_scales,
+        dsi_power=moving_bar_gt.dsi_power,
+        waveform_mse=bool(moving_bar_gt.waveform_mse),
+        entry_part_keys=moving_bar_gt.entry_part_keys,
+        dsi_part_key=dsi_key,
+        cost_part_plot_specs=(
+            _moving_bar_cost_part_plot_specs(
+                moving_bar_gt.entry_part_keys,
+                moving_bar_gt.entry_nodes,
+                moving_bar_gt.cost_scales,
+                moving_bar_gt.cost_pd_nds,
+                connectome,
+                contrast,
+                dsi_key,
+            )
+            if moving_bar_gt.cost_pd_nds is not None
+            else None
+        ),
+    )
+    hex_label = cost_hex_label(cost_radius, moving_bar_gt.n_cost_hex)
+    label = (
+        f"moving-bar {contrast} (B={moving_bar_gt.n_b} stis, "
+        f"{int(moving_bar_gt.entry_bs.shape[0])} cost nodes, {hex_label})"
+    )
+    return pack, sti_opts, label

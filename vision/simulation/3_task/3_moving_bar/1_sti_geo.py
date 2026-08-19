@@ -29,7 +29,7 @@ class _BarGeo(Protocol):
 
 @dataclass
 class Hex:
-    """One FAFB sti hex: axial coords, hex-step ``(x,y)``, degree ``(x_deg,y_deg)``."""
+    """One FAFB sti hex: axial (u,v), hex-step ``(x,y)``, degree ``(x_deg,y_deg)``."""
 
     u: int
     v: int
@@ -355,21 +355,22 @@ def network_uv_np(connectome) -> Tuple[np.ndarray, np.ndarray]:
     return _as_int64_np(connectome.us), _as_int64_np(connectome.vs)
 
 
-def _coord_matches(val, axis_filter, tol=1e-6) -> bool:
-    if axis_filter is None:
-        return True
-    if isinstance(axis_filter, (list, tuple)):
-        return any(np.isclose(val, float(v), atol=tol) for v in axis_filter)
-    return np.isclose(val, float(axis_filter), atol=tol)
-
-
 def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
-    """Keep network sti hexes whose hex-step ``(x, y)`` matches ``at_x`` / ``at_y``."""
+    """Keep network sti hexes at hex-step ``(x, y)`` per ``at_x`` / ``at_y``."""
     if at_x is None and at_y is None:
         return list(hexes)
     return [
         hex for hex in hexes
-        if _coord_matches(hex.x, at_x, tol=tol) and _coord_matches(hex.y, at_y, tol=tol)
+        if (at_x is None or (
+            any(np.isclose(hex.x, float(x), atol=tol) for x in at_x)
+            if isinstance(at_x, (list, tuple))
+            else np.isclose(hex.x, float(at_x), atol=tol)
+        ))
+        and (at_y is None or (
+            any(np.isclose(hex.y, float(y), atol=tol) for y in at_y)
+            if isinstance(at_y, (list, tuple))
+            else np.isclose(hex.y, float(at_y), atol=tol)
+        ))
     ]
 
 

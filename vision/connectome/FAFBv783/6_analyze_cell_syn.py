@@ -24,7 +24,7 @@ FAFB-only and show mean ``pre_d_xy``/``post_d_xy`` only.
 
 Per (cell, partner_cell): sum ``n_syn`` where ``sign > 0`` vs ``sign < 0``,
 then express each as a percentage of **all** ``n_syn`` for that cell. An
-``n_neuron`` column is always shown. The SUM row omits the coord columns.
+``n_neuron`` column is always shown. The SUM row omits the u/v/x/y columns.
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
 ``{"id", "name", "u", "v", "column_id", "sti", "output"}`` and each edge is
@@ -61,9 +61,7 @@ import logging
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import DefaultDict, Dict, Iterable, List, Optional, Set, Tuple, Union
-
-_UvCoord = Tuple[Union[int, float], Union[int, float]]
+from typing import DefaultDict, Dict, Iterable, List, Optional, Set, Tuple
 
 from build_hex import (
     hex_radius,
@@ -149,13 +147,11 @@ def _format_table_mean_scalar(z: float) -> str:
 
 def _node_uv_xy(
     n: dict,
-    *,
-    float_coords: bool,
 ) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
     """Parse one FAFB node's ``(u,v)`` and hex-step ``(x,y)``."""
     try:
-        u = float(n["u"]) if float_coords else float(int(n["u"]))
-        v = float(n["v"]) if float_coords else float(int(n["v"]))
+        u = float(int(n["u"]))
+        v = float(int(n["v"]))
         x, y = xy_from_uv(u, v)
         xy = (float(x), float(y))
         return (u, v), xy
@@ -185,7 +181,7 @@ def _format_pairs(
 
 
 def _format_partner_uv(
-    uvs: Set[_UvCoord],
+    uvs: Set[Tuple[float, float]],
     origin: Optional[Tuple[float, float]] = None,
     *,
     mean: bool,
@@ -200,19 +196,19 @@ def _format_partner_uv(
 
 
 def _format_partner_xy(
-    uvs: Set[_UvCoord],
-    coords: Set[Tuple[float, float]],
+    uvs: Set[Tuple[float, float]],
+    partner_xy: Set[Tuple[float, float]],
     origin: Optional[Tuple[float, float]] = None,
     *,
     mean: bool,
 ) -> str:
-    """Format partner ``(x,y)`` or ``(dx,dy)``; prefer explicit ``coords``."""
-    if coords:
+    """Format partner ``(x,y)`` or ``(dx,dy)``; prefer explicit ``partner_xy``."""
+    if partner_xy:
         if origin is None:
-            pairs = ((float(x), float(y)) for x, y in coords)
+            pairs = ((float(x), float(y)) for x, y in partner_xy)
         else:
             ox, oy = origin
-            pairs = ((x - ox, y - oy) for x, y in coords)
+            pairs = ((x - ox, y - oy) for x, y in partner_xy)
     elif origin is None:
         pairs = (
             (float(xy_from_uv(u, v)[0]), float(xy_from_uv(u, v)[1])) for u, v in uvs
@@ -232,8 +228,6 @@ def _format_partner_xy(
 def _self_node_origin(
     label: str,
     nodes: List[dict],
-    *,
-    float_coords: bool
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
     """``@<id>`` label -> FAFB ``(u,v)``/``(x,y)``."""
     if not label.startswith("@"):
@@ -246,7 +240,7 @@ def _self_node_origin(
         try:
             if int(n["id"]) != node_id:
                 continue
-            node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
+            node_uv_xy = _node_uv_xy(n)
             if node_uv_xy is None:
                 continue
             return node_uv_xy
@@ -260,15 +254,12 @@ def _mean_self_origin(
     nodes: List[dict],
     labels_from_self_cell: Dict[str, Set[str]],
     ids_by_cell: Optional[Dict[str, Set[int]]],
-    *,
-    float_coords: bool
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
     """Mean self location: FAFB ``(u,v)``/``(x,y)``."""
     self_cells = {t for t, labs in labels_from_self_cell.items() if label in labs}
     if not self_cells:
         return None, None
     uvs: List[Tuple[float, float]] = []
-    xys: List[Tuple[float, float]] = []
     for n in nodes:
         name = n.get("name")
         if not isinstance(name, str) or name not in self_cells:
@@ -281,17 +272,18 @@ def _mean_self_origin(
             allowed = ids_by_cell.get(name, set())
             if node_id not in allowed:
                 continue
-        node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
+        node_uv_xy = _node_uv_xy(n)
         if node_uv_xy is None:
             continue
-        uv, xy = node_uv_xy
-        uvs.append(uv)
-        xys.append(xy)
-    if not xys:
+        uvs.append(node_uv_xy[0])
+    if not uvs:
         return None, None
     n = float(len(uvs))
-    mean_uv = (sum(p[0] for p in uvs) / n, sum(p[1] for p in uvs) / n)
-    mean_xy = (sum(p[0] for p in xys) / n, sum(p[1] for p in xys) / n)
+    mean_uv = (sum(u for u, _v in uvs) / n, sum(v for _u, v in uvs) / n)
+    mean_xy = (
+        sum(xy_from_uv(u, v)[0] for u, v in uvs) / n,
+        sum(xy_from_uv(u, v)[1] for u, v in uvs) / n,
+    )
     return mean_uv, mean_xy
 
 
@@ -303,7 +295,6 @@ def _label_origins(
     at_ref_uv: Optional[Tuple[float, float]],
     at_ref_xy: Optional[Tuple[float, float]],
     *,
-    float_coords: bool,
     need_uv: bool,
     need_xy: bool,
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
@@ -311,9 +302,7 @@ def _label_origins(
     origin_uv = at_ref_uv if need_uv else None
     origin_xy = at_ref_xy if need_xy else None
     if label.startswith("@"):
-        self_uv, self_xy = _self_node_origin(
-            label, nodes, float_coords=float_coords,
-        )
+        self_uv, self_xy = _self_node_origin(label, nodes)
         if origin_uv is None:
             origin_uv = self_uv
         if origin_xy is None:
@@ -324,7 +313,6 @@ def _label_origins(
             nodes,
             labels_from_self_cell,
             ids_by_cell,
-            float_coords=float_coords,
         )
         if origin_uv is None:
             origin_uv = mean_uv
@@ -333,12 +321,12 @@ def _label_origins(
     return origin_uv, origin_xy
 
 
-def uv_from_node_id(nodes: List[dict], *, float_coords: bool = False) -> Dict[int, _UvCoord]:
+def uv_from_node_id(nodes: List[dict]) -> Dict[int, Tuple[float, float]]:
     """Unit id -> hex (u, v) from network nodes."""
-    m: Dict[int, _UvCoord] = {}
+    m: Dict[int, Tuple[float, float]] = {}
     for n in nodes:
         try:
-            node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
+            node_uv_xy = _node_uv_xy(n)
             if node_uv_xy is None:
                 continue
             uv, _ = node_uv_xy
@@ -381,10 +369,10 @@ def ids_by_cell(
         except (KeyError, TypeError, ValueError):
             continue
         if has_xy:
-            node_uv_xy = _node_uv_xy(n, float_coords=False)
+            node_uv_xy = _node_uv_xy(n)
             if node_uv_xy is None:
                 continue
-            _uv, (x, y) = node_uv_xy
+            _, (x, y) = node_uv_xy
             if at_x is not None and abs(float(x) - float(at_x)) > tol:
                 continue
             if at_y is not None and abs(float(y) - float(at_y)) > tol:
@@ -420,7 +408,7 @@ def partner_syn_by_label(
     edges: List[dict],
     labels: List[str],
     labels_from_self_cell: Dict[str, Set[str]],
-    uv_from_id: Dict[int, _UvCoord],
+    uv_from_id: Dict[int, Tuple[float, float]],
     *,
     xy_from_id: Optional[Dict[int, Tuple[float, float]]] = None,
     ids_by_cell: Optional[Dict[str, Set[int]]] = None,
@@ -433,7 +421,7 @@ def partner_syn_by_label(
         DefaultDict[str, Dict[str, float]],
         float,
         Dict[str, int],
-        Dict[str, Set[_UvCoord]],
+        Dict[str, Set[Tuple[float, float]]],
         Dict[str, Set[Tuple[float, float]]],
         int,
     ],
@@ -470,7 +458,7 @@ def partner_syn_by_label(
     partner_ids: Dict[str, DefaultDict[str, Set[int]]] = {
         p: defaultdict(set) for p in labels
     }
-    partner_uv: Dict[str, DefaultDict[str, Set[_UvCoord]]] = {
+    partner_uv: Dict[str, DefaultDict[str, Set[Tuple[float, float]]]] = {
         p: defaultdict(set) for p in labels
     }
     partner_xy: Dict[str, DefaultDict[str, Set[Tuple[float, float]]]] = {
@@ -531,7 +519,7 @@ def partner_syn_by_label(
             sums[p],
             {pt: len(ids) for pt, ids in partner_ids[p].items()},
             {pt: set(uvs) for pt, uvs in partner_uv[p].items()},
-            {pt: set(coords) for pt, coords in partner_xy[p].items()},
+            {pt: set(partner_xy[p][pt]) for pt in partner_xy[p]},
             len(self_ids[p]),
         )
         for p in labels
@@ -552,7 +540,7 @@ def query_partner_syn(
         DefaultDict[str, Dict[str, float]],
         float,
         Dict[str, int],
-        Dict[str, Set[_UvCoord]],
+        Dict[str, Set[Tuple[float, float]]],
         Dict[str, Set[Tuple[float, float]]],
         int,
     ],
@@ -566,7 +554,7 @@ def query_partner_syn(
         edges,
         labels,
         labels_from_self_cell,
-        uv_from_node_id(nodes, float_coords=False),
+        uv_from_node_id(nodes),
         ids_by_cell=ids_by_cell,
         direction=direction,
         labels_from_self_id=labels_from_self_id,
@@ -578,7 +566,7 @@ def print_table(
     by_partner: DefaultDict[str, Dict[str, float]],
     n_syn_sum: float,
     n_partner_by_type: Dict[str, int],
-    partner_uv_by_type: Dict[str, Set[_UvCoord]],
+    partner_uv_by_type: Dict[str, Set[Tuple[float, float]]],
     partner_xy_by_type: Optional[Dict[str, Set[Tuple[float, float]]]] = None,
     hex_note: str = "",
     direction: str = "pre",
@@ -641,7 +629,6 @@ def print_table(
             npv = int(n_partner_by_type.get(pt, 0))
             row.append(str(npv))
             uvs = partner_uv_by_type.get(pt, set())
-            coords = (partner_xy_by_type or {}).get(pt, set())
             use_mean_delta = mean_partner_delta or npv > _MAX_PARTNER_LIST
             if show_uv:
                 if origin_uv is None:
@@ -656,12 +643,20 @@ def print_table(
                 else:
                     row.append(
                         _format_partner_xy(
-                            uvs, coords, origin_xy, mean=use_mean_delta,
+                            uvs,
+                            (partner_xy_by_type or {}).get(pt, set()),
+                            origin_xy,
+                            mean=use_mean_delta,
                         )
                     )
             if show_xy:
                 row.append(
-                    _format_partner_xy(uvs, coords, None, mean=use_mean_delta)
+                    _format_partner_xy(
+                        uvs,
+                        (partner_xy_by_type or {}).get(pt, set()),
+                        None,
+                        mean=use_mean_delta,
+                    )
                 )
             rows.append(row)
 
@@ -725,7 +720,7 @@ def resolve_xy_ids(
     """FAFB ``--x``/``--y`` → ``(ids_by_cell, hex_note, at_ref_xy, single_xy_column)``.
 
     Raises ``ValueError`` when the filter matches no ids or ``uv_from_xy`` fails.
-    With neither coordinate set, returns ``(None, "", None, False)``.
+    With neither ``at_x`` nor ``at_y`` set, returns ``(None, "", None, False)``.
     """
     has_xy = at_x is not None or at_y is not None
     if not has_xy:
@@ -1029,8 +1024,8 @@ def main(argv: List[str] | None = None) -> int:
         cells, family_from_cell_all
     )
 
-    # Partner delta coords: always collected; reference is --at uv or mean self location.
-    uv_from_id = uv_from_node_id(nodes, float_coords=False)
+    # Partner delta (x,y): always collected; reference is --at uv or mean self location.
+    uv_from_id = uv_from_node_id(nodes)
     xy_from_id = None
     for label, (
         by_partner,
@@ -1057,7 +1052,6 @@ def main(argv: List[str] | None = None) -> int:
             ids_by_cell,
             at_ref_uv,
             at_ref_xy,
-            float_coords=False,
             need_uv=show_partner_uv,
             need_xy=show_partner_d_xy,
         )

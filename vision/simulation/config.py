@@ -34,6 +34,7 @@ TRAIN_OPTIMIZATION: Dict[str, object] = {}
 TRAIN_SESSION: Dict[str, object] = {}
 FIGURE_PLOT: Dict[str, object] = {}
 FIGURE_PLOT_STI_SPOT: Dict[str, object] = {}
+FIGURE_PLOT_STI_MOVING_BAR: Dict[str, object] = {}
 ANALYZE_RUNS: List[str] = []
 ANALYZE_CELL_DYNAMICS: Dict[str, object] = {}
 ANALYZE_SYN_SIGN: Dict[str, object] = {}
@@ -45,7 +46,7 @@ _MODEL_KEYS = (
     "h_g_max", "gt_amp", "v_clamp", "a_syn_exc", "a_syn_inh", "euler",
 )
 _TRAIN_OPTIMIZATION_KEYS = (
-    "part_cost_scales", "cost_norm", "cost_interval_ms", "cost_ms",
+    "part_cost_scales", "cost_norm", "cost_ms",
     "pre_steady", "pre_steady_n_iter", "pre_steady_damp", "n_run",
     "n_iter", "lrs", "checkpoint_interval",
 )
@@ -71,13 +72,30 @@ def load_config() -> dict:
     return data
 
 
+def _comma_str_list(value, *, key: str) -> List[str]:
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a comma-separated string, got {value!r}")
+    tokens = parse_comma_list(value)
+    if not tokens:
+        raise ValueError(f"{key} must list at least one token")
+    return tokens
+
+
+def _comma_int_list(value, *, key: str) -> List[int]:
+    return [int(token) for token in _comma_str_list(value, key=key)]
+
+
+def _comma_float_list(value, *, key: str) -> List[float]:
+    return [float(token) for token in _comma_str_list(value, key=key)]
+
+
 def _bind_config(config: dict) -> None:
     global RUN_NAME, RUN_PATH
     global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
     global SPREAD_INPUT_SPEC, SPREAD_GT, SPOT_INPUT_GEO, SPOT_PACK
     global MOVING_BAR_INPUT_GEO, MOVING_BAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
-    global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, ANALYZE_RUNS
+    global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, FIGURE_PLOT_STI_MOVING_BAR, ANALYZE_RUNS
     global ANALYZE_CELL_DYNAMICS, ANALYZE_SYN_SIGN, ANALYZE_TRACE
     global ANALYZE_COST_PART
 
@@ -92,7 +110,7 @@ def _bind_config(config: dict) -> None:
         "syn_mode": config["syn_mode"],
         "a_lo": config["a_lo"],
         "a_hi": config["a_hi"],
-        "h_cells": config["h_cells"],
+        "h_cells": _comma_str_list(config["h_cells"], key="h_cells"),
         "params": config["params"],
     }
     NEURON_FORWARD = {"pre_grad": config["pre_grad"]}
@@ -113,8 +131,10 @@ def _bind_config(config: dict) -> None:
         "shift_radius": config["shift_radius"],
     }
     SPOT_PACK = {
-        "spot_cost_radii": config["spot_cost_radii"],
-        "a_sti_radii": config["a_sti_radii"],
+        "spot_cost_radii": _comma_int_list(
+            config["spot_cost_radii"], key="spot_cost_radii",
+        ),
+        "a_sti_radii": _comma_int_list(config["a_sti_radii"], key="a_sti_radii"),
         "spot_cost_radius_scale": config["spot_cost_radius_scale"],
     }
     MOVING_BAR_INPUT_GEO = {
@@ -124,10 +144,10 @@ def _bind_config(config: dict) -> None:
     MOVING_BAR_INPUT_SPEC = {
         "ms_pre": config["ms_pre"],
     }
-    tasks = config["tasks"]
+    tasks = _comma_str_list(config["tasks"], key="tasks")
     TRAIN_CONFIG = {
         "tasks": tasks,
-        "contrasts": config["contrasts"],
+        "contrasts": _comma_str_list(config["contrasts"], key="contrasts"),
         "i_sti": {
             str(contrast): float(val)
             for contrast, val in config["i_sti"].items()
@@ -136,7 +156,14 @@ def _bind_config(config: dict) -> None:
         "cost_radius": config.get("cost_radius"),
     }
     VAL_FROM = dict(config.get("val_from") or {})
-    TRAIN_OPTIMIZATION = {key: config[key] for key in _TRAIN_OPTIMIZATION_KEYS}
+    TRAIN_OPTIMIZATION = {
+        key: (
+            _comma_float_list(config[key], key=key)
+            if key == "lrs"
+            else config[key]
+        )
+        for key in _TRAIN_OPTIMIZATION_KEYS
+    }
     TRAIN_SESSION = {"fp": config["fp"], "sequential": config["sequential"]}
     FIGURE_PLOT = {
         "html": config.get("html", False),
@@ -147,16 +174,35 @@ def _bind_config(config: dict) -> None:
         "ms_shown": config.get("ms_shown"),
     }
     FIGURE_PLOT_STI_SPOT = {
-        "spot_radii": config.get("spot_radii"),
+        "spot_radii": (
+            _comma_float_list(config["spot_radii"], key="spot_radii")
+            if config.get("spot_radii") is not None
+            else None
+        ),
         "output": config.get("spot_plot_output"),
+    }
+    plot_t = config.get("moving_bar_plot_t")
+    FIGURE_PLOT_STI_MOVING_BAR = {
+        "output": config.get("moving_bar_plot_output"),
+        "gif": bool(config.get("moving_bar_plot_gif", False)),
+        "gif_output": config.get("moving_bar_plot_gif_output"),
+        "t_stride": int(config.get("moving_bar_plot_t_stride") or 2),
+        "t": (
+            _comma_int_list(plot_t, key="moving_bar_plot_t")
+            if plot_t not in (None, "")
+            else None
+        ),
+        "direction": str(config.get("moving_bar_plot_direction", "left")),
     }
     analyze_runs = config.get("analyze_runs")
     if not analyze_runs:
         ANALYZE_RUNS = [RUN_PATH]
     elif isinstance(analyze_runs, str):
-        ANALYZE_RUNS = [str(analyze_runs)]
+        ANALYZE_RUNS = _comma_str_list(analyze_runs, key="analyze_runs")
     else:
-        ANALYZE_RUNS = [str(run) for run in analyze_runs]
+        raise ValueError(
+            f"analyze_runs must be null or a comma-separated string, got {analyze_runs!r}"
+        )
     ANALYZE_CELL_DYNAMICS = {
         "cells": config.get("cells"),
         "spec": config.get("spec"),
@@ -207,21 +253,12 @@ def apply_config(hydra_config) -> dict:
 active_config()
 
 
-def _as_float_list(values) -> List[float]:
-    if values is None:
-        return []
-    if isinstance(values, str):
-        values = parse_comma_list(values)
-    return [float(x) for x in values]
-
-
 def parse_cells(cells) -> List[str] | None:
-    if cells is None or cells == "":
+    if cells is None:
         return None
-    if isinstance(cells, str):
-        cells = parse_comma_list(cells)
-    else:
-        cells = [str(cell).strip() for cell in cells if str(cell).strip()]
+    if not isinstance(cells, str):
+        raise ValueError(f"cells must be a comma-separated string or null, got {cells!r}")
+    cells = parse_comma_list(cells)
     return cells or None
 
 
@@ -287,7 +324,7 @@ def _resolve_train_run_name(*, script_token: str) -> str:
 
 
 def resolve_figure_kwargs(hydra_config) -> dict:
-    from figure.plot import parse_align_xy, parse_axis_coords, parse_ms_shown_range
+    from figure.plot import parse_align_xy, parse_at_xs, parse_ms_shown
 
     apply_config(hydra_config)
     figure_plot = FIGURE_PLOT
@@ -295,11 +332,11 @@ def resolve_figure_kwargs(hydra_config) -> dict:
     align_at_x, align_at_y = align_xy if align_xy is not None else (None, None)
     ms_shown = None
     if figure_plot.get("ms_shown") is not None:
-        ms_shown = parse_ms_shown_range(str(figure_plot["ms_shown"]))
+        ms_shown = parse_ms_shown(figure_plot["ms_shown"])
     return dict(
         plot_right_only=bool(figure_plot.get("plot_right_only", True)),
-        at_x=parse_axis_coords(figure_plot.get("x")),
-        at_y=parse_axis_coords(figure_plot.get("y")),
+        at_x=parse_at_xs(figure_plot.get("x")),
+        at_y=parse_at_xs(figure_plot.get("y")),
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         html=bool(figure_plot.get("html", False)),
@@ -338,8 +375,6 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
     model = str(NEURON_SCHEMA["model"])
     init_from = _resolve_init_from(config.get("init_from"))
     cost_radius = TRAIN_CONFIG.get("cost_radius")
-    if cost_radius is not None:
-        cost_radius = int(cost_radius)
 
     syn_mode = str(NEURON_SCHEMA["syn_mode"])
     filter = str(NEURON_SCHEMA["filter"])
@@ -350,8 +385,8 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         if train.val_from_enabled(val_from_opts, "v_th_ca") or train.val_from_enabled(val_from_opts, "a_ca"):
             raise ValueError("val_from v_th_ca / a_ca require filter ca")
 
-    tasks = TRAIN_CONFIG["tasks"]
-    tasks = parse_comma_list(tasks) if isinstance(tasks, str) else list(tasks)
+    tasks = list(TRAIN_CONFIG["tasks"])
+    contrasts = list(TRAIN_CONFIG["contrasts"])
 
     part_cost_scales = {
         str(part_key): float(scale)
@@ -375,14 +410,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
     spot_sti_opts = dict(timing)
     spread_sti_opts = dict(timing)
 
-    cost_interval_ms = float(TRAIN_OPTIMIZATION["cost_interval_ms"])
-    if cost_interval_ms <= 0:
-        raise ValueError("cost_interval_ms must be > 0")
-
-    cost_ms = {
-        str(int(radius)): [float(x) for x in mss]
-        for radius, mss in TRAIN_OPTIMIZATION["cost_ms"].items()
-    }
+    cost_ms = TRAIN_OPTIMIZATION["cost_ms"]
 
     gt_cells_by_task = train.resolve_gt_cells_by_task(TRAIN_CONFIG.get("gt_by_task"))
     if gt_cells_by_task:
@@ -390,12 +418,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         for task, cells in gt_cells_by_task.items():
             gt_opts[task]["gt_cells"] = list(cells)
 
-    contrasts = TRAIN_CONFIG["contrasts"]
-    contrasts = (
-        parse_comma_list(contrasts) if isinstance(contrasts, str) else list(contrasts)
-    )
-
-    lrs = _as_float_list(TRAIN_OPTIMIZATION.get("lrs"))
+    lrs = list(TRAIN_OPTIMIZATION["lrs"])
     if not lrs:
         raise ValueError("lrs must list at least one learning rate")
 
@@ -421,7 +444,6 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         i_sti=dict(TRAIN_CONFIG["i_sti"]),
         part_cost_scales=part_cost_scales,
         cost_norm=str(TRAIN_OPTIMIZATION["cost_norm"]),
-        cost_interval_ms=cost_interval_ms,
         cost_ms=cost_ms,
         cost_radius=cost_radius,
         shift_radius=SPOT_INPUT_GEO["shift_radius"],

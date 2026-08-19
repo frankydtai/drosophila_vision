@@ -10,7 +10,7 @@ Usage (from simulation/, project .venv):
 
     ../.venv/bin/python 5_figure/plot_sti/spot.py
     ../.venv/bin/python 5_figure/plot_sti/spot.py multi_spot=false
-    ../.venv/bin/python 5_figure/plot_sti/spot.py spot_radii=[0.5,1,2]
+    ../.venv/bin/python 5_figure/plot_sti/spot.py spot_radii=0.5,1,2
 """
 from __future__ import annotations
 

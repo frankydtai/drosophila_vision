@@ -47,7 +47,7 @@ from figure.panel import (
     plot_timecourse,
     traces_with_cost_ts,
     std_from_traces,
-    at_xy_coords,
+    expand_at_xy,
     is_single_hex_cost,
     v_th_from_z,
 )
@@ -56,7 +56,7 @@ from figure.plot import (
     session_filter_figure_token,
     session_from_task,
 )
-from train.cost import spot_cost_part_key
+from task.spot.pack import build_spot_center_readout, part_key as spot_part_key
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from network.construction import active_gt_cells, cell_rows, cells_in_order, gt_cells_from_opts
 import build_hex
@@ -80,7 +80,6 @@ from task.spot.gt import (
     load_gt_dark,
     t_delay_from_ir,
 )
-from task.spot.pack import build_spot_center_readout
 
 RF_RADIUS_X = np.arange(RF_N_RADII) * RF_RADIUS_DEG
 
@@ -96,45 +95,10 @@ def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
         return head
     lines = [head]
     for contrast in contrasts:
-        part_key = spot_cost_part_key("spot", contrast, cell, radius)
+        part_key = spot_part_key(contrast, cell, radius)
         if part_key in cost_parts:
             lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
     return '\n'.join(lines)
-
-
-def parse_spot_cost_part_key(part_key):
-    """Return ``(cell, contrast, radius)`` or ``None``."""
-    for contrast in CONTRASTS:
-        head = f"spot_{contrast}_"
-        if part_key[:len(head)] != head:
-            continue
-        pos = part_key.rfind("_r")
-        if pos < 0:
-            return None
-        radius_token = part_key[pos + 2:]
-        try:
-            radius = int(radius_token)
-        except ValueError:
-            return None
-        cell = part_key[len(head):pos]
-        return cell, contrast, radius
-    return None
-
-
-def spot_cost(part_key, costs):
-    """Spot part → ``(cell, series, label, costs)`` or ``None``."""
-    parsed = parse_spot_cost_part_key(part_key)
-    if parsed is None:
-        return None
-    cell, contrast, radius = parsed
-    series = ("spot_radius", radius)
-    label = f"R{radius} ({contrast})" if contrast else f"R{radius}"
-    return cell, series, label, np.asarray(costs, dtype=np.float64)
-
-
-def parse_cost_part(part_key, costs):
-    """Cost plot hook for ``figure.plot.plot_cost``."""
-    return spot_cost(part_key, costs)
 
 
 PLOT_AT_XY = True
@@ -706,7 +670,7 @@ def _spot_gt_readout(readout):
 
 
 def _spot_readout_hex_mask(connectome, nodes, cost_radius, *, at_x=None, at_y=None):
-    """True for cost entries whose node sits on matching cost-radius hexes."""
+    """True for cost entries whose node sits on ``at_x``/``at_y`` cost-radius hexes."""
     hexes = filter_sti_hexes(
         moving_bar_cost_hexes(connectome, cost_radius=cost_radius),
         at_x=at_x,
@@ -723,12 +687,12 @@ def _spot_readout_hex_mask(connectome, nodes, cost_radius, *, at_x=None, at_y=No
 
 
 def _spot_v_readout_mean_cell_mean_radius_mean_hex(readout, connectome, at_xs, at_ys):
-    """Per at_xy mean_hex: cell × radius mean over matching ``at_x``/``at_y`` hexes."""
+    """Per at_xy mean_hex: cell × radius mean over ``at_x``/``at_y`` hexes."""
     mean_hex_by_label = {}
     labels = []
     pack = readout['pack']
     nodes = readout['nodes']
-    for label, at_x, at_y in at_xy_coords(at_xs, at_ys)[0]:
+    for label, at_x, at_y in expand_at_xy(at_xs, at_ys)[0]:
         mask = _spot_readout_hex_mask(
             connectome, nodes, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
@@ -908,31 +872,6 @@ def _spot_suptitle(title, readout):
     return head
 
 
-def _radii_from_cost_parts(cost_parts, contrasts):
-    """Sorted integer radii from spot cost parts (``spot_{contrast}_{cell}_r*``)."""
-    if not cost_parts:
-        return [int(RF_CENTER_RADIUS)]
-    radii = set()
-    for contrast in contrasts:
-        prefix = f"spot_{contrast}_"
-        for part_key in cost_parts:
-            if not part_key.startswith(prefix):
-                continue
-            pos = part_key.rfind("_r")
-            if pos < 0:
-                continue
-            radius_token = part_key[pos + 2:]
-            try:
-                radius = int(radius_token)
-            except ValueError:
-                continue
-            if 0 <= radius < RF_N_RADII:
-                radii.add(radius)
-    if not radii:
-        return [int(RF_CENTER_RADIUS)]
-    return sorted(radii)
-
-
 _TASK = "spot"
 _GRID_KWARGS = dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98)
 
@@ -984,7 +923,7 @@ def _plot_figure(
     part_keys = list(cost_parts or ()) or list(
         train.session_cost_part_keys(primary.session)
     )
-    radii = _radii_from_cost_parts(part_keys, order)
+    radii = list(train.cost_radii_from_packs(primary.session.iter_packs(), contrasts=order))
     center_radius = int(RF_CENTER_RADIUS)
     order_hs = [
         1 + len(radii) for _ in rows

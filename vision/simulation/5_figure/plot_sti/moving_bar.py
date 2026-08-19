@@ -5,21 +5,15 @@ Connectome: hex sti from ``task.moving_bar.sti_geo``.
 Usage (from simulation/, project .venv):
 
     ../.venv/bin/python 5_figure/plot_sti/moving_bar.py
-    ../.venv/bin/python 5_figure/plot_sti/moving_bar.py --gif
-    ../.venv/bin/python 5_figure/plot_sti/moving_bar.py --network right_min_neuron1_r2 --direction down --gif
-    ../.venv/bin/python 5_figure/plot_sti/moving_bar.py --network right_min_neuron1_r2 --bar-radius 2
+    ../.venv/bin/python 5_figure/plot_sti/moving_bar.py moving_bar_plot_gif=true
+    ../.venv/bin/python 5_figure/plot_sti/moving_bar.py moving_bar_plot_direction=down
 """
 from __future__ import annotations
 
-from config import (
-    MODEL,
-    NEURON_SCHEMA,
-    TRAIN_CONFIG,
-)
-
-import argparse
 import os
 import sys
+
+import hydra
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -35,9 +29,17 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
+from config import (
+    FIGURE_PLOT_STI_MOVING_BAR,
+    MODEL,
+    MOVING_BAR_INPUT_GEO,
+    NEURON_SCHEMA,
+    NETWORK_PATH,
+    TRAIN_CONFIG,
+    apply_config,
+)
 from train.param import SIM_DTYPE
 from network.construction import load_network
-from import_bootstrap import parse_bool, parse_comma_list
 from build_hex import (
     FIELD_VIEW_PAD_DEG,
     plot_hex_patches,
@@ -46,10 +48,7 @@ from build_hex import (
     set_axis_labels,
     xy_deg_from_uv,
 )
-from task.moving_bar.sti_geo import (
-    BAR_RADIUS,
-    sti_hexes,
-)
+from task.moving_bar.sti_geo import sti_hexes
 from task.moving_bar.sti_spec import (
     GRUNTMAN_DIRECTIONS,
     bar_lane_rects,
@@ -59,10 +58,9 @@ from task.moving_bar.sti_spec import (
     moving_bar_transit_times,
 )
 from task.spread.sti_spec import CONTRASTS
-from path import DEFAULT_NETWORK_RUN, network_run_token, resolve_network_json
+from path import network_run_token, resolve_network_json
 
 PLOT_BG = "#F5F0DC"  # axes background (beige), not hex baseline color
-_STI_CLI_CONTRASTS = ",".join(CONTRASTS)
 
 
 def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
@@ -158,10 +156,10 @@ def save_snapshots(
     snapshot_t = list(snapshot_t or [])
     if snapshot_t:
         if any(t < 0 for t in snapshot_t):
-            raise SystemExit("--t must be non-negative t idxs")
+            raise SystemExit("moving_bar_plot_t must be non-negative t idxs")
         bad = [t for t in snapshot_t if t >= n_t]
         if bad:
-            raise SystemExit(f"--t out of range (n_t={n_t}): {bad}")
+            raise SystemExit(f"moving_bar_plot_t out of range (n_t={n_t}): {bad}")
     xlim, ylim = _field_limits(figure_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
     xspan = xlim[1] - xlim[0]
     yspan = ylim[1] - ylim[0]
@@ -257,59 +255,49 @@ def save_animation(
     print(f"wrote {path}  ({len(times)} frames, t={times[0]}..{times[-1]})")
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--network", type=str, default=DEFAULT_NETWORK_RUN,
-                    help=f"4_built_networks run folder name (default: {DEFAULT_NETWORK_RUN})")
-    ap.add_argument("--output", type=str, default=None,
-                    help="snapshot PNG (default: moving_bar_2<dir>_<side>)")
-    ap.add_argument("--gif", nargs="?", const="", default=None,
-                    help="write GIF; default path if flag alone, or pass a path")
-    ap.add_argument("--t-stride", type=int, default=2,
-                    help="GIF frame stride in t (default 2)")
-    ap.add_argument("--t", type=str, default="",
-                    help="comma-separated t idxs for snapshot hexes, e.g. 50,60,72,90")
-    ap.add_argument("--sti", type=str, default=_STI_CLI_CONTRASTS,
-                    help=f"comma-separated moving-bar contrasts to plot: "
-                         f"{_STI_CLI_CONTRASTS} (default: {_STI_CLI_CONTRASTS})")
-    ap.add_argument("--direction", type=str, default=GRUNTMAN_DIRECTIONS[0],
-                    choices=GRUNTMAN_DIRECTIONS)
-    ap.add_argument(
-        "--multi-bar",
-        type=parse_bool,
-        default=True,
-        metavar="BOOL",
-        help="tile simultaneous lane-clipped bars (default true); "
-             "false → whole-view single bar over the full network view",
-    )
-    ap.add_argument("--bar-radius", type=int, default=BAR_RADIUS,
-                    help="per-lane spacing w in hex nodes (default 2)")
-    args = ap.parse_args()
-    snapshot_t = [int(token) for token in parse_comma_list(args.t)]
-    sti = parse_comma_list(args.sti)
+def plot_moving_bar_sti(
+    *,
+    network: str,
+    direction: str,
+    contrasts,
+    path: str | None,
+    gif: bool,
+    gif_output: str | None,
+    t_stride: int,
+    snapshot_t,
+    bar_radius: int,
+    multi_bar: bool,
+) -> None:
+    direction = str(direction)
+    if direction not in GRUNTMAN_DIRECTIONS:
+        raise SystemExit(
+            f"moving_bar_plot_direction must be one of {GRUNTMAN_DIRECTIONS}; got {direction!r}"
+        )
+    sti = list(contrasts)
     if not sti:
-        raise SystemExit(f"--sti must include at least one of {_STI_CLI_CONTRASTS}")
+        raise SystemExit("contrasts must list at least one moving-bar contrast")
     bad_sti = sorted(set(sti) - set(CONTRASTS))
     if bad_sti:
-        raise SystemExit(f"--sti supports only {_STI_CLI_CONTRASTS}; got {bad_sti}")
+        raise SystemExit(f"contrasts supports only {CONTRASTS}; got {bad_sti}")
 
     showcase = [
         spec for spec in gruntman_moving_bar_specs(contrasts=tuple(sti))
-        if spec.direction == args.direction
+        if spec.direction == direction
     ]
     i_sti_spec = TRAIN_CONFIG["i_sti"]
     i_baseline = i_baseline_from_i_sti(i_sti_spec)
 
-    network_json = str(resolve_network_json(args.network))
+    network_json = str(resolve_network_json(network))
     connectome = load_network(
         network_json, device="cpu",
         a_syn_exc=MODEL['a_syn_exc'], a_syn_inh=MODEL['a_syn_inh'],
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
-    token = f"2{args.direction}_{network_run_token(network_json, connectome.meta)}"
+    token = f"2{direction}_{network_run_token(network_json, connectome.meta)}"
     fallback_png = os.path.join(PLOT_DIR, f"moving_bar_{token}.png")
     fallback_gif = os.path.join(PLOT_DIR, f"moving_bar_{token}.gif")
-    path = args.output or fallback_png
+    path = path or fallback_png
+    bar_radius = int(bar_radius)
     i_sti_hex_parts = []
     specs = []
     T = None
@@ -320,8 +308,8 @@ def main():
         T = build_moving_bar_signals(
             connectome,
             specs=contrast_specs,
-            bar_radius=args.bar_radius,
-            multi_bar=bool(args.multi_bar),
+            bar_radius=bar_radius,
+            multi_bar=multi_bar,
             delta_ms=MODEL['delta_ms'],
             i_baseline=i_baseline,
             i_sti=float(i_sti_spec[contrast]),
@@ -339,7 +327,6 @@ def main():
     view_deg = tuple(T.view_deg)
     i_baseline = float(T.i_baseline)
     side = connectome.meta.get("side", "?")
-    bar_radius = int(args.bar_radius)
     print(
         f"bar_radius={bar_radius}  "
         f"n_t={n_t} ({n_t * MODEL['delta_ms'] / 1000.0:.2f} s)  "
@@ -351,18 +338,35 @@ def main():
         path, side, t_onset, n_t, view_deg, snapshot_t=snapshot_t,
         hexes_are_xy_deg=False,
         bar_radius=bar_radius,
-        multi_bar=bool(args.multi_bar),
+        multi_bar=multi_bar,
     )
-    if args.gif is not None:
-        gif = fallback_gif if args.gif == "" else args.gif
+    if gif:
+        gif_path = gif_output or fallback_gif
         save_animation(
-            figure_hexes, specs, i_sti_hex, i_max, i_baseline, gif,
-            side, t_onset, n_t, view_deg, args.t_stride,
+            figure_hexes, specs, i_sti_hex, i_max, i_baseline, gif_path,
+            side, t_onset, n_t, view_deg, t_stride,
             hexes_are_xy_deg=False,
             bar_radius=bar_radius,
-            multi_bar=bool(args.multi_bar),
+            multi_bar=multi_bar,
         )
     print(f"i_sti_hex shape {tuple(i_sti_hex.shape)}  specs={[spec.token for spec in specs]}")
+
+
+@hydra.main(version_base=None, config_path="../../conf", config_name="config")
+def main(hydra_config) -> None:
+    apply_config(hydra_config)
+    plot_moving_bar_sti(
+        network=str(NETWORK_PATH["network"]),
+        direction=str(FIGURE_PLOT_STI_MOVING_BAR["direction"]),
+        contrasts=TRAIN_CONFIG["contrasts"],
+        path=FIGURE_PLOT_STI_MOVING_BAR.get("output"),
+        gif=bool(FIGURE_PLOT_STI_MOVING_BAR["gif"]),
+        gif_output=FIGURE_PLOT_STI_MOVING_BAR.get("gif_output"),
+        t_stride=int(FIGURE_PLOT_STI_MOVING_BAR["t_stride"]),
+        snapshot_t=FIGURE_PLOT_STI_MOVING_BAR.get("t"),
+        bar_radius=int(MOVING_BAR_INPUT_GEO["bar_radius"]),
+        multi_bar=bool(MOVING_BAR_INPUT_GEO["multi_bar"]),
+    )
 
 
 if __name__ == "__main__":
