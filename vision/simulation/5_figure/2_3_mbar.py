@@ -15,8 +15,6 @@ from task.mbar.gt import (
     fig1_trace_from_sti,
     load_fig1_trace,
     motion_preference,
-    mbar_cell_title,
-    dsi_from_trace_map,
 )
 from task.mbar.pack import (
     bar_specs_from_task,
@@ -53,10 +51,10 @@ from figure.panel import (
 )
 from task.mbar.sti_spec import PD_ND_LABELS
 from task.spread.sti_spec import CONTRASTS
+from task.spread.pack import cost_sti_hexes
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
 from task.mbar.sti_geo import (
-    filter_sti_hexes,
-    mbar_cost_hexes,
+    sti_hexes_at_xy,
     node_us_vs,
     sti_hexes,
 )
@@ -148,11 +146,6 @@ def _mbar_figure(n_row, n_col, *, sharex='col'):
 
 def _mbar_cell_title(
     token,
-    ca_mean_cell,
-    gt_traces,
-    ca_dsi_from_trace,
-    gt_dsi_from_trace,
-    key,
     *,
     cell,
     cost_parts=None,
@@ -163,12 +156,7 @@ def _mbar_cell_title(
         cost_lines = format_mbar_cell_cost_lines(cell, cost_parts, cost_contrasts)
         if cost_lines:
             head = '\n'.join([f'{cell} Cost', *cost_lines, head])
-    return mbar_cell_title(
-        head,
-        ca_dsi=ca_dsi_from_trace.get(key),
-        gt_dsi=gt_dsi_from_trace.get(key),
-        has_gt=gt_traces.get(key) is not None,
-    )
+    return head
 
 
 def figure_cell_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
@@ -281,8 +269,8 @@ def t0_bn_from_align_at_xy(
 ):
     """Copy ``t0_bn`` with at_xy nodes forced to the ref hex ``t0`` (plot only)."""
     connectome = session.connectome
-    cost_hexes = mbar_cost_hexes(connectome, cost_radius=cost_radius)
-    ref_hexes = filter_sti_hexes(cost_hexes, at_x=align_at_x, at_y=align_at_y)
+    cost_hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
+    ref_hexes = sti_hexes_at_xy(cost_hexes, at_x=align_at_x, at_y=align_at_y)
     if len(ref_hexes) != 1:
         raise SystemExit(
             f'--align-xy must match exactly one sti hex within cost_radius, '
@@ -312,8 +300,8 @@ def _mbar_ca_mean_cell_mean_hex(
     t0_bn = base_traces.t0_bn
     n_b = len(spec_tokens)
     connectome = session.connectome
-    hexes = mbar_cost_hexes(connectome, cost_radius=pack.cost_radius)
-    hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
+    hexes = cost_sti_hexes(connectome, cost_radius=pack.cost_radius)
+    hexes = sti_hexes_at_xy(hexes, at_x=at_x, at_y=at_y)
     if not hexes:
         return None
     hex_mask = _network_hex_node_mask(connectome, hexes, n_b)
@@ -418,9 +406,9 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
     )
     v_th = v_th_from_z(z, session)
     if connectome is not None:
-        hexes = mbar_cost_hexes(connectome, cost_radius=pack.cost_radius)
+        hexes = cost_sti_hexes(connectome, cost_radius=pack.cost_radius)
         if at_x is not None or at_y is not None:
-            hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
+            hexes = sti_hexes_at_xy(hexes, at_x=at_x, at_y=at_y)
         nodes_by_cell = {
             cell: nodes_from_hexes(connectome, cell, hexes) for cell in cells
         }
@@ -540,7 +528,7 @@ def _mbar_hexes_label(session, *, at_x=None, at_y=None, n_hex=None):
             parts.insert(0, f'cost_radius={cost_radius}')
         return ', '.join(parts)
     if cost_radius is not None:
-        n_sti_hex = len(mbar_cost_hexes(connectome, cost_radius=cost_radius))
+        n_sti_hex = len(cost_sti_hexes(connectome, cost_radius=cost_radius))
         return f'cost_radius={cost_radius} ({n_sti_hex} sti hexes)'
     return f'avg over {len(sti_hexes(connectome))} sti hexes'
 
@@ -767,16 +755,6 @@ def _mbar_all_figure(readout, paired_readout, title, *, right_only=True, cost_pa
     show_std = not single_hex and not has_at_xy
     n_row = len(cells)
     n_col = len(spec_tokens)
-    ca_dsi = dsi_from_trace_map(window_traces.ca_mean_cell, cells, readout.spec_tokens)
-    gt_dsi = dsi_from_trace_map(window_traces.gt_traces, cells, readout.spec_tokens)
-    paired_ca_dsi = paired_gt_dsi = None
-    if paired_readout is not None:
-        paired_ca_dsi = dsi_from_trace_map(
-            paired_window_traces.ca_mean_cell, cells, paired_readout.spec_tokens,
-        )
-        paired_gt_dsi = dsi_from_trace_map(
-            paired_readout.gt_traces, cells, paired_readout.spec_tokens,
-        )
     fig, axes = _mbar_figure(n_row, n_col)
     for row, cell in enumerate(cells):
         for col, token in enumerate(spec_tokens):
@@ -793,12 +771,8 @@ def _mbar_all_figure(readout, paired_readout, title, *, right_only=True, cost_pa
                 v_th = paired_v_th_by_cell.get(cell)
                 e_leak = paired_e_leak_by_cell.get(cell)
             before_t = panel_traces.before_t[token]
-            use_readout_dsi = col < n_col_readout
             cell_title = _mbar_cell_title(
-                token, ca_mean_cell, gt_traces,
-                ca_dsi if use_readout_dsi else paired_ca_dsi,
-                gt_dsi if use_readout_dsi else paired_gt_dsi,
-                key,
+                token,
                 cell=cell,
                 cost_parts=cost_parts,
                 cost_contrasts=cost_contrasts,
@@ -882,18 +856,7 @@ def plot_mbar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=N
     n_row = len(gt_cells)
     fig, axes = _mbar_figure(n_row, n_col)
 
-    ca_dsi = dsi_from_trace_map(readout.traces.ca_mean_cell, gt_cells, readout.spec_tokens)
-    gt_dsi = dsi_from_trace_map(readout.gt_traces, gt_cells, readout.spec_tokens)
-    paired_ca_dsi = paired_gt_dsi = None
-    if paired_readout is not None:
-        paired_ca_dsi = dsi_from_trace_map(
-            paired_readout.traces.ca_mean_cell, gt_cells, paired_readout.spec_tokens,
-        )
-        paired_gt_dsi = dsi_from_trace_map(
-            paired_readout.gt_traces, gt_cells, paired_readout.spec_tokens,
-        )
-
-    def _plot_row(row, cell, specs, col_offset, row_readout, side, row_ca_dsi, row_gt_dsi):
+    def _plot_row(row, cell, specs, col_offset, row_readout, side):
         window_traces = row_readout.traces
         for col, token in enumerate(specs):
             ax = axes[row, col_offset + col]
@@ -903,8 +866,7 @@ def plot_mbar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=N
                 continue
             before_t = window_traces.before_t[token]
             cell_title = _mbar_cell_title(
-                token, window_traces.ca_mean_cell, row_readout.gt_traces,
-                row_ca_dsi, row_gt_dsi, key,
+                token,
                 cell=cell,
                 cost_parts=cost_parts,
                 cost_contrasts=cost_contrasts,
@@ -926,11 +888,10 @@ def plot_mbar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=N
             )
 
     for row, cell in enumerate(gt_cells):
-        _plot_row(row, cell, row_specs[cell], 0, readout, readout.side, ca_dsi, gt_dsi)
+        _plot_row(row, cell, row_specs[cell], 0, readout, readout.side)
         if paired_readout is not None:
             _plot_row(
                 row, cell, paired_row_specs[cell], n_col_half, paired_readout, paired_readout.side,
-                paired_ca_dsi, paired_gt_dsi,
             )
         axes[row, 0].set_ylabel(
             cell_ylabel(cell, readout.traces.ca_n), fontsize=8, labelpad=12,

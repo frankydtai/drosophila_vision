@@ -48,10 +48,9 @@ from build_hex import (
     set_axis_labels,
     xy_deg_from_uv,
 )
-from task.mbar.sti_geo import sti_hexes
+from task.mbar.sti_geo import bar_bound0_bar_bound1s, bar_bounds, sti_hexes
 from task.mbar.sti_spec import (
-    GRUNTMAN_DIRECTIONS,
-    bar_lane_rects,
+    GRUNTMAN_directions,
     build_mbar_signals,
     gruntman_mbar_specs,
     i_baseline_from_i_sti,
@@ -78,13 +77,30 @@ def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
 
 
 def _plot_bar_outline(ax, spec, view_deg, t: int, t_onset: int, *, bar_radius: int, multi_bar: bool = True):
-    rects = bar_lane_rects(spec, view_deg, bar_radius, t, multi_bar=bool(multi_bar), t_onset=t_onset)
-    for xmin, ymin, xmax, ymax in rects:
+    delta_ms = MODEL["delta_ms"]
+    shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
+    if spec.direction in ("left", "down"):
+        shift_deg = -shift_deg
+    elif spec.direction not in ("right", "up"):
+        raise ValueError(f"unknown direction {spec.direction!r}")
+    w_deg = float(spec.w_deg)
+    for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
+        spec, view_deg, bar_radius, multi_bar=bool(multi_bar),
+    ):
+        if spec.direction in ("right", "up"):
+            bar_bound = float(bar_bound0) - w_deg
+        else:
+            bar_bound = float(bar_bound1) + w_deg
+        bar_bound = bar_bound + (t - t_onset) * shift_deg
+        visible_bar = bar_bounds(spec, bar_bound, view_deg, bar_bound0, bar_bound1)
+        if visible_bar is None:
+            continue
+        x0, y0, x1, y1 = visible_bar
         ax.add_patch(
             Rectangle(
-                (xmin, ymin),
-                xmax - xmin,
-                ymax - ymin,
+                (x0, y0),
+                x1 - x0,
+                y1 - y0,
                 fill=False,
                 edgecolor="red",
                 linewidth=1.8,
@@ -269,9 +285,9 @@ def plot_mbar_sti(
     multi_bar: bool,
 ) -> None:
     direction = str(direction)
-    if direction not in GRUNTMAN_DIRECTIONS:
+    if direction not in GRUNTMAN_directions:
         raise SystemExit(
-            f"mbar_plot_direction must be one of {GRUNTMAN_DIRECTIONS}; got {direction!r}"
+            f"mbar_plot_direction must be one of {GRUNTMAN_directions}; got {direction!r}"
         )
     sti = list(contrasts)
     if not sti:

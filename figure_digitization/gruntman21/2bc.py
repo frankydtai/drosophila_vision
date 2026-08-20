@@ -59,8 +59,15 @@ OVERLAY_RGB = (255, 0, 255)
 TEMPLATE_RADIUS_PX = 8
 SEARCH_HALF_WIDTH_PX = 2
 ZERO_EXCLUSION_PX = 5
-EXPECTED_MARKER_COUNT = 178
+EXPECTED_MARKER_COUNT = 181
 EXPECTED_TRACE_COUNT = 23
+
+# In C/T5/width-1, these black PC depolarization means are completely covered
+# by green NC markers at the same coordinates.  Their values are therefore the
+# visible green-marker values, not separately detectable black pixels.
+OCCLUDED_T5_PC_W1_DEPOLARIZATION_POSITIONS = (-3, 3, 4)
+OCCLUDED_SOURCE_TRACE_ID = "C_T5_NC_w1_depolarization"
+OCCLUDED_TARGET_TRACE_ID = "C_T5_PC_w1_depolarization"
 
 
 def inclusive(start: int, stop: int) -> tuple[int, ...]:
@@ -218,6 +225,26 @@ def digitize(image: np.ndarray) -> pd.DataFrame:
                     "detection_score": score,
                 }
             )
+    visible = pd.DataFrame(rows)
+    source_markers = visible[
+        visible.trace_id == OCCLUDED_SOURCE_TRACE_ID
+    ].set_index("position_led")
+    for position in OCCLUDED_T5_PC_W1_DEPOLARIZATION_POSITIONS:
+        if position not in source_markers.index:
+            raise ValueError(
+                f"missing visible marker for occluded T5 PC position {position:+d}"
+            )
+        copied = source_markers.loc[position].to_dict()
+        copied.update(
+            {
+                "trace_id": OCCLUDED_TARGET_TRACE_ID,
+                "contrast": "PC",
+                "color": BLACK,
+                "position_led": position,
+            }
+        )
+        rows.append(copied)
+
     return pd.DataFrame(rows).sort_values(
         ["panel", "cell_type", "width_led", "contrast", "extremum", "position_led"]
     ).reset_index(drop=True)
@@ -298,6 +325,7 @@ def plot_check(df: pd.DataFrame, path: Path) -> None:
                 facecolor=palette[color],
                 edgecolor="black",
                 linewidth=0.6,
+                zorder=2 if color == GREEN else 1,
                 label=f"{profile_contrast} {extremum}",
             )
         ax.axhline(0, color="0.8", lw=0.8, zorder=-1)

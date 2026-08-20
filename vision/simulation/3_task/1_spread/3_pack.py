@@ -8,11 +8,11 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
+import build_hex
 from import_bootstrap import parse_comma_list
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
-from network.construction import gt_cells_from_opts
+from network.construction import cost_radius_mask, gt_cells_from_opts
 from neuron.borst import t_from_ms
-from task.mbar.sti_spec import PD_ND_LABELS
 from task.spread.gt import (
     GT_CELLS,
     RF_SIGN,
@@ -50,13 +50,6 @@ class Pack:
     cost_sti_us: Optional[torch.Tensor] = None
     cost_sti_vs: Optional[torch.Tensor] = None
     cost_pd_nds: Optional[torch.Tensor] = None
-    dsi_pos_entries: Optional[torch.Tensor] = None
-    dsi_neg_entries: Optional[torch.Tensor] = None
-    dsi_pos_ptr: Optional[torch.Tensor] = None
-    dsi_neg_ptr: Optional[torch.Tensor] = None
-    dsi_gts: Optional[torch.Tensor] = None
-    dsi_scales: Optional[torch.Tensor] = None
-    dsi_power: Optional[torch.Tensor] = None
     cost_ts: Optional[torch.Tensor] = None
     cost_time_mask: Optional[torch.Tensor] = None
     waveform_mse: bool = True
@@ -67,7 +60,6 @@ class Pack:
     a_sti_radius_idxs: Optional[torch.Tensor] = None
     a_sti_radius_mask: Optional[torch.Tensor] = None
     entry_part_keys: Tuple[str, ...] = ()
-    dsi_part_key: Optional[str] = None
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
 
 
@@ -242,6 +234,29 @@ def cost_hex_label(cost_radius, n_cost_hex) -> str:
         )
         return f"cost hexes per b [{hex_labels}], {radius_label}"
     return f"{int(n_cost_hex)} cost hexes, {radius_label}"
+
+
+@dataclass(frozen=True)
+class CostStiHex:
+    """One sti hex used for cost selection and at_xy filtering."""
+
+    u: int
+    v: int
+    x: float
+    y: float
+
+
+def cost_sti_hexes(connectome, cost_radius=None) -> List[CostStiHex]:
+    """Sti hexes used for cost (optional central hex disc)."""
+    hexes_by_uv: Dict[Tuple[int, int], CostStiHex] = {}
+    for node in connectome.sti_nodes:
+        u = int(connectome.us[node])
+        v = int(connectome.vs[node])
+        if (u, v) in hexes_by_uv or not cost_radius_mask(u, v, cost_radius):
+            continue
+        x, y = build_hex.xy_from_uv(u, v)
+        hexes_by_uv[(u, v)] = CostStiHex(u=u, v=v, x=float(x), y=float(y))
+    return [hexes_by_uv[(u, v)] for u, v in sorted(hexes_by_uv)]
 
 
 def resolve_spread_sti_opts(opts, **_):

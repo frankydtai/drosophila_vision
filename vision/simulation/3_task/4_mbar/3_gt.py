@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Moving-bar GT numbers: fig1 Vm traces, motion preference, DSI targets.
+"""Moving-bar GT numbers: fig1 Vm traces and motion preference.
 
 GT literals and helpers in this module are **owned here** — fig1 digitized
-population Vm (:data:`FIG1_CI_NPZ`), T4/T5 motion preference, and hardcoded
-axis DSI targets (:data:`FIG1_ABS_DSI`).
+population Vm (:data:`FIG1_CI_NPZ`) and T4/T5 motion preference.
 
 Network mapping, cost hexes, sti ``i_sti``, and :class:`task.mbar.pack.MbarGt`
 packing live in :mod:`task.mbar.pack`. Bar geometry and hex currents live in
@@ -13,10 +12,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Sequence, Tuple, Union
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import torch
 
 from neuron.borst import t_from_ms
 from task.mbar.sti_geo import GRUNTMAN_WS_DEG
@@ -54,23 +52,6 @@ AXIS_DIRECTION_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("up", "down"),
 )
 _CARDINAL = frozenset(_OPPOSITE)
-_POS_DIRS = frozenset(pos for pos, _neg in AXIS_DIRECTION_PAIRS)
-_DIR_TO_AXIS = {
-    **{pos: (pos, neg) for pos, neg in AXIS_DIRECTION_PAIRS},
-    **{neg: (pos, neg) for pos, neg in AXIS_DIRECTION_PAIRS},
-}
-
-FIG1_ABS_DSI: Mapping[str, float] = {
-    "T4_PC_w1": 0.412,
-    "T4_PC_w4": 0.514,
-    "T4_NC_w1": 0.024,
-    "T4_NC_w4": 0.389,
-    "T5_PC_w1": 0.322,
-    "T5_PC_w4": 0.469,
-    "T5_NC_w1": 0.263,
-    "T5_NC_w4": 0.246,
-}
-
 
 @dataclass(frozen=True)
 class MotionPreference:
@@ -78,27 +59,6 @@ class MotionPreference:
 
     pd_nd: str
     pc_nc: str
-
-
-def dsi_sequential_b_sets(spec_tokens: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
-    """Minimal sti-b sets for sequential DSI: one b_set per axis x w."""
-    bs_by_dir_w: dict[tuple[str, str], list[int]] = {}
-    for b, token in enumerate(spec_tokens):
-        direction, _contrast, w_token = parse_mbar_spec(token)
-        bs_by_dir_w.setdefault((direction, w_token), []).append(int(b))
-    b_sets: list[tuple[int, ...]] = []
-    for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
-        w_tokens = {
-            w_token for (direction, w_token) in bs_by_dir_w
-            if direction in (pos_dir, neg_dir)
-        }
-        for w_token in sorted(w_tokens):
-            pos = bs_by_dir_w.get((pos_dir, w_token), [])
-            neg = bs_by_dir_w.get((neg_dir, w_token), [])
-            if not pos or not neg:
-                continue
-            b_sets.append(tuple(sorted({*pos, *neg})))
-    return tuple(b_sets)
 
 
 def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
@@ -210,89 +170,6 @@ def active_stis_from_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str
 def parse_mbar_spec(token: str) -> Tuple[str, str, str]:
     direction, contrast, w_token = str(token).split("_", 2)
     return direction, contrast, w_token
-
-
-def axis_dsi(peak_pos: float, peak_neg: float) -> Optional[float]:
-    """DSI = (peak_pos - peak_neg) / (peak_pos + peak_neg); pos = right|up."""
-    denom = float(peak_pos) + float(peak_neg)
-    if denom <= 0.0:
-        return None
-    return (float(peak_pos) - float(peak_neg)) / denom
-
-
-def axis_dsi_torch(peak_pos: torch.Tensor, peak_neg: torch.Tensor) -> torch.Tensor:
-    """Elementwise axis DSI; denom <= 0 -> 0."""
-    denom = peak_pos + peak_neg
-    return torch.where(denom > 0, (peak_pos - peak_neg) / denom, torch.zeros_like(denom))
-
-
-def hardcoded_axis_dsi(side: str, subtype: str, spec: MbarSpec) -> Optional[float]:
-    """Signed axis DSI from ``FIG1_ABS_DSI`` for the pos-side sti ``spec``."""
-    pos_trace = fig1_trace_from_sti(side, subtype, spec)
-    if pos_trace is None:
-        return None
-    base, pd_nd = pos_trace.rsplit("_", 1)
-    if base not in FIG1_ABS_DSI:
-        raise KeyError(f"hardcoded DSI missing: {base}")
-    abs_dsi = float(FIG1_ABS_DSI[base])
-    if pd_nd == "PD":
-        return abs_dsi
-    if pd_nd == "ND":
-        return -abs_dsi
-    raise ValueError(f"expected PD/ND suffix in {pos_trace!r}")
-
-
-def mbar_dsi_from_spec(
-    trace_map: Mapping[tuple, np.ndarray],
-    cell: str,
-    token: str,
-) -> Optional[float]:
-    """DSI for one cell x spec: (this dir - opposite) / (this + opposite)."""
-    direction, contrast, w_token = parse_mbar_spec(token)
-    if direction not in _DIR_TO_AXIS:
-        return None
-    pos_dir, neg_dir = _DIR_TO_AXIS[direction]
-    pos_trace = (cell, f"{pos_dir}_{contrast}_{w_token}")
-    neg_key = (cell, f"{neg_dir}_{contrast}_{w_token}")
-    if pos_trace not in trace_map or neg_key not in trace_map:
-        return None
-    dsi = axis_dsi(
-        float(np.max(np.asarray(trace_map[pos_trace], dtype=np.float64))),
-        float(np.max(np.asarray(trace_map[neg_key], dtype=np.float64))),
-    )
-    if dsi is None:
-        return None
-    if direction in _POS_DIRS:
-        return dsi
-    return -dsi
-
-
-def dsi_from_trace_map(
-    trace_map: Mapping[tuple, np.ndarray],
-    cells: Sequence[str],
-    spec_tokens: Sequence[str],
-) -> dict[tuple[str, str], Optional[float]]:
-    return {
-        (cell, spec): mbar_dsi_from_spec(trace_map, cell, spec)
-        for cell in cells
-        for spec in spec_tokens
-    }
-
-
-def mbar_cell_title(
-    head: str,
-    ca_dsi: Optional[float] = None,
-    gt_dsi: Optional[float] = None,
-    *,
-    has_gt: bool = False,
-) -> str:
-    """Append DSI lines to a subplot title *head*."""
-    lines = [str(head)]
-    if ca_dsi is not None:
-        lines.append(f"DSI={ca_dsi:.3f}")
-    if has_gt and gt_dsi is not None:
-        lines.append(f"gt DSI={gt_dsi:.3f}")
-    return "\n".join(lines)
 
 
 _TRACE_CACHE: Dict[str, np.ndarray] = {}

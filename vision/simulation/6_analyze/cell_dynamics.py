@@ -46,9 +46,9 @@ from task.mbar.pack import (
     mbar_specs_by_cell,
     mbar_session_t0_grids,
 )
+from task.spread.pack import cost_sti_hexes
 from task.mbar.sti_geo import (
-    filter_sti_hexes,
-    mbar_cost_hexes,
+    sti_hexes_at_xy,
 )
 from task.spot.pack import build_spot_center_readout
 from task.spot.sti_geo import (
@@ -1711,7 +1711,7 @@ def analyze_bar_average(
     def nodes_from_b(b, spec, *, pack, t0_bn):
         connectome = session.connectome
         if not cols_holder:
-            cols_holder.append(mbar_cost_hexes(connectome, cost_radius=pack.cost_radius))
+            cols_holder.append(cost_sti_hexes(connectome, cost_radius=pack.cost_radius))
         hexes = cols_holder[0]
         nodes_by_cell: dict[str, np.ndarray] = {}
         for cell in cells:
@@ -1937,8 +1937,8 @@ def analyze_spot_average(
 
 def _hex_nodes(session, cell: str, *, at_x: float, at_y: float, cost_radius: int):
     connectome = session.connectome
-    hexes = filter_sti_hexes(
-        mbar_cost_hexes(connectome, cost_radius=cost_radius),
+    hexes = sti_hexes_at_xy(
+        cost_sti_hexes(connectome, cost_radius=cost_radius),
         at_x=at_x,
         at_y=at_y,
     )

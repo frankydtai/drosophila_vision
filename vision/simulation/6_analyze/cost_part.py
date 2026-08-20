@@ -95,7 +95,7 @@ def cost_part(session, z, part_key: str) -> dict:
     fwd = _pack_cost_forward(params, pack, session)
     if fwd is None:
         raise SystemExit(f"no cost forward for pack {task!r}/{contrast!r}")
-    a_gt, bias_gt, gts, scale, v_readout, _v_readout_dsi, _pd_nd = fwd
+    a_gt, bias_gt, gts, scale, v_readout, _pd_nd = fwd
     if v_readout is None:
         raise SystemExit(f"waveform v_readout required for {task!r}/{contrast!r}")
     v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, gts)

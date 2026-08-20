@@ -66,10 +66,16 @@ Definition: Sti-sample index along the parallel-sti axis — a position 0..`n_b`
 Example: `for b in range(n_b): ...`, `active_bs = pack.entry_bs.unique(sorted=True)`, `trace[b, t, node]`, `sti_b` when indexing `i_sti` slots separately from readout `b`
 Forbidden: `batch`, `batches`, `batch_idx`, `n_batch`, `batched`, and other `*batch*` naming tokens for this axis. Do not suffix the index with `_idx` — use bare `b` (not `b_idx` / `batch_idx`). Library / non-axis uses may remain (e.g. RGBA channel `b`, plotly margin key `b`).
 
+### `bar` / `bars`
+
+Definition: One geometric bar — ``direction`` plus ``w`` (``w_deg``) — placed on the motion axis by a ``bar_bound``. Not the task family (``mbar`` / ``sbar``). ``bar_span_deg`` is one ``multi_bar`` tile step along ``direction``: ``(ceil(w_deg / DEG) + bar_radius) * DEG``.
+Example: `bar_bounds(bar, bar_bound, view_deg, bar_bound0, bar_bound1)`, `bar_radius`, `BAR_RADIUS`, `bar_span_deg = (math.ceil(float(bar.w_deg) / float(DEG)) + int(bar_radius)) * float(DEG)`, `Bar` (protocol)
+Forbidden: `geo` / `Geo`; calling the task family `bar`; `width` (that is `w`); `col` / `cols` (figure only); `pitch` / `pitch_deg` / `stride` for ``bar_span_deg``; `w_hex` / `*_hex` for bar ``w`` hex-step count — use ``w_deg`` and ``bar_span_deg``.
+
 ### `bound` / `bounds`
 
-Definition: A geometric limit or extent in space (degrees / hex / clip geometry) — not a train numeric range. Singular ``bound`` is one geometric threshold (e.g. a half-plane clip edge). Plural ``bounds`` is a geometric extent bag or the four-edge sti coverage box. Compounds: ``view_bounds``, ``view_bounds_from_vertices``.
-Example: `view_bounds(hexes)`, `view_bounds_from_vertices(x_deg, y_deg)`, `_clip_halfplane(..., bound=)`, loop local `bound` for one clip edge
+Definition: A geometric limit or extent in space (degrees / hex) — not a train numeric range. Singular ``bound`` is one geometric threshold (one box edge, or the bar's edge on the motion axis). Plural ``bounds`` is a geometric extent bag or the four-edge view box. Compounds: ``view_bounds``, ``view_bounds_from_vertices``, ``bar_bounds``.
+Example: `view_bounds(hexes)`, `view_bounds_from_vertices(x_deg, y_deg)`, `bar_bounds(...)`, loop local `bound` for one box edge
 Forbidden: train / optimize / schema numeric ranges that a ``param`` or ``z`` must stay inside — that is ``clamp`` / ``clamps`` (``z_clamps``, ``schema_clamps``, ``param_clamps``, ``v_clamp``, …). Do not name schema ``lo``/``hi`` bags or optimize clamp tensors with ``bound``.
 
 ### `cell` / `cells`
@@ -82,7 +88,7 @@ Forbidden: do not use `node` to refer to a cell type. `cell` is a connectome typ
 
 Definition: Spot / RF / cost readout locus at hex-lattice radius 0 — the sti anchor hex (`du=dv=0`), the `entry_radii==0` slot, the RF axis index 0, or the plot row / time trace for that radius. Compounds: `spot_centers` (simultaneous sti anchor hexes), `center_entry_mask`, `center_hex` (sole cost hex when `cost_radius==0`), `pack_center_mask`, `build_spot_center_readout`, `RF_CENTER_RADIUS`, `gt_center`, `v_readout_center`.
 Example: `center_entry_mask = (du == 0) & (dv == 0)`, `spot.centers`, `RF_CENTER_RADIUS = 0`
-Forbidden: do not use `center` for bar-trail midpoint, histogram bin midpoint, node `(u,v)` lookup, or hex-patch vertex bounds — use `mid`, ``bound`` / ``bounds``, or non-`center` hex ``(u,v)``. Do not use `r0` / `R0` as naming tokens (see coding-rules). Library matplotlib layout kwargs (`xanchor='center'`, `ha='center'`) may remain.
+Forbidden: do not use `center` for bar midpoint, histogram bin midpoint, node `(u,v)` lookup, or hex-patch vertex bounds — use `mid`, ``bound`` / ``bounds``, or non-`center` hex ``(u,v)``. Do not use `r0` / `R0` as naming tokens (see coding-rules). Library matplotlib layout kwargs (`xanchor='center'`, `ha='center'`) may remain.
 
 ### `clamp` / `clamps`
 
@@ -154,6 +160,12 @@ Definition: A directed connection between two nodes in the network, carrying a s
 Example: `source_idxs = np.empty(len(edges), dtype=np.int64)`, `edge_weights`
 Forbidden: do not use `syn` to refer to a network edge or its idx. `edge` is a network connection; `syn` is a connectome biological synapse.
 
+### `direction` / `directions`
+
+Definition: Bar orientation / motion token ∈ {``left``, ``right``, ``up``, ``down``}. One field of an mbar ``spec``, not the whole spec.
+Example: `bar.direction`, `GRUNTMAN_directions`
+Forbidden: `mode`; `spec`; bare ``axis``.
+
 ### `entry` / `entries`
 
 Definition: One cost comparison unit in a `Pack`: a (cell × radius) or (cell × PD/ND) unit — also the integer slot 0..`n_cost`-1 into pack entry bags. Pack aligns bags `entry_nodes`, `gts`, `cost_scales`, `entry_bs`, `entry_radii` (one slot per entry; `entry_radii` is spot hex-lattice radius). The cost MSE is a scaled sum over entries with ``entry_mask`` True.
@@ -174,7 +186,7 @@ Forbidden: using ``plot`` as that noun qualifier (`plot_kwargs`, `plot_gts`, `fi
 
 ### `degree` / `degrees`
 
-Definition: An angular or visual-field quantity measured in degrees (°) — used for bar ``w``, lane pitch, hex vertex positions, and motion-axis view bounds.
+Definition: An angular or visual-field quantity measured in degrees (°) — used for bar ``w``, hex vertex positions, and view bounds.
 Example: `x_deg, y_deg = build_hex.xy_deg_from_uv(u, v)`
 Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angular; `radius` is a hex-lattice distance.
 
@@ -255,8 +267,8 @@ Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_
 
 ### `mid` / `mids`
 
-Definition: Geometric or temporal midpoint along a path, lane, or bin axis — not hex-lattice radius 0. Moving-bar transit: trail midpoint in degrees (`trail_mid`), time sample between entry and exit (`mid_t`, return slot ``mid`` of ``mbar_transit_times``, snapshot labels ``"mid"``). Histogram: bin midpoint (`bin_midpoints`).
-Example: `trail_mid = origin + 0.5 * (...)`, `start_t, mid_t, exit_t = mbar_transit_times(...)`, `labels = ("start", "mid", "exit")`, `bin_midpoints = 0.5 * (edges_bins[:-1] + edges_bins[1:])`
+Definition: Geometric or temporal midpoint along a path or bin axis — not hex-lattice radius 0. Moving-bar transit: degree ``mid`` of the bar on the motion axis, time sample between entry and exit (`mid_t`, return slot ``mid`` of ``mbar_transit_times``, snapshot labels ``"mid"``). Histogram: bin midpoint (`bin_midpoints`).
+Example: `mid = bound0 + 0.5 * (...)`, `start_t, mid_t, exit_t = mbar_transit_times(...)`, `labels = ("start", "mid", "exit")`, `bin_midpoints = 0.5 * (edges_bins[:-1] + edges_bins[1:])`
 Forbidden: do not use `mid` for sti-on hex / hex-lattice radius 0 — use `center`. Do not use `center` for these midpoints.
 
 ### `mode` / `modes`
@@ -396,7 +408,13 @@ Forbidden: do not use ``scale`` or ``z_map`` for the z↔param encoding key — 
 
 Definition: One column in a rectangular CSV output table.
 Example: CSV rectangular output; ``field`` in sidecar/CSV prose for table columns.
-Forbidden: ``column`` (for CSV); ``key`` / ``param_key`` (for YAML param fields); ``view`` (sti coverage). Forbidden: `record` / `records` as naming tokens for a CSV table row or unit — use ``field`` or the real domain noun (``entry``, …).
+Forbidden: ``column`` (for CSV); ``key`` / ``param_key`` (for YAML param fields); ``view`` (sti extent). Forbidden: `record` / `records` as naming tokens for a CSV table row or unit — use ``field`` or the real domain noun (``entry``, …).
+
+### `fill` / `fills`
+
+Definition: Per-hex sti drive level in [0, 1] — how much of the hex polygon lies inside axis-aligned bar ``bounds``, normalized by hex size. Singular ``fill`` is one hex; plural ``fills`` is ``(n_hex,)`` or ``(n_t, n_hex)``.
+Example: `_fill(vertex_x_degs, vertex_y_degs, x_deg0, y_deg0, x_deg1, y_deg1)`, `fills[t, hex_idx] += _fill(...)`, `i_baseline + fills * (i_sti - i_baseline)`
+Forbidden: ``view``; ``bound`` / ``bounds`` (the box); ``mask``; ``coverage``; ``rect``; ``area``; ``frac``; ``footprint``; ``trail``; ``lane``; ``pitch``. Do not name a time stack of fills a ``trace`` (``trace`` is a signal waveform).
 
 ### `key` / `keys`
 
@@ -431,9 +449,15 @@ Definition: Contiguous subset along the trace time axis.
 Example: `trace_slice = v_post_d[t_lo:t_hi + 1]`, `_slice_ms(v_full, start_ms, stop_ms, …)`
 Forbidden: ``segment`` / ``seg`` (for trace subsets — and banned project-wide for schema packing). Do not use `slice` for figure hex / ``--x``/``--y`` secondary curves — that is at_xy ``mean_hex_by_label``. Do not use `slice` for pack entry or ``z`` subsetting — use `subset` (or index without coining `slice`).
 
+### `vertex` / `vertices`
+
+Definition: One hex-polygon corner in **degree** space, and the integer ``0 .. n_vertex-1`` along that polygon (same bare-integer rule as ``t`` / ``b`` / ``entry`` / ``node``). Degree components are ``x_deg`` / ``y_deg`` (bags ``vertex_x_degs`` / ``vertex_y_degs`` on ``Hex``).
+Example: `n_vertex`, `for vertex in range(n_vertex)`, `vertex_x_degs[vertex]`, `x_pre`, `y_pre`, `x_post`, `y_post`, `_vertex_from_bound`
+Forbidden: `node`; `hex` (the hex, not a corner); `edge` (network); `xy` / `hex_xy` for degree corners.
+
 ### `view` / `views`
 
-Definition: Sti coverage extent on the hex lattice, measured in degrees ``(x0, y0, x1, y1)``.
+Definition: Sti extent on the hex lattice, measured in degrees ``(x0, y0, x1, y1)``.
 Example: `view_bounds(hexes)`, `view_bounds_from_vertices(...)`, `view_deg`, pack info ``"view_deg"``
 Forbidden: ``field`` (for sti geometry); ``extent``; bare ``field_deg`` / ``field_bounds``. The geometric box uses ``bound`` / ``bounds`` (see ``### bound``); do not name it ``clamp``.
 
@@ -594,6 +618,12 @@ Definition: Modifier marking cost packs joined for one shared ``forward`` (verb)
 Example: `FusedPacks`, `_build_fused_packs`, `fused_packs`
 Forbidden: verb `fuse` as a naming token (`fuse_forward`, `FuseForward`, `*_fuse`, `*_fuse_*`); using verb `forward` as a noun in compounds (`FusedForward`, `fused_forward`); `fuse_id` / `*_fuse_id`; `batch` (that is `b`); do not use `group` / `b_set` for this cross-pack join.
 
+### `multi`
+
+Definition: Boolean modifier — more than one of the following noun is placed or shown together in one sti / figure. Compound as ``multi_<noun>`` only. ``multi_spot``: simultaneous spot ``centers`` (False = sole ``(0, 0)``). ``multi_bar``: simultaneous bars along the motion axis with ``bar_radius`` gaps (False = one ``(bound0, bound1)`` covering the whole ``view``). ``multi_report``: more than one analyze ``report`` drawn together.
+Example: `multi_spot`, `multi_bar`, `multi_report`, `SPOT_INPUT_GEO["multi_spot"]`, `MBAR_INPUT_GEO["multi_bar"]`, `_bounds(..., multi_bar=...)`, `build_spot(..., multi_spot=...)`
+Forbidden: ``n_bar`` / ``n_spot`` / ``n_report`` for this boolean; ``all_`` prefix; ``fused`` (that is pack join along ``b``). Do not use bare ``multi``. Do not spell a second flag for the same tiling (``tiling``, ``simultaneous`` as naming tokens).
+
 ## Verbs (A-Z)
 
 ### `add`
@@ -695,9 +725,9 @@ Forbidden: do not use `step` to mean an optimizer iteration — use `iter` inste
 
 ### `at_uv` / `at_xy`
 
-Definition: Spatial locus filter — select hexes / nodes / ids at a connectome position. Always spelled with the coordinate frame: ``at_uv`` (axial ``u``/``v``) or ``at_xy`` (hex-step ``x``/``y``, not degree ``x_deg``/``y_deg``). Axis scalars are ``at_u``/``at_v`` or ``at_x``/``at_y``; bags ``at_xs``/``at_ys``. Network axial lookup uses UV (``sti_nodes_at_uv``; ``ids_by_cell(..., at_u=, at_v=)``). Figure / analyze hex filters and CLI ``--x``/``--y`` use XY (``filter_sti_hexes(..., at_x=, at_y=)``, ``align_at_x``/``align_at_y``). Connectome analyze allows either frame, mutually exclusive.
-Example: `sti_nodes_at_uv(u, v)`, `filter_sti_hexes(..., at_x=, at_y=)`, `ids_by_cell(nodes, at_u=..., at_v=...)`, `ids_by_cell(nodes, at_x=..., at_y=...)`, `align_at_x`/`align_at_y`, `cli_xy_filter`, `--x`/`--y`, `--u`/`--v`, `expand_at_xy(at_xs, at_ys)`, `parse_at_xs(token)`
-Forbidden: bare ``at`` / ``_at_`` without ``uv`` or ``xy`` (never ``ids_at_hex``, ``sti_nodes_at``, ``_nodes_at_hex``, ``hex_at_scope_label``, ``hex_at_scope_token``). Do not use ``at`` for time / node / radius-disc sampling (``bar_lane_rects_at_t``, ``_spec_at``, ``v_at_onset``, ``_component_at_nodes_*``, ``n_node_t``) — name those with the real axis noun, not ``at`` (``bar_lane_rects``, ``_node_param_key``, ``v_onset``, ``_component_nodes_*``, ``n_node_t``). Exact-distance hex selection is ``shell`` (``shell_hexes``, ``--shell``, ``ids_by_cell(..., shell=)`` — see ``### shell``), not an ``at_*`` frame. Do not use ``in``/``on``/``inside`` as naming glue for spatial membership (``inside_mask``, ``hex_in_cost_radius``, ``*_in_disc``, ``*_on_shell``, ``*_on_hex``, ``*_on_uv_line``, ``*_on_xy_line``) — use ``radius_mask`` / ``cost_radius_mask`` / ``nodes_from_hexes`` / ``hex_mask``, or ``ids_by_cell(...)`` with ``radius``/``shell``/``at_u``/``at_v``/``at_x``/``at_y``. Per-label at_xy curves live in ``*_mean_hex_by_label`` on readout; ``at_xs``/``at_ys`` hold the CLI filter; ``expand_at_xy(at_xs, at_ys)[0]`` yields ``(label, at_x, at_y)`` rows — iterate directly, do not bind to an intermediate bag. ``coord`` / ``coords`` / ``coordinate`` / ``coordinates`` / ``labeled_at_xy`` / ``xys`` / ``uv_float`` / ``_Uv`` / ``_UvCoord`` as naming tokens (``at_xy_coords``, ``parse_axis_coords``, ``get_hex_coords``, ``float_coords``, ``*_coords``, ``axis_coord``, ``axis_filter``, prose "axis coord") — use ``at_xy`` / ``at_xs``/``at_ys`` / ``label`` / ``expand_at_xy`` / ``parse_at_xs`` / ``partner_xy`` / ``filter_sti_hexes`` / ``hex_mask`` / ``u``/``v``/``x``/``y`` as appropriate. ``match`` / ``matches`` / ``matched`` / ``matching`` / ``*_match`` / ``*_matches`` / ``*_matched`` / ``*_matching`` as naming tokens (``_coord_matches``, ``_at_xy_value_matches``, ``axis_filter``) — inline ``np.isclose`` in ``filter_sti_hexes`` or build ``hex_mask``; use ``fused`` for same-shape/onset pack join (see ``### fused``). Library ``np.add.at`` / matplotlib ``xycoords`` / ``textcoords`` may remain at call sites only.
+Definition: Spatial locus filter — select hexes / nodes / ids at a connectome position. Always spelled with the coordinate frame: ``at_uv`` (axial ``u``/``v``) or ``at_xy`` (hex-step ``x``/``y``, not degree ``x_deg``/``y_deg``). Axis scalars are ``at_u``/``at_v`` or ``at_x``/``at_y``; bags ``at_xs``/``at_ys``. Network axial lookup uses UV (``sti_nodes_at_uv``; ``ids_by_cell(..., at_u=, at_v=)``). Figure / analyze hex filters and CLI ``--x``/``--y`` use XY (``sti_hexes_at_xy(..., at_x=, at_y=)``, ``align_at_x``/``align_at_y``). Connectome analyze allows either frame, mutually exclusive.
+Example: `sti_nodes_at_uv(u, v)`, `sti_hexes_at_xy(..., at_x=, at_y=)`, `ids_by_cell(nodes, at_u=..., at_v=...)`, `ids_by_cell(nodes, at_x=..., at_y=...)`, `align_at_x`/`align_at_y`, `cli_xy_filter`, `--x`/`--y`, `--u`/`--v`, `expand_at_xy(at_xs, at_ys)`, `parse_at_xs(token)`
+Forbidden: bare ``at`` / ``_at_`` without ``uv`` or ``xy`` (never ``ids_at_hex``, ``sti_nodes_at``, ``_nodes_at_hex``, ``hex_at_scope_label``, ``hex_at_scope_token``). Do not use ``at`` for time / node / radius-disc sampling (``bar_bounds_at_t``, ``_spec_at``, ``v_at_onset``, ``_component_at_nodes_*``, ``n_node_t``) — name those with the real axis noun, not ``at`` (``bar_bounds``, ``_node_param_key``, ``v_onset``, ``_component_nodes_*``, ``n_node_t``). Exact-distance hex selection is ``shell`` (``shell_hexes``, ``--shell``, ``ids_by_cell(..., shell=)`` — see ``### shell``), not an ``at_*`` frame. Do not use ``in``/``on``/``inside`` as naming glue for spatial membership (``inside_mask``, ``hex_in_cost_radius``, ``*_in_disc``, ``*_on_shell``, ``*_on_hex``, ``*_on_uv_line``, ``*_on_xy_line``) — use ``radius_mask`` / ``cost_radius_mask`` / ``nodes_from_hexes`` / ``hex_mask``, or ``ids_by_cell(...)`` with ``radius``/``shell``/``at_u``/``at_v``/``at_x``/``at_y``. Per-label at_xy curves live in ``*_mean_hex_by_label`` on readout; ``at_xs``/``at_ys`` hold the CLI filter; ``expand_at_xy(at_xs, at_ys)[0]`` yields ``(label, at_x, at_y)`` rows — iterate directly, do not bind to an intermediate bag. ``coord`` / ``coords`` / ``coordinate`` / ``coordinates`` / ``labeled_at_xy`` / ``xys`` / ``uv_float`` / ``_Uv`` / ``_UvCoord`` as naming tokens (``at_xy_coords``, ``parse_axis_coords``, ``get_hex_coords``, ``float_coords``, ``*_coords``, ``axis_coord``, ``axis_filter``, prose "axis coord") — use ``at_xy`` / ``at_xs``/``at_ys`` / ``label`` / ``expand_at_xy`` / ``parse_at_xs`` / ``partner_xy`` / ``sti_hexes_at_xy`` / ``hex_mask`` / ``u``/``v``/``x``/``y`` as appropriate. ``match`` / ``matches`` / ``matched`` / ``matching`` / ``*_match`` / ``*_matches`` / ``*_matched`` / ``*_matching`` as naming tokens (``_coord_matches``, ``_at_xy_value_matches``, ``axis_filter``) — inline ``np.isclose`` in ``sti_hexes_at_xy`` or build ``hex_mask``; use ``fused`` for same-shape/onset pack join (see ``### fused``). Library ``np.add.at`` / matplotlib ``xycoords`` / ``textcoords`` may remain at call sites only.
 
 ### `_by_`
 

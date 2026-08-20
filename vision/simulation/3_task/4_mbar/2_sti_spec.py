@@ -17,16 +17,15 @@ from path import MBAR_CACHE_DIRNAME
 from neuron.borst import t_from_ms
 from task.mbar.sti_geo import (
     BAR_RADIUS,
-    GRUNTMAN_DIRECTIONS,
+    GRUNTMAN_directions,
     GRUNTMAN_WS_DEG,
     Hex,
     StiHex,
-    bar_rect_lane_clipped,
-    clip_rect_areas,
+    bar_bound0_bar_bound1s,
+    _fill,
+    bar_bounds,
     view_bounds,
     i_sti_nodes_from_hexes,
-    lane_sweep_trail_range,
-    motion_lanes,
     sti_hexes,
 )
 
@@ -65,7 +64,7 @@ class MbarSpec:
 def gruntman_mbar_specs(
     *,
     contrasts: Sequence[str],
-    directions: Sequence[str] = GRUNTMAN_DIRECTIONS,
+    directions: Sequence[str] = GRUNTMAN_directions,
     ws_deg: Sequence[float] = GRUNTMAN_WS_DEG,
     speed_deg_over_s: float = GRUNTMAN_SPEED_DEG_OVER_S,
 ) -> List[MbarSpec]:
@@ -83,59 +82,22 @@ def gruntman_mbar_specs(
     ]
 
 
-def _trail_shift_deg(spec: MbarSpec, delta_ms: float) -> float:
-    """Signed trail advance (deg) in one sample: ``±speed_deg_over_s * delta_ms / 1000``."""
-    shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
-    if spec.direction in ("right", "up"):
-        return shift_deg
-    if spec.direction in ("left", "down"):
-        return -shift_deg
-    raise ValueError(f"unknown direction {spec.direction!r}")
-
-
-def _clip_rect_areas_trace(
-    hex_stack: np.ndarray,
+def t_from_bar_bound(
     spec: MbarSpec,
-    view_deg: Tuple[float, float, float, float],
-    n_t: int,
-    t_onset: int,
-    delta_ms: float,
-    bar_radius: int,
-    *,
-    multi_bar: bool = True,
-) -> np.ndarray:
-    """Clip rect areas from simultaneous per-lane bars."""
-    trail_shift_deg = _trail_shift_deg(spec, delta_ms)
-    lane_origins = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)
-    n_hex = hex_stack.shape[0]
-    n_post = n_t - t_onset
-    clip_rect_areas_trace = np.zeros((n_post, n_hex), dtype=np.float64)
-    for lane_origin, lane_pitch in lane_origins:
-        trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
-        trail = float(trail_start)
-        for t in range(n_post):
-            rect = bar_rect_lane_clipped(
-                spec, trail, lane_origin, lane_pitch, view_deg,
-            )
-            if rect is not None:
-                bx0, by0, bx1, by1 = rect
-                clip_rect_areas_trace[t] += clip_rect_areas(hex_stack, bx0, by0, bx1, by1)
-            trail += trail_shift_deg
-    return np.clip(clip_rect_areas_trace, 0.0, 1.0)
-
-
-def t_from_trail(
-    spec: MbarSpec,
-    trail_start: float,
-    trail_end: float,
+    bar_bound: float,
+    bar_bound_end: float,
     t_onset: int,
     delta_ms: float,
     n_t: Optional[int] = None,
 ) -> int:
-    trail_shift_deg = _trail_shift_deg(spec, delta_ms)
-    if abs(trail_shift_deg) < 1e-15:
+    shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
+    if spec.direction in ("left", "down"):
+        shift_deg = -shift_deg
+    elif spec.direction not in ("right", "up"):
+        raise ValueError(f"unknown direction {spec.direction!r}")
+    if abs(shift_deg) < 1e-15:
         return t_onset
-    k = int(round((trail_end - trail_start) / trail_shift_deg))
+    k = int(round((bar_bound_end - bar_bound) / shift_deg))
     t = t_onset + max(0, k)
     if n_t is not None:
         t = min(t, n_t - 1)
@@ -151,16 +113,24 @@ def mbar_sweep_end_t(
     t_onset: int = None,
     delta_ms: float,
 ) -> int:
-    """Exclusive t index where all lanes finish their local sweep (no tail)."""
+    """Exclusive t index where all bars finish their local sweep (no tail)."""
     if not specs:
         return t_onset + 1
     t_exit = t_onset
     for spec in specs:
-        for lane_origin, lane_pitch in motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar):
-            trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
+        w_deg = float(spec.w_deg)
+        for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
+            spec, view_deg, bar_radius, multi_bar=multi_bar,
+        ):
+            if spec.direction in ("right", "up"):
+                bar_bound, bar_bound_end = float(bar_bound0) - w_deg, float(bar_bound1)
+            elif spec.direction in ("left", "down"):
+                bar_bound, bar_bound_end = float(bar_bound1) + w_deg, float(bar_bound0)
+            else:
+                raise ValueError(f"unknown direction {spec.direction!r}")
             t_exit = max(
                 t_exit,
-                t_from_trail(spec, trail_start, trail_exit, t_onset, delta_ms),
+                t_from_bar_bound(spec, bar_bound, bar_bound_end, t_onset, delta_ms),
             )
     return t_exit + 1
 
@@ -192,21 +162,29 @@ def mbar_transit_times(
     n_t: Optional[int] = None,
     delta_ms: float,
 ) -> Tuple[int, int, int]:
-    """Return ``(entry, mid, exit)`` t idxs for the first multi-bar lane."""
-    lane_origin, lane_pitch = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)[0]
-    trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
+    """Return ``(entry, mid, exit)`` t idxs for the first simultaneous bar."""
+    bar_bound0, bar_bound1 = bar_bound0_bar_bound1s(
+        spec, view_deg, bar_radius, multi_bar=multi_bar,
+    )[0]
     w_deg = float(spec.w_deg)
-    trail_shift_deg = _trail_shift_deg(spec, delta_ms)
-    origin = float(lane_origin)
-    trail_entry = float(trail_start) + trail_shift_deg
-    trail_mid = origin + 0.5 * (
-        float(lane_pitch) - math.copysign(1.0, trail_shift_deg) * w_deg
+    shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
+    if spec.direction in ("left", "down"):
+        shift_deg = -shift_deg
+    elif spec.direction not in ("right", "up"):
+        raise ValueError(f"unknown direction {spec.direction!r}")
+    if spec.direction in ("right", "up"):
+        bar_bound, bar_bound_end = float(bar_bound0) - w_deg, float(bar_bound1)
+    else:
+        bar_bound, bar_bound_end = float(bar_bound1) + w_deg, float(bar_bound0)
+    bar_bound_entry = bar_bound + shift_deg
+    mid = float(bar_bound0) + 0.5 * (
+        float(bar_bound1) - float(bar_bound0) - math.copysign(1.0, shift_deg) * w_deg
     )
-    trail_exit_vis = float(trail_exit) - trail_shift_deg
+    bar_bound_exit = bar_bound_end - shift_deg
     return (
-        t_from_trail(spec, trail_start, trail_entry, t_onset, delta_ms, n_t),
-        t_from_trail(spec, trail_start, trail_mid, t_onset, delta_ms, n_t),
-        t_from_trail(spec, trail_start, trail_exit_vis, t_onset, delta_ms, n_t),
+        t_from_bar_bound(spec, bar_bound, bar_bound_entry, t_onset, delta_ms, n_t),
+        t_from_bar_bound(spec, bar_bound, mid, t_onset, delta_ms, n_t),
+        t_from_bar_bound(spec, bar_bound, bar_bound_exit, t_onset, delta_ms, n_t),
     )
 
 
@@ -225,30 +203,6 @@ def hex_first_sti_t(
     return int(idx[0])
 
 
-def bar_lane_rects(
-    spec: MbarSpec,
-    view_deg: Tuple[float, float, float, float],
-    bar_radius: int,
-    t: int,
-    *,
-    multi_bar: bool = True,
-    t_onset: int = None,
-    delta_ms: float,
-) -> List[Tuple[float, float, float, float]]:
-    """All lane bar rectangles at simulation time ``t`` (empty outside local sweep)."""
-    trail_shift_deg = _trail_shift_deg(spec, delta_ms)
-    rects: List[Tuple[float, float, float, float]] = []
-    for lane_origin, lane_pitch in motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar):
-        trail_start, _ = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
-        trail = float(trail_start) + (t - t_onset) * trail_shift_deg
-        rect = bar_rect_lane_clipped(
-            spec, trail, lane_origin, lane_pitch, view_deg,
-        )
-        if rect is not None:
-            rects.append(rect)
-    return rects
-
-
 def build_i_sti_hex(
     hexes: Sequence[Hex],
     specs: Sequence[MbarSpec],
@@ -263,8 +217,8 @@ def build_i_sti_hex(
 ) -> np.ndarray:
     """Multi-b hex currents ``(B, T, n_hex)``.
 
-    Each b row superposes simultaneous lane bars for one ``MbarSpec``.
-    Specs that share direction / w / speed reuse one clip_rect_areas_trace;
+    Each b row superposes simultaneous bars for one ``MbarSpec``.
+    Specs that share direction / w / speed reuse one ``fills`` stack;
     only the contrast peak current ``i_sti`` differs when callers rebuild per contrast.
     """
     n_b = len(specs)
@@ -277,7 +231,6 @@ def build_i_sti_hex(
         i_sti_hex[b, :t_onset] = i_baseline
 
     view_deg = view_bounds(hexes)
-    hex_stack = np.stack([hex.hex_xy for hex in hexes], axis=0)
 
     by_geometry: dict[Tuple[str, float, float], List[int]] = {}
     for b, spec in enumerate(specs):
@@ -285,15 +238,37 @@ def build_i_sti_hex(
         by_geometry.setdefault(geometry, []).append(b)
 
     for bs in by_geometry.values():
-        clip_rect_areas_trace = _clip_rect_areas_trace(
-            hex_stack, specs[bs[0]], view_deg,
-            n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
-            bar_radius=bar_radius,
-            multi_bar=multi_bar,
-        )
+        spec = specs[bs[0]]
+        shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
+        if spec.direction in ("left", "down"):
+            shift_deg = -shift_deg
+        elif spec.direction not in ("right", "up"):
+            raise ValueError(f"unknown direction {spec.direction!r}")
+        w_deg = float(spec.w_deg)
+        n_post = n_t - t_onset
+        fills = np.zeros((n_post, n_hex), dtype=np.float64)
+        for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
+            spec, view_deg, bar_radius, multi_bar=multi_bar,
+        ):
+            if spec.direction in ("right", "up"):
+                bar_bound = float(bar_bound0) - w_deg
+            else:
+                bar_bound = float(bar_bound1) + w_deg
+            for t in range(n_post):
+                visible_bar = bar_bounds(spec, bar_bound, view_deg, bar_bound0, bar_bound1)
+                if visible_bar is not None:
+                    x_deg0, y_deg0, x_deg1, y_deg1 = visible_bar
+                    for hex_idx in range(n_hex):
+                        hex = hexes[hex_idx]
+                        fills[t, hex_idx] += _fill(
+                            hex.vertex_x_degs, hex.vertex_y_degs,
+                            x_deg0, y_deg0, x_deg1, y_deg1,
+                        )
+                bar_bound += shift_deg
+        fills = np.clip(fills, 0.0, 1.0)
         for b in bs:
             i_sti_hex[b, t_onset:] = (
-                i_baseline + clip_rect_areas_trace * (float(i_sti) - i_baseline)
+                i_baseline + fills * (float(i_sti) - i_baseline)
             )
     return i_sti_hex
 

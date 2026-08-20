@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Moving-bar pack: bind GT numbers to the network for cost.
 
-Cost hexes, sti ``i_sti``, :class:`MbarGt` packing, and DSI entry CSR.
+Cost hexes, sti ``i_sti``, and :class:`MbarGt` packing.
 GT traces and motion preference come from :mod:`task.mbar.gt`.
 :class:`~task.spread.pack.Pack` assembly lives here.
 """
@@ -21,24 +21,21 @@ from network.construction import (
     gt_cells_from_opts,
     standardize_cost_radius,
 )
-from task.spread.pack import Pack, CostPartPlotSpec, cost_hex_label
+from task.spread.pack import Pack, CostPartPlotSpec, cost_hex_label, cost_sti_hexes
 from task.spread.sti_spec import i_baseline_from_i_sti
 from task.spread.gt import contrast_sign
 from task.mbar.gt import (
     FIG1_CI_NPZ,
     GT_CELLS,
     active_stis_from_subtype,
-    axis_dsi_torch,
     fig1_trace_from_sti,
-    hardcoded_axis_dsi,
     load_fig1_traces,
     motion_preference,
     w_token,
 )
 from task.mbar.sti_geo import (
     BAR_RADIUS,
-    filter_sti_hexes,
-    mbar_cost_hexes,
+    sti_hexes_at_xy,
     node_us_vs,
     sti_hexes,
 )
@@ -72,22 +69,11 @@ class MbarGt:
     spec_tokens: List[str]
     cost_t0s: Optional[torch.Tensor] = None
     cost_pd_nds: Optional[torch.Tensor] = None
-    dsi_pos_entries: Optional[torch.Tensor] = None
-    dsi_neg_entries: Optional[torch.Tensor] = None
-    dsi_pos_ptr: Optional[torch.Tensor] = None
-    dsi_neg_ptr: Optional[torch.Tensor] = None
-    dsi_gts: Optional[torch.Tensor] = None
-    dsi_scales: Optional[torch.Tensor] = None
-    dsi_power: Optional[torch.Tensor] = None
     entry_part_keys: Tuple[str, ...] = ()
 
 
 def cell_part_key(contrast: str, cell: str, pd_nd_label: str) -> str:
     return f"mbar_{contrast}_{cell}_{pd_nd_label}"
-
-
-def dsi_part_key(contrast: str) -> str:
-    return f"mbar_{contrast}_DSI"
 
 
 def _mbar_cost_part_plot_specs(
@@ -97,7 +83,6 @@ def _mbar_cost_part_plot_specs(
     cost_pd_nds: torch.Tensor,
     connectome,
     contrast: str,
-    dsi_part_key_val: Optional[str],
 ) -> Dict[str, CostPartPlotSpec]:
     specs: Dict[str, CostPartPlotSpec] = {}
     pd_nd = cost_pd_nds.detach().cpu().numpy()
@@ -115,13 +100,6 @@ def _mbar_cost_part_plot_specs(
         )
         specs[part_key] = CostPartPlotSpec(
             part_key, cell, ("mbar_pd_nd", pd_nd_label), label,
-        )
-    if dsi_part_key_val and dsi_part_key_val not in specs:
-        specs[dsi_part_key_val] = CostPartPlotSpec(
-            dsi_part_key_val,
-            None,
-            ("mbar_pd_nd", "DSI"),
-            f"DSI ({contrast})" if contrast else "DSI",
         )
     return specs
 
@@ -159,209 +137,6 @@ def filter_requested_specs(
     if missing:
         raise ValueError(f"spec(s) {missing} not in {avail}")
     return list(requested)
-
-
-def assemble_mbar_dsi_groups(
-    specs: Sequence[MbarSpec],
-    entry_bs: Sequence[int],
-    entry_cells: Sequence[str],
-    entry_cost_scales: Sequence[float],
-    *,
-    side: str,
-) -> Tuple[List[List[int]], List[List[int]], List[float], List[float]]:
-    """One DSI group per ``(cell, contrast, w_token, axis)``."""
-    bs_by_condition: dict[tuple[str, str, str], list[int]] = {}
-    for b, spec in enumerate(specs):
-        key = (spec.direction, spec.contrast, w_token(spec.w_deg))
-        bs_by_condition.setdefault(key, []).append(b)
-
-    entries_by_cell_b: dict[tuple[str, int], list[int]] = {}
-    for entry, (b, cell) in enumerate(zip(entry_bs, entry_cells)):
-        entries_by_cell_b.setdefault((str(cell), int(b)), []).append(entry)
-
-    pos_groups: List[List[int]] = []
-    neg_groups: List[List[int]] = []
-    dsi_vals: List[float] = []
-    scales: List[float] = []
-    cells = sorted({str(cell) for cell in entry_cells})
-    for cell in cells:
-        for pos_dir, neg_dir in (("right", "left"), ("up", "down")):
-            contrast_ws = {
-                (contrast, w_token)
-                for (direction, contrast, w_token) in bs_by_condition
-                if direction in (pos_dir, neg_dir)
-            }
-            for contrast, w_token in sorted(contrast_ws):
-                pos_bs = bs_by_condition.get((pos_dir, contrast, w_token), [])
-                neg_bs = bs_by_condition.get((neg_dir, contrast, w_token), [])
-                if not pos_bs or not neg_bs:
-                    continue
-                pos_entries: list[int] = []
-                for pb in pos_bs:
-                    pos_entries.extend(entries_by_cell_b.get((cell, pb), []))
-                neg_entries: list[int] = []
-                for nb in neg_bs:
-                    neg_entries.extend(entries_by_cell_b.get((cell, nb), []))
-                if not pos_entries or not neg_entries:
-                    continue
-                dsi = hardcoded_axis_dsi(side, cell, specs[pos_bs[0]])
-                if dsi is None:
-                    continue
-                w_pos = float(np.mean([float(entry_cost_scales[entry]) for entry in pos_entries]))
-                w_neg = float(np.mean([float(entry_cost_scales[entry]) for entry in neg_entries]))
-                pos_groups.append(pos_entries)
-                neg_groups.append(neg_entries)
-                dsi_vals.append(float(dsi))
-                scales.append(0.5 * (w_pos + w_neg))
-    return pos_groups, neg_groups, dsi_vals, scales
-
-
-def _csr_from_groups(
-    groups: Sequence[Sequence[int]], *, device,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Return ``(flat_entries, ptr)`` with ``ptr`` length ``n_group + 1``."""
-    ptr = [0]
-    flat: list[int] = []
-    for dsi_group in groups:
-        flat.extend(int(entry) for entry in dsi_group)
-        ptr.append(len(flat))
-    entries_t = torch.tensor(np.asarray(flat, dtype=np.int64), dtype=torch.long, device=device)
-    ptr_t = torch.tensor(np.asarray(ptr, dtype=np.int64), dtype=torch.long, device=device)
-    return entries_t, ptr_t
-
-
-def pack_mbar_dsi(pos_groups, neg_groups, dsi_vals, scales, *, device, sim_dtype):
-    if not pos_groups:
-        empty_long = torch.zeros(0, dtype=torch.long, device=device)
-        empty = torch.zeros(0, dtype=sim_dtype, device=device)
-        ptr0 = torch.zeros(1, dtype=torch.long, device=device)
-        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
-        return empty_long, empty_long, ptr0, ptr0, empty, empty, power
-    dsi_pos_entries, dsi_pos_ptr = _csr_from_groups(pos_groups, device=device)
-    dsi_neg_entries, dsi_neg_ptr = _csr_from_groups(neg_groups, device=device)
-    dsi_gts = torch.tensor(np.asarray(dsi_vals), dtype=sim_dtype, device=device)
-    dsi_scales = torch.tensor(np.asarray(scales), dtype=sim_dtype, device=device)
-    power = torch.sum(dsi_scales * dsi_gts ** 2)
-    if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
-    return (
-        dsi_pos_entries, dsi_neg_entries, dsi_pos_ptr, dsi_neg_ptr,
-        dsi_gts, dsi_scales, power,
-    )
-
-
-def _empty_dsi_fields(pack, device) -> dict:
-    empty_long = torch.zeros(0, dtype=torch.long, device=device)
-    empty = torch.zeros(0, dtype=pack.dsi_gts.dtype, device=device)
-    ptr0 = torch.zeros(1, dtype=torch.long, device=device)
-    power = torch.tensor(1.0, dtype=pack.dsi_power.dtype, device=device)
-    return {
-        "dsi_pos_entries": empty_long,
-        "dsi_neg_entries": empty_long,
-        "dsi_pos_ptr": ptr0,
-        "dsi_neg_ptr": ptr0,
-        "dsi_gts": empty,
-        "dsi_scales": empty,
-        "dsi_power": power,
-    }
-
-
-def remap_dsi_entries(pack, kept_old_entries) -> dict:
-    """Remap CSR DSI groups onto kept cost entries; drop incomplete groups."""
-    if pack.dsi_pos_ptr is None or int(pack.dsi_pos_ptr.numel()) <= 1:
-        return {
-            "dsi_pos_entries": pack.dsi_pos_entries,
-            "dsi_neg_entries": pack.dsi_neg_entries,
-            "dsi_pos_ptr": pack.dsi_pos_ptr,
-            "dsi_neg_ptr": pack.dsi_neg_ptr,
-            "dsi_gts": pack.dsi_gts,
-            "dsi_scales": pack.dsi_scales,
-            "dsi_power": pack.dsi_power,
-        }
-    device = pack.dsi_pos_entries.device
-    n = int(pack.entry_bs.shape[0])
-    kept = torch.as_tensor(kept_old_entries, dtype=torch.long, device=device)
-    lut = torch.full((n,), -1, dtype=torch.long, device=device)
-    lut[kept] = torch.arange(kept.numel(), dtype=torch.long, device=device)
-
-    n_dsi = int(pack.dsi_pos_ptr.numel()) - 1
-    new_pos_groups: list[list[int]] = []
-    new_neg_groups: list[list[int]] = []
-    kept_dsi_group_idxs: list[int] = []
-    pos_entries = pack.dsi_pos_entries
-    neg_entries = pack.dsi_neg_entries
-    pos_ptr = pack.dsi_pos_ptr
-    neg_ptr = pack.dsi_neg_ptr
-    for dsi_group_idx in range(n_dsi):
-        p0, p1 = int(pos_ptr[dsi_group_idx]), int(pos_ptr[dsi_group_idx + 1])
-        n0, n1 = int(neg_ptr[dsi_group_idx]), int(neg_ptr[dsi_group_idx + 1])
-        new_pos = lut[pos_entries[p0:p1]]
-        new_neg = lut[neg_entries[n0:n1]]
-        new_pos = new_pos[new_pos >= 0]
-        new_neg = new_neg[new_neg >= 0]
-        if new_pos.numel() == 0 or new_neg.numel() == 0:
-            continue
-        new_pos_groups.append(new_pos.tolist())
-        new_neg_groups.append(new_neg.tolist())
-        kept_dsi_group_idxs.append(dsi_group_idx)
-    if not kept_dsi_group_idxs:
-        return _empty_dsi_fields(pack, device)
-    dsi_pos_entries, dsi_pos_ptr = _csr_from_groups(new_pos_groups, device=device)
-    dsi_neg_entries, dsi_neg_ptr = _csr_from_groups(new_neg_groups, device=device)
-    kept_dsi_group_idx = torch.tensor(kept_dsi_group_idxs, dtype=torch.long, device=device)
-    dsi_gts = pack.dsi_gts[kept_dsi_group_idx]
-    dsi_scales = pack.dsi_scales[kept_dsi_group_idx]
-    power = torch.sum(dsi_scales * dsi_gts ** 2)
-    if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=dsi_gts.dtype, device=device)
-    return {
-        "dsi_pos_entries": dsi_pos_entries,
-        "dsi_neg_entries": dsi_neg_entries,
-        "dsi_pos_ptr": dsi_pos_ptr,
-        "dsi_neg_ptr": dsi_neg_ptr,
-        "dsi_gts": dsi_gts,
-        "dsi_scales": dsi_scales,
-        "dsi_power": power,
-    }
-
-
-def _csr_span_mean(vals: torch.Tensor, ptr: torch.Tensor) -> torch.Tensor:
-    """Mean of ``vals`` over CSR spans defined by ``ptr``."""
-    n_g = int(ptr.numel()) - 1
-    if n_g == 0:
-        return vals.new_zeros((0,))
-    n_ptr = ptr[1:] - ptr[:-1]
-    csr_idx = torch.repeat_interleave(
-        torch.arange(n_g, device=vals.device, dtype=torch.long),
-        n_ptr,
-    )
-    sums = vals.new_zeros((n_g,))
-    sums.scatter_add_(0, csr_idx, vals)
-    return sums / n_ptr.to(dtype=vals.dtype).clamp(min=1)
-
-
-def cost_dsi_from_v_readout_dsi(
-    pack, bias_gt: torch.Tensor, v_readout_dsi: torch.Tensor,
-) -> Optional[torch.Tensor]:
-    """Unscaled DSI MSE (% of dsi_power); None if no complete groups.
-
-    Peaks use baseline-subtracted absolute ``v`` (``v_readout_dsi - bias_gt``).
-    """
-    if pack.dsi_pos_ptr is None or int(pack.dsi_pos_ptr.numel()) <= 1:
-        return None
-    peak_pos_per_entry = (
-        v_readout_dsi[pack.dsi_pos_entries] - bias_gt[pack.dsi_pos_entries, None]
-    ).amax(dim=-1)
-    peak_neg_per_entry = (
-        v_readout_dsi[pack.dsi_neg_entries] - bias_gt[pack.dsi_neg_entries, None]
-    ).amax(dim=-1)
-    if not (torch.isfinite(peak_pos_per_entry).all() and torch.isfinite(peak_neg_per_entry).all()):
-        raise RuntimeError("non-finite DSI peaks (NaN/Inf in readout)")
-    peak_pos = _csr_span_mean(peak_pos_per_entry, pack.dsi_pos_ptr)
-    peak_neg = _csr_span_mean(peak_neg_per_entry, pack.dsi_neg_ptr)
-    v_dsi = axis_dsi_torch(peak_pos, peak_neg)
-    diff = v_dsi - pack.dsi_gts
-    return torch.sum(pack.dsi_scales * diff ** 2) / pack.dsi_power * 100.0
 
 
 def _assemble_mbar_readouts(
@@ -507,7 +282,7 @@ def build_mbar_gt(
         (int(hex.u), int(hex.v)): hex_idx
         for hex_idx, hex in enumerate(sti_hexes(connectome))
     }
-    hexes = mbar_cost_hexes(connectome, cost_radius=cost_radius)
+    hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
     cost_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
     hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_idxs)}
 
@@ -545,16 +320,6 @@ def build_mbar_gt(
             device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
         )
     )
-    (
-        dsi_pos_entries, dsi_neg_entries, dsi_pos_ptr, dsi_neg_ptr,
-        dsi_tgt, dsi_w, dsi_pow,
-    ) = pack_mbar_dsi(
-        *assemble_mbar_dsi_groups(
-            sti.specs, entry_bs.tolist(), entry_cells, cost_scales.tolist(), side=side,
-        ),
-        device=device,
-        sim_dtype=sim_dtype,
-    )
 
     return MbarGt(
         i_sti=sti.i_sti,
@@ -571,13 +336,6 @@ def build_mbar_gt(
         active_gts=list(active),
         waveform_mse=bool(waveform_mse),
         spec_tokens=[spec.token for spec in sti.specs],
-        dsi_pos_entries=dsi_pos_entries,
-        dsi_neg_entries=dsi_neg_entries,
-        dsi_pos_ptr=dsi_pos_ptr,
-        dsi_neg_ptr=dsi_neg_ptr,
-        dsi_gts=dsi_tgt,
-        dsi_scales=dsi_w,
-        dsi_power=dsi_pow,
         entry_part_keys=tuple(entry_part_keys),
     )
 
@@ -614,9 +372,9 @@ def mbar_session_t0_grids(
     i_baseline = i_baseline_from_i_sti(i_sti)
 
     side = connectome.meta.get('side', 'right')
-    hexes = mbar_cost_hexes(connectome, cost_radius=cost_radius)
+    hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
     if at_x is not None or at_y is not None:
-        filt_hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
+        filt_hexes = sti_hexes_at_xy(hexes, at_x=at_x, at_y=at_y)
         if not filt_hexes:
             raise SystemExit(
                 f'no sti hexes match x={at_x!r} y={at_y!r} within cost_radius',
@@ -782,12 +540,6 @@ def build_mbar_pack(
     if cost_radius is not None:
         sti_opts["cost_radius"] = int(cost_radius)
     sti_opts["gt_cells"] = list(mbar_gt.active_gts)
-    dsi_key = (
-        dsi_part_key(contrast)
-        if mbar_gt.dsi_pos_ptr is not None
-        and int(mbar_gt.dsi_pos_ptr.numel()) > 1
-        else None
-    )
     pack = Pack(
         task=task,
         contrast=contrast,
@@ -800,16 +552,8 @@ def build_mbar_pack(
         cost_t0s=mbar_gt.cost_t0s,
         cost_radius=cost_radius,
         cost_pd_nds=mbar_gt.cost_pd_nds,
-        dsi_pos_entries=mbar_gt.dsi_pos_entries,
-        dsi_neg_entries=mbar_gt.dsi_neg_entries,
-        dsi_pos_ptr=mbar_gt.dsi_pos_ptr,
-        dsi_neg_ptr=mbar_gt.dsi_neg_ptr,
-        dsi_gts=mbar_gt.dsi_gts,
-        dsi_scales=mbar_gt.dsi_scales,
-        dsi_power=mbar_gt.dsi_power,
         waveform_mse=bool(mbar_gt.waveform_mse),
         entry_part_keys=mbar_gt.entry_part_keys,
-        dsi_part_key=dsi_key,
         cost_part_plot_specs=(
             _mbar_cost_part_plot_specs(
                 mbar_gt.entry_part_keys,
@@ -818,7 +562,6 @@ def build_mbar_pack(
                 mbar_gt.cost_pd_nds,
                 connectome,
                 contrast,
-                dsi_key,
             )
             if mbar_gt.cost_pd_nds is not None
             else None

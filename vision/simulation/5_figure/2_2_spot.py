@@ -57,12 +57,12 @@ from figure.plot import (
     session_from_task,
 )
 from task.spot.pack import build_spot_center_readout, part_key as spot_part_key
+from task.spread.pack import cost_sti_hexes
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from network.construction import active_gt_cells, cell_rows, cells_in_order, gt_cells_from_opts
 import build_hex
 from task.mbar.sti_geo import (
-    filter_sti_hexes,
-    mbar_cost_hexes,
+    sti_hexes_at_xy,
     node_us_vs,
 )
 from task.spot.sti_geo import (
@@ -671,8 +671,8 @@ def _spot_gt_readout(readout):
 
 def _spot_readout_hex_mask(connectome, nodes, cost_radius, *, at_x=None, at_y=None):
     """True for cost entries whose node sits on ``at_x``/``at_y`` cost-radius hexes."""
-    hexes = filter_sti_hexes(
-        mbar_cost_hexes(connectome, cost_radius=cost_radius),
+    hexes = sti_hexes_at_xy(
+        cost_sti_hexes(connectome, cost_radius=cost_radius),
         at_x=at_x,
         at_y=at_y,
     )

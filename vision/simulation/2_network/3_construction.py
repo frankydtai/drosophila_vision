@@ -21,7 +21,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
+
+import build_hex
 
 import numpy as np
 import torch

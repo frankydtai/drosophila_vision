@@ -1,4 +1,4 @@
-"""Cost assembly: per-part MSE / DSI and the scaled total.
+"""Cost assembly: per-part MSE and the scaled total.
 
 Consumes a :class:`~train.session.TrainSession` and the model forward
 (``neuron.forward`` + ``neuron.readout``); produces per-part local-% costs and
@@ -60,12 +60,6 @@ from train.param import (
 )
 from train.session import Pack, TrainSession
 from task.spread.pack import CostPartPlotSpec
-from task.mbar.gt import dsi_sequential_b_sets
-from task.mbar.pack import (
-    bar_specs_from_task,
-    cost_dsi_from_v_readout_dsi,
-    remap_dsi_entries,
-)
 
 
 COST_NORMS = ("gt_power", "a_gt2")
@@ -287,15 +281,8 @@ def entries_by_part(pack: Pack) -> Tuple[torch.Tensor, List[str]]:
     return part_idxs_t, part_keys
 
 
-def _has_dsi(pack: Pack) -> bool:
-    return pack.dsi_pos_ptr is not None and int(pack.dsi_pos_ptr.numel()) > 1
-
-
 def _pack_part_keys(pack: Pack, session: TrainSession) -> List[str]:
     _, part_keys = entries_by_part(pack)
-    if pack.dsi_part_key and _has_dsi(pack):
-        if pack.dsi_part_key not in part_keys:
-            part_keys = [*part_keys, pack.dsi_part_key]
     return part_keys
 
 
@@ -367,28 +354,9 @@ def _mse_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
     return mask
 
 
-def _dsi_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
-    """Boolean mask over cost entries needed by a non-zero DSI scale."""
-    n = int(pack.entry_bs.shape[0])
-    device = pack.entry_bs.device
-    mask = torch.zeros(n, dtype=torch.bool, device=device)
-    dsi_part_key = pack.dsi_part_key
-    if (
-        not dsi_part_key
-        or pack.dsi_pos_entries is None
-        or pack.dsi_pos_entries.numel() == 0
-        or _part_scale(session, dsi_part_key) == 0.0
-    ):
-        return mask
-    mask[pack.dsi_pos_entries] = True
-    if pack.dsi_neg_entries is not None:
-        mask[pack.dsi_neg_entries] = True
-    return mask
-
-
 def _pack_active_bs(pack: Pack, session: TrainSession) -> Tuple[int, ...]:
     """Stimulus b idxs with at least one non-zero-scale cost node."""
-    entry_mask = _mse_entry_mask(pack, session) | _dsi_entry_mask(pack, session)
+    entry_mask = _mse_entry_mask(pack, session)
     if not bool(entry_mask.any()):
         return ()
     bs = pack.entry_bs[entry_mask].unique(sorted=True)
@@ -400,7 +368,7 @@ def _active_entries(
     session: TrainSession,
     b: Optional[int] = None,
 ) -> Optional[torch.Tensor]:
-    entry_mask = _mse_entry_mask(pack, session) | _dsi_entry_mask(pack, session)
+    entry_mask = _mse_entry_mask(pack, session)
     if b is not None:
         entry_mask = entry_mask & (pack.entry_bs == int(b))
     if not bool(entry_mask.any()):
@@ -413,9 +381,8 @@ def _pack_entry_fields(
     sel,
     *,
     entry_bs: Optional[torch.Tensor] = None,
-    dsi_sel=None,
 ) -> dict:
-    """Indexed cost-entry tensors for ``replace``; ``dsi_sel`` defaults to ``sel``."""
+    """Indexed cost-entry tensors for ``replace``."""
     fields = {
         "gts": pack.gts[sel],
         "cost_scales": pack.cost_scales[sel],
@@ -428,7 +395,6 @@ def _pack_entry_fields(
         t = getattr(pack, field)
         if t is not None:
             fields[field] = t[sel]
-    fields.update(remap_dsi_entries(pack, sel if dsi_sel is None else dsi_sel))
     if pack.entry_part_keys:
         fields["entry_part_keys"] = _slice_entry_part_keys(pack.entry_part_keys, sel)
     return fields
@@ -451,8 +417,7 @@ def _subset_pack_bs(pack: Pack, bs: Tuple[int, ...]) -> Optional[Pack]:
     lut = torch.full((lut_size,), -1, dtype=torch.long, device=device)
     lut[idx_t] = torch.arange(len(bs), dtype=torch.long, device=device)
     new_rb = lut[rb[keep]]
-    kept_old = torch.nonzero(keep, as_tuple=False).reshape(-1)
-    fields = _pack_entry_fields(pack, keep, entry_bs=new_rb, dsi_sel=kept_old)
+    fields = _pack_entry_fields(pack, keep, entry_bs=new_rb)
     fields["i_sti"] = pack.i_sti.index_select(0, idx_t)
     return replace(pack, **fields)
 
@@ -530,32 +495,18 @@ def _readout_from_trace(
     pack: Pack,
     *,
     b_offset: int = 0,
-) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
+) -> Optional[torch.Tensor]:
+    if not pack_needs_waveform_mse(pack):
+        return None
     rb = pack.entry_bs if b_offset == 0 else pack.entry_bs + b_offset
     t0 = pack_t_onset(pack)
     n_t = int(pack.gts.shape[1])
-    v_readout_dsi = trace[rb, t0:t0 + n_t, pack.entry_nodes]
-    if not pack_needs_waveform_mse(pack):
-        return None, v_readout_dsi
     if pack.cost_t0s is None:
-        return v_readout_dsi, v_readout_dsi
-    v_readout = window_time_traces(
+        return trace[rb, t0:t0 + n_t, pack.entry_nodes]
+    return window_time_traces(
         trace, rb, pack.entry_nodes, pack.cost_t0s,
         n_t, t_onset=t0,
     )
-    return v_readout, v_readout_dsi
-
-
-def _pack_cost_dsi_from_v_readout_dsi(
-    pack: Pack,
-    session: TrainSession,
-    bias_gt: torch.Tensor,
-    v_readout_dsi: torch.Tensor,
-) -> Optional[torch.Tensor]:
-    """DSI cost from post-sti traces; independent of cost windows."""
-    if not pack.dsi_part_key or _part_scale(session, pack.dsi_part_key) == 0.0:
-        return None
-    return cost_dsi_from_v_readout_dsi(pack, bias_gt, v_readout_dsi)
 
 
 def _pack_cost_parts_from_v_readout(
@@ -564,7 +515,6 @@ def _pack_cost_parts_from_v_readout(
     a_gt: torch.Tensor,
     bias_gt: torch.Tensor,
     v_readout: Optional[torch.Tensor],
-    v_readout_dsi: torch.Tensor,
 ) -> Dict[str, torch.Tensor]:
     parts: Dict[str, torch.Tensor] = {}
     part_idxs, part_keys = entries_by_part(pack)
@@ -584,11 +534,6 @@ def _pack_cost_parts_from_v_readout(
                     time_mask=time_mask,
                 )
             )
-    dsi_part = _pack_cost_dsi_from_v_readout_dsi(
-        pack, session, bias_gt, v_readout_dsi,
-    )
-    if dsi_part is not None and pack.dsi_part_key:
-        parts[pack.dsi_part_key] = dsi_part
     return parts
 
 
@@ -615,11 +560,10 @@ def _pack_cost_forward(params, pack: Pack, session: TrainSession, b=None):
         t0 = pack_t_onset(pack)
         n_t = int(pack.gts.shape[1])
         u_m = pack.entry_nodes[mask]
-        v_readout_dsi = trace[0, t0:t0 + n_t, u_m].transpose(0, 1)
         if not pack_needs_waveform_mse(pack):
             v_readout = None
         elif pack.cost_t0s is None:
-            v_readout = v_readout_dsi
+            v_readout = trace[0, t0:t0 + n_t, u_m].transpose(0, 1)
         else:
             v_readout = window_time_traces(
                 trace, rb, u_m, pack.cost_t0s[mask],
@@ -628,8 +572,8 @@ def _pack_cost_forward(params, pack: Pack, session: TrainSession, b=None):
     else:
         gts = pack.gts
         scale = pack.cost_scales
-        v_readout, v_readout_dsi = _readout_from_trace(trace, pack)
-    return a_gt, bias_gt, gts, scale, v_readout, v_readout_dsi, pd_nd
+        v_readout = _readout_from_trace(trace, pack)
+    return a_gt, bias_gt, gts, scale, v_readout, pd_nd
 
 
 def _pack_cost_parts_from_params(params, pack: Pack, session: TrainSession, b=None):
@@ -637,9 +581,9 @@ def _pack_cost_parts_from_params(params, pack: Pack, session: TrainSession, b=No
     fwd = _pack_cost_forward(params, pack, session, b)
     if fwd is None:
         return {}
-    a_gt, bias_gt, _gt, _scale, v_readout, v_readout_dsi, _pd_nd = fwd
+    a_gt, bias_gt, _gt, _scale, v_readout, _pd_nd = fwd
     return _pack_cost_parts_from_v_readout(
-        pack, session, a_gt, bias_gt, v_readout, v_readout_dsi,
+        pack, session, a_gt, bias_gt, v_readout,
     )
 
 
@@ -663,11 +607,11 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
                 a_gt, bias_gt = gt_affine_from_pack(
                     params, pack, session,
                 )
-                v_readout, v_readout_dsi = _readout_from_trace(
+                v_readout = _readout_from_trace(
                     trace, pack, b_offset=off,
                 )
                 for part_key, part in _pack_cost_parts_from_v_readout(
-                    pack, session, a_gt, bias_gt, v_readout, v_readout_dsi,
+                    pack, session, a_gt, bias_gt, v_readout,
                 ).items():
                     if _part_scale(session, part_key) != 0.0:
                         parts[part_key] = part
@@ -699,19 +643,6 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
                         params, active_pack, session, b=b,
                     ).items():
                         pack_parts[part_key] = pack_parts.get(part_key, zero) + part
-            dsi_part_key = pack.dsi_part_key
-            if dsi_part_key and _part_scale(session, dsi_part_key) != 0.0:
-                for b_set in _dsi_sequential_b_sets(pack, session):
-                    active_pack = _dsi_b_set_pack(pack, session, b_set)
-                    if active_pack is None:
-                        continue
-                    dsi_parts = _pack_cost_parts_from_params(
-                        params, active_pack, session, b=None,
-                    )
-                    if dsi_part_key in dsi_parts:
-                        pack_parts[dsi_part_key] = (
-                            pack_parts.get(dsi_part_key, zero) + dsi_parts[dsi_part_key]
-                        )
         else:
             active_pack = _active_cost_pack(pack, session, bs=active_bs)
             if active_pack is None:
@@ -751,41 +682,6 @@ def calc_cost(z, session: TrainSession, parts=None):
     return _scaled_cost_from_parts(parts, session)
 
 
-def _pack_spec_tokens(session: TrainSession, pack: Pack) -> Tuple[str, ...]:
-    opts = ((session.train_opts or {}).get(f"{pack.task}_sti_opts")) or {}
-    spec_tokens = opts.get("spec_tokens")
-    if spec_tokens:
-        return tuple(str(token) for token in spec_tokens)
-    return tuple(spec.token for spec in bar_specs_from_task(session, pack.task))
-
-
-def _dsi_sequential_b_sets(
-    pack: Pack, session: TrainSession,
-) -> Tuple[Tuple[int, ...], ...]:
-    """Active DSI b_sets: each b_set is one axis x w (typically B=2)."""
-    active = set(_pack_active_bs(pack, session))
-    b_sets: list[tuple[int, ...]] = []
-    for b_set in dsi_sequential_b_sets(_pack_spec_tokens(session, pack)):
-        kept = tuple(b for b in b_set if b in active)
-        if len(kept) < 2:
-            continue
-        b_sets.append(kept)
-    return tuple(b_sets)
-
-
-def _dsi_b_set_pack(
-    pack: Pack,
-    session: TrainSession,
-    b_set: Tuple[int, ...],
-) -> Optional[Pack]:
-    """Pack for one DSI ``b_set``; keep parent ``dsi_power`` for additive costs."""
-    dsi_power = pack.dsi_power
-    pack = _active_cost_pack(pack, session, bs=b_set)
-    if pack is None or dsi_power is None:
-        return pack
-    return replace(pack, dsi_power=dsi_power)
-
-
 def _iter_cost_bs(session: TrainSession):
     """Yield ``(pack, b)`` for gradient part sums."""
     for pack in session.iter_packs():
@@ -800,12 +696,6 @@ def _iter_cost_bs(session: TrainSession):
                     active_pack = _active_cost_pack(pack, session, b=b)
                     if active_pack is not None:
                         yield active_pack, b
-            dsi_part_key = pack.dsi_part_key
-            if dsi_part_key and _part_scale(session, dsi_part_key) != 0.0:
-                for b_set in _dsi_sequential_b_sets(pack, session):
-                    active_pack = _dsi_b_set_pack(pack, session, b_set)
-                    if active_pack is not None:
-                        yield active_pack, None
         else:
             active_pack = _active_cost_pack(pack, session, bs=active_bs)
             if active_pack is not None:
@@ -827,16 +717,9 @@ def backward_part_sums(z, session: TrainSession):
         params = params_from_z(z, session)
         mb_loss = zero
         has_loss = False
-        dsi_only = session.sequential and b is None
-        dsi_part_key = pack.dsi_part_key
         for part_key, part in _pack_cost_parts_from_params(
             params, pack, session, b=b,
         ).items():
-            if dsi_only and part_key != dsi_part_key:
-                continue
-            if (not dsi_only) and session.sequential and part_key == dsi_part_key:
-                # single-b slices have no complete DSI groups; skip zeros
-                continue
             scale = _part_scale(session, part_key)
             if scale == 0.0:
                 continue
