@@ -7,6 +7,8 @@ alwaysApply: true
 This document defines a strict, non-overlapping meaning for selected terms used across `vision/`.
 Only words with an unambiguous single definition are included here.
 
+**Write-time gate:** follow Step 1–5 in `.cursor/rules/lexicon-gate.mdc`; lookup headwords and **Forbidden** here during Step 2–3.
+
 ## How to judge a word (mandatory)
 
 When asked whether a word fits this lexicon or “has a definition,” judge **meaning in `vision/` code**, not whether the token appears in lexicon.

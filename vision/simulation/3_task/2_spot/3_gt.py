@@ -45,10 +45,6 @@ def build_rf(cell: str) -> np.ndarray:
     return np.asarray(RF_SCALE[cell], dtype=np.float64).copy()
 
 
-def spot_gt_active(spread_gt_mode: str, contrast: str, rf_sign: int) -> bool:
-    return spread_gt_active(spread_gt_mode, contrast, rf_sign)
-
-
 def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="none"):
     if t_onset is None or n_t is None:
         raise ValueError("load_rf_ir requires t_onset and n_t")
@@ -78,15 +74,15 @@ def _gt_from_rf_ir(rf: np.ndarray, ir: np.ndarray) -> np.ndarray:
     return gt
 
 
-def _spot_gt(
-    contrast: str,
+def load_gt(
     *,
+    contrast: str,
     t_onset=None,
     n_t=None,
     ms_sti=None,
     delta_ms: float,
     filter="none",
-    spread_gt_mode: str = "all",
+    spread_gt_mode: str,
 ) -> np.ndarray:
     gts = _gt_from_rf_ir(*load_rf_ir(
         t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms, filter=filter,
@@ -94,43 +90,11 @@ def _spot_gt(
     gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
     for cell in GT_CELLS:
         rf_sign = int(RF_SIGN[cell])
-        if not spot_gt_active(spread_gt_mode, contrast, rf_sign):
+        if not spread_gt_active(spread_gt_mode, contrast, rf_sign):
             gts[gt_cell_idx[cell]] = 0.0
         else:
             gts[gt_cell_idx[cell]] *= gt_sign(contrast, rf_sign)
     return gts
-
-
-def load_gt(
-    *,
-    t_onset=None,
-    n_t=None,
-    ms_sti=None,
-    delta_ms: float,
-    filter="none",
-    spread_gt_mode: str = "all",
-):
-    return _spot_gt(
-        "bright",
-        t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
-        filter=filter, spread_gt_mode=spread_gt_mode,
-    )
-
-
-def load_gt_dark(
-    *,
-    t_onset=None,
-    n_t=None,
-    ms_sti=None,
-    delta_ms: float,
-    filter="none",
-    spread_gt_mode: str = "all",
-):
-    return _spot_gt(
-        "dark",
-        t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
-        filter=filter, spread_gt_mode=spread_gt_mode,
-    )
 
 
 def _spot_readout_a_radius(

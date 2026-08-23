@@ -14,7 +14,6 @@ import torch
 
 import train
 from neuron.borst import t_from_ms
-from config import SPREAD_GT
 
 from figure.spread import (
     TraceReadout,
@@ -77,7 +76,6 @@ from task.spot.gt import (
     RF_N_RADII,
     RF_RADIUS_DEG,
     load_gt,
-    load_gt_dark,
     t_delay_from_ir,
 )
 
@@ -134,7 +132,6 @@ def spot_gts(
     ms_sti=None,
     delta_ms=None,
     filter="none",
-    spread_gt_mode=None,
 ):
     """Spot gts ``{contrast: {cell: gt}}``."""
     task = task or session.primary_pack.task
@@ -144,12 +141,7 @@ def spot_gts(
         filter = str((session.train_opts or {}).get("filter", "none"))
     else:
         filter = str(filter)
-    if spread_gt_mode is None:
-        spread_gt_mode = str(
-            (session.train_opts or {}).get("spread_gt_mode", SPREAD_GT['spread_gt_mode']),
-        )
-    else:
-        spread_gt_mode = str(spread_gt_mode)
+    spread_gt_mode = str((session.train_opts or {})["spread_gt_mode"])
     delta_ms = float(session.delta_ms if delta_ms is None else delta_ms)
     gt_amp = float(session.gt_amp)
     cell_idx = {cell: index for index, cell in enumerate(GT_CELLS)}
@@ -160,8 +152,8 @@ def spot_gts(
             raise ValueError(
                 f"unknown contrast {contrast!r}; expected one of {CONTRASTS}"
             )
-        load = load_gt_dark if contrast == "dark" else load_gt
-        gt_rows = load(
+        gt_rows = load_gt(
+            contrast=contrast,
             t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter, spread_gt_mode=spread_gt_mode,
         ) * gt_amp

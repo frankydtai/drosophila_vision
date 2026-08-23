@@ -25,8 +25,8 @@ Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 **within each part**. The train total averages those part costs (equal
 scale per cell×radius unless ``part_cost_scales`` says otherwise).
 
-Sparse cost time points (#4): ``pack.gts`` stays the ``ms_response`` window length
-(spot excludes ``ms_post``) and the subsample is gathered from both v_readout
+Sparse cost time points (#4): ``pack.gts`` keeps the ``ms_response`` window length
+(task-specific ``ms_post`` handling lives in each pack) and the subsample is gathered from both v_readout
 trace and gt at cost time via ``pack.cost_ts`` (from ``cost_ms``: interval
 scalar or explicit ``mss``; same times for every radius). ``gt_power`` is
 recomputed on the subsample.
@@ -249,13 +249,21 @@ def _part_scale(session: TrainSession, part_key: str) -> float:
     return float((session.part_cost_scales or {}).get(part_key, 1.0))
 
 
+def _entry_cost_scales(pack: TaskPack) -> torch.Tensor:
+    scales = getattr(pack, "cost_scales", None)
+    if scales is not None:
+        return scales
+    n_cost = int(pack.entry_nodes.shape[0])
+    return torch.ones(n_cost, dtype=pack.gts.dtype, device=pack.gts.device)
+
+
 def entries_by_part(pack: TaskPack) -> Tuple[torch.Tensor, List[str]]:
     """``(part_idxs, part_keys)`` from ``pack.entry_part_keys``; one CPU sync."""
     n = int(pack.entry_nodes.shape[0])
     keys = pack.entry_part_keys
     if not keys or len(keys) != n:
         raise ValueError(f"pack {pack.task!r} missing entry_part_keys (n_cost={n})")
-    entry_cost_scales = pack.cost_scales.detach().cpu().numpy()
+    entry_cost_scales = _entry_cost_scales(pack).detach().cpu().numpy()
     part_idxs: Dict[str, int] = {}
     part_keys: List[str] = []
     part_idxs_np = np.full(n, -1, dtype=np.int64)
@@ -369,12 +377,14 @@ def _pack_entry_fields(
     """Indexed cost-entry tensors for ``replace``."""
     fields = {
         "gts": pack.gts[sel],
-        "cost_scales": pack.cost_scales[sel],
         "entry_bs": (
             pack.entry_bs[sel] if entry_bs is None else entry_bs
         ),
         "entry_nodes": pack.entry_nodes[sel],
     }
+    cost_scales = getattr(pack, "cost_scales", None)
+    if cost_scales is not None:
+        fields["cost_scales"] = cost_scales[sel]
     for field in ("cost_t0s", "entry_radii", "cost_sti_us", "cost_sti_vs", "cost_pd_nds"):
         if getattr(pack, field, None) is not None:
             fields[field] = getattr(pack, field)[sel]
@@ -494,7 +504,7 @@ def _pack_cost_parts_from_v_readout(
         gts = gts.index_select(1, cost_ts)
     cost_time_mask = getattr(pack, "cost_time_mask", None)
     return _parts_from_entries(
-        a_gt, bias_gt, gts, pack.cost_scales, v_readout,
+        a_gt, bias_gt, gts, _entry_cost_scales(pack), v_readout,
         part_idxs, part_keys, session,
         time_mask=(
             None if cost_time_mask is None else

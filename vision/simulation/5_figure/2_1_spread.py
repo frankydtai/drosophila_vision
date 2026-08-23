@@ -9,8 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from config import SPREAD_GT
-
 import train
 from neuron.borst import t_abs_from_ms, ms_from_t
 from figure.panel import (
@@ -111,7 +109,6 @@ def spread_gts(
     ms_sti=None,
     delta_ms=None,
     filter="none",
-    spread_gt_mode=None,
 ):
     """Spread gts ``{contrast: {cell: gt}}`` (ir-only)."""
     task = task or session.primary_pack.task
@@ -121,12 +118,7 @@ def spread_gts(
         filter = str((session.train_opts or {}).get("filter", "none"))
     else:
         filter = str(filter)
-    if spread_gt_mode is None:
-        spread_gt_mode = str(
-            (session.train_opts or {}).get("spread_gt_mode", SPREAD_GT['spread_gt_mode']),
-        )
-    else:
-        spread_gt_mode = str(spread_gt_mode)
+    spread_gt_mode = str((session.train_opts or {})["spread_gt_mode"])
     delta_ms = float(session.delta_ms if delta_ms is None else delta_ms)
     gt_amp = float(session.gt_amp)
     cell_idx = {cell: index for index, cell in enumerate(GT_CELLS)}

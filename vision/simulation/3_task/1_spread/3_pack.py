@@ -15,7 +15,6 @@ from network.construction import (
     cost_radius_mask,
     gt_cells_from_opts,
     node_cells,
-    standardize_cost_radius,
 )
 from neuron.borst import t_from_ms
 from task.spread.gt import (
@@ -45,10 +44,8 @@ class SpreadPack:
     contrast: str
     i_sti: torch.Tensor  # (B, T, N)
     gts: torch.Tensor  # (n_cost, T')
-    cost_scales: torch.Tensor  # (n_cost,)
     entry_bs: torch.Tensor  # (n_cost,)
     entry_nodes: torch.Tensor  # (n_cost,)
-    cost_radius: Optional[int] = None
     cost_ts: Optional[torch.Tensor] = None
     t_onset: Optional[int] = None
     entry_part_keys: Tuple[str, ...] = ()
@@ -62,7 +59,6 @@ def part_key(contrast: str, cell: str) -> str:
 def _spread_cost_part_plot_specs(
     entry_part_keys: Sequence[str],
     entry_nodes: torch.Tensor,
-    cost_scales: torch.Tensor,
     connectome,
     contrast: str,
 ) -> Dict[str, CostPartPlotSpec]:
@@ -70,8 +66,6 @@ def _spread_cost_part_plot_specs(
     node_cells = connectome.node_cells[entry_nodes].detach().cpu().numpy()
     cells = connectome.cells
     for entry, part_key in enumerate(entry_part_keys):
-        if float(cost_scales[entry]) <= 0.0:
-            continue
         if part_key in specs:
             continue
         cell = str(cells[int(node_cells[entry])])
@@ -107,11 +101,9 @@ def build_spread_gt(
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
     filter: str = "none",
-    spread_gt_mode: str = "all",
-    cost_radius=None,
+    spread_gt_mode: str,
 ) -> SpreadGt:
     device = device or connectome.device
-    cost_radius = standardize_cost_radius(cost_radius)
     if ms_response is None:
         raise ValueError("build_spread_gt requires ms_response")
     n_t_gt = int(t_onset) + t_from_ms(float(ms_response), delta_ms=float(delta_ms)) + 1
@@ -136,7 +128,7 @@ def build_spread_gt(
     if not gt_cells:
         raise ValueError(f"spread has no gt cells (requested subset of {list(GT_CELLS)!r})")
     cells = node_cells(connectome)
-    hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
+    hexes = cost_sti_hexes(connectome)
     i_sti_pulse = torch.as_tensor(
         (float(i_sti) - i_baseline) * sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms),
         dtype=sim_dtype,
@@ -159,7 +151,7 @@ def build_spread_gt(
                 gts.append(gt)
                 entry_part_keys.append(part_key(contrast, cell))
     if not entry_nodes:
-        raise ValueError("no spread cost nodes (check cost_radius and gt cells)")
+        raise ValueError("no spread cost nodes (check gt cells)")
     gts = torch.tensor(np.asarray(gts), dtype=sim_dtype, device=device)
     entry_nodes = torch.tensor(entry_nodes, dtype=torch.long, device=device)
     return SpreadGt(
@@ -280,28 +272,30 @@ def build_spread_pack(
     device: str,
     sim_dtype: torch.dtype,
     i_sti: Dict[str, float],
-    spread_sti_opts: Optional[dict],
-    filter: str,
-    spread_gt_mode: str,
-    cost_ms,
+    sti_opts: Optional[dict],
+    opts: dict,
 ) -> Tuple[SpreadPack, dict, str]:
-    if not spread_sti_opts:
+    from config import TRAIN_OPTIMIZATION
+
+    if not sti_opts:
         raise ValueError("spread requires sti opts (from resolve_train_opts / CLI)")
-    opts = dict(spread_sti_opts)
-    ms_sti = opts.get("ms_sti")
-    ms_response = opts.get("ms_response")
+    sti_opts = dict(sti_opts)
+    spread_gt_mode = str(opts["spread_gt_mode"])
+    cost_ms = opts.get("cost_ms", TRAIN_OPTIMIZATION["cost_ms"])
+    filter = str(opts.get("filter", "none"))
+    ms_sti = sti_opts.get("ms_sti")
+    ms_response = sti_opts.get("ms_response")
     if ms_sti is not None and ms_response is not None:
-        opts["ms_response"] = max(float(ms_response), float(ms_sti))
+        sti_opts["ms_response"] = max(float(ms_response), float(ms_sti))
     for key in ("ms_pre", "ms_response", "delta_ms", "delta_ms_pre"):
-        if opts.get(key) is None:
+        if sti_opts.get(key) is None:
             raise ValueError(f"spread sti opts require {key}")
-    ms_pre = float(opts["ms_pre"])
-    ms_response = float(opts["ms_response"])
-    delta_ms = float(opts["delta_ms"])
-    delta_ms_pre = float(opts["delta_ms_pre"])
-    ms_post = float(opts.get("ms_post", 0.0))
-    ms_sti = opts.get("ms_sti")
-    cost_radius = standardize_cost_radius(opts.get("cost_radius"))
+    ms_pre = float(sti_opts["ms_pre"])
+    ms_response = float(sti_opts["ms_response"])
+    delta_ms = float(sti_opts["delta_ms"])
+    delta_ms_pre = float(sti_opts["delta_ms_pre"])
+    ms_post = float(sti_opts.get("ms_post", 0.0))
+    ms_sti = sti_opts.get("ms_sti")
     device = device or connectome.device
     t_onset = int(t_from_ms(ms_pre, delta_ms=delta_ms_pre))
     n_t = int(
@@ -323,25 +317,19 @@ def build_spread_pack(
         sim_dtype=sim_dtype,
         ms_sti=ms_sti,
         ms_response=ms_response,
-        gt_cells=gt_cells_from_opts(opts),
-        filter=str(filter),
-        spread_gt_mode=str(spread_gt_mode),
-        cost_radius=cost_radius,
-    )
-    cost_scales = torch.ones(
-        spread_gt.gts.shape[0], dtype=sim_dtype, device=spread_gt.gts.device,
+        gt_cells=gt_cells_from_opts(sti_opts),
+        filter=filter,
+        spread_gt_mode=spread_gt_mode,
     )
     pack = SpreadPack(
         task="spread",
         contrast=contrast,
         i_sti=spread_gt.i_sti,
         gts=spread_gt.gts,
-        cost_scales=cost_scales,
         entry_bs=spread_gt.entry_bs,
         entry_nodes=spread_gt.entry_nodes,
-        cost_radius=cost_radius,
         cost_ts=build_cost_ts(
-            opts,
+            sti_opts,
             cost_ms=cost_ms,
             device=device,
         ),
@@ -350,14 +338,13 @@ def build_spread_pack(
         cost_part_plot_specs=_spread_cost_part_plot_specs(
             spread_gt.entry_part_keys,
             spread_gt.entry_nodes,
-            cost_scales,
             connectome,
             contrast,
         ),
     )
     return (
         pack,
-        dict(opts),
+        dict(sti_opts),
         f"spread {contrast} ({int(spread_gt.gts.shape[0])} cost nodes, "
-        f"{cost_hex_label(cost_radius, spread_gt.n_cost_hex)})",
+        f"{int(spread_gt.n_cost_hex)} cost hexes)",
     )

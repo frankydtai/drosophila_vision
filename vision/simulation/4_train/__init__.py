@@ -12,14 +12,9 @@ from __future__ import annotations
 from config import (
     ANALYZE_CELL_DYNAMICS,
     MODEL,
-    MBAR_INPUT_GEO,
-    MBAR_INPUT_SPEC,
     NEURON_FORWARD,
     NEURON_SCHEMA,
     NETWORK_PATH,
-    SPOT_INPUT_GEO,
-    SPREAD_INPUT_SPEC,
-    SPREAD_GT,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
     TRAIN_SESSION,
@@ -50,8 +45,6 @@ from neuron import (
 )
 
 from task.spread.sti_spec import CONTRASTS
-from task.spread.pack import cost_hex_label
-from task.mbar.sti_spec import PD_ND_LABELS
 from train.param import (
     PAIR_SEP,
     PARAM_MODES,
@@ -85,17 +78,16 @@ from train.param import (
 from train.session import (
     TaskPack,
     TrainSession,
-    TASKS,
     load_train_connectome,
     resolve_train_opts,
     resolve_i_sti,
     open_session,
     resolve_session,
     session_from_run_dir,
-    resolve_gt_cells_by_task,
     resolve_cell_idxs,
     run_data_dir,
 )
+from task.implementation import TASKS, resolve_gt_cells_by_task
 from train.cost import (
     COST_NORMS,
     FusedPacks,
@@ -116,7 +108,3 @@ from train.optimization import (
     gradient_network,
     optimize_staged,
 )
-
-from task.spot.pack import build_spot_sti_opts
-from task.mbar.pack import build_mbar_sti_opts
-from task.mbar.sti_spec import i_baseline_from_i_sti

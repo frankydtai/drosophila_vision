@@ -22,7 +22,7 @@ from network.construction import (
     standardize_cost_radius,
 )
 from neuron.borst import t_from_ms
-from task.spread.gt import GT_CELLS, RF_SIGN, gt_sign
+from task.spread.gt import GT_CELLS, RF_SIGN, gt_sign, spread_gt_active
 from task.spread.pack import (
     CostPartPlotSpec,
     build_cost_ts,
@@ -32,7 +32,6 @@ from task.spread.sti_spec import i_baseline_from_i_sti, sti_mask
 from task.spot.gt import (
     _spot_readout_a_radius,
     load_rf_ir,
-    spot_gt_active,
 )
 from task.spot.sti_geo import (
     SpotB,
@@ -99,6 +98,11 @@ def build_a_sti_radius_mask(
         0.0 if cost_radius_scales.get(radius, 0.0) == 0.0 else 1.0
         for radius in a_sti_radii
     )
+
+
+def spot_a_sti_radii() -> tuple[int, ...]:
+    from config import SPOT_PACK
+    return tuple(int(radius) for radius in SPOT_PACK["a_sti_radii"])
 
 
 # -- Cost hexes / network readout --------------------------------------------
@@ -233,6 +237,12 @@ class SpotPack:
     entry_part_keys: Tuple[str, ...] = ()
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
 
+    def forward_i_sti(self) -> torch.Tensor:
+        i_sti = self.i_sti
+        if i_sti.dim() == 3 and int(i_sti.shape[0]) == 1:
+            return i_sti.squeeze(0)
+        return i_sti
+
 
 def build_spot_gt(
     connectome,
@@ -257,7 +267,7 @@ def build_spot_gt(
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
     filter: str = "none",
-    spread_gt_mode: str = "all",
+    spread_gt_mode: str,
 ) -> SpotGt:
     i_baseline = float(i_baseline)
     device = device or connectome.device
@@ -338,7 +348,7 @@ def build_spot_gt(
             if len(nodes) == 0:
                 continue
             rf_sign = int(RF_SIGN[gt_cell])
-            if not spot_gt_active(spread_gt_mode, contrast, rf_sign):
+            if not spread_gt_active(spread_gt_mode, contrast, rf_sign):
                 continue
             cache_digest = (int(radius), gt_idx)
             if cache_digest not in trace_cache:
@@ -431,33 +441,20 @@ def build_spot_sti_opts(
     return opts
 
 
-def resolve_spot_sti_opts(opts, *, shift_radius, spot_radius, multi_spot, fully_inside, **_):
-    sti_opts = build_spot_sti_opts(
+def resolve_spot_sti_opts(opts, **_):
+    return build_spot_sti_opts(
         ms_pre=opts["ms_pre"],
         ms_response=opts["ms_response"],
         ms_post=opts["ms_post"],
         delta_ms=opts["delta_ms"],
         delta_ms_pre=opts["delta_ms_pre"],
-        shift_radius=(
-            shift_radius if shift_radius is not None else opts["shift_radius"]
-        ),
-        spot_radius=(
-            spot_radius if spot_radius is not None else opts["spot_radius"]
-        ),
-        multi_spot=(
-            multi_spot if multi_spot is not None else opts["multi_spot"]
-        ),
-        fully_inside=(
-            fully_inside if fully_inside is not None else opts["fully_inside"]
-        ),
-        ms_sti=opts["ms_sti"],
+        shift_radius=opts["shift_radius"],
+        spot_radius=opts["spot_radius"],
+        multi_spot=opts["multi_spot"],
+        fully_inside=opts["fully_inside"],
+        ms_sti=opts.get("ms_sti"),
         gt_cells=opts.get("gt_cells"),
     )
-    sti_opts["shift_radius"] = shift_radius
-    sti_opts["spot_radius"] = spot_radius
-    sti_opts["multi_spot"] = multi_spot
-    sti_opts["fully_inside"] = fully_inside
-    return sti_opts
 
 
 def build_spot_pack(
@@ -468,35 +465,38 @@ def build_spot_pack(
     device: str,
     sim_dtype: torch.dtype,
     i_sti: Dict[str, float],
-    spot_sti_opts: Optional[dict],
-    filter: str,
-    spread_gt_mode: str,
-    cost_ms,
-    cost_radius_scales: Dict[int, float],
-    spot_cost_radii: Tuple[int, ...],
-    a_sti_radii: Tuple[int, ...],
+    sti_opts: Optional[dict],
+    opts: dict,
 ) -> Tuple[SpotPack, dict, str]:
-    if not spot_sti_opts:
+    from config import SPOT_PACK, TRAIN_OPTIMIZATION
+
+    if not sti_opts:
         raise ValueError("spot requires sti opts (from resolve_train_opts / CLI)")
-    opts = dict(spot_sti_opts)
-    ms_sti = opts.get("ms_sti")
-    ms_response = opts.get("ms_response")
+    sti_opts = dict(sti_opts)
+    filter = str(opts.get("filter", "none"))
+    spread_gt_mode = str(opts["spread_gt_mode"])
+    cost_ms = opts.get("cost_ms", TRAIN_OPTIMIZATION["cost_ms"])
+    cost_radius_scales = SPOT_PACK["spot_cost_radius_scale"]
+    spot_cost_radii = SPOT_PACK["spot_cost_radii"]
+    a_sti_radii = spot_a_sti_radii()
+    ms_sti = sti_opts.get("ms_sti")
+    ms_response = sti_opts.get("ms_response")
     if ms_sti is not None and ms_response is not None:
-        opts["ms_response"] = max(float(ms_response), float(ms_sti))
+        sti_opts["ms_response"] = max(float(ms_response), float(ms_sti))
     for key in ("ms_pre", "ms_response", "delta_ms", "delta_ms_pre"):
-        if opts.get(key) is None:
+        if sti_opts.get(key) is None:
             raise ValueError(f"spot sti opts require {key}")
-    ms_pre = float(opts["ms_pre"])
-    ms_response = float(opts["ms_response"])
-    delta_ms = float(opts["delta_ms"])
-    delta_ms_pre = float(opts["delta_ms_pre"])
-    ms_post = float(opts.get("ms_post", 0.0))
-    ms_sti = opts.get("ms_sti")
-    cost_radius = standardize_cost_radius(opts.get("cost_radius"))
-    shift_radius = opts["shift_radius"]
-    spot_radius = opts["spot_radius"]
-    multi_spot = opts["multi_spot"]
-    fully_inside = opts["fully_inside"]
+    ms_pre = float(sti_opts["ms_pre"])
+    ms_response = float(sti_opts["ms_response"])
+    delta_ms = float(sti_opts["delta_ms"])
+    delta_ms_pre = float(sti_opts["delta_ms_pre"])
+    ms_post = float(sti_opts.get("ms_post", 0.0))
+    ms_sti = sti_opts.get("ms_sti")
+    cost_radius = standardize_cost_radius(sti_opts.get("cost_radius"))
+    shift_radius = sti_opts["shift_radius"]
+    spot_radius = sti_opts["spot_radius"]
+    multi_spot = sti_opts["multi_spot"]
+    fully_inside = sti_opts["fully_inside"]
     device = device or connectome.device
     t_onset = int(t_from_ms(ms_pre, delta_ms=delta_ms_pre))
     n_t = int(
@@ -526,13 +526,13 @@ def build_spot_pack(
         delta_ms=delta_ms,
         cost_radius_scales=cost_radius_scales,
         spot_cost_radii=spot_cost_radii,
-        gt_cells=gt_cells_from_opts(opts),
+        gt_cells=gt_cells_from_opts(sti_opts),
         filter=str(filter),
         spread_gt_mode=str(spread_gt_mode),
     )
     i_sti, i_sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs = build_spot_a_sti_radius_drive(
         connectome,
-        spot_sti_bs(resolve_spot(connectome, sti_opts=opts)),
+        spot_sti_bs(resolve_spot(connectome, sti_opts=sti_opts)),
         a_sti_radii=a_sti_radii,
         t_onset=int(t_onset),
         n_t=int(n_t),
@@ -556,7 +556,7 @@ def build_spot_pack(
         cost_radius=cost_radius,
         entry_radii=spot_gt.entry_radii,
         cost_ts=None if int(spot_gt.entry_radii.shape[0]) == 0 else build_cost_ts(
-            opts, cost_ms=cost_ms, device=device,
+            sti_opts, cost_ms=cost_ms, device=device,
         ),
         t_onset=int(t_onset),
         i_sti_pulse=i_sti_pulse,
@@ -578,7 +578,7 @@ def build_spot_pack(
             contrast,
         ),
     )
-    return pack, dict(opts), (
+    return pack, dict(sti_opts), (
         f"spot {contrast} (B={spot_gt.n_b} stis [{spot_gt.n_center} centers simultaneous "
         f"x {spot_gt.n_shift} shifts], {int(spot_gt.gts.shape[0])} cost nodes, "
         f"{cost_hex_label(cost_radius, spot_gt.n_cost_hex)})"

@@ -378,7 +378,6 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
 
     syn_mode = str(NEURON_SCHEMA["syn_mode"])
     filter = str(NEURON_SCHEMA["filter"])
-    spread_gt_mode = str(SPREAD_GT["spread_gt_mode"])
     val_from = train.resolve_val_from(VAL_FROM)
     val_from_opts = {"val_from": val_from}
     if filter != "ca":
@@ -407,7 +406,13 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         "delta_ms": timing["delta_ms"],
         "delta_ms_pre": timing["delta_ms_pre"],
     }
-    spot_sti_opts = dict(timing)
+    spot_sti_opts = {
+        **timing,
+        "shift_radius": SPOT_INPUT_GEO["shift_radius"],
+        "spot_radius": SPOT_INPUT_GEO["spot_radius"],
+        "multi_spot": SPOT_INPUT_GEO["multi_spot"],
+        "fully_inside": SPOT_INPUT_GEO["fully_inside"],
+    }
     spread_sti_opts = dict(timing)
 
     cost_ms = TRAIN_OPTIMIZATION["cost_ms"]
@@ -446,10 +451,6 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         cost_norm=str(TRAIN_OPTIMIZATION["cost_norm"]),
         cost_ms=cost_ms,
         cost_radius=cost_radius,
-        shift_radius=SPOT_INPUT_GEO["shift_radius"],
-        spot_radius=SPOT_INPUT_GEO["spot_radius"],
-        multi_spot=SPOT_INPUT_GEO["multi_spot"],
-        fully_inside=SPOT_INPUT_GEO["fully_inside"],
         mbar_sti_opts=mbar_sti_opts,
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
@@ -461,7 +462,6 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         pre_grad=bool(NEURON_FORWARD["pre_grad"]),
         val_from=val_from,
         filter=filter,
-        spread_gt_mode=spread_gt_mode,
         sequential=bool(TRAIN_SESSION["sequential"]),
         init_from=init_from,
         checkpoint_interval=TRAIN_OPTIMIZATION.get("checkpoint_interval"),

@@ -521,40 +521,31 @@ def build_mbar_pack(
     device: str,
     sim_dtype: torch.dtype,
     i_sti: Dict[str, float],
-    mbar_sti_opts: Optional[dict],
-    filter: str,
-    delta_ms: float,
-    delta_ms_pre: float,
-    ms_pre,
-    multi_bar: bool,
+    sti_opts: Optional[dict],
+    opts: dict,
 ):
+    if not sti_opts:
+        raise ValueError("mbar requires sti opts (from resolve_train_opts / CLI)")
     device = device or connectome.device
-    opts = mbar_sti_opts(
-        mbar_sti_opts,
-        ms_pre=ms_pre,
-        delta_ms=delta_ms,
-        delta_ms_pre=delta_ms_pre,
-        multi_bar=multi_bar,
-    )
-    cost_radius = standardize_cost_radius(opts.get("cost_radius"))
+    sti_opts = dict(sti_opts)
+    cost_radius = standardize_cost_radius(sti_opts.get("cost_radius"))
     mbar_gt = build_mbar_gt(
         connectome=connectome,
         device=device,
         sim_dtype=sim_dtype,
         t_onset=t_from_ms(
-            float(opts["ms_pre"]),
-            delta_ms=float(opts["delta_ms_pre"]),
+            float(sti_opts["ms_pre"]),
+            delta_ms=float(sti_opts["delta_ms_pre"]),
         ),
-        delta_ms=float(opts["delta_ms"]),
+        delta_ms=float(sti_opts["delta_ms"]),
         cost_radius=cost_radius,
         i_baseline=i_baseline_from_i_sti(i_sti),
         i_sti=float(i_sti[contrast]),
         contrasts=(contrast,),
-        gt_cells=gt_cells_from_opts(opts),
-        multi_bar=bool(opts.get("multi_bar", multi_bar)),
+        gt_cells=gt_cells_from_opts(sti_opts),
+        multi_bar=bool(sti_opts.get("multi_bar", True)),
         waveform_mse=True,
     )
-    sti_opts = dict(opts)
     sti_opts["n_t"] = int(mbar_gt.n_t)
     sti_opts["spec_tokens"] = list(mbar_gt.spec_tokens)
     if cost_radius is not None:

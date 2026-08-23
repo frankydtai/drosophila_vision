@@ -27,8 +27,6 @@ from config import (
     NETWORK_PATH,
     NEURON_FORWARD,
     NEURON_SCHEMA,
-    SPOT_INPUT_GEO,
-    SPREAD_GT,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
     TRAIN_SESSION,
@@ -96,11 +94,11 @@ def decompose_params(z, session):
     return node_vals
 
 
-def v_spot_mean_cell(z, session):
+def v_readout_mean_cell_pre_onset_sti_end(z, session):
     """Per-cell mean ``v`` at pre / onset / sti_end; add ``v_ca``/``ca`` for ``filter=ca``.
 
     * ``v_pre_mean_cell``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
-    * ``v_onset_mean_cell``: ``t=t_onset`` (``v_rows[t_onset]``), spot onset / end of pre.
+    * ``v_onset_mean_cell``: ``t=t_onset`` (``v_rows[t_onset]``), sti onset / end of pre.
     * ``v_sti_end_mean_cell``: ``t=t_sti_end`` inclusive last on sample
       (``t_sti_end``).
     * ``delta_v_mean_cell``: ``v_sti_end_mean_cell - v_onset_mean_cell``.
@@ -159,7 +157,7 @@ def v_spot_mean_cell(z, session):
             delta_v_mean_cell[cell_idx] = (
                 v_sti_end_mean_cell[cell_idx] - v_onset_mean_cell[cell_idx]
             )
-    spot_v_mean_cell = {
+    v_mean_cell = {
         "v_pre_mean_cell": v_pre_mean_cell,
         "v_onset_mean_cell": v_onset_mean_cell,
         "v_sti_end_mean_cell": v_sti_end_mean_cell,
@@ -187,7 +185,7 @@ def v_spot_mean_cell(z, session):
                 delta_v_ca_mean_cell[cell_idx] = (
                     v_ca_sti_end_mean_cell[cell_idx] - v_ca_onset_mean_cell[cell_idx]
                 )
-        spot_v_mean_cell.update(
+        v_mean_cell.update(
             v_ca_pre_mean_cell=v_ca_pre_mean_cell,
             v_ca_onset_mean_cell=v_ca_onset_mean_cell,
             v_ca_sti_end_mean_cell=v_ca_sti_end_mean_cell,
@@ -214,7 +212,7 @@ def v_spot_mean_cell(z, session):
                 delta_ca_mean_cell[cell_idx] = (
                     ca_sti_end_mean_cell[cell_idx] - ca_onset_mean_cell[cell_idx]
                 )
-        spot_v_mean_cell.update(
+        v_mean_cell.update(
             ca_pre_mean_cell=ca_pre_mean_cell,
             ca_onset_mean_cell=ca_onset_mean_cell,
             ca_sti_end_mean_cell=ca_sti_end_mean_cell,
@@ -229,15 +227,15 @@ def v_spot_mean_cell(z, session):
             lo = param_from_entry("bias_gt", "lo", NEURON_SCHEMA['params'])
             hi = param_from_entry("bias_gt", "hi", NEURON_SCHEMA['params'])
             bias = np.clip(v_onset_mean_cell, lo, hi)
-        spot_v_mean_cell["bias_gt"] = np.asarray(bias, dtype=np.float64)
-    return spot_v_mean_cell
+        v_mean_cell["bias_gt"] = np.asarray(bias, dtype=np.float64)
+    return v_mean_cell
 
 
 def save_param_table(z, session, table_path):
     node_vals = decompose_params(z, session)
-    spot_v_mean_cell = v_spot_mean_cell(z, session)
-    bias_gt = spot_v_mean_cell.pop("bias_gt", None)
-    node_vals.update(spot_v_mean_cell)
+    v_mean_cell = v_readout_mean_cell_pre_onset_sti_end(z, session)
+    bias_gt = v_mean_cell.pop("bias_gt", None)
+    node_vals.update(v_mean_cell)
     opts = session.train_opts or {}
     if train.val_from_enabled(opts, "v_th_ca") and "v_th" in node_vals and "v_th_ca" in node_vals:
         node_vals["v_th_ca"] = np.asarray(node_vals["v_th"], dtype=np.float64).copy()
@@ -637,10 +635,6 @@ def build_session(
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
     cost_ms=None,
     cost_radius=None,
-    shift_radius=SPOT_INPUT_GEO['shift_radius'],
-    spot_radius=SPOT_INPUT_GEO['spot_radius'],
-    multi_spot=SPOT_INPUT_GEO['multi_spot'],
-    fully_inside=SPOT_INPUT_GEO['fully_inside'],
     i_sti=None,
     mbar_sti_opts=None,
     spread_sti_opts=None,
@@ -654,7 +648,6 @@ def build_session(
     pre_grad=NEURON_FORWARD['pre_grad'],
     val_from=None,
     filter=NEURON_SCHEMA['filter'],
-    spread_gt_mode=SPREAD_GT['spread_gt_mode'],
     connectome=None,
     schema=None,
 ):
@@ -680,7 +673,6 @@ def build_session(
             pre_grad=pre_grad,
             val_from=val_from,
             filter=filter,
-            spread_gt_mode=spread_gt_mode,
             tasks=tasks,
             contrasts=contrasts,
             part_cost_scales=part_cost_scales,
@@ -688,10 +680,6 @@ def build_session(
             cost_ms=cost_ms,
             sequential=sequential,
             cost_radius=cost_radius,
-            shift_radius=shift_radius,
-            spot_radius=spot_radius,
-            multi_spot=multi_spot,
-            fully_inside=fully_inside,
             i_sti=i_sti,
             spot_sti_opts=spot_sti_opts,
             spread_sti_opts=spread_sti_opts,
@@ -711,10 +699,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
                  tasks=None, contrasts=None, part_cost_scales=None,
                  cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
                  cost_ms=None,
-                 cost_radius=None, shift_radius=SPOT_INPUT_GEO['shift_radius'],
-                 spot_radius=SPOT_INPUT_GEO['spot_radius'],
-                 multi_spot=SPOT_INPUT_GEO['multi_spot'],
-                 fully_inside=SPOT_INPUT_GEO['fully_inside'],
+                 cost_radius=None,
                  i_sti=None,
                  mbar_sti_opts=None,
                  spread_sti_opts=None,
@@ -724,7 +709,6 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
                  pre_grad=NEURON_FORWARD['pre_grad'],
                  val_from=None,
                  filter=NEURON_SCHEMA['filter'],
-                 spread_gt_mode=SPREAD_GT['spread_gt_mode'],
                  init_from=None,
                  checkpoint_interval=None,
                  build_checkpoint_callback=build_checkpoint_callback,
@@ -744,10 +728,6 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
         cost_norm=cost_norm,
         cost_ms=cost_ms,
         cost_radius=cost_radius,
-        shift_radius=shift_radius,
-        spot_radius=spot_radius,
-        multi_spot=multi_spot,
-        fully_inside=fully_inside,
         i_sti=i_sti,
         mbar_sti_opts=mbar_sti_opts,
         spread_sti_opts=spread_sti_opts,
@@ -763,7 +743,6 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
         pre_grad=pre_grad,
         val_from=val_from,
         filter=filter,
-        spread_gt_mode=spread_gt_mode,
     )
     fname = fname or f"train{('' if model == 'borst' else f'_{model}') or '_with_i_h'}.npy"
     run_dir = run_dir or build_run_dir(model)
