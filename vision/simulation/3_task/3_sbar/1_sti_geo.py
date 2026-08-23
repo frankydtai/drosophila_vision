@@ -38,17 +38,15 @@ class Hex:
 def hex_from_uv(u: int, v: int) -> Hex:
     """Build one FAFB sti hex from axial ``(u, v)``."""
     x, y = xy_from_uv(u, v)
-    x, y = float(x), float(y)
     x_deg, y_deg = xy_deg_from_uv(u, v)
-    x_deg, y_deg = float(x_deg), float(y_deg)
-    vertex_degs = hex_vertices(x_deg, y_deg)
+    vertex_degs = hex_vertices(float(x_deg), float(y_deg))
     return Hex(
         u=int(u),
         v=int(v),
-        x=x,
-        y=y,
-        x_deg=x_deg,
-        y_deg=y_deg,
+        x=float(x),
+        y=float(y),
+        x_deg=float(x_deg),
+        y_deg=float(y_deg),
         vertex_x_degs=np.asarray(vertex_degs[:, 0], dtype=np.float64),
         vertex_y_degs=np.asarray(vertex_degs[:, 1], dtype=np.float64),
     )
@@ -311,8 +309,7 @@ def sti_hexes_at_xy(hexes, *, at_x=None, at_y=None):
 
 def i_sti_nodes_from_hexes(i_sti_hex, hexes, n_node):
     """Map ``(B, T, n_hex)`` i_sti_hex to ``(B, T, n_node)`` by hex->node index."""
-    n_b, n_t, _ = i_sti_hex.shape
-    i_sti = np.zeros((n_b, n_t, n_node), dtype=np.float64)
+    i_sti = np.zeros((i_sti_hex.shape[0], i_sti_hex.shape[1], n_node), dtype=np.float64)
     hex_idxs = []
     nodes = []
     for hex_idx, sti_hex in enumerate(hexes):
@@ -320,7 +317,5 @@ def i_sti_nodes_from_hexes(i_sti_hex, hexes, n_node):
             hex_idxs.append(hex_idx)
             nodes.append(int(node))
     if len(hex_idxs):
-        hex_idxs = np.asarray(hex_idxs, dtype=np.int64)
-        nodes = np.asarray(nodes, dtype=np.int64)
-        i_sti[:, :, nodes] = i_sti_hex[:, :, hex_idxs]
+        i_sti[:, :, np.asarray(nodes, dtype=np.int64)] = i_sti_hex[:, :, np.asarray(hex_idxs, dtype=np.int64)]
     return i_sti

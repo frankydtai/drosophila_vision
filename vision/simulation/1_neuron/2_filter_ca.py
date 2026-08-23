@@ -13,6 +13,4 @@ from __future__ import annotations
 
 def filter_ca(ca, v_ca, *, delta_ms: float, tau_ca):
     """One Ca low-pass step: ``ca ← ca + (dt/tau_ca) (v_ca − ca)``."""
-    dt = float(delta_ms)
-    dt_over_tau_ca = dt / tau_ca
-    return dt_over_tau_ca * (v_ca - ca) + ca
+    return float(delta_ms) / tau_ca * (v_ca - ca) + ca

@@ -203,13 +203,13 @@ def _session_z_from_best_param(session, run_dir):
     import train.implementation as train_mod
 
     node_vals, cells, pairs = train_mod.load_best_node_vals(run_dir)
-    remapped = train.remap_node_vals(
+    node_vals_remapped = train.remap_node_vals(
         node_vals, cells, pairs, train.schema_copy(session.schema), session.connectome,
     )
-    schema = train.schema_with_param_carry(train.schema_copy(session.schema), remapped)
+    schema = train.schema_with_param_carry(train.schema_copy(session.schema), node_vals_remapped)
     session = session.with_schema(schema)
     z = train.z_from_node_vals(
-        remapped, schema, dtype=session.sim_dtype, device=session.device,
+        node_vals_remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return session, z
 
@@ -656,10 +656,10 @@ def parse_at_xs(token):
         return None
     if not isinstance(token, str):
         raise ValueError(f"x/y must be a comma-separated string or null, got {token!r}")
-    vals = [float(x) for x in import_bootstrap.parse_comma_list(token)]
-    if not vals:
+    at_xs = [float(x) for x in import_bootstrap.parse_comma_list(token)]
+    if not at_xs:
         raise ValueError("empty comma-separated at_x/at_y value")
-    return vals
+    return at_xs
 
 
 def parse_align_xy(token):

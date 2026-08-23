@@ -14,11 +14,7 @@ from task.spread.gt import (
     spread_gt_active,
     expand_gt_cells,
     t_delay_from_ir,
-    build_ir_lti,
-    normalize_ir,
-    load_ir_arenz,
 )
-from task.spread.sti_spec import sti_mask
 
 RF_CENTER_RADIUS = 0
 RF_N_RADII = 5
@@ -61,22 +57,18 @@ def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="
     delta_ms = float(delta_ms)
     if delta_ms <= 0:
         raise ValueError(f"delta_ms must be > 0, got {delta_ms}")
-    n_cell = len(GT_CELLS)
-    filter = str(filter)
-    rf = np.zeros((n_cell, RF_N_RADII))
+    rf = np.zeros((len(GT_CELLS), RF_N_RADII))
     gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
     for cell in GT_CELLS:
         rf[gt_cell_idx[cell]] = build_rf(cell)
     ir = load_ir(
-        t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms, filter=filter,
+        t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms, filter=str(filter),
     )
     return rf, ir
 
 
 def _gt_from_rf_ir(rf: np.ndarray, ir: np.ndarray) -> np.ndarray:
-    n_t = ir.shape[1]
-    n_cell = rf.shape[0]
-    gt = np.zeros((n_cell, RF_N_RADII, n_t))
+    gt = np.zeros((rf.shape[0], RF_N_RADII, ir.shape[1]))
     gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
     for cell in GT_CELLS:
         for radius in range(RF_N_RADII):
@@ -96,10 +88,9 @@ def _spot_gt(
     filter="none",
     spread_gt_mode: str = "all",
 ) -> np.ndarray:
-    rf, ir = load_rf_ir(
+    gts = _gt_from_rf_ir(*load_rf_ir(
         t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms, filter=filter,
-    )
-    gts = _gt_from_rf_ir(rf, ir)
+    ))
     gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
     for cell in GT_CELLS:
         rf_sign = int(RF_SIGN[cell])

@@ -2,8 +2,7 @@
 """Spot pack: bind GT numbers to the network for cost.
 
 Cost-radius scales, cost hexes, sti ``i_sti``, and :class:`SpotGt` packing.
-GT traces come from :mod:`task.spot.gt`. ``Pack`` assembly lives here;
-:class:`~task.spread.pack.Pack` is the shared train cost-spec container.
+GT traces come from :mod:`task.spot.gt`. :class:`SpotPack` is spot-specific.
 """
 from __future__ import annotations
 
@@ -23,9 +22,8 @@ from network.construction import (
     standardize_cost_radius,
 )
 from neuron.borst import t_from_ms
-from task.spread.gt import GT_CELLS, RF_SIGN, gt_sign, spread_gt_active
+from task.spread.gt import GT_CELLS, RF_SIGN, gt_sign
 from task.spread.pack import (
-    Pack,
     CostPartPlotSpec,
     build_cost_ts,
     cost_hex_label,
@@ -103,10 +101,6 @@ def build_a_sti_radius_mask(
     )
 
 
-def spot_cost_node_scale(radius: int, cost_radius_scales: Dict[int, float]) -> float:
-    return cost_radius_scales.get(radius, 0.0)
-
-
 # -- Cost hexes / network readout --------------------------------------------
 
 
@@ -140,9 +134,8 @@ def spot_n_cost_hex(cost_hexes):
     n_by_b: Dict[int, int] = {}
     for b, _mu, _mv, _radius, _su, _sv in cost_hexes:
         n_by_b[b] = n_by_b.get(b, 0) + 1
-    vals = set(n_by_b.values())
-    if len(vals) == 1:
-        return next(iter(vals))
+    if len(ns := set(n_by_b.values())) == 1:
+        return next(iter(ns))
     return {b: n_by_b[b] for b in sorted(n_by_b)}
 
 
@@ -215,6 +208,32 @@ class SpotGt:
     entry_part_keys: Tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class SpotPack:
+    """One spot train pack: task×contrast drive + entries + gts."""
+
+    task: str
+    contrast: str
+    i_sti: torch.Tensor
+    gts: torch.Tensor
+    cost_scales: torch.Tensor
+    entry_bs: torch.Tensor
+    entry_nodes: torch.Tensor
+    cost_radius: Optional[int] = None
+    entry_radii: Optional[torch.Tensor] = None
+    cost_sti_us: Optional[torch.Tensor] = None
+    cost_sti_vs: Optional[torch.Tensor] = None
+    cost_ts: Optional[torch.Tensor] = None
+    t_onset: Optional[int] = None
+    i_sti_pulse: Optional[torch.Tensor] = None
+    sti_bs: Optional[torch.Tensor] = None
+    sti_nodes: Optional[torch.Tensor] = None
+    a_sti_radius_idxs: Optional[torch.Tensor] = None
+    a_sti_radius_mask: Optional[torch.Tensor] = None
+    entry_part_keys: Tuple[str, ...] = ()
+    cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
+
+
 def build_spot_gt(
     connectome,
     *,
@@ -241,7 +260,6 @@ def build_spot_gt(
     spread_gt_mode: str = "all",
 ) -> SpotGt:
     i_baseline = float(i_baseline)
-    i_sti = float(i_sti)
     device = device or connectome.device
     if ms_response is None:
         raise ValueError("build_spot_gt requires ms_response")
@@ -279,10 +297,12 @@ def build_spot_gt(
     spot_bs = spot_sti_bs(spot)
     n_b = len(spot_bs)
 
-    # Single sti_mask source (step or finite spot) shared with the ir gt.
-    mask = sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     drive = torch.as_tensor(
-        i_baseline + (i_sti - i_baseline) * mask, dtype=sim_dtype, device=device,
+        i_baseline + (float(i_sti) - i_baseline) * sti_mask(
+            t_onset, n_t, ms_sti, delta_ms=delta_ms,
+        ),
+        dtype=sim_dtype,
+        device=device,
     )
     # All sti hexes hold i_baseline; sti_uv hexes then get the step/spot drive.
     sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
@@ -298,15 +318,18 @@ def build_spot_gt(
 
     resp = slice(t_onset, n_t_gt)  # cost window: response only (no ms_post)
 
-    cost_radii = resolve_spot_cost_radii(cost_radius_scales, spot_cost_radii)
-    cost_hexes = spot_cost_hexes(spot_bs, cost_radii, cost_radius)
+    cost_hexes = spot_cost_hexes(
+        spot_bs,
+        resolve_spot_cost_radii(cost_radius_scales, spot_cost_radii),
+        cost_radius,
+    )
 
     cost_bs, cost_node, entry_radii_vals, cost_readout, cost_scales_vals = [], [], [], [], []
     cost_sti_us, cost_sti_vs = [], []
     entry_part_keys: List[str] = []
     trace_cache: Dict[Tuple[int, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
-        scale = spot_cost_node_scale(radius, cost_radius_scales)
+        scale = cost_radius_scales.get(radius, 0.0)
         if scale == 0.0:
             continue
         for gt_cell in active:
@@ -319,14 +342,12 @@ def build_spot_gt(
                 continue
             cache_digest = (int(radius), gt_idx)
             if cache_digest not in trace_cache:
-                a_radius = _spot_readout_a_radius(rf[gt_idx], int(radius), spot_radius)
-                trace = (
-                    a_radius
+                trace_cache[cache_digest] = (
+                    _spot_readout_a_radius(rf[gt_idx], int(radius), spot_radius)
                     * ir[gt_idx][resp]
                     * gt_amp
                     * gt_sign(contrast, rf_sign)
                 )
-                trace_cache[cache_digest] = trace
             trace = trace_cache[cache_digest]
             for node in nodes:
                 cost_bs.append(b)
@@ -454,8 +475,7 @@ def build_spot_pack(
     cost_radius_scales: Dict[int, float],
     spot_cost_radii: Tuple[int, ...],
     a_sti_radii: Tuple[int, ...],
-) -> Tuple[Pack, dict, str]:
-    task = "spot"
+) -> Tuple[SpotPack, dict, str]:
     if not spot_sti_opts:
         raise ValueError("spot requires sti opts (from resolve_train_opts / CLI)")
     opts = dict(spot_sti_opts)
@@ -510,18 +530,9 @@ def build_spot_pack(
         filter=str(filter),
         spread_gt_mode=str(spread_gt_mode),
     )
-    cost_ts = None if int(spot_gt.entry_radii.shape[0]) == 0 else build_cost_ts(
-        opts, cost_ms=cost_ms, device=device,
-    )
-    sti_opts = dict(opts)
-    spot = resolve_spot(connectome, sti_opts=opts)
-    spot_bs = spot_sti_bs(spot)
-    a_sti_radius_mask = build_a_sti_radius_mask(
-        cost_radius_scales, a_sti_radii,
-    )
     i_sti, i_sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs = build_spot_a_sti_radius_drive(
         connectome,
-        spot_bs,
+        spot_sti_bs(resolve_spot(connectome, sti_opts=opts)),
         a_sti_radii=a_sti_radii,
         t_onset=int(t_onset),
         n_t=int(n_t),
@@ -532,29 +543,30 @@ def build_spot_pack(
         sim_dtype=sim_dtype,
         device=device,
     )
-    pack = Pack(
-        task=task,
+    pack = SpotPack(
+        task="spot",
         contrast=contrast,
         i_sti=i_sti,
         gts=spot_gt.gts,
-        power=spot_gt.power,
         cost_scales=spot_gt.cost_scales,
         entry_bs=spot_gt.entry_bs,
         entry_nodes=spot_gt.entry_nodes,
-        cost_t0s=None,
         cost_sti_us=spot_gt.entry_sti_us,
         cost_sti_vs=spot_gt.entry_sti_vs,
         cost_radius=cost_radius,
         entry_radii=spot_gt.entry_radii,
-        cost_ts=cost_ts,
-        waveform_mse=True,
+        cost_ts=None if int(spot_gt.entry_radii.shape[0]) == 0 else build_cost_ts(
+            opts, cost_ms=cost_ms, device=device,
+        ),
         t_onset=int(t_onset),
         i_sti_pulse=i_sti_pulse,
         sti_bs=sti_bs,
         sti_nodes=sti_nodes,
         a_sti_radius_idxs=a_sti_radius_idxs,
         a_sti_radius_mask=torch.as_tensor(
-            a_sti_radius_mask, dtype=sim_dtype, device=device,
+            build_a_sti_radius_mask(cost_radius_scales, a_sti_radii),
+            dtype=sim_dtype,
+            device=device,
         ),
         entry_part_keys=spot_gt.entry_part_keys,
         cost_part_plot_specs=_spot_cost_part_plot_specs(
@@ -566,10 +578,8 @@ def build_spot_pack(
             contrast,
         ),
     )
-    hex_label = cost_hex_label(cost_radius, spot_gt.n_cost_hex)
-    shifts_label = f"{spot_gt.n_shift} shifts"
-    label = (
+    return pack, dict(opts), (
         f"spot {contrast} (B={spot_gt.n_b} stis [{spot_gt.n_center} centers simultaneous "
-        f"x {shifts_label}], {int(spot_gt.gts.shape[0])} cost nodes, {hex_label})"
+        f"x {spot_gt.n_shift} shifts], {int(spot_gt.gts.shape[0])} cost nodes, "
+        f"{cost_hex_label(cost_radius, spot_gt.n_cost_hex)})"
     )
-    return pack, sti_opts, label

@@ -44,27 +44,28 @@ def build_spot_a_sti_radius_drive(
             for node in connectome.sti_nodes_at_uv(int(sti_hex_u), int(sti_hex_v)):
                 center_nodes.append((int(b), int(node)))
             for radius in radii:
-                a_sti_radius_idx = radius_idx[radius]
                 for du, dv in build_hex.shell_hexes(radius):
                     for node in connectome.sti_nodes_at_uv(
                         int(sti_hex_u) + int(du), int(sti_hex_v) + int(dv),
                     ):
                         sti_bs.append(int(b))
                         sti_nodes.append(int(node))
-                        a_sti_radius_idxs.append(int(a_sti_radius_idx))
-    mask = sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms)
-    n_b = len(spot_bs)
-    i_sti = float(i_sti)
-    network_sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
+                        a_sti_radius_idxs.append(int(radius_idx[radius]))
     i_sti_pulse = torch.as_tensor(
-        (i_sti - float(i_baseline)) * mask, dtype=sim_dtype, device=device,
+        (float(i_sti) - float(i_baseline)) * sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms),
+        dtype=sim_dtype,
+        device=device,
     )
-    i_sti = torch.zeros((n_b, n_t, connectome.n_node), dtype=sim_dtype, device=device)
+    i_sti = torch.zeros((len(spot_bs), n_t, connectome.n_node), dtype=sim_dtype, device=device)
+    network_sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
     if len(network_sti_nodes):
         i_sti[:, :, network_sti_nodes] = float(i_baseline)
     for b, node in center_nodes:
         i_sti[b, :, node] = i_sti[b, :, node] + i_sti_pulse
-    sti_bs_t = torch.tensor(sti_bs, dtype=torch.long, device=device)
-    sti_nodes_t = torch.tensor(sti_nodes, dtype=torch.long, device=device)
-    a_sti_radius_idxs_t = torch.tensor(a_sti_radius_idxs, dtype=torch.long, device=device)
-    return i_sti, i_sti_pulse, sti_bs_t, sti_nodes_t, a_sti_radius_idxs_t
+    return (
+        i_sti,
+        i_sti_pulse,
+        torch.tensor(sti_bs, dtype=torch.long, device=device),
+        torch.tensor(sti_nodes, dtype=torch.long, device=device),
+        torch.tensor(a_sti_radius_idxs, dtype=torch.long, device=device),
+    )

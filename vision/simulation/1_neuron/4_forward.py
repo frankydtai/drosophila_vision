@@ -56,9 +56,8 @@ def inject_a_sti_radius(i_sti, params, pack):
     if sti_bs.numel() == 0:
         return i_sti
     n_b, n_t, n_node = i_sti.shape
-    add = a_sti_radius[a_sti_radius_idxs][:, None] * i_sti_pulse[None, :]
     flat = i_sti.permute(0, 2, 1).reshape(n_b * n_node, n_t)
-    flat.index_add_(0, sti_bs * n_node + node, add)
+    flat.index_add_(0, sti_bs * n_node + node, a_sti_radius[a_sti_radius_idxs][:, None] * i_sti_pulse[None, :])
     return flat.reshape(n_b, n_node, n_t).permute(0, 2, 1).contiguous()
 
 
@@ -72,8 +71,7 @@ def pack_t_onset(pack) -> int:
     if t is not None:
         return int(t)
     i_sti = pack.i_sti
-    n_t = int(i_sti.shape[1] if i_sti.dim() == 3 else i_sti.shape[0])
-    return n_t - int(pack.gts.shape[1])
+    return int(i_sti.shape[1] if i_sti.dim() == 3 else i_sti.shape[0]) - int(pack.gts.shape[1])
 
 
 def step_delta_ms(session, t: int, t_onset: int) -> float:
@@ -89,8 +87,7 @@ def step_delta_ms(session, t: int, t_onset: int) -> float:
 
 def _session_filter(session) -> str:
     """``train_opts['filter']``; default ``none`` (same pattern as ``_session_*`` in cost)."""
-    opts = session.train_opts or {}
-    return str(opts.get("filter", "none"))
+    return str((session.train_opts or {}).get("filter", "none"))
 
 
 def v_ca_from_v(v, params, session):
@@ -140,11 +137,10 @@ def forward_v(session, params, i_sti, *, pack=None):
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
     i_sti = inject_a_sti_radius(i_sti, params, pack)
-    n_b, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
+    n_b = int(i_sti.shape[0])
+    t_end = int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
-    pre_grad = bool((session.train_opts or {})["pre_grad"])
-    model = session.model
-    if model == "hp_lp":
+    if session.model == "hp_lp":
         v_slow, v = drv.pre_steady(session, params, n_b, i_sti=i_sti)
         u = u_rev = None
     else:
@@ -155,25 +151,20 @@ def forward_v(session, params, i_sti, *, pack=None):
 
     def take(t):
         nonlocal v_slow, u, u_rev, v
-        dt = step_delta_ms(session, t, t_onset)
-        if model == "hp_lp":
-            v_slow, v = drv.step(
-                v_slow, v, params, i_sti[:, t - 1], session, delta_ms=dt,
-            )
+        if session.model == "hp_lp":
+            v_slow, v = drv.step(v_slow, v, params, i_sti[:, t - 1], session, delta_ms=step_delta_ms(session, t, t_onset))
         else:
-            u, u_rev, v = drv.step(
-                u, u_rev, v, params, i_sti[:, t - 1], session, delta_ms=dt,
-            )
+            u, u_rev, v = drv.step(u, u_rev, v, params, i_sti[:, t - 1], session, delta_ms=step_delta_ms(session, t, t_onset))
         trace[:, t] = v
 
-    if pre_grad or t_onset <= 0:
+    if bool((session.train_opts or {})["pre_grad"]) or t_onset <= 0:
         for t in range(1, t_end):
             take(t)
         return trace
     with torch.no_grad():
         for t in range(1, t_onset):
             take(t)
-    if model == "hp_lp":
+    if session.model == "hp_lp":
         v_slow = v_slow.detach()
     else:
         u = u.detach()
@@ -187,8 +178,7 @@ def forward_v(session, params, i_sti, *, pack=None):
 def forward_ca(session, params, i_sti, *, pack=None):
     """``ca`` trace ``(B, T, N)``: ``forward_v`` then ``filter_ca``."""
     pack = pack or session.primary_pack
-    v = forward_v(session, params, i_sti, pack=pack)
-    return ca_from_v_ca(v_ca_from_v(v, params, session), params, session, t_onset=pack_t_onset(pack))
+    return ca_from_v_ca(v_ca_from_v(forward_v(session, params, i_sti, pack=pack), params, session), params, session, t_onset=pack_t_onset(pack))
 
 
 def forward_trace(session, params, i_sti, *, pack=None):
@@ -207,9 +197,7 @@ def forward_nodes(session, params, nodes=None, i_sti=None, pack=None):
     if i_sti is None:
         i_sti = session.pack_i_sti(pack)
     squeeze = i_sti.dim() == 2
-    i_sti_b = i_sti.unsqueeze(0) if squeeze else i_sti
-    trace = forward_trace(session, params, i_sti_b, pack=pack)
-    trace = trace[:, :, nodes]
+    trace = forward_trace(session, params, i_sti.unsqueeze(0) if squeeze else i_sti, pack=pack)[:, :, nodes]
     if squeeze:
         trace = trace.squeeze(0)
     return trace

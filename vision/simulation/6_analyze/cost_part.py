@@ -36,16 +36,17 @@ import torch
 
 import figure.plot as plot
 import train
+from neuron.readout import pack_traces
 from task.spread.sti_spec import CONTRASTS
 from train.cost import (
     COST_NORMS,
-    _gather_cost_time,
     _parts_from_entries,
-    _pack_cost_forward,
     _session_cost_norm,
     _scaled_mse_terms,
     calc_cost_parts,
     entries_by_part,
+    forward_pack,
+    gt_affine_from_pack,
 )
 from task.spot.pack import part_key as spot_part_key
 from train.param import params_from_z
@@ -92,13 +93,18 @@ def cost_part(session, z, part_key: str) -> dict:
     cost_norm = _session_cost_norm(session)
     task, contrast = _task_contrast_from_part_key(part_key)
     pack = session.packs[task][contrast]
-    fwd = _pack_cost_forward(params, pack, session)
-    if fwd is None:
-        raise SystemExit(f"no cost forward for pack {task!r}/{contrast!r}")
-    a_gt, bias_gt, gts, scale, v_readout, _pd_nd = fwd
-    if v_readout is None:
-        raise SystemExit(f"waveform v_readout required for {task!r}/{contrast!r}")
-    v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, gts)
+    trace = forward_pack(session, params, pack.i_sti, pack)
+    a_gt, bias_gt = gt_affine_from_pack(params, pack, session)
+    gts = pack.gts
+    scale = pack.cost_scales
+    v_readout = pack_traces(trace, pack)
+    if pack.cost_ts is not None:
+        cost_ts = pack.cost_ts.to(device=v_readout.device)
+        v_readout = v_readout.index_select(1, cost_ts)
+        gts = gts.index_select(1, cost_ts)
+    time_mask = getattr(pack, "cost_time_mask", None)
+    if time_mask is not None:
+        time_mask = time_mask.to(device=v_readout.device)
 
     part_idxs, part_keys = entries_by_part(pack)
     if part_key not in part_keys:

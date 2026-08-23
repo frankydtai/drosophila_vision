@@ -728,12 +728,13 @@ def _forward_spot_readout(
     if "a_sti_radius" in params:
         spec = session.schema.get("a_sti_radius")
         if spec is not None:
-            radii = [str(radius) for radius in (spec.get("radii") or ())]
-            vals = as_numpy(params["a_sti_radius"]).reshape(-1)
-            n_radius = min(len(radii), vals.size)
-            a_sti_radius = dict(zip(
-                radii[:n_radius], map(float, vals[:n_radius]),
-            ))
+            a_sti_radius = {
+                str(radius): float(val)
+                for radius, val in zip(
+                    spec.get("radii") or (),
+                    as_numpy(params["a_sti_radius"]).reshape(-1),
+                )
+            }
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     trace = train.forward_pack(session, params, i_sti, pack)
     connectome = session.connectome

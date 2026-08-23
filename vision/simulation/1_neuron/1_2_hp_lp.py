@@ -46,9 +46,6 @@ def update_v(
     e_leak = params["e_leak"]
     dt = float(delta_ms)
     tau_lp = torch.clamp(params["tau_lp"], min=dt)
-    tau_hp_rise = torch.clamp(params["tau_hp_rise"], min=dt)
-    tau_hp_fall = torch.clamp(params["tau_hp_fall"], min=dt)
-    a_h = params["a_h"]
     clamp = float(v_clamp)
     g_leak = float(g_leak)
     if g_leak == 0.0:
@@ -58,14 +55,17 @@ def update_v(
     v_syn = params["a_in"] * connectome.conn.signed_g(v_out, syn_strength(params))
     v_sti = i_sti / g_leak
     v_in = v_syn + v_sti
-    tau_hp = torch.where(v_in >= v_slow, tau_hp_rise, tau_hp_fall)
-    dt_over_tau_hp = dt / tau_hp
+    dt_over_tau_hp = dt / torch.where(
+        v_in >= v_slow,
+        torch.clamp(params["tau_hp_rise"], min=dt),
+        torch.clamp(params["tau_hp_fall"], min=dt),
+    )
     if euler == "implicit":
         v_slow = (v_slow + dt_over_tau_hp * v_in) / (1.0 + dt_over_tau_hp)
     else:
         v_slow = v_slow + dt_over_tau_hp * (v_in - v_slow)
     # LP uses post-HP ``v_slow`` (same as prior identity).
-    v_hp = v_in - a_h * v_slow
+    v_hp = v_in - params["a_h"] * v_slow
     dt_over_tau_lp = dt / tau_lp
     if return_component:
         if euler == "implicit":
@@ -103,9 +103,12 @@ def update_v(
 
 def v_dc_from_v(v, params, v_sti, connectome):
     """Algebraic DC target: ``v_dc = e_leak + (1−a_h)·v_in(v)``."""
-    v_out = torch.relu(v - params["v_th"]) * params["a_out"]
-    v_syn = params["a_in"] * connectome.conn.signed_g(v_out, syn_strength(params))
-    v_in = v_syn + v_sti
+    v_in = (
+        params["a_in"] * connectome.conn.signed_g(
+            torch.relu(v - params["v_th"]) * params["a_out"], syn_strength(params),
+        )
+        + v_sti
+    )
     return params["e_leak"] + (1.0 - params["a_h"]) * v_in, v_in
 
 
@@ -121,15 +124,13 @@ def pre_steady(session, params, n_b, i_sti=None):
     if g_leak == 0.0:
         raise ValueError("g_leak must be non-zero")
     v_sti = i_sti[:, 0, :] / g_leak
-    e_leak = params["e_leak"]
-    v = e_leak.expand(n_b, connectome.n_node).clone()
+    v = params["e_leak"].expand(n_b, connectome.n_node).clone()
     if pre_steady_mode == "probe":
         v_dc, v_in = v_dc_from_v(v, params, v_sti, connectome)
         return v_in, v_dc
-    damp = float(session.pre_steady_damp)
     for _ in range(int(session.pre_steady_n_iter)):
         v_dc, _ = v_dc_from_v(v, params, v_sti, connectome)
-        v = v + damp * (v_dc - v)
+        v = v + float(session.pre_steady_damp) * (v_dc - v)
     _, v_in = v_dc_from_v(v, params, v_sti, connectome)
     return v_in, v
 

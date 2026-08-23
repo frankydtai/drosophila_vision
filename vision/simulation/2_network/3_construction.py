@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Sequence
 
 import build_hex
 
@@ -138,7 +138,6 @@ def cost_radius_mask(u, v, cost_radius=None) -> bool:
     cost_radius = standardize_cost_radius(cost_radius)
     if cost_radius is None:
         return True
-    import build_hex
     return bool(build_hex.radius_mask(int(u), int(v), int(cost_radius)))
 
 
@@ -151,8 +150,7 @@ def active_gt_cells(
 ) -> list[str]:
     """Intersect requested (or fallback) gt cells with those active in the network."""
     keep = tuple(gt_cells) if gt_cells is not None else tuple(fallback_gt_cells)
-    avail = set(available)
-    active = [cell for cell in keep if cell in avail]
+    active = [cell for cell in keep if cell in set(available)]
     if not active:
         raise ValueError(
             f"{context} has no gt cells (requested {list(keep)!r})",
@@ -177,10 +175,9 @@ def load_network_json(path) -> tuple[list[dict], list[dict], list[str], dict]:
     edges = doc.get("edges")
     if not isinstance(nodes, list) or not isinstance(edges, list):
         raise ValueError(f"invalid network.json (need nodes/edges lists): {path}")
-    active = sorted(
+    cells = cells_in_order(sorted(
         {n["name"] for n in nodes if isinstance(n.get("name"), str)}
-    )
-    cells = cells_in_order(active)
+    ))
     meta = doc.get("metadata", {})
     if not isinstance(meta, dict):
         meta = {}
@@ -200,8 +197,6 @@ def load_network(
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     path = Path(path)
     nodes, edges, cells, meta = load_network_json(path)
-    mode = syn_mode
-
     n_node = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]
     node_from_id = {node_id: node for node, node_id in enumerate(node_ids)}
@@ -228,9 +223,9 @@ def load_network(
     for edge_idx, edge in enumerate(edges):
         source_idxs[edge_idx] = node_from_id[int(edge["src"])]
         target_idxs[edge_idx] = node_from_id[int(edge["tar"])]
-        syn_sign = float(edge["syn_sign"])
         edge_weights[edge_idx] = (
-            syn_sign if mode == "per_edge" else syn_sign * float(edge["n_syn"])
+            float(edge["syn_sign"]) if syn_mode == "per_edge"
+            else float(edge["syn_sign"]) * float(edge["n_syn"])
         )
 
     conn = ScatterConn(

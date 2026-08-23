@@ -2195,9 +2195,8 @@ def _shared_row_ylim(
             trace_vals.append(val)
     if not trace_vals:
         return -1.0, 1.0
-    vals = np.concatenate(trace_vals)
-    ylo = float(np.min(vals))
-    yhi = float(np.max(vals))
+    ylo = float(np.min(concatenated := np.concatenate(trace_vals)))
+    yhi = float(np.max(concatenated))
     if floor_zero and ylo >= 0.0:
         ylo = 0.0
     span = yhi - ylo

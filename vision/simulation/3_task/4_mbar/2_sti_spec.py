@@ -57,8 +57,7 @@ class MbarSpec:
 
     @property
     def token(self) -> str:
-        w_token = "w1" if self.w_deg <= 3.0 else "w4"
-        return f"{self.direction}_{self.contrast}_{w_token}"
+        return f"{self.direction}_{self.contrast}_{'w1' if self.w_deg <= 3.0 else 'w4'}"
 
 
 def gruntman_mbar_specs(
@@ -97,8 +96,7 @@ def t_from_bar_bound(
         raise ValueError(f"unknown direction {spec.direction!r}")
     if abs(shift_deg) < 1e-15:
         return t_onset
-    k = int(round((bar_bound_end - bar_bound) / shift_deg))
-    t = t_onset + max(0, k)
+    t = t_onset + max(0, int(round((bar_bound_end - bar_bound) / shift_deg)))
     if n_t is not None:
         t = min(t, n_t - 1)
     return t
@@ -118,14 +116,13 @@ def mbar_sweep_end_t(
         return t_onset + 1
     t_exit = t_onset
     for spec in specs:
-        w_deg = float(spec.w_deg)
         for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
             spec, view_deg, bar_radius, multi_bar=multi_bar,
         ):
             if spec.direction in ("right", "up"):
-                bar_bound, bar_bound_end = float(bar_bound0) - w_deg, float(bar_bound1)
+                bar_bound, bar_bound_end = float(bar_bound0) - float(spec.w_deg), float(bar_bound1)
             elif spec.direction in ("left", "down"):
-                bar_bound, bar_bound_end = float(bar_bound1) + w_deg, float(bar_bound0)
+                bar_bound, bar_bound_end = float(bar_bound1) + float(spec.w_deg), float(bar_bound0)
             else:
                 raise ValueError(f"unknown direction {spec.direction!r}")
             t_exit = max(
@@ -146,10 +143,9 @@ def mbar_n_t(
     t_tail_ms: float = MBAR_TAIL_MS,
 ) -> int:
     """Simulation length: baseline + multi-bar sweep + post-sweep tail."""
-    t_tail = t_from_ms(t_tail_ms, delta_ms=delta_ms)
     return mbar_sweep_end_t(
         specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
-    ) + t_tail
+    ) + t_from_ms(t_tail_ms, delta_ms=delta_ms)
 
 
 def mbar_transit_times(
@@ -176,15 +172,19 @@ def mbar_transit_times(
         bar_bound, bar_bound_end = float(bar_bound0) - w_deg, float(bar_bound1)
     else:
         bar_bound, bar_bound_end = float(bar_bound1) + w_deg, float(bar_bound0)
-    bar_bound_entry = bar_bound + shift_deg
-    mid = float(bar_bound0) + 0.5 * (
-        float(bar_bound1) - float(bar_bound0) - math.copysign(1.0, shift_deg) * w_deg
-    )
-    bar_bound_exit = bar_bound_end - shift_deg
     return (
-        t_from_bar_bound(spec, bar_bound, bar_bound_entry, t_onset, delta_ms, n_t),
-        t_from_bar_bound(spec, bar_bound, mid, t_onset, delta_ms, n_t),
-        t_from_bar_bound(spec, bar_bound, bar_bound_exit, t_onset, delta_ms, n_t),
+        t_from_bar_bound(spec, bar_bound, bar_bound + shift_deg, t_onset, delta_ms, n_t),
+        t_from_bar_bound(
+            spec,
+            bar_bound,
+            float(bar_bound0) + 0.5 * (
+                float(bar_bound1) - float(bar_bound0) - math.copysign(1.0, shift_deg) * w_deg
+            ),
+            t_onset,
+            delta_ms,
+            n_t,
+        ),
+        t_from_bar_bound(spec, bar_bound, bar_bound_end - shift_deg, t_onset, delta_ms, n_t),
     )
 
 
@@ -195,8 +195,12 @@ def hex_first_sti_t(
     atol: float = 1e-12,
 ) -> int:
     """First t where a hex i_sti differs from baseline (``t_first_sti``)."""
-    curr = np.asarray(i_sti_hex, dtype=np.float64).reshape(-1)
-    mask = ~np.isclose(curr, float(i_baseline), atol=atol, rtol=0.0)
+    mask = ~np.isclose(
+        np.asarray(i_sti_hex, dtype=np.float64).reshape(-1),
+        float(i_baseline),
+        atol=atol,
+        rtol=0.0,
+    )
     idx = np.flatnonzero(mask)
     if idx.size == 0:
         raise ValueError("hex has no non-baseline sti sample")
@@ -244,16 +248,15 @@ def build_i_sti_hex(
             shift_deg = -shift_deg
         elif spec.direction not in ("right", "up"):
             raise ValueError(f"unknown direction {spec.direction!r}")
-        w_deg = float(spec.w_deg)
         n_post = n_t - t_onset
         fills = np.zeros((n_post, n_hex), dtype=np.float64)
         for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
             spec, view_deg, bar_radius, multi_bar=multi_bar,
         ):
             if spec.direction in ("right", "up"):
-                bar_bound = float(bar_bound0) - w_deg
+                bar_bound = float(bar_bound0) - float(spec.w_deg)
             else:
-                bar_bound = float(bar_bound1) + w_deg
+                bar_bound = float(bar_bound1) + float(spec.w_deg)
             for t in range(n_post):
                 visible_bar = bar_bounds(spec, bar_bound, view_deg, bar_bound0, bar_bound1)
                 if visible_bar is not None:
@@ -391,8 +394,7 @@ def _mbar_cache_digest(
         "i_baseline": i_baseline,
         "i_sti": None if i_sti is None else float(i_sti),
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
-    return digest[:16]
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def _mbar_cache_path(
@@ -407,11 +409,11 @@ def _mbar_cache_path(
     multi_bar: bool = True,
     i_sti: Optional[float] = None,
 ) -> Path:
-    digest = _mbar_cache_digest(
-        network_json, specs, hex_uv, n_t, t_onset, delta_ms,
-        i_baseline, bar_radius, multi_bar, i_sti,
+    return (
+        Path(network_json).resolve().parent
+        / MBAR_CACHE_DIRNAME
+        / f"{_mbar_cache_digest(network_json, specs, hex_uv, n_t, t_onset, delta_ms, i_baseline, bar_radius, multi_bar, i_sti)}.npz"
     )
-    return Path(network_json).resolve().parent / MBAR_CACHE_DIRNAME / f"{digest}.npz"
 
 
 def _load_mbar_hex_cache(path: Path) -> Optional[np.ndarray]:
@@ -466,11 +468,9 @@ def build_mbar_signals(
             specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
         )
     n_b = len(specs)
-    n_node = connectome.n_node
-    sweep_end = mbar_sweep_end_t(
+    sweep_t = mbar_sweep_end_t(
         specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
-    )
-    sweep_t = sweep_end - t_onset
+    ) - t_onset
 
     cache_path: Optional[Path] = None
     source_json = Path(network_json) if network_json is not None else getattr(connectome, "source_json", None)
@@ -496,10 +496,12 @@ def build_mbar_signals(
         if cache_path is not None and use_cache:
             _save_mbar_hex_cache(cache_path, i_sti_hex)
 
-    i_sti_np = i_sti_nodes_from_hexes(i_sti_hex, sti, n_node)
-
     return MbarSti(
-        i_sti=torch.as_tensor(i_sti_np, dtype=sim_dtype, device=device),
+        i_sti=torch.as_tensor(
+            i_sti_nodes_from_hexes(i_sti_hex, sti, connectome.n_node),
+            dtype=sim_dtype,
+            device=device,
+        ),
         i_sti_hex=i_sti_hex,
         specs=specs,
         n_b=n_b,

@@ -140,26 +140,24 @@ def update_v(
     return_component: bool = False,
 ):
     """One borst step; reversal / cap scalars are required kwargs."""
-    conn = connectome.conn
     i_h_mask = (a_h + a_h_rev) != 0
     g_h = u.new_zeros(u.shape)
     g_h_rev = u_rev.new_zeros(u_rev.shape)
-    i_h_kwargs_common = dict(delta_ms=delta_ms, h_g_max=h_g_max)
     if i_h_mask.any():
-        i_h_kwargs = dict(
-            v_mid_h_g=v_mid_h_g, h_slope=h_slope, v_mid_h_tau=v_mid_h_tau,
-            v_mid_h_g_rev=v_mid_h_g_rev, h_slope_rev=h_slope_rev, v_mid_h_tau_rev=v_mid_h_tau_rev,
-        )
         if i_h_mask.all():
             u, u_rev, g_h, g_h_rev = _i_h_gate_step(
-                v, u, u_rev, a_h, a_h_rev, **i_h_kwargs_common, **i_h_kwargs)
+                v, u, u_rev, a_h, a_h_rev,
+                v_mid_h_g, h_slope, v_mid_h_tau, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
+                delta_ms=delta_ms, h_g_max=h_g_max,
+            )
         else:
             idx = i_h_mask
             u_a, u_rev_a, g_a, g_rev_a = _i_h_gate_step(
                 v[:, idx], u[:, idx], u_rev[:, idx],
                 a_h[idx], a_h_rev[idx],
-                **i_h_kwargs_common,
-                **{k: val[idx] for k, val in i_h_kwargs.items()},
+                v_mid_h_g[idx], h_slope[idx], v_mid_h_tau[idx],
+                v_mid_h_g_rev[idx], h_slope_rev[idx], v_mid_h_tau_rev[idx],
+                delta_ms=delta_ms, h_g_max=h_g_max,
             )
             u = u.clone()
             u_rev = u_rev.clone()
@@ -169,12 +167,11 @@ def update_v(
             g_h_rev[:, idx] = g_rev_a.to(dtype=g_h_rev.dtype)
 
     v_out = torch.relu(v - v_th) * a_out
-    g_exc, g_inh = conn.exc_inh_g(v_out, syn_strength_val)
+    g_exc, g_inh = connectome.conn.exc_inh_g(v_out, syn_strength_val)
     g_exc = g_exc * a_in
     g_inh = g_inh * a_in
 
-    dt = float(delta_ms)
-    dt_over_cap = dt / cap
+    dt_over_cap = float(delta_ms) / cap
     e_h_rev_val = e_h_rev(e_leak, e_h)
     sum_g_e = (
         g_exc * e_exc + g_inh * e_inh + g_leak * e_leak
@@ -202,8 +199,7 @@ def v_component_from_g(
     euler: str,
 ):
     """Numerator / denom terms matching ``update_v`` (torch or numpy)."""
-    dt = float(delta_ms)
-    dt_over_cap = dt / cap
+    dt_over_cap = float(delta_ms) / cap
     e_h_rev_val = e_h_rev(e_leak, e_h)
     num_exc = g_exc * e_exc
     num_inh = g_inh * e_inh
@@ -236,21 +232,23 @@ def v_component_from_g(
     }
 
 
-def _i_h_ss(v, a_h, a_h_rev, v_mid_h_g, h_slope, v_mid_h_g_rev, h_slope_rev, *, h_g_max: float):
-    """DC i_h gates ``u = ss(v)`` and conductances (no time step)."""
-    i_h_ss = _gate_ss(v, v_mid_h_g, h_slope)
-    i_h_ss_rev = _gate_ss(v, v_mid_h_g_rev, -h_slope_rev)
-    gmax = float(h_g_max)
-    return (
-        i_h_ss,
-        i_h_ss_rev,
-        i_h_ss * gmax * a_h,
-        i_h_ss_rev * gmax * a_h_rev,
-    )
-
-
-def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
-    """``v_dc = (i + Σ g·e) / Σ g`` for frozen conductances."""
+def v_dc_from_v(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
+    """One DC map step: ohmic ``v_dc`` from ``g`` at ``v`` (+ i_h ``ss(v)`` if asked)."""
+    v_out = torch.relu(v - params["v_th"]) * params["a_out"]
+    g_exc, g_inh = session.connectome.conn.exc_inh_g(v_out, syn_strength(params))
+    g_exc = g_exc * params["a_in"]
+    g_inh = g_inh * params["a_in"]
+    if with_i_h_ss:
+        u = _gate_ss(v, params["v_mid_h_g"], params["h_slope"])
+        u_rev = _gate_ss(v, params["v_mid_h_g_rev"], -params["h_slope_rev"])
+        gmax = float(session.h_g_max)
+        g_h = u * gmax * params["a_h"]
+        g_h_rev = u_rev * gmax * params["a_h_rev"]
+    else:
+        u = torch.zeros_like(v)
+        u_rev = torch.zeros_like(v)
+        g_h = torch.zeros_like(v)
+        g_h_rev = torch.zeros_like(v)
     e_exc = float(session.e_exc)
     e_inh = float(session.e_inh)
     e_h = float(session.e_h)
@@ -261,27 +259,7 @@ def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
         + e_h * g_h + e_h_rev_val * g_h_rev
     )
     sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
-    return (i0 + sum_g_e) / sum_g
-
-
-def v_dc_from_v(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
-    """One DC map step: ohmic ``v_dc`` from ``g`` at ``v`` (+ i_h ``ss(v)`` if asked)."""
-    v_out = torch.relu(v - params["v_th"]) * params["a_out"]
-    g_exc, g_inh = session.connectome.conn.exc_inh_g(v_out, syn_strength(params))
-    g_exc = g_exc * params["a_in"]
-    g_inh = g_inh * params["a_in"]
-    if with_i_h_ss:
-        u, u_rev, g_h, g_h_rev = _i_h_ss(
-            v, params["a_h"], params["a_h_rev"],
-            params["v_mid_h_g"], params["h_slope"], params["v_mid_h_g_rev"], params["h_slope_rev"],
-            h_g_max=session.h_g_max,
-        )
-    else:
-        u = torch.zeros_like(v)
-        u_rev = torch.zeros_like(v)
-        g_h = torch.zeros_like(v)
-        g_h_rev = torch.zeros_like(v)
-    return _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session), u, u_rev
+    return (i0 + sum_g_e) / sum_g, u, u_rev
 
 
 def pre_steady(session, params, n_b, i_sti=None):
@@ -307,26 +285,7 @@ def pre_steady(session, params, n_b, i_sti=None):
 
 def step(u, u_rev, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
     """One borst update; returns ``(u, u_rev, v)`` or + g component tuple."""
-    if return_component:
-        v, u, u_rev, g_exc, g_inh, g_h, g_h_rev = update_v(
-            v, u, u_rev,
-            params["a_in"], params["a_out"], syn_strength(params), params["v_th"],
-            params["a_h"], params["a_h_rev"],
-            params["v_mid_h_g"], params["h_slope"], params["v_mid_h_tau"],
-            params["v_mid_h_g_rev"], params["h_slope_rev"], params["v_mid_h_tau_rev"],
-            i_sti, session.connectome, params["e_leak"],
-            delta_ms=float(delta_ms),
-            cap=session.cap,
-            g_leak=session.g_leak,
-            e_exc=session.e_exc,
-            e_inh=session.e_inh,
-            e_h=session.e_h,
-            h_g_max=session.h_g_max,
-            euler=session.euler,
-            return_component=True,
-        )
-        return u, u_rev, v, (g_exc, g_inh, g_h, g_h_rev)
-    v, u, u_rev = update_v(
+    v, u, u_rev, g_exc, g_inh, g_h, g_h_rev = update_v(
         v, u, u_rev,
         params["a_in"], params["a_out"], syn_strength(params), params["v_th"],
         params["a_h"], params["a_h_rev"],
@@ -341,6 +300,8 @@ def step(u, u_rev, v, params, i_sti, session, *, delta_ms: float, return_compone
         e_h=session.e_h,
         h_g_max=session.h_g_max,
         euler=session.euler,
-        return_component=False,
+        return_component=True,
     )
+    if return_component:
+        return u, u_rev, v, (g_exc, g_inh, g_h, g_h_rev)
     return u, u_rev, v

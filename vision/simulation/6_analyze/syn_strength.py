@@ -1,7 +1,7 @@
 """Query trained syn_strength_cell joined to connectome partner % n_syn.
 
 Reads ``best_param.npz`` + ``train_opts.json`` only (no train session rebuild).
-Partner % comes from ``analyze_cell_syn``; syn_strength_cell / a_* from the vals-by-param npz.
+Partner % comes from ``analyze_cell_syn``; syn_strength_cell / a_* from ``best_param.npz`` ``node_vals``.
 
 Examples
 --------

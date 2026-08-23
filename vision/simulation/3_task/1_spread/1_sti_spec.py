@@ -16,14 +16,15 @@ def i_baseline_from_i_sti(i_sti: dict) -> float:
 
 
 def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
-    t0 = int(t_onset)
     mt = int(n_t)
     if mt <= 0:
         raise ValueError(f"n_t must be positive, got {n_t}")
     if ms_sti is None:
         return mt - 1
-    w = max(1, t_from_ms(float(ms_sti), delta_ms=float(delta_ms)))
-    return min(mt - 1, t0 + w - 1)
+    return min(
+        mt - 1,
+        int(t_onset) + max(1, t_from_ms(float(ms_sti), delta_ms=float(delta_ms))) - 1,
+    )
 
 
 def sti_mask(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
@@ -33,6 +34,5 @@ def sti_mask(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
     if ms_sti is None:
         mask[t_onset:] = 1.0
     else:
-        n_t_on = max(1, t_from_ms(ms_sti, delta_ms=delta_ms))
-        mask[t_onset:min(n_t, t_onset + n_t_on)] = 1.0
+        mask[t_onset:min(n_t, t_onset + max(1, t_from_ms(ms_sti, delta_ms=delta_ms)))] = 1.0
     return mask

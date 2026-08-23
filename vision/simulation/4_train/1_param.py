@@ -82,8 +82,11 @@ def param_from_z(spec, z, *, param="param", node=None):
     if z_mode == 'linear':
         return z
     lo, hi = _lo_hi(spec, node)
-    val = torch.exp(z) if z_mode == 'log' else 1.0 / z
-    return torch.clamp(val, min=lo, max=hi)
+    return torch.clamp(
+        torch.exp(z) if z_mode == 'log' else 1.0 / z,
+        min=lo,
+        max=hi,
+    )
 
 
 def z_from_param(spec, val, *, param="param", node=None):
@@ -126,10 +129,10 @@ def _z_pack_slots(spec):
         yield z_idx, tuple(int(node) for node in shared)
 
 
-def _slot_val(vals, nodes):
+def _slot_val(node_vals, nodes):
     if len(nodes) == 1:
-        return float(vals[nodes[0]])
-    return float(np.mean([vals[node] for node in nodes]))
+        return float(node_vals[nodes[0]])
+    return float(np.mean([node_vals[node] for node in nodes]))
 
 
 def schema_copy(schema):
@@ -180,8 +183,7 @@ def pairs_from_connectome(connectome):
 
 def edges_from_connectome(connectome):
     """Per-edge names ``e0`` ... ``e{n-1}``."""
-    n = int(connectome.conn.n_edge)
-    return [f"e{edge_idx}" for edge_idx in range(n)]
+    return [f"e{edge_idx}" for edge_idx in range(int(connectome.conn.n_edge))]
 
 
 def inits_from_node_vals(schema, node_vals):
@@ -191,12 +193,12 @@ def inits_from_node_vals(schema, node_vals):
         fixed = list(spec.get('fixed') or [])
         if not fixed or param not in node_vals:
             continue
-        vals = np.asarray(node_vals[param], dtype=np.float64).reshape(-1)
+        node_vals[param] = np.asarray(node_vals[param], dtype=np.float64).reshape(-1)
         inits = dict(spec.get('inits') or {})
         for node in fixed:
             node = int(node)
-            if 0 <= node < vals.shape[0]:
-                inits[node] = float(vals[node])
+            if 0 <= node < node_vals[param].shape[0]:
+                inits[node] = float(node_vals[param][node])
         spec['inits'] = inits
     return schema
 
@@ -237,14 +239,14 @@ def z_from_node_vals(node_vals, schema, *, dtype=None, device=None):
     n = schema_n_z(schema)
     z = torch.zeros(n, dtype=dtype or SIM_DTYPE, device=device or active_device())
     for param, spec, start, stop in schema_params(schema):
-        vals = np.asarray(node_vals[param], dtype=np.float64).reshape(-1)
+        node_vals[param] = np.asarray(node_vals[param], dtype=np.float64).reshape(-1)
         n_node = spec['n_node']
-        if vals.shape[0] != n_node:
+        if node_vals[param].shape[0] != n_node:
             raise ValueError(
-                f"{param}: node_vals length {vals.shape[0]} != n_node {n_node}"
+                f"{param}: node_vals length {node_vals[param].shape[0]} != n_node {n_node}"
             )
         zs = [
-            z_from_param(spec, _slot_val(vals, nodes), param=param, node=nodes[0])
+            z_from_param(spec, _slot_val(node_vals[param], nodes), param=param, node=nodes[0])
             for _, nodes in _z_pack_slots(spec)
         ]
         if zs:
@@ -322,30 +324,46 @@ def _remap_node_vals(node_vals, cells, pairs, schema, connectome, *, fill):
     connectome_cell_idx = dict(zip(connectome_cells, range(len(connectome_cells))))
     connectome_pair_idx = dict(zip(connectome_pairs, range(len(connectome_pairs))))
 
-    def _param_vals(param, spec):
+    node_vals_remapped = {
+        param: np.asarray(
+            [fill(spec, node) for node in range(spec['n_node'])], dtype=np.float64,
+        )
+        for param, spec in schema.items()
+    }
+    for param, spec in schema.items():
+        if node_vals.get(param) is None:
+            continue
         n_node = spec['n_node']
-        vals = np.asarray([fill(spec, node) for node in range(n_node)], dtype=np.float64)
-        src = node_vals.get(param)
-        if src is None:
-            return vals
-        src = np.asarray(src, dtype=np.float64).reshape(-1)
         if param == "syn_strength_cell":
             for pair in connectome_pairs:
-                if pair in pair_idx and pair_idx[pair] < src.shape[0]:
-                    vals[connectome_pair_idx[pair]] = float(src[pair_idx[pair]])
+                if pair in pair_idx and pair_idx[pair] < len(node_vals[param]):
+                    node_vals_remapped[param][connectome_pair_idx[pair]] = float(
+                        np.asarray(node_vals[param], dtype=np.float64).reshape(-1)[
+                            pair_idx[pair]
+                        ],
+                    )
         elif param == "syn_strength_edge":
-            if src.shape[0] == n_node:
-                vals[:] = src
+            if len(np.asarray(node_vals[param], dtype=np.float64).reshape(-1)) == n_node:
+                node_vals_remapped[param][:] = np.asarray(
+                    node_vals[param], dtype=np.float64,
+                ).reshape(-1)
         elif spec.get("radii") is not None:
-            n_copy = min(n_node, int(src.shape[0]))
-            vals[:n_copy] = src[:n_copy]
+            n_copy = min(
+                n_node,
+                len(np.asarray(node_vals[param], dtype=np.float64).reshape(-1)),
+            )
+            node_vals_remapped[param][:n_copy] = np.asarray(
+                node_vals[param], dtype=np.float64,
+            ).reshape(-1)[:n_copy]
         else:
             for cell in connectome_cells:
-                if cell in cell_idx and cell_idx[cell] < src.shape[0]:
-                    vals[connectome_cell_idx[cell]] = float(src[cell_idx[cell]])
-        return vals
-
-    return {param: _param_vals(param, spec) for param, spec in schema.items()}
+                if cell in cell_idx and cell_idx[cell] < len(node_vals[param]):
+                    node_vals_remapped[param][connectome_cell_idx[cell]] = float(
+                        np.asarray(node_vals[param], dtype=np.float64).reshape(-1)[
+                            cell_idx[cell]
+                        ],
+                    )
+    return node_vals_remapped
 
 
 def remap_node_vals_adams(node_vals, cells, pairs, schema, connectome):
@@ -366,22 +384,22 @@ def remap_node_vals(node_vals, cells, pairs, schema, connectome):
 def _vals_from_z_slice(spec, z_slice):
     """Build length-``n_node`` per-node vals from z slice + param_mode lists."""
     n_node = spec['n_node']
-    vals = torch.empty((n_node,), dtype=z_slice.dtype, device=z_slice.device)
+    node_vals = torch.empty((n_node,), dtype=z_slice.dtype, device=z_slice.device)
     carry = spec.get('carry')
     for node in spec.get('fixed', ()):
-        vals[int(node)] = effective_init(spec, node)
+        node_vals[int(node)] = effective_init(spec, node)
     for z_idx, nodes in _z_pack_slots(spec):
         val = param_from_z(spec, z_slice[z_idx], node=nodes[0])
         for node in nodes:
-            vals[node] = val
+            node_vals[node] = val
     for node in spec.get('frozen', ()):
-        vals[int(node)] = (
+        node_vals[int(node)] = (
             float(carry[int(node)]) if carry is not None else effective_init(spec, node)
         )
-    return vals
+    return node_vals
 
 
-def _expand_param(param, spec, vals, connectome):
+def _expand_param(param, spec, node_vals, connectome):
     """Map packed vals to the tensor consumed by dynamics.
 
     Per-cell neuron params: ``(n_cell,)`` → ``(n_node,)`` via ``conn.node_cells``.
@@ -392,8 +410,8 @@ def _expand_param(param, spec, vals, connectome):
         param in ("a_gt", "bias_gt", "syn_strength_cell", "syn_strength_edge")
         or spec.get("radii") is not None
     ):
-        return vals.to(device)
-    return vals[connectome.conn.node_cells].to(device)
+        return node_vals.to(device)
+    return node_vals[connectome.conn.node_cells].to(device)
 
 
 def assign_params(z, schema, connectome):
@@ -410,17 +428,14 @@ def bias_gt_from_onset_trace(onset_trace, t_onset, session):
     """Per-cell-type mean of ``onset_trace[:, t_onset, :]``, clamped to ``bias_gt`` default."""
     lo = param_from_entry("bias_gt", "lo", NEURON_SCHEMA['params'])
     hi = param_from_entry("bias_gt", "hi", NEURON_SCHEMA['params'])
-    t0 = int(t_onset)
     if not torch.is_tensor(onset_trace):
         onset_trace = torch.as_tensor(
             onset_trace, dtype=session.sim_dtype, device=session.device,
         )
-    x = onset_trace[:, t0, :]
     node_cells = session.connectome.conn.node_cells
-    n_cell = int(session.connectome.n_cell)
-    onset_mean = x.mean(dim=0)
-    bias_gt = onset_mean.new_empty(n_cell)
-    for cell_idx in range(n_cell):
+    onset_mean = onset_trace[:, int(t_onset), :].mean(dim=0)
+    bias_gt = onset_mean.new_empty(int(session.connectome.n_cell))
+    for cell_idx in range(int(session.connectome.n_cell)):
         mask = node_cells == cell_idx
         bias_gt[cell_idx] = onset_mean[mask].mean() if bool(mask.any()) else onset_mean.new_tensor(float("nan"))
     return torch.clamp(bias_gt, min=lo, max=hi)
@@ -453,8 +468,9 @@ def schema_clamps(schema, sim_dtype=SIM_DTYPE):
     z_clamps = torch.zeros((schema_n_z(schema), 2), dtype=sim_dtype)
     for param, spec, start, stop in schema_params(schema):
         for z_idx, nodes in _z_pack_slots(spec):
-            z_lo, z_hi = _z_clamps(spec, nodes[0], param=param)
-            z_clamps[start + z_idx] = torch.tensor([z_lo, z_hi], dtype=sim_dtype)
+            z_clamps[start + z_idx] = torch.tensor(
+                _z_clamps(spec, nodes[0], param=param), dtype=sim_dtype,
+            )
     return z_clamps
 
 
@@ -463,9 +479,8 @@ def z_init_from_schema(schema, sim_dtype=SIM_DTYPE):
     for param, spec, start, stop in schema_params(schema):
         for z_idx, nodes in _z_pack_slots(spec):
             node = nodes[0]
-            init = effective_init(spec, node)
             z[start + z_idx] = (
-                z_from_param(spec, init, param=param, node=node)
+                z_from_param(spec, effective_init(spec, node), param=param, node=node)
                 + (np.random.random() - 0.5) * _node_param_key(spec, node, "jit")
             )
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
@@ -496,10 +511,9 @@ def override_params(z, schema, session, param_vals=None):
                 rows.append((node_from[name], float(val)))
         else:
             rows = [(node, float(bag)) for node in range(len(node_from))]
-        vals = np.asarray(node_vals[param], dtype=np.float64).reshape(-1).copy()
+        node_vals[param] = np.asarray(node_vals[param], dtype=np.float64).reshape(-1).copy()
         for node, val in rows:
-            vals[int(node)] = val
-        node_vals[param] = vals
+            node_vals[param][int(node)] = val
         fixed = set(map(int, spec.get("fixed") or ()))
         if fixed:
             inits = dict(spec.get("inits") or {})
@@ -526,6 +540,5 @@ def resolve_val_from(val_from=None):
 
 
 def val_from_enabled(opts, param):
-    val_from = (opts or {}).get("val_from") or {}
-    entry = val_from.get(param) or {}
+    entry = ((opts or {}).get("val_from") or {}).get(param) or {}
     return bool(entry.get("enabled"))

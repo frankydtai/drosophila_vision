@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import time
-from itertools import cycle, islice
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,18 +45,21 @@ def cost_ylim(*costs, percentile=99.0, padding=1.1, floor=1.0, log=False):
     for part_costs in costs:
         if part_costs is None:
             continue
-        vals = np.asarray(part_costs, dtype=np.float64).ravel()
-        vals = vals[np.isfinite(vals)]
-        if vals.size:
-            part_vals.append(vals)
+        finite = np.asarray(part_costs, dtype=np.float64).ravel()
+        finite = finite[np.isfinite(finite)]
+        if finite.size:
+            part_vals.append(finite)
     if not part_vals:
         return (floor, floor * 10.0) if log else (0.0, floor)
-    vals = np.concatenate(part_vals)
-    limit_high = float(np.percentile(vals, percentile))
-    ylim_high = max(limit_high * padding, floor)
+    ylim_high = max(
+        float(np.percentile(
+            concatenated := np.concatenate(part_vals), percentile,
+        )) * padding,
+        floor,
+    )
     if not log:
         return 0.0, ylim_high
-    positive = vals[vals > 0]
+    positive = concatenated[concatenated > 0]
     if not positive.size:
         return floor, max(ylim_high, floor * 10.0)
     ylim_low = max(float(positive.min()) / padding, floor)
@@ -104,24 +106,26 @@ def mark_sti_on(ax, t_onset, t_sti_end):
 
 def is_single_hex_cost(session, task=None, contrast=None):
     """True when cost uses a single hex (no hexes STD band)."""
-    if task is None and contrast is None:
-        pack = session.primary_pack
-    else:
-        pack = session.packs[task][contrast]
-    return pack.cost_radius == 0
+    return getattr(
+        session.primary_pack if task is None and contrast is None
+        else session.packs[task][contrast],
+        "cost_radius", None,
+    ) == 0
 
 
 def pack_center_mask(pack, connectome):
     """Boolean mask over pack cost entries included in the cost radius."""
     entry_nodes = pack.entry_nodes.cpu().numpy()
-    if pack.entry_radii is not None:
-        return pack.entry_radii.cpu().numpy().astype(np.int64, copy=False) == 0
-    if pack.cost_radius is not None:
+    entry_radii = getattr(pack, "entry_radii", None)
+    if entry_radii is not None:
+        return entry_radii.cpu().numpy().astype(np.int64, copy=False) == 0
+    cost_radius = getattr(pack, "cost_radius", None)
+    if cost_radius is not None:
         import build_hex
         return build_hex.radius_mask(
             np.asarray(connectome.us)[entry_nodes],
             np.asarray(connectome.vs)[entry_nodes],
-            int(pack.cost_radius),
+            int(cost_radius),
         )
     return np.ones(entry_nodes.shape[0], dtype=bool)
 
@@ -145,11 +149,13 @@ def _param_from_z(z, session, param):
     schema = train.schema_copy(session.schema)
     if param not in schema:
         return {}
-    vals = np.asarray(train.node_vals_from_z(z, schema)[param], dtype=np.float64).reshape(-1)
+    cell_vals = np.asarray(
+        train.node_vals_from_z(z, schema)[param], dtype=np.float64,
+    ).reshape(-1)
     cells = train.cells_from_connectome(session.connectome)
-    if vals.shape[0] != len(cells):
-        raise ValueError(f"{param} length {vals.shape[0]} != n_cell {len(cells)}")
-    return {str(cell): float(val) for cell, val in zip(cells, vals)}
+    if cell_vals.shape[0] != len(cells):
+        raise ValueError(f"{param} length {cell_vals.shape[0]} != n_cell {len(cells)}")
+    return {str(cell): float(val) for cell, val in zip(cells, cell_vals)}
 
 
 def cell_ylabel(label, ca_n=None, n=None):
@@ -207,24 +213,26 @@ class ElapsedTimer:
         prep_time = self._prep_time if self._prep_time is not None else time.perf_counter()
         plot_time = self._plot_time if self._plot_time is not None else time.perf_counter()
         now = time.perf_counter()
-        elapsed_s = now - self.start_time
-        parts = {
-            'prep': prep_time - self.start_time,
-            'plot_s': plot_time - prep_time,
-            'save': now - plot_time,
-            'elapsed_s': elapsed_s,
-        }
-        bits = [f'{name}={float(val):.1f}s' for name, val in parts.items()]
-        print(f'plot {path}: {"  ".join(bits)}')
+        print(
+            f'plot {path}: '
+            + '  '.join(
+                f'{name}={float(val):.1f}s'
+                for name, val in {
+                    'prep': prep_time - self.start_time,
+                    'plot_s': plot_time - prep_time,
+                    'save': now - plot_time,
+                    'elapsed_s': now - self.start_time,
+                }.items()
+            )
+        )
 
 
 def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
     """Inclusive t-index xlim from ``--ms-shown``; ``origin_t`` is onset t on the axis."""
     if ms_shown is None:
         return None
-    start, stop = ms_shown
-    limit_low = int(origin_t) + int(train.t_from_ms(float(start), delta_ms=float(delta_ms)))
-    limit_high = int(origin_t) + int(train.t_from_ms(float(stop), delta_ms=float(delta_ms)))
+    limit_low = int(origin_t) + int(train.t_from_ms(float(ms_shown[0]), delta_ms=float(delta_ms)))
+    limit_high = int(origin_t) + int(train.t_from_ms(float(ms_shown[1]), delta_ms=float(delta_ms)))
     if limit_low > limit_high:
         raise ValueError(f'ms-shown xlim START t={limit_low} > STOP t={limit_high}')
     return limit_low, limit_high
@@ -234,11 +242,17 @@ def at_xy_label(at_x, at_y):
     """Subtitle fragment for ``at_x`` / ``at_y`` hex-step filter."""
     parts = []
     if at_x is not None:
-        at_x_list = at_x if isinstance(at_x, (list, tuple)) else [at_x]
-        parts.append('x=' + ','.join(label for label, _, _ in expand_at_xy(at_x_list, None)[0]))
+        parts.append('x=' + ','.join(
+            label for label, _, _ in expand_at_xy(
+                at_x if isinstance(at_x, (list, tuple)) else [at_x], None,
+            )[0]
+        ))
     if at_y is not None:
-        at_y_list = at_y if isinstance(at_y, (list, tuple)) else [at_y]
-        parts.append('y=' + ','.join(label for label, _, _ in expand_at_xy(None, at_y_list)[0]))
+        parts.append('y=' + ','.join(
+            label for label, _, _ in expand_at_xy(
+                None, at_y if isinstance(at_y, (list, tuple)) else [at_y],
+            )[0]
+        ))
     return ', '.join(parts)
 
 
@@ -278,8 +292,7 @@ def expand_at_xy(at_xs, at_ys):
 
 def at_xy_reds(n_label):
     """Red shades for per at_xy traces plus a darker primary mean v_readout trace."""
-    n = n_label + 1
-    return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
+    return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n_label + 1)]
 
 
 def plot_std_band(ax, t, v_readout, std, *, color=None, alpha=None, label=r'$\pm$STD'):
@@ -501,10 +514,6 @@ def _save_interactive_html(fig, path):
 
     fig.canvas.draw()
     visible_axes = [ax for ax in fig.axes if ax.get_visible()]
-    plot_bg = _plotly_color(
-        visible_axes[0].get_facecolor()
-        if visible_axes else plt.rcParams['axes.facecolor']
-    )
     traces = []
     shapes = []
     layout = {
@@ -514,7 +523,10 @@ def _save_interactive_html(fig, path):
         'margin': dict(l=40, r=20, t=60, b=40),
         'hovermode': 'closest',
         'showlegend': False,
-        'plot_bgcolor': plot_bg,
+        'plot_bgcolor': _plotly_color(
+            visible_axes[0].get_facecolor()
+            if visible_axes else plt.rcParams['axes.facecolor']
+        ),
         'paper_bgcolor': _plotly_color(fig.get_facecolor()),
     }
     if fig._suptitle is not None:
@@ -528,20 +540,18 @@ def _save_interactive_html(fig, path):
         xkey = 'xaxis' if axis_i == 1 else f'xaxis{axis_i}'
         ykey = 'yaxis' if axis_i == 1 else f'yaxis{axis_i}'
         pos = ax.get_position()
-        spine_color = _plotly_color(ax.spines['bottom'].get_edgecolor())
         gridlines = ax.xaxis.get_gridlines()
-        grid_color = (
-            _plotly_color(gridlines[0].get_color())
-            if gridlines else _plotly_color(plt.rcParams['grid.color'])
-        )
         axis_style = dict(
             showgrid=True,
             zeroline=False,
             mirror=True,
             ticks='outside',
             showline=True,
-            linecolor=spine_color,
-            gridcolor=grid_color,
+            linecolor=_plotly_color(ax.spines['bottom'].get_edgecolor()),
+            gridcolor=(
+                _plotly_color(gridlines[0].get_color())
+                if gridlines else _plotly_color(plt.rcParams['grid.color'])
+            ),
         )
         layout[xkey] = dict(
             domain=[float(pos.x0), float(pos.x1)],
@@ -602,8 +612,9 @@ def _save_interactive_html(fig, path):
                 vertices = np.asarray(collection_path.vertices, dtype=float)
                 if vertices.size == 0:
                     continue
-                face_color = face_colors[min(path_index, len(face_colors) - 1)]
-                face_color_str = _plotly_color(face_color)
+                face_color_str = _plotly_color(
+                    face_colors[min(path_index, len(face_colors) - 1)],
+                )
                 traces.append(go.Scatter(
                     x=vertices[:, 0],
                     y=vertices[:, 1],
@@ -634,42 +645,39 @@ def _save_interactive_html(fig, path):
                 )
             else:
                 dash = _MATPLOT_LINE_DASH.get(str(line_style), 'solid')
-            marker = line.get_marker()
             mode = 'lines'
-            if marker not in (None, 'None', 'none', ''):
+            if line.get_marker() not in (None, 'None', 'none', ''):
                 mode = 'lines+markers' if dash != 'solid' or line.get_linewidth() else 'markers'
                 if line.get_linestyle() in ('None', 'none', ''):
                     mode = 'markers'
             line_alpha = line.get_alpha()
-            line_color = _plotly_color(line.get_color(), alpha=line_alpha)
-            if line.get_fillstyle() == 'none':
-                marker_face_color = 'rgba(0,0,0,0)'
-            else:
-                marker_face_color = _plotly_color(
-                    line.get_markerfacecolor(),
-                    alpha=line_alpha,
-                    fallback=line.get_color(),
-                )
-            marker_edge_color = _plotly_color(
-                line.get_markeredgecolor(),
-                alpha=line_alpha,
-                fallback=line.get_color(),
-            )
             traces.append(go.Scatter(
                 x=line_x,
                 y=line_y,
                 mode=mode,
                 name=str(label),
                 line=dict(
-                    color=line_color,
+                    color=_plotly_color(line.get_color(), alpha=line_alpha),
                     width=float(line.get_linewidth() or 1.0),
                     dash=dash,
                 ),
                 marker=dict(
                     size=max(4.0, float(line.get_markersize() or 4.0)),
-                    color=marker_face_color,
+                    color=(
+                        'rgba(0,0,0,0)'
+                        if line.get_fillstyle() == 'none'
+                        else _plotly_color(
+                            line.get_markerfacecolor(),
+                            alpha=line_alpha,
+                            fallback=line.get_color(),
+                        )
+                    ),
                     line=dict(
-                        color=marker_edge_color,
+                        color=_plotly_color(
+                            line.get_markeredgecolor(),
+                            alpha=line_alpha,
+                            fallback=line.get_color(),
+                        ),
                         width=float(line.get_markeredgewidth() or 0.0),
                     ),
                 ),
@@ -680,11 +688,12 @@ def _save_interactive_html(fig, path):
 
     if shapes:
         layout['shapes'] = shapes
-    plotly_figure = go.Figure(data=traces, layout=layout)
-    plotly_figure.write_html(path, include_plotlyjs=True, full_html=True, config={
-        'displayModeBar': True,
-        'scrollZoom': True,
-    })
+    go.Figure(data=traces, layout=layout).write_html(
+        path, include_plotlyjs=True, full_html=True, config={
+            'displayModeBar': True,
+            'scrollZoom': True,
+        },
+    )
 
 
 def save_figure(fig, path, dpi=150, rasterize=False, *, timer=None):
@@ -728,13 +737,11 @@ def plot_cost_figure(
     n_global_axis = len(costs_global)
     n_global_row = (n_global_axis + n_col - 1) // n_col if n_global_axis else 0
     n_cell_row = len(rows)
-    n_part_row = n_cell_row + n_global_row
-    n_block_row = 1 + n_part_row
-    n_row = 2 * n_block_row
+    n_block_row = 1 + n_cell_row + n_global_row
 
-    fig = plt.figure(figsize=(PANEL_W * n_col, PANEL_H * n_row))
+    fig = plt.figure(figsize=(PANEL_W * n_col, PANEL_H * 2 * n_block_row))
     grid_spec = fig.add_gridspec(
-        n_row, n_col,
+        2 * n_block_row, n_col,
         hspace=0.55, wspace=0.45,
         top=0.95, bottom=0.06, left=0.07, right=0.98,
     )

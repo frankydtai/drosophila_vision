@@ -187,10 +187,11 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
         if checkpoint_interval and global_iter % checkpoint_interval == 0:
             _commit_interval_checkpoint(global_iter)
 
-        iter_parts = float_last_parts(task_order) if float_last_parts else None
         if (iter + 1) % _TQDM_REFRESH_INTERVAL == 0 or iter == n_iter - 1:
             progress_bar.set_description(
-                f'Cost: {cost:.4f}' + _fmt_cost_parts(iter_parts),
+                f'Cost: {cost:.4f}' + _fmt_cost_parts(
+                    float_last_parts(task_order) if float_last_parts else None
+                ),
                 refresh=False,
             )
 
@@ -219,9 +220,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
     print('Final cost =', format(cost, '.4f') + _fmt_cost_parts(final_parts))
     print('Best  cost =', format(best_cost, '.4f') + _fmt_cost_parts(best_parts))
 
-    b = time.time()
-
-    print('time needed  =', format(b - a, '.2f'), ' sec')
+    print('time needed  =', format(time.time() - a, '.2f'), ' sec')
     print()
 
     return best_z, best_adam
@@ -271,10 +270,8 @@ def _load_adams(optimizer, z, adam_init):
             f"adam shape {tuple(exp_avg.shape)}/{tuple(exp_avg_sq.shape)} "
             f"!= z shape {tuple(z.shape)}"
         )
-    adam_iter = float(adam_init.get('iter', 0))
-    # Match torch.optim.Adam: library key ``step`` is a CPU float scalar; adams match *z*.
     optimizer.state[z] = {
-        'step': torch.tensor(adam_iter, dtype=torch.float32),
+        'step': torch.tensor(float(adam_init.get('iter', 0)), dtype=torch.float32),
         'exp_avg': exp_avg.clone(),
         'exp_avg_sq': exp_avg_sq.clone(),
     }
@@ -316,8 +313,7 @@ def _build_iter_logger(session: TrainSession):
         _last_total = float(total)
 
     def _eval_parts(z, *, no_grad: bool):
-        ctx = torch.no_grad() if no_grad else nullcontext()
-        with ctx:
+        with (torch.no_grad() if no_grad else nullcontext()):
             parts = calc_cost_parts(z, session)
             total = _scaled_cost_from_parts(parts, session)
         _set_last({k: float(v.item()) for k, v in parts.items()}, float(total.item()))
@@ -423,18 +419,16 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
         }
 
     run_i = int(np.argmin(final_costs)) if n_run else 0
-    costs = (
-        cost_histories[run_i]
-        if cost_histories[run_i] is not None
-        else np.array([], dtype=np.float64)
-    )
-    costs_by_part = part_histories[run_i] or {}
 
     return TrainResult(
         run_params=run_params,
         final_costs=final_costs,
-        costs=costs,
-        costs_by_part=costs_by_part,
+        costs=(
+            cost_histories[run_i]
+            if cost_histories[run_i] is not None
+            else np.array([], dtype=np.float64)
+        ),
+        costs_by_part=part_histories[run_i] or {},
         final_costs_by_part=final_costs_by_part,
         run_adams=tuple(run_adams),
     )

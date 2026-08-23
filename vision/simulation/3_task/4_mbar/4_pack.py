@@ -3,7 +3,7 @@
 
 Cost hexes, sti ``i_sti``, and :class:`MbarGt` packing.
 GT traces and motion preference come from :mod:`task.mbar.gt`.
-:class:`~task.spread.pack.Pack` assembly lives here.
+:class:`MbarPack` is mbar-specific.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from network.construction import (
     gt_cells_from_opts,
     standardize_cost_radius,
 )
-from task.spread.pack import Pack, CostPartPlotSpec, cost_hex_label, cost_sti_hexes
+from task.spread.pack import CostPartPlotSpec, cost_hex_label, cost_sti_hexes
 from task.spread.sti_spec import i_baseline_from_i_sti
 from task.spread.gt import contrast_sign
 from task.mbar.gt import (
@@ -72,6 +72,24 @@ class MbarGt:
     entry_part_keys: Tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class MbarPack:
+    """One mbar train pack: task×contrast drive + entries + gts."""
+
+    task: str
+    contrast: str
+    i_sti: torch.Tensor
+    gts: torch.Tensor
+    cost_scales: torch.Tensor
+    entry_bs: torch.Tensor
+    entry_nodes: torch.Tensor
+    cost_t0s: Optional[torch.Tensor] = None
+    cost_radius: Optional[int] = None
+    cost_pd_nds: Optional[torch.Tensor] = None
+    entry_part_keys: Tuple[str, ...] = ()
+    cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
+
+
 def cell_part_key(contrast: str, cell: str, pd_nd_label: str) -> str:
     return f"mbar_{contrast}_{cell}_{pd_nd_label}"
 
@@ -95,11 +113,11 @@ def _mbar_cost_part_plot_specs(
             continue
         pd_nd_label = PD_ND_LABELS[int(pd_nd[entry])]
         cell = str(cells[int(node_cells[entry])])
-        label = (
-            f"{pd_nd_label} ({contrast})" if contrast else pd_nd_label
-        )
         specs[part_key] = CostPartPlotSpec(
-            part_key, cell, ("mbar_pd_nd", pd_nd_label), label,
+            part_key,
+            cell,
+            ("mbar_pd_nd", pd_nd_label),
+            f"{pd_nd_label} ({contrast})" if contrast else pd_nd_label,
         )
     return specs
 
@@ -114,15 +132,19 @@ def nodes_from_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
     node_us, node_vs = node_us_vs(connectome)
     cell_idxs = np.array(connectome.node_cells, dtype=np.int64)
     uv_span = int(max(np.max(np.abs(node_us)), np.max(np.abs(node_vs)), 1)) + 1
-    pack = (node_us + uv_span) * (2 * uv_span + 1) + (node_vs + uv_span)
-    hex_pack = np.array(
-        [
-            (int(hex.u) + uv_span) * (2 * uv_span + 1) + (int(hex.v) + uv_span)
-            for hex in hexes
-        ],
-        dtype=np.int64,
-    )
-    return np.where((cell_idxs == cell_idx) & np.isin(pack, hex_pack))[0].astype(np.int64)
+    return np.where(
+        (cell_idxs == cell_idx)
+        & np.isin(
+            (node_us + uv_span) * (2 * uv_span + 1) + (node_vs + uv_span),
+            np.array(
+                [
+                    (int(hex.u) + uv_span) * (2 * uv_span + 1) + (int(hex.v) + uv_span)
+                    for hex in hexes
+                ],
+                dtype=np.int64,
+            ),
+        ),
+    )[0].astype(np.int64)
 
 
 def filter_requested_specs(
@@ -154,10 +176,10 @@ def _assemble_mbar_readouts(
     nodes_from_hex_type: Callable[[int, int, str], Sequence[int]],
     waveform_mse: bool = True,
 ) -> Tuple[
-    List[int], List[int], List[str], List[np.ndarray], List[float], List[int], List[int], List[str], int,
+    List[int], List[int], List[np.ndarray], List[float], List[int], List[int], List[str], int,
 ]:
-    entry_bs, entry_nodes, entry_cells, entry_gts, entry_cost_scales, entry_cost_t0s, entry_cost_pd_nds, entry_part_keys = (
-        [], [], [], [], [], [], [], [],
+    entry_bs, entry_nodes, entry_gts, entry_cost_scales, entry_cost_t0s, entry_cost_pd_nds, entry_part_keys = (
+        [], [], [], [], [], [], [],
     )
     skipped_orthogonal = 0
     i_baseline = float(i_baseline)
@@ -193,21 +215,21 @@ def _assemble_mbar_readouts(
                         raise KeyError(f"fig1 trace missing: {trace_token}")
                     gt_trace = fig1[trace_token]
                 pd_nd_idx = PD_IDX if pref.pd_nd == "PD" else ND_IDX
-                pd_nd_label = PD_ND_LABELS[pd_nd_idx]
                 t0 = t0_by_hex.get(hex_idx, 0)
                 for node in nodes:
                     entry_bs.append(b)
                     entry_nodes.append(int(node))
-                    entry_cells.append(str(cell))
                     if gt_trace is not None:
                         entry_gts.append(gt_trace)
                     entry_cost_scales.append(1.0)
                     if waveform_mse:
                         entry_cost_t0s.append(t0)
                         entry_cost_pd_nds.append(pd_nd_idx)
-                        entry_part_keys.append(cell_part_key(spec.contrast, cell, pd_nd_label))
+                        entry_part_keys.append(
+                            cell_part_key(spec.contrast, cell, PD_ND_LABELS[pd_nd_idx])
+                        )
     return (
-        entry_bs, entry_nodes, entry_cells, entry_gts, entry_cost_scales,
+        entry_bs, entry_nodes, entry_gts, entry_cost_scales,
         entry_cost_t0s, entry_cost_pd_nds, entry_part_keys,
         skipped_orthogonal,
     )
@@ -290,7 +312,11 @@ def build_mbar_gt(
         hex = hex_by_idx[hex_idx]
         return connectome.nodes_at_uv(hex.u, hex.v, cell, cells=cells)
 
-    rows = _assemble_mbar_readouts(
+    (
+        entry_bs, entry_nodes, entry_gts, entry_cost_scales,
+        entry_cost_t0s, entry_cost_pd_nds, entry_part_keys,
+        _,
+    ) = _assemble_mbar_readouts(
         specs=sti.specs,
         i_sti_hex=sti.i_sti_hex,
         cost_hex_idxs=cost_hex_idxs,
@@ -304,11 +330,6 @@ def build_mbar_gt(
         nodes_from_hex_type=_nodes_from_hex_type,
         waveform_mse=waveform_mse,
     )
-    (
-        entry_bs, entry_nodes, entry_cells, entry_gts, entry_cost_scales,
-        entry_cost_t0s, entry_cost_pd_nds, entry_part_keys,
-        _,
-    ) = rows
 
     if not entry_bs:
         raise ValueError("no moving-bar cost nodes (check subtypes and sti hexes)")
@@ -507,7 +528,6 @@ def build_mbar_pack(
     ms_pre,
     multi_bar: bool,
 ):
-    task = "mbar"
     device = device or connectome.device
     opts = mbar_sti_opts(
         mbar_sti_opts,
@@ -540,19 +560,17 @@ def build_mbar_pack(
     if cost_radius is not None:
         sti_opts["cost_radius"] = int(cost_radius)
     sti_opts["gt_cells"] = list(mbar_gt.active_gts)
-    pack = Pack(
-        task=task,
+    pack = MbarPack(
+        task="mbar",
         contrast=contrast,
         i_sti=mbar_gt.i_sti,
         gts=mbar_gt.gts,
-        power=mbar_gt.power,
         cost_scales=mbar_gt.cost_scales,
         entry_bs=mbar_gt.entry_bs,
         entry_nodes=mbar_gt.entry_nodes,
         cost_t0s=mbar_gt.cost_t0s,
         cost_radius=cost_radius,
         cost_pd_nds=mbar_gt.cost_pd_nds,
-        waveform_mse=bool(mbar_gt.waveform_mse),
         entry_part_keys=mbar_gt.entry_part_keys,
         cost_part_plot_specs=(
             _mbar_cost_part_plot_specs(
@@ -567,9 +585,8 @@ def build_mbar_pack(
             else None
         ),
     )
-    hex_label = cost_hex_label(cost_radius, mbar_gt.n_cost_hex)
-    label = (
+    return pack, sti_opts, (
         f"moving-bar {contrast} (B={mbar_gt.n_b} stis, "
-        f"{int(mbar_gt.entry_bs.shape[0])} cost nodes, {hex_label})"
+        f"{int(mbar_gt.entry_bs.shape[0])} cost nodes, "
+        f"{cost_hex_label(cost_radius, mbar_gt.n_cost_hex)})"
     )
-    return pack, sti_opts, label

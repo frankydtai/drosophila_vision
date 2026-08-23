@@ -577,7 +577,7 @@ Forbidden: ``cu`` / ``cv`` for a hex or center (use ``u`` / ``v`` or ``center_u`
 ### `val` / `vals`
 
 Definition: The live numeric param (including post-train / plot-time) — not the cold-start. Singular ``val`` is one number (YAML / Hydra ``param_vals`` entry, or a short-lived loop scalar). Plural ``vals`` is a bag of those numbers (e.g. full-w per-node vals from ``node_vals_from_z``). Plot/analyze ``param_vals.a_h.L1=0.8`` patches the current decoded vals then re-packs ``z``; it does not rewrite train ``init``/``inits``.
-Example: `node_vals_from_z(z, schema)`, `z_from_node_vals(...)`, `param_vals.a_h.L1=0.8`, `for key, val in opts.items(): out[key] = float(val)`
+Example: `node_vals_from_z(z, schema)`, `z_from_node_vals(...)`, `cell_vals`, `param_vals.a_h.L1=0.8`, `for key, val in opts.items(): out[key] = float(val)`
 Forbidden: ``values`` as a naming token (`node_values_from_z`, …). Do not use ``val`` / ``vals`` for cold-start — that is ``init`` / ``inits``. Do not abbreviate ``val_from`` as ``vf`` / ``VF`` / ``vf_opts``.
 
 ### `val_from`

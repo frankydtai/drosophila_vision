@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 AUTO="$ROOT/.cursor/slim-core-auto.on"
-QUEUE="$ROOT/.cursor/slim-core-queue.md"
+QUEUE="$ROOT/.cursor/skills/slim-core-script/slim-core-queue.md"
 LOG="$ROOT/.cursor/slim-core-auto.log"
 
 input="$(cat)"
@@ -48,7 +48,7 @@ if [[ "${pending:-0}" -lt 1 ]]; then
   noop
 fi
 
-msg='用 slim-core-script skill，只處理 .cursor/slim-core-queue.md 裡下一個未完成的檔案。做完勾選後結束本輪（不要開下一檔；auto hook 會繼續）。'
+msg='用 slim-core-script skill，只處理 .cursor/skills/slim-core-script/slim-core-queue.md 裡下一個未完成的檔案：內聯單次使用 local；禁止新造名詞（僅 lexicon / 檔內既有名）。做完勾選後結束本輪（不要開下一檔；auto hook 會繼續）。'
 python3 -c 'import json,sys; print(json.dumps({"followup_message": sys.argv[1]}))' "$msg"
 log "emit followup pending=$pending loop_count=$loop_count cid=$cid"
 exit 0

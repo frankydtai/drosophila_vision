@@ -83,7 +83,7 @@ from train.param import (
     sim_dtype_from_fp,
 )
 from train.session import (
-    Pack,
+    TaskPack,
     TrainSession,
     TASKS,
     load_train_connectome,

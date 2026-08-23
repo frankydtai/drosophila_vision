@@ -7,7 +7,6 @@ from task.sbar.sti_geo import (
     _fill,
     bar_bounds,
     sti_hexes_at_xy,
-    hex_from_uv,
     i_sti_nodes_from_hexes,
     node_us_vs,
     sti_hexes,

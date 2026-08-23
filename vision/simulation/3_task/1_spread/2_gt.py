@@ -60,13 +60,12 @@ def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
 
 def _lowpass(mask, tau_ms, *, delta_ms: float):
     mask = mask.transpose(np.roll(np.arange(mask.ndim), 1))
-    n_t = mask.shape[0]
     tau_ms = float(tau_ms)
     if tau_ms < delta_ms:
         return mask.transpose(np.roll(np.arange(mask.ndim), -1))
     result = np.empty_like(mask)
     result[0] = mask[0]
-    for t in range(n_t - 1):
+    for t in range(mask.shape[0] - 1):
         result[t + 1] = result[t] + (delta_ms / tau_ms) * (mask[t] - result[t])
     return result.transpose(np.roll(np.arange(result.ndim), -1))
 
@@ -98,12 +97,11 @@ def _shift_right(ir, t_delay: int):
 
 
 def build_ir_lti(cell: str, mask: np.ndarray, *, delta_ms: float) -> np.ndarray:
-    t_delay = int(round(float(IR_delay_ms[cell]) / float(delta_ms)))
     return _shift_right(
         normalize_ir(
             _bandpass(mask, IR_hp_ms[cell], IR_lp_ms[cell], delta_ms=delta_ms)
         ),
-        t_delay,
+        int(round(float(IR_delay_ms[cell]) / float(delta_ms))),
     )
 
 

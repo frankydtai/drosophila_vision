@@ -74,8 +74,9 @@ def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
         elif token in GT_CELLS:
             pool = (token,)
         else:
-            valid = ", ".join((*GT_CELL_ALIASES, *GT_CELLS))
-            raise ValueError(f"unknown gt cell {token!r} (expected {valid})")
+            raise ValueError(
+                f"unknown gt cell {token!r} (expected {', '.join((*GT_CELL_ALIASES, *GT_CELLS))})"
+            )
         for cell in pool:
             if cell not in seen:
                 seen.add(cell)
@@ -187,15 +188,21 @@ def load_fig1_trace(
     if key in _TRACE_CACHE:
         return _TRACE_CACHE[key]
     with np.load(npz_path) as npz:
-        t_key, v_key = f"{trace_token}__time_ms", f"{trace_token}__vm_mv"
+        t_key = f"{trace_token}__time_ms"
         if t_key not in npz.files:
             raise KeyError(f"missing trace {trace_token!r} in {npz_path}")
         time_ms = np.asarray(npz[t_key], dtype=np.float64)
-        vm_mv = np.asarray(npz[v_key], dtype=np.float64)
-    query_ms = np.arange(n_t, dtype=np.float64) * delta_ms
-    trace = np.interp(query_ms, time_ms, vm_mv, left=vm_mv[0], right=vm_mv[-1])
-    _TRACE_CACHE[key] = trace
-    return trace
+        vm_mv = np.asarray(npz[f"{trace_token}__vm_mv"], dtype=np.float64)
+    return _TRACE_CACHE.setdefault(
+        key,
+        np.interp(
+            np.arange(n_t, dtype=np.float64) * delta_ms,
+            time_ms,
+            vm_mv,
+            left=vm_mv[0],
+            right=vm_mv[-1],
+        ),
+    )
 
 
 def load_fig1_traces(

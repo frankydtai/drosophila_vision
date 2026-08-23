@@ -24,8 +24,7 @@ def standardize_spot_radius(spot_radius) -> float:
 
 def _spot_center_angle(u: int, v: int) -> float:
     """Degree-space angle of (u, v), for a stable angular tie-break ordering."""
-    x_deg, y_deg = build_hex.xy_deg_from_uv(u, v)
-    return float(np.arctan2(float(y_deg), float(x_deg)))
+    return float(np.arctan2(*map(float, build_hex.xy_deg_from_uv(u, v)[::-1])))
 
 
 def spot_centers(
@@ -42,7 +41,6 @@ def spot_centers(
     else:
         step1_u, step1_v = radius_halves + 1, -radius_floor
     step2_u, step2_v = -step1_v, step1_u + step1_v  # 60° CCW about origin
-    hexes = build_hex.radius_hexes((radius_halves + 1) // 2)
     span = int(2 * (connectome_radius // max(radius_floor, 1) + 2))
     centers: list = []
     for n_step1 in range(-span, span + 1):
@@ -53,7 +51,7 @@ def spot_centers(
                 continue
             if fully_inside and any(
                 build_hex.hex_radius(center_u + du, center_v + dv) > connectome_radius
-                for du, dv in hexes
+                for du, dv in build_hex.radius_hexes((radius_halves + 1) // 2)
             ):
                 continue
             centers.append((center_u, center_v))
@@ -119,20 +117,18 @@ def build_spot(
 ) -> Spot:
     """Build a :class:`Spot` for the connectome."""
     spot_radius = standardize_spot_radius(spot_radius)
-    connectome_radius = _connectome_radius(connectome, spot_radius)
-    shifts = build_hex.radius_hexes(1)
     if not multi_spot:
         centers = [(0, 0)]
     else:
         centers = [
             (int(center_u), int(center_v))
             for center_u, center_v in spot_centers(
-                connectome_radius=connectome_radius,
+                connectome_radius=_connectome_radius(connectome, spot_radius),
                 spot_radius=spot_radius,
                 fully_inside=fully_inside,
             )
         ]
-    return Spot(centers, shifts, spot_radius)
+    return Spot(centers, build_hex.radius_hexes(1), spot_radius)
 
 
 def resolve_spot(

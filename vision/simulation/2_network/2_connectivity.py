@@ -83,18 +83,19 @@ class ScatterConn:
         self.w_signed = self.w_exc - self.w_inh
 
         n_cell = int(self.node_cells.max().item()) + 1 if self.n_node else 0
-        src_t = self.node_cells[self.source_idxs].detach().cpu().numpy()
-        tar_t = self.node_cells[self.target_idxs].detach().cpu().numpy()
-        pair_idxs_np, n_pair, pairs = build_cell_pair_idxs(src_t, tar_t, n_cell)
+        pair_idxs_np, n_pair, pairs = build_cell_pair_idxs(
+            self.node_cells[self.source_idxs].detach().cpu().numpy(),
+            self.node_cells[self.target_idxs].detach().cpu().numpy(),
+            n_cell,
+        )
         self.pair_idxs = torch.as_tensor(pair_idxs_np, dtype=torch.long, device=device)
-        self.n_pair = int(n_pair)
+        self.n_pair = n_pair
         self.pairs = pairs
 
-    def _target_sums(self, vals: torch.Tensor) -> torch.Tensor:
-        sums_shape = vals.shape[:-1] + (self.n_node,)
-        sums = torch.zeros(sums_shape, dtype=vals.dtype, device=vals.device)
-        target_idxs_expanded = self.target_idxs.expand(vals.shape)
-        sums.scatter_add_(-1, target_idxs_expanded, vals)
+    def _target_sums(self, xs: torch.Tensor) -> torch.Tensor:
+        sums_shape = xs.shape[:-1] + (self.n_node,)
+        sums = torch.zeros(sums_shape, dtype=xs.dtype, device=xs.device)
+        sums.scatter_add_(-1, self.target_idxs.expand(xs.shape), xs)
         return sums
 
     def _gather(self, x: torch.Tensor) -> torch.Tensor:

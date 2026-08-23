@@ -40,8 +40,7 @@ def param_from_entry(param, param_key, params):
 
 
 def _axis_names(param, n_node, *, cells=None, radii=None, pairs=None, edges=None):
-    n_axis = sum(x is not None for x in (cells, radii, pairs, edges))
-    if n_axis > 1:
+    if sum(x is not None for x in (cells, radii, pairs, edges)) > 1:
         raise ValueError(
             f"{param}: pass at most one of cells, radii, pairs, edges"
         )
@@ -64,13 +63,13 @@ def _node_vals_from_bag(bag, names, param, key):
     if not bag:
         return {}
     node_from = dict(zip(names, range(len(names))))
-    vals = {}
+    node_vals = {}
     for name, val in bag.items():
         name = str(name)
         if name not in node_from:
             raise ValueError(f"{param}: {key} unknown id {name!r}")
-        vals[node_from[name]] = float(val)
-    return vals
+        node_vals[node_from[name]] = float(val)
+    return node_vals
 
 
 def build_param_spec(
@@ -140,18 +139,16 @@ def build_param_spec(
     shared = list(spec.get("shared") or ())
     if len(shared) >= 2:
         for param_key in ("lo", "hi", "jit"):
-            plural = param_key + "s"
-            vals = []
-            for node in shared:
-                by_node = spec.get(plural)
-                if by_node is not None and int(node) in by_node:
-                    vals.append(float(by_node[int(node)]))
-                else:
-                    vals.append(float(spec[param_key]))
-            if len(set(vals)) > 1:
+            by_node = spec.get(param_key + "s")
+            unique = {
+                float(by_node[int(node)]) if by_node is not None and int(node) in by_node
+                else float(spec[param_key])
+                for node in shared
+            }
+            if len(unique) > 1:
                 raise ValueError(
                     f"{param}: shared nodes must share the same {param_key}, "
-                    f"got {vals} for nodes {shared}"
+                    f"got {sorted(unique)} for nodes {shared}"
                 )
     return spec
 
@@ -162,10 +159,9 @@ def _syn_param(syn_mode, n_pair, n_edge, params, *, pairs):
         if n_edge is None:
             raise TypeError("per_edge syn_strength_edge requires n_edge from network ScatterConn")
         n_edge = int(n_edge)
-        edges = [f"e{i}" for i in range(n_edge)]
         return "syn_strength_edge", build_param_spec(
             "syn_strength_edge", n_edge, params["syn_strength_edge"],
-            edges=edges,
+            edges=[f"e{i}" for i in range(n_edge)],
         )
     if n_pair is None:
         raise TypeError("per_cell syn_strength_cell requires n_pair from network ScatterConn")
@@ -189,7 +185,7 @@ def _a_sti_radius_param(params: dict, a_sti_radii):
     return "a_sti_radius", spec
 
 
-def params_from_defaults(
+def _build_param_schema(
     params,
     *,
     skip,
@@ -201,20 +197,17 @@ def params_from_defaults(
     pairs,
     a_sti_radii,
 ):
-    """Build ordered schema ``dict[param, spec]``; ``skip`` omits unused params."""
-    mode = syn_mode
-    active_syn = (
-        "syn_strength_edge" if mode == "per_edge" else "syn_strength_cell"
-    )
-    cells = [str(cell) for cell in cells]
+    """Build schema ``dict[param, spec]``; ``skip`` omits unused params."""
     schema = {}
     for param in params:
         if param in skip:
             continue
         if param in ("syn_strength_cell", "syn_strength_edge"):
-            if param != active_syn:
+            if param != (
+                "syn_strength_edge" if syn_mode == "per_edge" else "syn_strength_cell"
+            ):
                 continue
-            p, spec = _syn_param(mode, n_pair, n_edge, params, pairs=pairs)
+            p, spec = _syn_param(syn_mode, n_pair, n_edge, params, pairs=pairs)
             schema[p] = spec
             continue
         if param == "a_sti_radius":
@@ -224,7 +217,7 @@ def params_from_defaults(
             schema[p] = spec
             continue
         schema[param] = build_param_spec(
-            param, n_cell, params[param], cells=cells,
+            param, n_cell, params[param], cells=[str(cell) for cell in cells],
         )
     return schema
 
@@ -244,14 +237,15 @@ def build_borst_schema(
     """Borst schema in NEURON_SCHEMA['params'] order (rev i_h params always included)."""
     if cells is None:
         raise TypeError("borst schema requires cells from network")
+    cells = list(cells)
     skip = set(_HP_LP_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
-    return params_from_defaults(
+    return _build_param_schema(
         params,
         skip=skip,
         n_cell=n_cell,
-        cells=list(cells),
+        cells=cells,
         syn_mode=syn_mode,
         n_pair=n_pair,
         n_edge=n_edge,
@@ -275,14 +269,15 @@ def build_hp_lp_schema(
     """HP-then-LP schema in NEURON_SCHEMA['params'] order (borst-only keys skipped)."""
     if cells is None:
         raise TypeError("hp_lp schema requires cells from network")
+    cells = list(cells)
     skip = set(_BORST_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
-    return params_from_defaults(
+    return _build_param_schema(
         params,
         skip=skip,
         n_cell=n_cell,
-        cells=list(cells),
+        cells=cells,
         syn_mode=syn_mode,
         n_pair=n_pair,
         n_edge=n_edge,
@@ -307,21 +302,19 @@ def build_schema(
     """
     n = connectome.n_cell
     cells = [str(t) for t in connectome.cells]
-    pairs = [f"{cells[s]}:{cells[t]}" for s, t in connectome.conn.pairs]
-    mode = syn_mode
     n_pair = getattr(connectome.conn, "n_pair", None)
     n_edge = getattr(connectome.conn, "n_edge", None)
-    if mode == "per_edge":
+    if syn_mode == "per_edge":
         if n_edge is None:
             raise TypeError(f"{model} syn_strength_edge requires network ScatterConn")
     elif n_pair is None:
         raise TypeError(f"{model} syn_strength_cell requires network ScatterConn")
     kwargs = dict(
-        syn_mode=mode,
+        syn_mode=syn_mode,
         n_pair=n_pair,
         n_edge=n_edge,
         params=params,
-        pairs=pairs,
+        pairs=[f"{cells[s]}:{cells[t]}" for s, t in connectome.conn.pairs],
         filter=filter,
         a_sti_radii=a_sti_radii,
     )

@@ -118,11 +118,11 @@ def _current_cmap(i_max: float, i_baseline: float):
     )
 
 
-def _plot_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are_xy_deg: bool = False):
+def _plot_hex_field(ax, hexes, i_sti, i_max, i_baseline, xlim, ylim, *, hexes_are_xy_deg: bool = False):
     cmap = _current_cmap(i_max, i_baseline)
     colors = [
         cmap(float(np.clip(val / i_max if i_max > 0 else 0.0, 0.0, 1.0)))
-        for val in vals
+        for val in i_sti
     ]
     if hexes_are_xy_deg:
         x_deg = [x for x, _ in hexes]

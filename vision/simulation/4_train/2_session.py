@@ -28,7 +28,7 @@ import json
 import os
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 from import_bootstrap import parse_comma_list
 from neuron import (
@@ -49,17 +49,19 @@ from train.param import (
 
 from task.spread.gt import expand_gt_cells as expand_spread_gt_cells
 from task.spread.pack import (
-    Pack,
+    SpreadPack,
     build_spread_pack,
     resolve_spread_sti_opts,
 )
 from task.spot.gt import expand_gt_cells as expand_spot_gt_cells
 from task.spot.pack import (
+    SpotPack,
     build_spot_pack,
     resolve_spot_sti_opts,
 )
 from task.mbar.gt import expand_gt_cells as expand_mbar_gt_cells
 from task.mbar.pack import (
+    MbarPack,
     build_mbar_pack,
     resolve_mbar_sti_opts,
 )
@@ -69,6 +71,7 @@ from network.construction import (
 
 TASKS = ("spread", "spot", "mbar")
 RUN_DATA_SUBDIR = "data"
+TaskPack = Union[SpreadPack, SpotPack, MbarPack]
 
 
 def run_data_dir(run_dir) -> str:
@@ -93,7 +96,7 @@ class TrainSession:
     connectome: Network
     model: str
     schema: dict
-    packs: Dict[str, Dict[str, Pack]]
+    packs: Dict[str, Dict[str, TaskPack]]
     tasks: Tuple[str, ...]
     contrasts: Tuple[str, ...]
     part_cost_scales: Dict[str, float]
@@ -121,13 +124,13 @@ class TrainSession:
     def with_schema(self, schema) -> "TrainSession":
         return replace(self, schema=schema_copy(schema))
 
-    def iter_packs(self) -> Iterator[Pack]:
+    def iter_packs(self) -> Iterator[TaskPack]:
         for task in self.tasks:
             for contrast in self.contrasts:
                 yield self.packs[task][contrast]
 
     @property
-    def primary_pack(self) -> Pack:
+    def primary_pack(self) -> TaskPack:
         return self.packs[self.tasks[0]][self.contrasts[0]]
 
     @property
@@ -135,7 +138,7 @@ class TrainSession:
         i_sti = self.primary_pack.i_sti
         return int(i_sti.shape[1] if i_sti.dim() == 3 else i_sti.shape[0])
 
-    def pack_i_sti(self, pack: Optional[Pack] = None) -> torch.Tensor:
+    def pack_i_sti(self, pack: Optional[TaskPack] = None) -> torch.Tensor:
         pack = pack or self.primary_pack
         i_sti = pack.i_sti
         if pack.task == "spot" and i_sti.dim() == 3 and int(i_sti.shape[0]) == 1:
@@ -410,10 +413,9 @@ def _cost_ms_sidecar(cost_ms):
         if len(tokens) == 1:
             return float(tokens[0])
         return [float(x) for x in tokens]
-    mss = [float(ms) for ms in cost_ms]
-    if not mss:
+    if not cost_ms:
         raise ValueError("cost_ms list must have at least one ms")
-    return mss
+    return [float(ms) for ms in cost_ms]
 
 
 def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -> dict:
@@ -468,12 +470,11 @@ def resolve_schema(model, connectome, schema, train_opts):
     if train_opts:
         filter = str(train_opts.get("filter", NEURON_SCHEMA['filter']))
     syn_mode = (train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode'])
-    params = (train_opts or {}).get("params") or NEURON_SCHEMA["params"]
     schema = build_schema(
         model,
         connectome,
         syn_mode=syn_mode,
-        params=params,
+        params=(train_opts or {}).get("params") or NEURON_SCHEMA["params"],
         filter=filter,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
     )
@@ -495,7 +496,7 @@ def _build_session(
     model: str,
     tasks: List[str],
     contrasts: List[str],
-    packs: Dict[str, Dict[str, Pack]],
+    packs: Dict[str, Dict[str, TaskPack]],
     *,
     delta_ms: float,
     delta_ms_pre: float,
@@ -528,22 +529,19 @@ def _build_session(
     )
     train_opts["pre_steady_n_iter"] = pre_steady_n_iter
     train_opts["pre_steady_damp"] = pre_steady_damp
-    sch = resolve_schema(
-        model, connectome, schema, train_opts,
-    )
-    sch = schema_with_param_carry(sch)
-    cli_scales = {
-        str(part_key): float(scale)
-        for part_key, scale in (part_cost_scales or {}).items()
-    }
     session = TrainSession(
         connectome=connectome,
         model=model,
-        schema=sch,
+        schema=schema_with_param_carry(resolve_schema(
+            model, connectome, schema, train_opts,
+        )),
         packs=dict(packs),
         tasks=tuple(tasks),
         contrasts=tuple(contrasts),
-        part_cost_scales=cli_scales,
+        part_cost_scales={
+            str(part_key): float(scale)
+            for part_key, scale in (part_cost_scales or {}).items()
+        },
         sequential=sequential,
         device=device,
         delta_ms=float(delta_ms),
@@ -616,7 +614,7 @@ def open_session(
         gt_amp=gt_amp,
         filter=filter,
     )
-    packs: Dict[str, Dict[str, Pack]] = {}
+    packs: Dict[str, Dict[str, TaskPack]] = {}
     resolved_sti = {}
     for task in tasks:
         packs[task] = {}
@@ -718,13 +716,12 @@ def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSess
     if not opts.get("contrasts"):
         raise ValueError("train_opts requires contrasts")
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", TRAIN_SESSION['fp'])))
-    neuron_const = MODEL
     syn_mode = opts.get("syn_mode", NEURON_SCHEMA['syn_mode'])
     mb = load_train_connectome(
         nj, device=opts.get("device") or active_device(), sim_dtype=sim_dtype,
         syn_mode=syn_mode,
-        a_syn_exc=float(neuron_const['a_syn_exc']),
-        a_syn_inh=float(neuron_const['a_syn_inh']),
+        a_syn_exc=float(MODEL['a_syn_exc']),
+        a_syn_inh=float(MODEL['a_syn_inh']),
     )
     opts["network"] = mb
     opts["syn_mode"] = syn_mode
