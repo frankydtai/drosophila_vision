@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-import torch
 
 from path import MBAR_CACHE_DIRNAME
 from neuron.borst import t_from_ms
@@ -278,7 +277,7 @@ def build_i_sti_hex(
 
 @dataclass
 class MbarSti:
-    i_sti: torch.Tensor
+    i_sti: np.ndarray
     i_sti_hex: np.ndarray
     specs: List[MbarSpec]
     n_b: int
@@ -444,18 +443,15 @@ def build_mbar_signals(
     multi_bar: bool = True,
     i_baseline: float,
     i_sti: float,
-    device: Optional[str] = None,
     use_cache: bool = True,
     refresh_cache: bool = False,
     network_json: Optional[Path] = None,
-    sim_dtype: torch.dtype,
 ) -> MbarSti:
     """Build sti current for moving-bar stis.
 
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
     Peak current ``i_sti`` is for this build (one contrast at a time).
     """
-    device = device or connectome.device
     bar_radius = int(bar_radius)
     multi_bar = bool(multi_bar)
     specs = list(specs)
@@ -497,11 +493,7 @@ def build_mbar_signals(
             _save_mbar_hex_cache(cache_path, i_sti_hex)
 
     return MbarSti(
-        i_sti=torch.as_tensor(
-            i_sti_nodes_from_hexes(i_sti_hex, sti, connectome.n_node),
-            dtype=sim_dtype,
-            device=device,
-        ),
+        i_sti=i_sti_nodes_from_hexes(i_sti_hex, sti, connectome.n_node),
         i_sti_hex=i_sti_hex,
         specs=specs,
         n_b=n_b,

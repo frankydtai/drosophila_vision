@@ -96,23 +96,27 @@ def cell_part_key(contrast: str, cell: str, pd_nd_label: str) -> str:
 
 def _mbar_cost_part_plot_specs(
     entry_part_keys: Sequence[str],
-    entry_nodes: torch.Tensor,
-    cost_scales: torch.Tensor,
-    cost_pd_nds: torch.Tensor,
+    entry_nodes,
+    cost_scales,
+    cost_pd_nds,
     connectome,
     contrast: str,
 ) -> Dict[str, CostPartPlotSpec]:
     specs: Dict[str, CostPartPlotSpec] = {}
-    pd_nd = cost_pd_nds.detach().cpu().numpy()
-    node_cells = connectome.node_cells[entry_nodes].detach().cpu().numpy()
+    cost_scales_np = np.asarray(cost_scales, dtype=np.float64)
+    pd_nd = np.asarray(cost_pd_nds, dtype=np.int64)
+    entry_nodes_np = np.asarray(entry_nodes, dtype=np.int64)
+    node_cells_np = connectome.node_cells[entry_nodes_np]
+    if torch.is_tensor(node_cells_np):
+        node_cells_np = node_cells_np.detach().cpu().numpy()
     cells = connectome.cells
     for entry, part_key in enumerate(entry_part_keys):
-        if float(cost_scales[entry]) <= 0.0:
+        if float(cost_scales_np[entry]) <= 0.0:
             continue
         if part_key in specs:
             continue
         pd_nd_label = PD_ND_LABELS[int(pd_nd[entry])]
-        cell = str(cells[int(node_cells[entry])])
+        cell = str(cells[int(node_cells_np[entry])])
         specs[part_key] = CostPartPlotSpec(
             part_key,
             cell,
@@ -237,29 +241,28 @@ def _assemble_mbar_readouts(
 
 def _pack_mbar_entries(
     entry_bs, entry_nodes, entry_gts, entry_cost_scales, entry_cost_t0s, entry_cost_pd_nds,
-    *, device, sim_dtype,
+    *,
     waveform_mse: bool = True,
 ):
     n = len(entry_bs)
-    cost_scales = torch.tensor(np.asarray(entry_cost_scales), dtype=sim_dtype, device=device)
-    entry_bs = torch.tensor(np.asarray(entry_bs), dtype=torch.long, device=device)
-    entry_nodes = torch.tensor(np.asarray(entry_nodes), dtype=torch.long, device=device)
+    cost_scales = np.asarray(entry_cost_scales, dtype=np.float64)
+    entry_bs = np.asarray(entry_bs, dtype=np.int64)
+    entry_nodes = np.asarray(entry_nodes, dtype=np.int64)
     if not waveform_mse:
-        gts = torch.zeros((n, 0), dtype=sim_dtype, device=device)
-        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
+        gts = np.zeros((n, 0), dtype=np.float64)
+        power = 1.0
         return gts, cost_scales, entry_bs, entry_nodes, None, None, power
-    cost_pd_nds = torch.tensor(np.asarray(entry_cost_pd_nds), dtype=torch.long, device=device)
-    gts = torch.tensor(np.asarray(entry_gts), dtype=sim_dtype, device=device)
-    cost_t0s = torch.tensor(np.asarray(entry_cost_t0s), dtype=torch.long, device=device)
-    power = torch.sum(cost_scales[:, None] * gts ** 2)
-    if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
+    cost_pd_nds = np.asarray(entry_cost_pd_nds, dtype=np.int64)
+    gts = np.asarray(entry_gts, dtype=np.float64)
+    cost_t0s = np.asarray(entry_cost_t0s, dtype=np.int64)
+    power = float(np.sum(cost_scales[:, None] * gts ** 2))
+    if power == 0.0:
+        power = 1.0
     return gts, cost_scales, entry_bs, entry_nodes, cost_t0s, cost_pd_nds, power
 
 
 def build_mbar_gt(
     connectome,
-    device: Optional[str] = None,
     t_onset: int = None,
     *,
     delta_ms: float,
@@ -272,11 +275,9 @@ def build_mbar_gt(
     i_sti: float,
     contrasts: Sequence[str],
     gt_cells: Optional[Sequence[str]] = None,
-    sim_dtype: torch.dtype,
     waveform_mse: bool = True,
 ) -> MbarGt:
     """Build multi-bar sti + T4/T5 cost readouts."""
-    device = device or connectome.device
     side = connectome.meta.get("side", "right")
 
     specs = gruntman_mbar_specs(contrasts=tuple(contrasts))
@@ -284,11 +285,10 @@ def build_mbar_gt(
     sti = build_mbar_signals(
         connectome, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
         bar_radius=bar_radius, multi_bar=bool(multi_bar),
-        device=device, use_cache=use_cache,
+        use_cache=use_cache,
         network_json=getattr(connectome, "source_json", None),
         i_baseline=i_baseline_val,
         i_sti=float(i_sti),
-        sim_dtype=sim_dtype,
     )
     n_t = int(sti.n_t)
     fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
@@ -338,7 +338,7 @@ def build_mbar_gt(
         _pack_mbar_entries(
             entry_bs, entry_nodes, entry_gts, entry_cost_scales,
             entry_cost_t0s, entry_cost_pd_nds,
-            device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
+            waveform_mse=waveform_mse,
         )
     )
 
@@ -409,9 +409,8 @@ def mbar_session_t0_grids(
         )
     sti = build_mbar_signals(
         connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
-        device=connectome.node_cells.device, i_baseline=i_baseline,
+        i_baseline=i_baseline,
         i_sti=float(i_sti[contrast]),
-        sim_dtype=session.sim_dtype,
     )
     hex_idx = {
         (int(hex.u), int(hex.v)): hex_idx
@@ -518,21 +517,16 @@ def build_mbar_pack(
     *,
     contrast: str,
     gt_amp: float,
-    device: str,
-    sim_dtype: torch.dtype,
     i_sti: Dict[str, float],
     sti_opts: Optional[dict],
     opts: dict,
 ):
     if not sti_opts:
         raise ValueError("mbar requires sti opts (from resolve_train_opts / CLI)")
-    device = device or connectome.device
     sti_opts = dict(sti_opts)
     cost_radius = standardize_cost_radius(sti_opts.get("cost_radius"))
     mbar_gt = build_mbar_gt(
         connectome=connectome,
-        device=device,
-        sim_dtype=sim_dtype,
         t_onset=t_from_ms(
             float(sti_opts["ms_pre"]),
             delta_ms=float(sti_opts["delta_ms_pre"]),

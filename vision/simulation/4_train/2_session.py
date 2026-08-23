@@ -25,6 +25,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+import numpy as np
+import torch
+
 from import_bootstrap import parse_comma_list
 from neuron import (
     build_schema,
@@ -56,6 +59,27 @@ from network.construction import (
 
 RUN_DATA_SUBDIR = "data"
 TaskPack = Any
+
+
+def materialize_pack(pack, *, device, sim_dtype):
+    fields = {}
+    for field in (
+        "i_sti", "gts", "cost_scales", "i_sti_pulse", "a_sti_radius_mask",
+    ):
+        if getattr(pack, field, None) is not None and not torch.is_tensor(getattr(pack, field)):
+            fields[field] = torch.tensor(
+                np.asarray(getattr(pack, field)), dtype=sim_dtype, device=device,
+            )
+    for field in (
+        "entry_bs", "entry_nodes", "cost_ts", "entry_radii", "cost_sti_us",
+        "cost_sti_vs", "sti_bs", "sti_nodes", "a_sti_radius_idxs",
+        "cost_t0s", "cost_pd_nds",
+    ):
+        if getattr(pack, field, None) is not None and not torch.is_tensor(getattr(pack, field)):
+            fields[field] = torch.as_tensor(
+                np.asarray(getattr(pack, field)), dtype=torch.long, device=device,
+            )
+    return replace(pack, **fields) if fields else pack
 
 
 def run_data_dir(run_dir) -> str:
@@ -487,8 +511,6 @@ def open_session(
         raise ValueError("connectome must be opts['network']")
     pack_kwargs = dict(
         connectome=connectome,
-        device=device,
-        sim_dtype=sim_dtype,
         i_sti=i_sti,
         gt_amp=gt_amp,
         opts=opts,
@@ -505,7 +527,9 @@ def open_session(
                 sti_opts=sti_opts,
                 **pack_kwargs,
             )
-            packs[task][contrast] = pack
+            packs[task][contrast] = materialize_pack(
+                pack, device=device, sim_dtype=sim_dtype,
+            )
             resolved_sti[f"{task}_sti_opts"] = sti_opts
     train_opts = _sidecar_train_opts(
         opts, tasks, contrasts, resolved_sti, bool(opts.get("sequential")),

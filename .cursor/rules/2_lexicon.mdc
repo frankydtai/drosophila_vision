@@ -7,7 +7,7 @@ alwaysApply: true
 This document defines a strict, non-overlapping meaning for selected terms used across `vision/`.
 Only words with an unambiguous single definition are included here.
 
-**Write-time gate:** follow Step 1–5 in `.cursor/rules/lexicon-gate.mdc`; lookup headwords and **Forbidden** here during Step 2–3.
+**Write-time gate:** `0_agent_gate.mdc` (priority 0, checkboxes); then `coding-rules.mdc` §①–④ Do/Forbidden; **Read** headwords and **Forbidden** here at ③.
 
 ## How to judge a word (mandatory)
 
@@ -670,6 +670,12 @@ Definition: Load a saved artifact or serialized object from storage and reconstr
 Example: `z = train.load_best_param(run_dir, session)`
 Forbidden: `read` — use `load` instead.
 
+### `materialize`
+
+Definition: Train-layer only — place in-memory numeric array on ``device`` as torch tensor without changing values; float arrays use ``sim_dtype``, index arrays use ``long``. Compounds: ``materialize_pack``, ``materialize_z``.
+Example: `materialize_pack(pack, device=session.device, sim_dtype=session.sim_dtype)`, `materialize_z(z, device=session.device, sim_dtype=session.sim_dtype)`
+Forbidden: ``load`` (disk); ``standardize`` (canonical / shape coerce); ``*_from_*`` schema pack-unpack; task-layer calls; ``convert`` / ``to_tensor`` as project identifiers (library ``torch.as_tensor`` at call sites only until folded into ``materialize_*``).
+
 ### `normalize`
 
 Definition: Rescale a numeric sequence or trace to a unit-peak (or equivalent amplitude) convention — typically baseline-subtract then divide by max absolute value.
@@ -697,7 +703,7 @@ Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (
 
 Definition: Resolve abstract references/aliases/defaults into final concrete values used by execution. Use when inputs may be incomplete (Hydra overrides, CLI tokens, alias names, branch dicts, omitted keys) and the function consults ``config`` (``conf/config.yaml`` defaults), alias tables, and/or tokens before returning.
 Example: `resolve_val_from(args.val_from)`, `resolve_run_kwargs(args)`, `resolve_train_kwargs(args)`, `resolve_sti_timing(opts)`
-Forbidden: `lookup`, `fetch`. Unnecessary `resolve` — coding-rules HARD STOP 2 (membership-only, identity, parse/expand/standardize/`_from_`, rename-to-resolve). True merge must not be named ``parse_*`` / ``build_*`` / ``merge_*`` / ``default_*`` / ``*_from_*``. ``parse_*`` decodes strings; ``expand_*`` expands aliases; defaults+CLI merge is ``resolve`` (see ``### standardize``).
+Forbidden: `lookup`, `fetch`. Unnecessary `resolve` — coding-rules ① Plan (membership-only, identity, parse/expand/standardize/`_from_`, rename-to-resolve). True merge must not be named ``parse_*`` / ``build_*`` / ``merge_*`` / ``default_*`` / ``*_from_*``. ``parse_*`` decodes strings; ``expand_*`` expands aliases; defaults+CLI merge is ``resolve`` (see ``### standardize``).
 
 ### `run`
 

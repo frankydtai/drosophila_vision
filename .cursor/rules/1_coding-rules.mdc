@@ -1,0 +1,90 @@
+---
+description: Core scope and edit rules (vision); after 0_agent_gate.mdc
+alwaysApply: true
+---
+
+# Coding rules
+
+Scope: `vision/`. **Execution order is fixed:** ① Plan → ② Sibling → ③ Names → ④ Write (see `0_agent_gate.mdc` checkboxes). First `vision/` code edit only after ①②③ are done for the current function.
+
+**Division of labor:** naming tokens and **Forbidden** → `lexicon.mdc` only (do not restate token lists here). Disk paths, import graph, entrypoints → Read/Grep the repo (do not copy here).
+
+---
+
+### ① Plan — lock scope before any evidence or code
+
+**Purpose:** Fix what this task may change so later steps do not expand scope silently.
+
+**Complete ① when you can state in prose (or to the user):**
+- **Done state** — one sentence: what exists when the task is finished.
+- **Files** — list every path you will touch; if you need a **new `.py`**, propose path + what the module does and **wait for user approval** (this repo has no `.sh` / `.ipynb` under `vision/`; do not plan new ones).
+- **Layer** — task / train / figure / analyze / connectome / simulation entry script; which numbered package you edit.
+- **K** — how many **functions** you will change (each function gets its own ②③④ cycle).
+
+**Policy (apply while planning):**
+- **「改成 X」= only X** — list what you remove or replace; do not plan backward compatibility, shims, dual loaders, or “keep old path working” unless the task explicitly asks.
+- **One canonical path** — one way to do the behavior; the diff removes the old way instead of leaving both.
+- **Concept rename** — one change must update every function, method, attribute, constant, CLI/opts key, docstring, and comment that uses the old name.
+- **No partial rename** — do not change only CLI/opts keys while leaving old function names or docs.
+- **Numeric literals** — before adding numbers in Python, Read where that **task family** already keeps them (typically `simulation/conf/config.yaml` and/or gt/sti modules under `3_task/`). Do not invent new module-level constants without matching that family’s existing pattern.
+- **`scratch/**`** — treat as unmaintained; do not update to match core unless the user names a scratch file or you must run it to verify.
+
+**① does not:** Read siblings for shape, check lexicon, or write code — that is ②③④.
+
+---
+
+### ② Sibling — same-layer code is the only shape evidence
+
+**Purpose:** Match control flow, API shape, and naming **role** already used beside your edit — not a generic ML repo.
+
+**Procedure:**
+1. **Grep** the concept, lexicon verb, or compound you are implementing (same **layer**: e.g. another `*_pack.py` in the same task folder, another `4_train` module, not a figure script if you edit task).
+2. **Read the chosen sibling’s full file body** (entire file, not a Grep snippet). If no sibling exists, say so in ① and pick the closest same-layer file; partial Read does not complete ②.
+3. **Cite** path and line range in your reasoning.
+4. Choose **extend** (add to existing function/block), **replace** (swap implementation), or **inline** (at call site) — default **extend** or **inline**; do not add a new function when the sibling would inline or extend instead.
+
+**② fails if:**
+- Shape or naming comes from training prior, another layer, or “typical PyTorch project” without a same-layer cite.
+- Grep-only or partial Read is treated as finished ②.
+- You add a **parallel helper** or duplicate function when extend, replace, or inline at the call site is enough.
+
+---
+
+### ③ Names — every new identifier must resolve
+
+**Purpose:** No opaque or generic names; every binding refers to a lexicon concept, a sibling role, or is eliminated by inlining.
+
+**For each new or renamed** parameter, local, function, method, attribute, or constant:
+1. **Read** `lexicon.mdc` — the headword for the concept, or the **Forbidden** line if the word is a banned substitute.
+2. Assign exactly **one** of:
+   - **Lexicon compound** — e.g. `entry_mask`, `cost_scales`, `run_dir` (must match lexicon headword or established pattern).
+   - **Sibling at same role** — same variable/function role as in the ② sibling (same axis, same object, same layer).
+   - **Inline** — expression used once, no domain name: write it at the use site; do not bind `tmp`, `result`, `data`, `info`, or an invented English noun.
+
+**There is no fourth form** (no “temporary until rename”, no post-write rename pass as ③).
+
+**③ fails if:** any lexicon **Forbidden** token appears in a project identifier; or a single-use binding is named instead of inlined. Full substitute lists live only in `lexicon.mdc`.
+
+---
+
+### ④ Write — one function, then verify names
+
+**Purpose:** One auditable edit unit; concision and control flow follow ②; names were settled in ③ before typing.
+
+**Procedure:**
+- Edit **one function** (or one coherent method/block if the task is explicitly single-block) per ②③④ cycle.
+- Control flow and line count follow the ② sibling — fewest lines that preserve behavior; prefer extend/replace over new parallel code.
+- Before marking ④ done for this function: **Grep** the diff for lexicon **Forbidden** tokens you introduced.
+
+**④ fails if:**
+- One turn changes **multiple functions** without a fresh ②③ for each.
+- You paste a whole function then rename, write before ③, or **park** failing names for later.
+- Dead branches, unused locals, try/except that cannot fire, or a **trivial helper** with only one call site (see ②: inline or extend instead).
+
+**Next function:** reset ②③④ checkboxes in `0_agent_gate.mdc` to `- [ ]`, redo ②→③→ `[x]`, then edit, then ④.
+
+---
+
+### Ask mode (planning only, no `vision/` edits)
+
+Do ① and ② in prose; mark `[x]` in reply text only; do not edit gate checkboxes; skip ③④.

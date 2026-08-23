@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-import torch
+import numpy as np
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
@@ -28,8 +28,6 @@ def build_spot_a_sti_radius_drive(
     delta_ms: float,
     i_baseline: float,
     i_sti: float,
-    sim_dtype,
-    device,
 ):
     radii = tuple(int(radius) for radius in a_sti_radii)
     if any(radius == 0 for radius in radii):
@@ -51,13 +49,11 @@ def build_spot_a_sti_radius_drive(
                         sti_bs.append(int(b))
                         sti_nodes.append(int(node))
                         a_sti_radius_idxs.append(int(radius_idx[radius]))
-    i_sti_pulse = torch.as_tensor(
-        (float(i_sti) - float(i_baseline)) * sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms),
-        dtype=sim_dtype,
-        device=device,
+    i_sti_pulse = (float(i_sti) - float(i_baseline)) * sti_mask(
+        t_onset, n_t, ms_sti, delta_ms=delta_ms,
     )
-    i_sti = torch.zeros((len(spot_bs), n_t, connectome.n_node), dtype=sim_dtype, device=device)
-    network_sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
+    i_sti = np.zeros((len(spot_bs), n_t, connectome.n_node), dtype=np.float64)
+    network_sti_nodes = np.asarray(connectome.sti_nodes, dtype=np.int64)
     if len(network_sti_nodes):
         i_sti[:, :, network_sti_nodes] = float(i_baseline)
     for b, node in center_nodes:
@@ -65,7 +61,7 @@ def build_spot_a_sti_radius_drive(
     return (
         i_sti,
         i_sti_pulse,
-        torch.tensor(sti_bs, dtype=torch.long, device=device),
-        torch.tensor(sti_nodes, dtype=torch.long, device=device),
-        torch.tensor(a_sti_radius_idxs, dtype=torch.long, device=device),
+        np.asarray(sti_bs, dtype=np.int64),
+        np.asarray(sti_nodes, dtype=np.int64),
+        np.asarray(a_sti_radius_idxs, dtype=np.int64),
     )

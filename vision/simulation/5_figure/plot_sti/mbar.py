@@ -329,7 +329,6 @@ def plot_mbar_sti(
             delta_ms=MODEL['delta_ms'],
             i_baseline=i_baseline,
             i_sti=float(i_sti_spec[contrast]),
-            sim_dtype=SIM_DTYPE,
         )
         i_sti_hex_parts.append(T.i_sti_hex)
         specs.extend(contrast_specs)

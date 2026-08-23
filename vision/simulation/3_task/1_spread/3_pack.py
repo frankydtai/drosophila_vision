@@ -58,17 +58,20 @@ def part_key(contrast: str, cell: str) -> str:
 
 def _spread_cost_part_plot_specs(
     entry_part_keys: Sequence[str],
-    entry_nodes: torch.Tensor,
+    entry_nodes,
     connectome,
     contrast: str,
 ) -> Dict[str, CostPartPlotSpec]:
     specs: Dict[str, CostPartPlotSpec] = {}
-    node_cells = connectome.node_cells[entry_nodes].detach().cpu().numpy()
+    entry_nodes_np = np.asarray(entry_nodes, dtype=np.int64)
+    node_cells_np = connectome.node_cells[entry_nodes_np]
+    if torch.is_tensor(node_cells_np):
+        node_cells_np = node_cells_np.detach().cpu().numpy()
     cells = connectome.cells
     for entry, part_key in enumerate(entry_part_keys):
         if part_key in specs:
             continue
-        cell = str(cells[int(node_cells[entry])])
+        cell = str(cells[int(node_cells_np[entry])])
         specs[part_key] = CostPartPlotSpec(
             part_key, cell, ("spread", contrast), contrast,
         )
@@ -95,15 +98,12 @@ def build_spread_gt(
     contrast: str,
     gt_amp: float,
     delta_ms: float,
-    device: Optional[str] = None,
-    sim_dtype: torch.dtype,
     ms_sti: Optional[float] = None,
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
     filter: str = "none",
     spread_gt_mode: str,
 ) -> SpreadGt:
-    device = device or connectome.device
     if ms_response is None:
         raise ValueError("build_spread_gt requires ms_response")
     n_t_gt = int(t_onset) + t_from_ms(float(ms_response), delta_ms=float(delta_ms)) + 1
@@ -129,13 +129,11 @@ def build_spread_gt(
         raise ValueError(f"spread has no gt cells (requested subset of {list(GT_CELLS)!r})")
     cells = node_cells(connectome)
     hexes = cost_sti_hexes(connectome)
-    i_sti_pulse = torch.as_tensor(
-        (float(i_sti) - i_baseline) * sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms),
-        dtype=sim_dtype,
-        device=device,
+    i_sti_pulse = (float(i_sti) - i_baseline) * sti_mask(
+        t_onset, n_t, ms_sti, delta_ms=delta_ms,
     )
-    sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
-    i_sti = torch.zeros((1, n_t, connectome.n_node), dtype=sim_dtype, device=device)
+    sti_nodes = np.asarray(connectome.sti_nodes, dtype=np.int64)
+    i_sti = np.zeros((1, n_t, connectome.n_node), dtype=np.float64)
     if len(sti_nodes):
         i_sti[:, :, sti_nodes] = float(i_baseline) + i_sti_pulse[:, None]
     entry_nodes = []
@@ -152,12 +150,12 @@ def build_spread_gt(
                 entry_part_keys.append(part_key(contrast, cell))
     if not entry_nodes:
         raise ValueError("no spread cost nodes (check gt cells)")
-    gts = torch.tensor(np.asarray(gts), dtype=sim_dtype, device=device)
-    entry_nodes = torch.tensor(entry_nodes, dtype=torch.long, device=device)
+    gts = np.asarray(gts, dtype=np.float64)
+    entry_nodes = np.asarray(entry_nodes, dtype=np.int64)
     return SpreadGt(
         i_sti=i_sti,
         gts=gts,
-        entry_bs=torch.zeros(len(entry_nodes), dtype=torch.long, device=device),
+        entry_bs=np.zeros(len(entry_nodes), dtype=np.int64),
         entry_nodes=entry_nodes,
         n_cost_hex=len(hexes),
         entry_part_keys=tuple(entry_part_keys),
@@ -197,7 +195,7 @@ def cost_mss(cost_ms, *, post, delta_ms) -> list:
     return mss
 
 
-def build_cost_ts(opts, *, cost_ms, device):
+def build_cost_ts(opts, *, cost_ms):
     post, delta_ms = post_onset_n_t(opts)
     ts = set()
     for ms in cost_mss(cost_ms, post=post, delta_ms=delta_ms):
@@ -207,7 +205,7 @@ def build_cost_ts(opts, *, cost_ms, device):
                 f"cost time {ms} ms post-onset t out of range [0,{post})"
             )
         ts.add(t)
-    return torch.tensor(sorted(ts), dtype=torch.long, device=device)
+    return np.asarray(sorted(ts), dtype=np.int64)
 
 
 def cost_hex_label(cost_radius, n_cost_hex) -> str:
@@ -269,8 +267,6 @@ def build_spread_pack(
     *,
     contrast: str,
     gt_amp: float,
-    device: str,
-    sim_dtype: torch.dtype,
     i_sti: Dict[str, float],
     sti_opts: Optional[dict],
     opts: dict,
@@ -296,7 +292,6 @@ def build_spread_pack(
     delta_ms_pre = float(sti_opts["delta_ms_pre"])
     ms_post = float(sti_opts.get("ms_post", 0.0))
     ms_sti = sti_opts.get("ms_sti")
-    device = device or connectome.device
     t_onset = int(t_from_ms(ms_pre, delta_ms=delta_ms_pre))
     n_t = int(
         t_onset
@@ -313,8 +308,6 @@ def build_spread_pack(
         contrast=contrast,
         gt_amp=gt_amp,
         delta_ms=delta_ms,
-        device=device,
-        sim_dtype=sim_dtype,
         ms_sti=ms_sti,
         ms_response=ms_response,
         gt_cells=gt_cells_from_opts(sti_opts),
@@ -331,7 +324,6 @@ def build_spread_pack(
         cost_ts=build_cost_ts(
             sti_opts,
             cost_ms=cost_ms,
-            device=device,
         ),
         t_onset=int(t_onset),
         entry_part_keys=spread_gt.entry_part_keys,

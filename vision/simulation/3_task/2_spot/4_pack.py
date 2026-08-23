@@ -260,9 +260,7 @@ def build_spot_gt(
     delta_ms: float,
     cost_radius_scales: Dict[int, float],
     spot_cost_radii: Tuple[int, ...],
-    device: Optional[str] = None,
     cost_radius: Optional[int] = None,
-    sim_dtype: torch.dtype,
     ms_sti: Optional[float] = None,
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
@@ -270,7 +268,6 @@ def build_spot_gt(
     spread_gt_mode: str,
 ) -> SpotGt:
     i_baseline = float(i_baseline)
-    device = device or connectome.device
     if ms_response is None:
         raise ValueError("build_spot_gt requires ms_response")
     n_t_gt = int(t_onset) + t_from_ms(float(ms_response), delta_ms=float(delta_ms)) + 1
@@ -307,24 +304,18 @@ def build_spot_gt(
     spot_bs = spot_sti_bs(spot)
     n_b = len(spot_bs)
 
-    drive = torch.as_tensor(
-        i_baseline + (float(i_sti) - i_baseline) * sti_mask(
-            t_onset, n_t, ms_sti, delta_ms=delta_ms,
-        ),
-        dtype=sim_dtype,
-        device=device,
+    drive = i_baseline + (float(i_sti) - i_baseline) * sti_mask(
+        t_onset, n_t, ms_sti, delta_ms=delta_ms,
     )
-    # All sti hexes hold i_baseline; sti_uv hexes then get the step/spot drive.
-    sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
-    i_sti = torch.zeros((n_b, n_t, connectome.n_node), dtype=sim_dtype, device=device)
+    sti_nodes = np.asarray(connectome.sti_nodes, dtype=np.int64)
+    i_sti = np.zeros((n_b, n_t, connectome.n_node), dtype=np.float64)
     if len(sti_nodes):
         i_sti[:, :, sti_nodes] = float(i_baseline)
     for b, spot_b in enumerate(spot_bs):
         for su, sv in spot_b.sti_uv:
             nodes = connectome.sti_nodes_at_uv(su, sv)
             if len(nodes):
-                idx = torch.as_tensor(nodes, dtype=torch.long, device=device)
-                i_sti[b, :, idx] = drive[:, None]
+                i_sti[b, :, nodes] = drive[:, None]
 
     resp = slice(t_onset, n_t_gt)  # cost window: response only (no ms_post)
 
@@ -372,19 +363,17 @@ def build_spot_gt(
     if not cost_bs:
         raise ValueError("no spot cost nodes (check cost_radius and gt cells)")
 
-    gts = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
-    cost_scales = torch.tensor(np.asarray(cost_scales_vals), dtype=sim_dtype, device=device)
-    entry_radii = torch.tensor(
-        np.asarray(entry_radii_vals, dtype=np.int64), dtype=torch.long, device=device,
-    )
-    entry_bs = torch.tensor(np.asarray(cost_bs), dtype=torch.long, device=device)
-    entry_nodes = torch.tensor(np.asarray(cost_node), dtype=torch.long, device=device)
-    entry_sti_us = torch.tensor(np.asarray(cost_sti_us), dtype=torch.long, device=device)
-    entry_sti_vs = torch.tensor(np.asarray(cost_sti_vs), dtype=torch.long, device=device)
+    gts = np.asarray(cost_readout, dtype=np.float64)
+    cost_scales = np.asarray(cost_scales_vals, dtype=np.float64)
+    entry_radii = np.asarray(entry_radii_vals, dtype=np.int64)
+    entry_bs = np.asarray(cost_bs, dtype=np.int64)
+    entry_nodes = np.asarray(cost_node, dtype=np.int64)
+    entry_sti_us = np.asarray(cost_sti_us, dtype=np.int64)
+    entry_sti_vs = np.asarray(cost_sti_vs, dtype=np.int64)
 
-    power = torch.sum(cost_scales[:, None] * gts ** 2)
-    if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
+    power = float(np.sum(cost_scales[:, None] * gts ** 2))
+    if power == 0.0:
+        power = 1.0
 
     return SpotGt(
         i_sti=i_sti,
@@ -462,8 +451,6 @@ def build_spot_pack(
     *,
     contrast: str,
     gt_amp: float,
-    device: str,
-    sim_dtype: torch.dtype,
     i_sti: Dict[str, float],
     sti_opts: Optional[dict],
     opts: dict,
@@ -497,7 +484,6 @@ def build_spot_pack(
     spot_radius = sti_opts["spot_radius"]
     multi_spot = sti_opts["multi_spot"]
     fully_inside = sti_opts["fully_inside"]
-    device = device or connectome.device
     t_onset = int(t_from_ms(ms_pre, delta_ms=delta_ms_pre))
     n_t = int(
         t_onset
@@ -512,8 +498,6 @@ def build_spot_pack(
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         shift_radius=shift_radius,
-        device=device,
-        sim_dtype=sim_dtype,
         n_t=n_t,
         t_onset=t_onset,
         cost_radius=cost_radius,
@@ -540,8 +524,6 @@ def build_spot_pack(
         delta_ms=delta_ms,
         i_baseline=i_baseline,
         i_sti=float(i_sti[contrast]),
-        sim_dtype=sim_dtype,
-        device=device,
     )
     pack = SpotPack(
         task="spot",
@@ -556,18 +538,14 @@ def build_spot_pack(
         cost_radius=cost_radius,
         entry_radii=spot_gt.entry_radii,
         cost_ts=None if int(spot_gt.entry_radii.shape[0]) == 0 else build_cost_ts(
-            sti_opts, cost_ms=cost_ms, device=device,
+            sti_opts, cost_ms=cost_ms,
         ),
         t_onset=int(t_onset),
         i_sti_pulse=i_sti_pulse,
         sti_bs=sti_bs,
         sti_nodes=sti_nodes,
         a_sti_radius_idxs=a_sti_radius_idxs,
-        a_sti_radius_mask=torch.as_tensor(
-            build_a_sti_radius_mask(cost_radius_scales, a_sti_radii),
-            dtype=sim_dtype,
-            device=device,
-        ),
+        a_sti_radius_mask=build_a_sti_radius_mask(cost_radius_scales, a_sti_radii),
         entry_part_keys=spot_gt.entry_part_keys,
         cost_part_plot_specs=_spot_cost_part_plot_specs(
             spot_gt.entry_part_keys,

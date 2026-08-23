@@ -1,0 +1,48 @@
+---
+description: "PRIORITY 0 — mandatory gate before any vision/ code edit; overrides all other rules"
+alwaysApply: true
+---
+
+# Agent gate (priority 0)
+
+**Loads before** `coding-rules.mdc`. Checkboxes live **only in this file**. Each step: `coding-rules.mdc` §①–④. Lexicon: `lexicon.mdc`.
+
+## When this file applies
+
+**Must run ①→②→③→④:** this turn will **modify** any path under `vision/` (`Write`, `StrReplace`, `Delete`, or equivalent).
+
+**Skip ①–④ entirely (do not edit checkboxes here):** read-only; reply-only; shell/git with no `vision/` code change; edits only outside `vision/` and this turn does not change `vision/` code.
+
+## Agent mode — mandatory sequence
+
+**Before the first `vision/` code edit in this turn:**
+
+1. Read this file and `coding-rules.mdc` §①–④.
+2. StrReplace every `- [x]` below to `- [ ]`.
+3. Do ① per `coding-rules.mdc` → StrReplace **only** ① to `- [x]`.
+4. Do ② → StrReplace **only** ② to `- [x]`.
+5. Do ③ → StrReplace **only** ③ to `- [x]`.
+6. **First `vision/` code edit allowed only after ①②③ are `- [x]`.**
+7. Do ④ → StrReplace **only** ④ to `- [x]`.
+
+**Before every later `vision/` code edit in this turn:** ①②③④ must all be `- [x]` for the current function cycle.
+
+**New function:** StrReplace ②③④ to `- [ ]`; redo ②→③→ `[x]`; edit; ④→ `[x]`. ① stays `- [x]` once per task.
+
+**Forbidden:** any `vision/` code edit while ① or ② or ③ is `- [ ]`; two `- [x]` in one message; claim done while any checkbox is `- [ ]`.
+
+## Ask mode
+
+Planning answers about `vision/` code: ①② only; `- [x]` in reply text only; do not edit checkboxes in this file; no ③④.
+
+### ① Plan
+- [ ]
+
+### ② Sibling
+- [ ]
+
+### ③ Names
+- [ ]
+
+### ④ Write
+- [ ]
