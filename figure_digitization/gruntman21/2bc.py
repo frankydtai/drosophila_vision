@@ -59,15 +59,36 @@ OVERLAY_RGB = (255, 0, 255)
 TEMPLATE_RADIUS_PX = 8
 SEARCH_HALF_WIDTH_PX = 2
 ZERO_EXCLUSION_PX = 5
-EXPECTED_MARKER_COUNT = 181
+EXPECTED_MARKER_COUNT = 182
 EXPECTED_TRACE_COUNT = 23
 
-# In C/T5/width-1, these black PC depolarization means are completely covered
-# by green NC markers at the same coordinates.  Their values are therefore the
-# visible green-marker values, not separately detectable black pixels.
-OCCLUDED_T5_PC_W1_DEPOLARIZATION_POSITIONS = (-3, 3, 4)
-OCCLUDED_SOURCE_TRACE_ID = "C_T5_NC_w1_depolarization"
-OCCLUDED_TARGET_TRACE_ID = "C_T5_PC_w1_depolarization"
+# These black PC depolarization means are completely covered by green NC
+# markers at the same coordinates.  Their values are therefore the visible
+# green-marker values, not separately detectable black pixels.  T5 width-2
+# position +6 is also fully covered, but is intentionally omitted because that
+# position is excluded from the downstream Figure 2A scaling output.
+OCCLUDED_COPY_RULES = (
+    (
+        "C_T5_NC_w1_depolarization",
+        "C_T5_PC_w1_depolarization",
+        (-3, 3, 4),
+    ),
+    (
+        "C_T5_NC_w2_depolarization",
+        "C_T5_PC_w2_depolarization",
+        (5,),
+    ),
+)
+
+# For partially covered black markers, a template matched to only the visible
+# crescent shifts toward that crescent.  These centers instead come from the
+# intact upper circular arc: isolated markers have an 8.5-pixel center-to-top
+# distance, giving y=561+8.5 at -5 and y=552+8.5 at +4.  Position -6 is not
+# overridden because it is excluded from the downstream scaling output.
+PARTIALLY_OCCLUDED_PIXEL_Y = {
+    ("C_T5_PC_w2_depolarization", -5): 569.5,
+    ("C_T5_PC_w2_depolarization", 4): 560.5,
+}
 
 
 def inclusive(start: int, stop: int) -> tuple[int, ...]:
@@ -204,6 +225,9 @@ def digitize(image: np.ndarray) -> pd.DataFrame:
             pixel_x, pixel_y, score = locate_marker(
                 scores[spec.color], spec, position
             )
+            pixel_y = PARTIALLY_OCCLUDED_PIXEL_Y.get(
+                (spec.trace_id, position), pixel_y
+            )
             response_mv = (Y_ZERO[spec.cell_type] - pixel_y) / PX_PER_MV
             rows.append(
                 {
@@ -226,24 +250,26 @@ def digitize(image: np.ndarray) -> pd.DataFrame:
                 }
             )
     visible = pd.DataFrame(rows)
-    source_markers = visible[
-        visible.trace_id == OCCLUDED_SOURCE_TRACE_ID
-    ].set_index("position_led")
-    for position in OCCLUDED_T5_PC_W1_DEPOLARIZATION_POSITIONS:
-        if position not in source_markers.index:
-            raise ValueError(
-                f"missing visible marker for occluded T5 PC position {position:+d}"
+    for source_trace_id, target_trace_id, positions in OCCLUDED_COPY_RULES:
+        source_markers = visible[
+            visible.trace_id == source_trace_id
+        ].set_index("position_led")
+        for position in positions:
+            if position not in source_markers.index:
+                raise ValueError(
+                    "missing visible marker for occluded target "
+                    f"{target_trace_id} at {position:+d}"
+                )
+            copied = source_markers.loc[position].to_dict()
+            copied.update(
+                {
+                    "trace_id": target_trace_id,
+                    "contrast": "PC",
+                    "color": BLACK,
+                    "position_led": position,
+                }
             )
-        copied = source_markers.loc[position].to_dict()
-        copied.update(
-            {
-                "trace_id": OCCLUDED_TARGET_TRACE_ID,
-                "contrast": "PC",
-                "color": BLACK,
-                "position_led": position,
-            }
-        )
-        rows.append(copied)
+            rows.append(copied)
 
     return pd.DataFrame(rows).sort_values(
         ["panel", "cell_type", "width_led", "contrast", "extremum", "position_led"]

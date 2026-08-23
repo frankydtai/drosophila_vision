@@ -472,20 +472,26 @@ def load_best_adam(run_dir):
     return adams_m, adams_v, adam_iter, cells, pairs
 
 
-def load_best_param(run_dir, session):
-    """Load best params as 1-D z for *session* (remap from per-param npz)."""
-    node_vals, cells, pairs = load_best_node_vals(run_dir)
+def session_z_from_node_vals(node_vals, cells, pairs, session):
+    """Remap saved per-param vals onto *session*; return ``(session, z)``."""
     schema = train.schema_copy(session.schema)
     node_vals_remapped = train.remap_node_vals(
         node_vals, cells, pairs, schema, session.connectome,
     )
+    schema = train.inits_from_node_vals(schema, node_vals_remapped)
     schema = train.schema_with_param_carry(schema, node_vals_remapped)
-    node_vals_remapped = train.remap_node_vals(
-        node_vals, cells, pairs, schema, session.connectome,
-    )
-    return train.z_from_node_vals(
+    session = replace(session, schema=schema)
+    z = train.z_from_node_vals(
         node_vals_remapped, schema, dtype=session.sim_dtype, device=session.device,
-    ).detach().cpu().numpy().astype(np.float64)
+    )
+    return session, z
+
+
+def load_best_param(run_dir, session):
+    """Load best params as 1-D z for *session* (remap from per-param npz)."""
+    node_vals, cells, pairs = load_best_node_vals(run_dir)
+    _, z = session_z_from_node_vals(node_vals, cells, pairs, session)
+    return z.detach().cpu().numpy().astype(np.float64)
 
 
 def save_best_data(run_dir, session, run_params, final_costs, adam=None):
@@ -551,16 +557,8 @@ def load_init_z(init_from, session):
         raise ValueError(str(exc)) from exc
     node_vals, cells, pairs = load_best_node_vals(run_dir)
     adams_m, adams_v, adam_iter, _, _ = load_best_adam(run_dir)
-    schema = train.schema_copy(session.schema)
-    node_vals_remapped = train.remap_node_vals(
-        node_vals, cells, pairs, schema, session.connectome,
-    )
-    schema = train.inits_from_node_vals(schema, node_vals_remapped)
-    schema = train.schema_with_param_carry(schema, node_vals_remapped)
-    session = replace(session, schema=schema)
-    z = train.z_from_node_vals(
-        node_vals_remapped, schema, dtype=session.sim_dtype, device=session.device,
-    )
+    session, z = session_z_from_node_vals(node_vals, cells, pairs, session)
+    schema = session.schema
     remapped_m = train.remap_node_vals_adams(
         adams_m, cells, pairs, schema, session.connectome,
     )
@@ -637,6 +635,7 @@ def build_session(
     cost_radius=None,
     i_sti=None,
     mbar_sti_opts=None,
+    sbar_sti_opts=None,
     spread_sti_opts=None,
     spot_sti_opts=None,
     syn_mode=NEURON_SCHEMA['syn_mode'],
@@ -684,6 +683,7 @@ def build_session(
             spot_sti_opts=spot_sti_opts,
             spread_sti_opts=spread_sti_opts,
             mbar_sti_opts=mbar_sti_opts,
+            sbar_sti_opts=sbar_sti_opts,
         ),
         model, schema=schema, connectome=connectome,
     )
@@ -730,6 +730,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
         cost_radius=cost_radius,
         i_sti=i_sti,
         mbar_sti_opts=mbar_sti_opts,
+        sbar_sti_opts=sbar_sti_opts,
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
         syn_mode=syn_mode,

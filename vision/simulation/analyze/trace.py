@@ -42,7 +42,7 @@ from config import (
     FIGURE_PLOT,
     TRAIN_CONFIG,
     active_config,
-    apply_config,
+    resolve_config,
     parse_cells,
     session_kwargs_from_cli,
 )
@@ -364,17 +364,6 @@ def _baseline_mean(
     return float(np.mean(trace_slice))
 
 
-def _format_param(param_vals) -> str:
-    parts: list[str] = []
-    for param, bag in (param_vals or {}).items():
-        if isinstance(bag, dict):
-            for node, number in bag.items():
-                parts.append(f"{param}.{node}={number:g}")
-        else:
-            parts.append(f"{param}={float(bag):g}")
-    return " ".join(parts) if parts else "none"
-
-
 def _trace_from_report(rep: dict) -> np.ndarray:
     """Full-length trace from ``analyze_spot_average`` report: ``ca`` or ``v_post``."""
     if rep.get("filter") == "ca":
@@ -412,7 +401,7 @@ def _load_reports(
     )
     schema = train.schema_copy(session.schema)
     param_vals = dict(active_config().get("param_vals") or {})
-    z, schema = plot.override_params(
+    z, schema = train.override_params(
         z, schema, session, param_vals=param_vals,
     )
     session = session.with_schema(schema)
@@ -449,6 +438,13 @@ def _load_reports(
         f"{baseline[0]:g},{baseline[1]:g}" if baseline is not None else "none"
     )
     filter_label = session_kwargs.get("filter") or "run"
+    parts = []
+    for param, bag in (param_vals or {}).items():
+        if isinstance(bag, dict):
+            for node, number in bag.items():
+                parts.append(f"{param}.{node}={number:g}")
+        else:
+            parts.append(f"{param}={float(bag):g}")
     print(
         f"check={check}  {task} {contrast} radius={radius}  "
         f"filter={filter_label}  "
@@ -456,7 +452,7 @@ def _load_reports(
         f"baseline-ms-shown={baseline_label}  "
         f"forward TimeWindow(ms, 0, {forward_stop:g})  "
         f"ms_pre={ms_pre:g} ms_sti={ms_sti:g} ms_response={ms_response:g}  "
-        f"param={_format_param(param_vals)}  "
+        f"param={' '.join(parts) if parts else 'none'}  "
         f"n_cell={len(cells)}",
         flush=True,
     )
@@ -664,7 +660,7 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline) -> None:
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(hydra_config) -> None:
-    apply_config(hydra_config)
+    resolve_config(hydra_config)
     check = ANALYZE_TRACE.get("check")
     if check not in (
         CHECK_OSCILLATION, CHECK_FLAT, CHECK_DRIFT, CHECK_STABILITY,

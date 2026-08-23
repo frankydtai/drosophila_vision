@@ -164,7 +164,7 @@ C_T5_NC_w2_hyperpolarization,C,T5,NC,green,2,4.500000,160.000000,hyperpolarizati
 C_T5_NC_w2_hyperpolarization,C,T5,NC,green,2,4.500000,160.000000,hyperpolarization,mean,2,4.500000,-3.188406,1768.300000,641.500000,57
 C_T5_NC_w2_hyperpolarization,C,T5,NC,green,2,4.500000,160.000000,hyperpolarization,mean,3,6.750000,-2.753623,1792.700000,638.500000,197
 C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,-6,-13.500000,5.579710,1573.100000,581.000000,119
-C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,-5,-11.250000,7.536232,1597.500000,567.500000,121
+C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,-5,-11.250000,7.246377,1597.500000,569.500000,121
 C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,-4,-9.000000,10.724638,1621.900000,545.500000,197
 C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,-3,-6.750000,14.613527,1646.300000,518.666667,197
 C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,-2,-4.500000,17.391304,1670.700000,499.500000,197
@@ -173,7 +173,8 @@ C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mea
 C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,1,2.250000,18.840580,1743.900000,489.500000,197
 C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,2,4.500000,15.217391,1768.300000,514.500000,197
 C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,3,6.750000,12.028986,1792.700000,536.500000,197
-C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,4,9.000000,9.637681,1817.100000,553.000000,59
+C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,4,9.000000,8.550725,1817.100000,560.500000,59
+C_T5_PC_w2_depolarization,C,T5,PC,black,2,4.500000,160.000000,depolarization,mean,5,11.250000,5.652174,1841.500000,580.500000,197
 C_T5_PC_w2_hyperpolarization,C,T5,PC,black,2,4.500000,160.000000,hyperpolarization,mean,1,2.250000,-2.826087,1743.900000,639.000000,142
 C_T5_PC_w2_hyperpolarization,C,T5,PC,black,2,4.500000,160.000000,hyperpolarization,mean,2,4.500000,-4.275362,1768.300000,649.000000,166
 C_T5_PC_w2_hyperpolarization,C,T5,PC,black,2,4.500000,160.000000,hyperpolarization,mean,3,6.750000,-5.000000,1792.700000,654.000000,180

@@ -31,10 +31,8 @@ from task.mbar.gt import (
     fig1_trace_from_sti,
     load_fig1_traces,
     motion_preference,
-    w_token,
 )
-from task.mbar.sti_geo import (
-    BAR_RADIUS,
+from task.sbar.sti_geo import (
     sti_hexes_at_xy,
     node_us_vs,
     sti_hexes,
@@ -268,7 +266,9 @@ def build_mbar_gt(
     delta_ms: float,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
-    bar_radius: int = BAR_RADIUS,
+    bar_dist: int,
+    bar_ws_deg: Sequence[float],
+    bar_directions: Sequence[str],
     multi_bar: bool = True,
     cost_radius: Optional[int] = None,
     i_baseline: float,
@@ -280,11 +280,15 @@ def build_mbar_gt(
     """Build multi-bar sti + T4/T5 cost readouts."""
     side = connectome.meta.get("side", "right")
 
-    specs = gruntman_mbar_specs(contrasts=tuple(contrasts))
+    specs = gruntman_mbar_specs(
+        contrasts=tuple(contrasts),
+        bar_ws_deg=bar_ws_deg,
+        bar_directions=bar_directions,
+    )
     i_baseline_val = float(i_baseline)
     sti = build_mbar_signals(
         connectome, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
-        bar_radius=bar_radius, multi_bar=bool(multi_bar),
+        bar_dist=bar_dist, multi_bar=bool(multi_bar),
         use_cache=use_cache,
         network_json=getattr(connectome, "source_json", None),
         i_baseline=i_baseline_val,
@@ -373,7 +377,12 @@ class MbarSessionT0:
 def bar_specs_from_task(session, task, contrast) -> List[MbarSpec]:
     """Gruntman bar specs for ``task``×``contrast``."""
     contrast_sign(contrast)
-    return list(gruntman_mbar_specs(contrasts=(contrast,)))
+    mbar_sti_opts = (session.train_opts or {}).get("mbar_sti_opts") or {}
+    return list(gruntman_mbar_specs(
+        contrasts=(contrast,),
+        bar_ws_deg=mbar_sti_opts["bar_ws_deg"],
+        bar_directions=mbar_sti_opts["bar_directions"],
+    ))
 
 
 def mbar_session_t0_grids(
@@ -407,8 +416,11 @@ def mbar_session_t0_grids(
         raise ValueError(
             f"train opts i_sti missing contrast {contrast!r}"
         )
+    mbar_sti_opts = (session.train_opts or {}).get("mbar_sti_opts") or {}
     sti = build_mbar_signals(
         connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
+        bar_dist=int(mbar_sti_opts["bar_dist"]),
+        multi_bar=bool(mbar_sti_opts["multi_bar"]),
         i_baseline=i_baseline,
         i_sti=float(i_sti[contrast]),
     )
@@ -468,6 +480,9 @@ def build_mbar_sti_opts(
     ms_pre,
     delta_ms,
     delta_ms_pre,
+    bar_dist: int,
+    bar_ws_deg: Sequence[float],
+    bar_directions: Sequence[str],
     multi_bar: bool,
     gt_cells=None,
 ):
@@ -476,6 +491,9 @@ def build_mbar_sti_opts(
         "ms_pre": ms_pre,
         "delta_ms": delta_ms,
         "delta_ms_pre": delta_ms_pre,
+        "bar_dist": int(bar_dist),
+        "bar_ws_deg": list(bar_ws_deg),
+        "bar_directions": list(bar_directions),
         "multi_bar": bool(multi_bar),
     }
     if gt_cells is not None:
@@ -488,6 +506,9 @@ def resolve_mbar_sti_opts(opts, **_):
         ms_pre=opts["ms_pre"],
         delta_ms=opts["delta_ms"],
         delta_ms_pre=opts["delta_ms_pre"],
+        bar_dist=opts["bar_dist"],
+        bar_ws_deg=opts["bar_ws_deg"],
+        bar_directions=opts["bar_directions"],
         multi_bar=opts["multi_bar"],
         gt_cells=opts.get("gt_cells"),
     )
@@ -499,6 +520,9 @@ def mbar_sti_opts(
     ms_pre,
     delta_ms: float,
     delta_ms_pre: float,
+    bar_dist: int,
+    bar_ws_deg: Sequence[float],
+    bar_directions: Sequence[str],
     multi_bar: bool,
 ) -> dict:
     """Build moving-bar sti opts when CLI sidecar is absent."""
@@ -508,6 +532,9 @@ def mbar_sti_opts(
         ms_pre=ms_pre,
         delta_ms=delta_ms,
         delta_ms_pre=delta_ms_pre,
+        bar_dist=bar_dist,
+        bar_ws_deg=bar_ws_deg,
+        bar_directions=bar_directions,
         multi_bar=multi_bar,
     )
 
@@ -537,7 +564,10 @@ def build_mbar_pack(
         i_sti=float(i_sti[contrast]),
         contrasts=(contrast,),
         gt_cells=gt_cells_from_opts(sti_opts),
-        multi_bar=bool(sti_opts.get("multi_bar", True)),
+        bar_dist=int(sti_opts["bar_dist"]),
+        bar_ws_deg=sti_opts["bar_ws_deg"],
+        bar_directions=sti_opts["bar_directions"],
+        multi_bar=bool(sti_opts["multi_bar"]),
         waveform_mse=True,
     )
     sti_opts["n_t"] = int(mbar_gt.n_t)

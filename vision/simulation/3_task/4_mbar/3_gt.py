@@ -6,7 +6,7 @@ population Vm (:data:`FIG1_CI_NPZ`) and T4/T5 motion preference.
 
 Network mapping, cost hexes, sti ``i_sti``, and :class:`task.mbar.pack.MbarGt`
 packing live in :mod:`task.mbar.pack`. Bar geometry and hex currents live in
-:mod:`task.mbar.sti_geo` and :mod:`task.mbar.sti_spec`.
+:mod:`task.sbar.sti_geo` and :mod:`task.mbar.sti_spec`.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from typing import Dict, Optional, Sequence, Tuple, Union
 import numpy as np
 
 from neuron.borst import t_from_ms
-from task.mbar.sti_geo import GRUNTMAN_WS_DEG
+from config import MBAR_INPUT_SPEC
 from task.mbar.sti_spec import (
     COST_ALIGNED_FIRST_STI_MS,
     COST_WINDOW_MS,
@@ -84,8 +84,8 @@ def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
     return tuple(gt_cells)
 
 
-def w_token(w_deg: float) -> str:
-    return "w1" if float(w_deg) <= 3.0 else "w4"
+def bar_w_token(bar_w_deg: float) -> str:
+    return "w1" if float(bar_w_deg) <= 3.0 else "w4"
 
 
 def pd_direction(side: str, subtype: str) -> str:
@@ -142,28 +142,28 @@ def fig1_trace_from_sti(
     subtype: str,
     spec: Union[MbarSpec, str],
     contrast: Optional[str] = None,
-    w_deg: Optional[float] = None,
+    bar_w_deg: Optional[float] = None,
 ) -> Optional[str]:
     """fig1 trace token for ``(side, subtype, sti)``, or ``None`` if orthogonal."""
     if isinstance(spec, MbarSpec):
-        direction, contrast, w_deg = spec.direction, spec.contrast, spec.w_deg
+        direction, contrast, bar_w_deg = spec.direction, spec.contrast, spec.bar_w_deg
     else:
         direction = str(spec)
-        if contrast is None or w_deg is None:
-            raise ValueError("contrast and w_deg required when spec is not MbarSpec")
+        if contrast is None or bar_w_deg is None:
+            raise ValueError("contrast and bar_w_deg required when spec is not MbarSpec")
     pref = motion_preference(side, subtype, direction, contrast)
     if pref is None:
         return None
-    return f"{subtype[:2]}_{pref.pc_nc}_{w_token(w_deg)}_{pref.pd_nd}"
+    return f"{subtype[:2]}_{pref.pc_nc}_{bar_w_token(bar_w_deg)}_{pref.pd_nd}"
 
 
 def active_stis_from_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str, str]]:
     """Non-orthogonal (direction, contrast, w_token) triples for one subtype."""
     return [
-        (direction, contrast, w_token(w_deg))
+        (direction, contrast, bar_w_token(bar_w_deg))
         for direction in _axis_directions(subtype)
         for contrast in ("bright", "dark")
-        for w_deg in GRUNTMAN_WS_DEG
+        for bar_w_deg in MBAR_INPUT_SPEC["bar_ws_deg"]
         if motion_preference(side, subtype, direction, contrast) is not None
     ]
 

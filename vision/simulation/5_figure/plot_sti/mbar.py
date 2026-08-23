@@ -1,6 +1,6 @@
 """Visualise moving-bar hex i_sti (demo only).
 
-Connectome: hex sti from ``task.mbar.sti_geo``.
+Connectome: hex sti from ``task.sbar.sti_geo``.
 
 Usage (from simulation/, project .venv):
 
@@ -31,26 +31,26 @@ from matplotlib.patches import Rectangle
 
 from config import (
     FIGURE_PLOT_STI_MBAR,
+    MBAR_INPUT_SPEC,
     MODEL,
-    MBAR_INPUT_GEO,
+    SBAR_INPUT_GEO,
     NEURON_SCHEMA,
     NETWORK_PATH,
     TRAIN_CONFIG,
-    apply_config,
+    resolve_config,
 )
 from train.param import SIM_DTYPE
 from network.construction import load_network
 from build_hex import (
     FIELD_VIEW_PAD_DEG,
-    plot_hex_patches,
     plot_hex_patches_uv,
     view_bounds_from_vertices,
     set_axis_labels,
     xy_deg_from_uv,
 )
-from task.mbar.sti_geo import bar_bound0_bar_bound1s, bar_bounds, sti_hexes
+from task.mbar.sti_geo import bar_bound0_bar_bound1s, bar_bounds
+from task.sbar.sti_geo import sti_hexes
 from task.mbar.sti_spec import (
-    GRUNTMAN_directions,
     build_mbar_signals,
     gruntman_mbar_specs,
     i_baseline_from_i_sti,
@@ -62,35 +62,21 @@ from path import network_run_token, resolve_network_json
 PLOT_BG = "#F5F0DC"  # axes background (beige), not hex baseline color
 
 
-def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
-    if hexes_are_xy_deg:
-        x_deg = [x for x, _ in hexes]
-        y_deg = [y for _, y in hexes]
-    else:
-        x_deg, y_deg = xy_deg_from_uv(
-            [u for u, _ in hexes],
-            [v for _, v in hexes],
-        )
-    x0, y0, x1, y1 = view_bounds_from_vertices(x_deg, y_deg)
-    pad = FIELD_VIEW_PAD_DEG
-    return (x0 - pad, x1 + pad), (y0 - pad, y1 + pad)
-
-
-def _plot_bar_outline(ax, spec, view_deg, t: int, t_onset: int, *, bar_radius: int, multi_bar: bool = True):
+def _plot_bar_outline(ax, spec, view_deg, t: int, t_onset: int, *, bar_dist: int, multi_bar: bool = True):
     delta_ms = MODEL["delta_ms"]
     shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
     if spec.direction in ("left", "down"):
         shift_deg = -shift_deg
     elif spec.direction not in ("right", "up"):
         raise ValueError(f"unknown direction {spec.direction!r}")
-    w_deg = float(spec.w_deg)
+    bar_w_deg = float(spec.bar_w_deg)
     for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
-        spec, view_deg, bar_radius, multi_bar=bool(multi_bar),
+        spec, view_deg, bar_dist, multi_bar=bool(multi_bar),
     ):
         if spec.direction in ("right", "up"):
-            bar_bound = float(bar_bound0) - w_deg
+            bar_bound = float(bar_bound0) - bar_w_deg
         else:
-            bar_bound = float(bar_bound1) + w_deg
+            bar_bound = float(bar_bound1) + bar_w_deg
         bar_bound = bar_bound + (t - t_onset) * shift_deg
         visible_bar = bar_bounds(spec, bar_bound, view_deg, bar_bound0, bar_bound1)
         if visible_bar is None:
@@ -118,20 +104,15 @@ def _current_cmap(i_max: float, i_baseline: float):
     )
 
 
-def _plot_hex_field(ax, hexes, i_sti, i_max, i_baseline, xlim, ylim, *, hexes_are_xy_deg: bool = False):
+def _plot_i_sti_hex(ax, hexes, i_sti, i_max, i_baseline, xlim, ylim):
     cmap = _current_cmap(i_max, i_baseline)
     colors = [
         cmap(float(np.clip(val / i_max if i_max > 0 else 0.0, 0.0, 1.0)))
         for val in i_sti
     ]
-    if hexes_are_xy_deg:
-        x_deg = [x for x, _ in hexes]
-        y_deg = [y for _, y in hexes]
-        plot_hex_patches(ax, x_deg, y_deg, colors, linewidth=0.15, alpha=0.95)
-    else:
-        u = [uv[0] for uv in hexes]
-        v = [uv[1] for uv in hexes]
-        plot_hex_patches_uv(ax, u, v, colors, linewidth=0.15, alpha=0.95)
+    u = [uv[0] for uv in hexes]
+    v = [uv[1] for uv in hexes]
+    plot_hex_patches_uv(ax, u, v, colors, linewidth=0.15, alpha=0.95)
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     ax.set_aspect("equal")
@@ -139,21 +120,19 @@ def _plot_hex_field(ax, hexes, i_sti, i_max, i_baseline, xlim, ylim, *, hexes_ar
     set_axis_labels(ax, fontsize=8)
 
 
-def plot_snapshot(
-    ax, hexes, i_sti_hex, t, spec, token, i_max, i_baseline, xlim, ylim, t_onset, view_deg, *,
-    hexes_are_xy_deg: bool = False,
-    bar_radius=None,
+def _plot_mbar_sti_t(
+    ax, hexes, i_sti_hex, t, spec, label, i_max, i_baseline, xlim, ylim, t_onset, view_deg, *,
+    bar_dist=None,
     multi_bar: bool = True,
 ):
-    _plot_hex_field(
+    _plot_i_sti_hex(
         ax, hexes, i_sti_hex[t], i_max, i_baseline, xlim, ylim,
-        hexes_are_xy_deg=hexes_are_xy_deg,
     )
-    _plot_bar_outline(ax, spec, view_deg, t, t_onset, bar_radius=bar_radius, multi_bar=bool(multi_bar))
-    ax.set_title(f"{token}  t={t} ({t * MODEL['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
+    _plot_bar_outline(ax, spec, view_deg, t, t_onset, bar_dist=bar_dist, multi_bar=bool(multi_bar))
+    ax.set_title(f"{label}  t={t} ({t * MODEL['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
 
 
-def save_snapshots(
+def save_mbar_sti_png(
     figure_hexes,
     showcase,
     i_sti_hex,
@@ -164,23 +143,29 @@ def save_snapshots(
     t_onset,
     n_t,
     view_deg,
-    snapshot_t=None,
-    hexes_are_xy_deg: bool = False,
-    bar_radius=None,
+    ts=None,
+    bar_dist=None,
     multi_bar: bool = True,
 ):
-    snapshot_t = list(snapshot_t or [])
-    if snapshot_t:
-        if any(t < 0 for t in snapshot_t):
+    ts = list(ts or [])
+    if ts:
+        if any(t < 0 for t in ts):
             raise SystemExit("mbar_plot_t must be non-negative t idxs")
-        bad = [t for t in snapshot_t if t >= n_t]
+        bad = [t for t in ts if t >= n_t]
         if bad:
             raise SystemExit(f"mbar_plot_t out of range (n_t={n_t}): {bad}")
-    xlim, ylim = _field_limits(figure_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
+    x_deg, y_deg = xy_deg_from_uv(
+        [u for u, _ in figure_hexes],
+        [v for _, v in figure_hexes],
+    )
+    x0, y0, x1, y1 = view_bounds_from_vertices(x_deg, y_deg)
+    pad = FIELD_VIEW_PAD_DEG
+    xlim = (x0 - pad, x1 + pad)
+    ylim = (y0 - pad, y1 + pad)
     xspan = xlim[1] - xlim[0]
     yspan = ylim[1] - ylim[0]
     panel_h = max(2.4, 3.0 * yspan / max(xspan / 3.0, 1.0))
-    n_col = len(snapshot_t) if snapshot_t else 3
+    n_col = len(ts) if ts else 3
     fig, axes = plt.subplots(
         len(showcase), n_col,
         figsize=(14.0, panel_h * len(showcase)),
@@ -190,28 +175,27 @@ def save_snapshots(
         axes = np.expand_dims(axes, 0)
 
     for row, spec in enumerate(showcase):
-        if snapshot_t:
-            times = snapshot_t
-            labels = [f"t={t}" for t in times]
+        if ts:
+            times = ts
+            labels = [f"{spec.token} (t={t})" for t in times]
         else:
             start_t, mid_t, exit_t = mbar_transit_times(
-                spec, view_deg, bar_radius, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
+                spec, view_deg, bar_dist, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
             )
             times = [start_t, mid_t, exit_t]
-            labels = ("start", "mid", "exit")
+            labels = [f"{spec.token} ({label})" for label in ("start", "mid", "exit")]
         for col, (t, label) in enumerate(zip(times, labels)):
-            plot_snapshot(
+            _plot_mbar_sti_t(
                 axes[row, col], figure_hexes, i_sti_hex[row], t, spec,
-                f"{spec.token} ({label})", i_max, i_baseline, xlim, ylim, t_onset, view_deg,
-                hexes_are_xy_deg=hexes_are_xy_deg,
-                bar_radius=bar_radius,
+                label, i_max, i_baseline, xlim, ylim, t_onset, view_deg,
+                bar_dist=bar_dist,
                 multi_bar=bool(multi_bar),
             )
-        if len(times) >= 3 and not snapshot_t:
+        if len(times) >= 3 and not ts:
             spread = float(np.ptp(i_sti_hex[row, times[1]]))
             print(f"  {spec.token}: start/mid/exit t={times}  mid ptp={spread:.1f} pA")
         else:
-            print(f"  {spec.token}: snapshot t={times}")
+            print(f"  {spec.token}: t={times}")
 
     fig.suptitle(
         f"Moving-bar i_sti_hex (pA)  side={side}  "
@@ -227,15 +211,14 @@ def save_snapshots(
 
 def save_animation(
     figure_hexes, showcase, i_sti_hex, i_max, i_baseline, path, side, t_onset, n_t, view_deg, t_stride,
-    *, hexes_are_xy_deg: bool = False,
-    bar_radius=None,
+    *, bar_dist=None,
     multi_bar: bool = True,
 ):
     stride = max(1, t_stride)
     times = set()
     for spec in showcase:
         t0, _, t1 = mbar_transit_times(
-            spec, view_deg, bar_radius, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
+            spec, view_deg, bar_dist, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
         )
         times.update(range(t0, t1 + 1, stride))
     times = sorted(times)
@@ -243,7 +226,14 @@ def save_animation(
         print("no animation frames")
         return
 
-    xlim, ylim = _field_limits(figure_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
+    x_deg, y_deg = xy_deg_from_uv(
+        [u for u, _ in figure_hexes],
+        [v for _, v in figure_hexes],
+    )
+    x0, y0, x1, y1 = view_bounds_from_vertices(x_deg, y_deg)
+    pad = FIELD_VIEW_PAD_DEG
+    xlim = (x0 - pad, x1 + pad)
+    ylim = (y0 - pad, y1 + pad)
     fig, axes = plt.subplots(len(showcase), 1, figsize=(4.5, 2.8 * len(showcase)), squeeze=False, facecolor=PLOT_BG)
     title = fig.suptitle("", fontsize=11)
 
@@ -255,11 +245,10 @@ def save_animation(
         )
         for row, spec in enumerate(showcase):
             axes[row, 0].clear()
-            plot_snapshot(
+            _plot_mbar_sti_t(
                 axes[row, 0], figure_hexes, i_sti_hex[row], t, spec,
                 spec.token, i_max, i_baseline, xlim, ylim, t_onset, view_deg,
-                hexes_are_xy_deg=hexes_are_xy_deg,
-                bar_radius=bar_radius,
+                bar_dist=bar_dist,
                 multi_bar=bool(multi_bar),
             )
         return [title]
@@ -280,14 +269,15 @@ def plot_mbar_sti(
     gif: bool,
     gif_output: str | None,
     t_stride: int,
-    snapshot_t,
-    bar_radius: int,
+    ts,
+    bar_dist: int,
     multi_bar: bool,
 ) -> None:
     direction = str(direction)
-    if direction not in GRUNTMAN_directions:
+    bar_directions = MBAR_INPUT_SPEC["bar_directions"]
+    if direction not in bar_directions:
         raise SystemExit(
-            f"mbar_plot_direction must be one of {GRUNTMAN_directions}; got {direction!r}"
+            f"mbar_plot_direction must be one of {bar_directions}; got {direction!r}"
         )
     sti = list(contrasts)
     if not sti:
@@ -297,7 +287,11 @@ def plot_mbar_sti(
         raise SystemExit(f"contrasts supports only {CONTRASTS}; got {bad_sti}")
 
     showcase = [
-        spec for spec in gruntman_mbar_specs(contrasts=tuple(sti))
+        spec for spec in gruntman_mbar_specs(
+            contrasts=tuple(sti),
+            bar_ws_deg=MBAR_INPUT_SPEC["bar_ws_deg"],
+            bar_directions=bar_directions,
+        )
         if spec.direction == direction
     ]
     i_sti_spec = TRAIN_CONFIG["i_sti"]
@@ -313,7 +307,7 @@ def plot_mbar_sti(
     fallback_png = os.path.join(PLOT_DIR, f"mbar_{token}.png")
     fallback_gif = os.path.join(PLOT_DIR, f"mbar_{token}.gif")
     path = path or fallback_png
-    bar_radius = int(bar_radius)
+    bar_dist = int(bar_dist)
     i_sti_hex_parts = []
     specs = []
     T = None
@@ -324,7 +318,7 @@ def plot_mbar_sti(
         T = build_mbar_signals(
             connectome,
             specs=contrast_specs,
-            bar_radius=bar_radius,
+            bar_dist=bar_dist,
             multi_bar=multi_bar,
             delta_ms=MODEL['delta_ms'],
             i_baseline=i_baseline,
@@ -343,16 +337,15 @@ def plot_mbar_sti(
     i_baseline = float(T.i_baseline)
     side = connectome.meta.get("side", "?")
     print(
-        f"bar_radius={bar_radius}  "
+        f"bar_dist={bar_dist}  "
         f"n_t={n_t} ({n_t * MODEL['delta_ms'] / 1000.0:.2f} s)  "
         f"sweep_t={T.sweep_t} ({T.sweep_s:.2f} s after t_onset)"
     )
 
-    save_snapshots(
+    save_mbar_sti_png(
         figure_hexes, specs, i_sti_hex, i_max, i_baseline,
-        path, side, t_onset, n_t, view_deg, snapshot_t=snapshot_t,
-        hexes_are_xy_deg=False,
-        bar_radius=bar_radius,
+        path, side, t_onset, n_t, view_deg, ts=ts,
+        bar_dist=bar_dist,
         multi_bar=multi_bar,
     )
     if gif:
@@ -360,8 +353,7 @@ def plot_mbar_sti(
         save_animation(
             figure_hexes, specs, i_sti_hex, i_max, i_baseline, gif_path,
             side, t_onset, n_t, view_deg, t_stride,
-            hexes_are_xy_deg=False,
-            bar_radius=bar_radius,
+            bar_dist=bar_dist,
             multi_bar=multi_bar,
         )
     print(f"i_sti_hex shape {tuple(i_sti_hex.shape)}  specs={[spec.token for spec in specs]}")
@@ -369,7 +361,7 @@ def plot_mbar_sti(
 
 @hydra.main(version_base=None, config_path="../../conf", config_name="config")
 def main(hydra_config) -> None:
-    apply_config(hydra_config)
+    resolve_config(hydra_config)
     plot_mbar_sti(
         network=str(NETWORK_PATH["network"]),
         direction=str(FIGURE_PLOT_STI_MBAR["direction"]),
@@ -378,9 +370,9 @@ def main(hydra_config) -> None:
         gif=bool(FIGURE_PLOT_STI_MBAR["gif"]),
         gif_output=FIGURE_PLOT_STI_MBAR.get("gif_output"),
         t_stride=int(FIGURE_PLOT_STI_MBAR["t_stride"]),
-        snapshot_t=FIGURE_PLOT_STI_MBAR.get("t"),
-        bar_radius=int(MBAR_INPUT_GEO["bar_radius"]),
-        multi_bar=bool(MBAR_INPUT_GEO["multi_bar"]),
+        ts=FIGURE_PLOT_STI_MBAR.get("t"),
+        bar_dist=int(SBAR_INPUT_GEO["bar_dist"]),
+        multi_bar=bool(SBAR_INPUT_GEO["multi_bar"]),
     )
 
 

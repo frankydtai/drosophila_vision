@@ -23,7 +23,7 @@ from task.mbar.pack import (
     mbar_specs_by_cell,
     mbar_session_t0_grids,
 )
-from figure.spread import pack_cells
+from figure.spread import pack_cells, contrast_order
 from network.construction import cells_in_order
 from figure.plot import session_from_task
 from figure.panel import (
@@ -53,7 +53,7 @@ from task.mbar.sti_spec import PD_ND_LABELS
 from task.spread.sti_spec import CONTRASTS
 from task.spread.pack import cost_sti_hexes
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
-from task.mbar.sti_geo import (
+from task.sbar.sti_geo import (
     sti_hexes_at_xy,
     node_us_vs,
     sti_hexes,
@@ -67,15 +67,15 @@ from neuron.borst import t_from_ms
 MBAR_DPI = 100
 
 
-def format_mbar_cell_cost_lines(cell, cost_parts, contrasts):
-    """Lines ``ON: xx @PD yy @ND`` / ``OFF: …`` for moving-bar titles."""
+def _mbar_cell_cost_labels(cell, cost_parts, contrasts):
+    """``ON: xx @PD yy @ND`` / ``OFF: …`` title labels for moving-bar panels."""
     label_map = {
         'bright': 'ON',
         'dark': 'OFF',
     }
-    lines = []
+    labels = []
     if not cost_parts:
-        return lines
+        return labels
     for contrast in contrasts:
         bits = []
         for pd_nd_label in PD_ND_LABELS:
@@ -83,13 +83,12 @@ def format_mbar_cell_cost_lines(cell, cost_parts, contrasts):
             if part_key in cost_parts:
                 bits.append(f'{float(cost_parts[part_key]):.1f} @{pd_nd_label}')
         if bits:
-            lines.append(f'{label_map.get(contrast, contrast)}: {" ".join(bits)}')
-    return lines
+            labels.append(f'{label_map.get(contrast, contrast)}: {" ".join(bits)}')
+    return labels
 
 
 PLOT_AT_XY = True
 PLOT_ALIGN_XY = True
-PLOT_PAIRED = True
 
 
 @dataclass
@@ -153,9 +152,9 @@ def _mbar_cell_title(
 ):
     head = token
     if cost_parts is not None and cost_contrasts:
-        cost_lines = format_mbar_cell_cost_lines(cell, cost_parts, cost_contrasts)
-        if cost_lines:
-            head = '\n'.join([f'{cell} Cost', *cost_lines, head])
+        cost_labels = _mbar_cell_cost_labels(cell, cost_parts, cost_contrasts)
+        if cost_labels:
+            head = '\n'.join([f'{cell} Cost', *cost_labels, head])
     return head
 
 
@@ -699,7 +698,7 @@ def _plot_mbar_cell_at_xy(
         ax.legend(fontsize=5, loc='upper right', framealpha=0.85)
 
 
-def _mbar_all_hexes_label(readout):
+def _mbar_readout_hexes_label(readout):
     if readout.at_xs is not None or readout.at_ys is not None:
         pack = readout.session.primary_pack
         cost_radius = pack.cost_radius
@@ -718,14 +717,18 @@ def _mbar_all_hexes_label(readout):
     return _mbar_hexes_label(readout.session)
 
 
-def _mbar_cost_contrasts(readout, paired_readout=None):
-    contrasts = [readout.contrast]
-    if paired_readout is not None and paired_readout.contrast not in contrasts:
-        contrasts.append(paired_readout.contrast)
+def _mbar_cost_contrasts(readouts):
+    contrasts = []
+    for readout in readouts.values():
+        if readout.contrast not in contrasts:
+            contrasts.append(readout.contrast)
     return contrasts
 
 
-def _mbar_all_figure(readout, paired_readout, title, *, right_only=True, cost_parts=None):
+def _mbar_all_figure(readouts, title, *, right_only=True, cost_parts=None):
+    order = contrast_order(readouts)
+    readout = readouts[order[0]]
+    paired_readout = readouts[order[1]] if len(order) > 1 else None
     single_hex = readout.single_hex
     cells = readout.cells
     window_traces = readout.traces
@@ -740,7 +743,7 @@ def _mbar_all_figure(readout, paired_readout, title, *, right_only=True, cost_pa
     paired_window_traces = None
     labels = list(readout.labels or ())
     has_at_xy = readout.ca_mean_cell_mean_hex_by_label is not None
-    cost_contrasts = _mbar_cost_contrasts(readout, paired_readout)
+    cost_contrasts = _mbar_cost_contrasts(readouts)
     if paired_readout is not None:
         paired_window_traces = paired_readout.traces
         spec_tokens = list(spec_tokens) + list(
@@ -826,22 +829,25 @@ def _mbar_all_figure(readout, paired_readout, title, *, right_only=True, cost_pa
         axes[row, 0].set_ylabel(cell_ylabel(cell, ca_n), fontsize=8, labelpad=12)
     if title is None:
         title = 'Moving-bar ca-all (right only)' if right_only else 'Moving-bar ca-all'
-    hexes_label = _mbar_all_hexes_label(readout)
+    hexes_label = _mbar_readout_hexes_label(readout)
     fig.suptitle(title + f'  [{hexes_label}, t_first_sti-aligned trace]', fontsize=12)
     fig.subplots_adjust(top=0.90, bottom=0.08, hspace=0.50, wspace=0.35)
     return fig
 
 
 @torch.no_grad()
-def plot_mbar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=None):
-    """Plot ca-gt figure from a :class:`MbarTraceReadout`."""
-    timer = ElapsedTimer(prior_prep=readout_prep_s(readout, paired_readout))
+def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True):
+    """Plot ca-gt figure from contrast → :class:`MbarTraceReadout`."""
+    order = contrast_order(readouts)
+    readout = readouts[order[0]]
+    paired_readout = readouts[order[1]] if len(order) > 1 else None
+    timer = ElapsedTimer(prior_prep=readout_prep_s(*readouts.values()))
     timer.end_prep()
     single_hex = readout.single_hex
     row_specs = mbar_specs_by_cell(readout.session, readout.task, readout.side)
     gt_cells = list(row_specs.keys())
     n_col_half = max((len(specs) for specs in row_specs.values()), default=8)
-    cost_contrasts = _mbar_cost_contrasts(readout, paired_readout)
+    cost_contrasts = _mbar_cost_contrasts(readouts)
     if paired_readout is not None:
         paired_row_specs = mbar_specs_by_cell(
             paired_readout.session, paired_readout.task, paired_readout.side,
@@ -896,8 +902,6 @@ def plot_mbar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=N
         axes[row, 0].set_ylabel(
             cell_ylabel(cell, readout.traces.ca_n), fontsize=8, labelpad=12,
         )
-    if title is None:
-        title = 'Moving-bar ca-gt'
     hexes_label = _mbar_hexes_label(readout.session)
     fig.suptitle(
         title + f'  [{hexes_label}, t_first_sti-aligned trace]',
@@ -909,13 +913,15 @@ def plot_mbar_gt(path, *, readout, paired_readout=None, title=None, cost_parts=N
 
 
 @torch.no_grad()
-def plot_mbar_all(path, *, readout, paired_readout=None, title=None, right_only=True,
-                        cost_parts=None):
-    """Plot ca-all figure from a :class:`MbarTraceReadout`."""
-    timer = ElapsedTimer(prior_prep=readout_prep_s(readout, paired_readout))
+def plot_all(path, *, readouts, title, gts=None, cost_parts=None, right_only=True):
+    """Plot ca-all figure from contrast → :class:`MbarTraceReadout`."""
+    order = contrast_order(readouts)
+    readout = readouts[order[0]]
+    paired_readout = readouts[order[1]] if len(order) > 1 else None
+    timer = ElapsedTimer(prior_prep=readout_prep_s(*readouts.values()))
     timer.end_prep()
     fig = _mbar_all_figure(
-        readout, paired_readout, title, right_only=right_only, cost_parts=cost_parts,
+        readouts, title, right_only=right_only, cost_parts=cost_parts,
     )
     timer.end_plot()
     save_figure(fig, path, dpi=MBAR_DPI, rasterize=True, timer=timer)
@@ -939,18 +945,4 @@ def figure_titles(session, suffix, token, *, contrast=None):
     return (
         f'mbar {contrast} {token}-gt ({suffix})',
         f'mbar {contrast} {token}-all ({suffix})',
-    )
-
-
-def plot_gt(path, *, readout, paired_readout=None, title, cost_parts=None, right_only=True):
-    plot_mbar_gt(
-        path, readout=readout, paired_readout=paired_readout,
-        title=title, cost_parts=cost_parts,
-    )
-
-
-def plot_all(path, *, readout, paired_readout=None, title, cost_parts=None, right_only=True):
-    plot_mbar_all(
-        path, readout=readout, paired_readout=paired_readout,
-        title=title, cost_parts=cost_parts, right_only=right_only,
     )

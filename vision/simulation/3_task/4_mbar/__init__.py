@@ -1,2 +1,2 @@
-"""Moving-bar: ``sti_geo``, ``sti_spec``, ``gt`` (fig1 Vm + motion preference),
-``pack`` (GT↔network)."""
+"""Moving-bar: ``sti_geo`` (bar bounds/fill/view), ``sti_spec``, ``gt``, ``pack``.
+Shared hex map: :mod:`task.sbar.sti_geo` (no bar math)."""

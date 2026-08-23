@@ -47,7 +47,7 @@ from task.mbar.pack import (
     mbar_session_t0_grids,
 )
 from task.spread.pack import cost_sti_hexes
-from task.mbar.sti_geo import (
+from task.sbar.sti_geo import (
     sti_hexes_at_xy,
 )
 from task.spot.pack import build_spot_center_readout
@@ -759,13 +759,6 @@ def _component_matrix(component: dict[str, np.ndarray], components: tuple[str, .
     return np.column_stack([component[component_tok] for component_tok in components])
 
 
-def _sums_dict_from_vec(vec: np.ndarray, components: tuple[str, ...]) -> dict[str, float]:
-    return {
-        component_tok: float(vec[component_idx])
-        for component_idx, component_tok in enumerate(components)
-    }
-
-
 def _std_from_sum_and_sum_sq(sum_: float, sum_sq: float, n_node: int) -> float:
     """Match ``figure.panel.std_from_traces`` (population std)."""
     if n_node <= 1:
@@ -1037,7 +1030,7 @@ def _forward_component(
                 )
             component_mat = _component_matrix(component, layout.components)
             cell_idx_from_node_id = cell_idxs_from_node_id[b]
-            tags = cell_idx_from_node_id[active_node]
+            active_cell_idxs = cell_idx_from_node_id[active_node]
             v_ca_active = ca_post_active = ca_pre_active = None
             if ca is not None:
                 active_node_t = torch.as_tensor(
@@ -1047,7 +1040,7 @@ def _forward_component(
                 ca_post_active = ca[b, active_node_t].detach().cpu().numpy()
                 ca_pre_active = ca_pre[b, active_node_t].detach().cpu().numpy()
             for cell_idx, cell in enumerate(cells):
-                mask = tags == cell_idx
+                mask = active_cell_idxs == cell_idx
                 if not np.any(mask):
                     continue
                 ts = active_t[mask]
@@ -1156,6 +1149,7 @@ def _finalize_component_report(
         t_hi = min(n_t - 1, peak_t + int(time_window.stop))
     steps: list[dict[str, Any]] = []
     peak_step: dict[str, Any] | None = None
+    components = component_layout.components
     for t in range(t_lo, t_hi + 1):
         n_node_t = int(n_node[t])
         if n_node_t == 0:
@@ -1169,8 +1163,14 @@ def _finalize_component_report(
         t_rel = t - peak_t
         step = _step_from_sums(
             t=t, t_rel=t_rel, ti=ti, v_post_val=float(v_post[t]),
-            sums=_sums_dict_from_vec(sums[t], component_layout.components),
-            sum_sqs=_sums_dict_from_vec(sum_sqs[t], component_layout.components),
+            sums={
+                component_tok: float(sums[t][component_idx])
+                for component_idx, component_tok in enumerate(components)
+            },
+            sum_sqs={
+                component_tok: float(sum_sqs[t][component_idx])
+                for component_idx, component_tok in enumerate(components)
+            },
             v_post_minus_pre_sum=float(v_post_minus_pre_sums[t]),
             n_node=n_node_t,
             layout=component_layout,
@@ -2586,9 +2586,9 @@ def _print_sign_compare(
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(hydra_config) -> None:
-    from config import active_config, apply_config
+    from config import active_config, resolve_config
 
-    apply_config(hydra_config)
+    resolve_config(hydra_config)
     cli = resolve_shared_cli()
     radius = int(ANALYZE_CELL_DYNAMICS["radius"])
     node = ANALYZE_CELL_DYNAMICS.get("node")
@@ -2676,16 +2676,16 @@ def main(hydra_config) -> None:
             dtype=session.sim_dtype,
             device=session.device,
         )
-        z, schema = plot.override_params(
+        z, schema = train.override_params(
             z, schema, session, param_vals=param_vals,
         )
         session = session.with_schema(schema)
         params = train.params_from_z(z, session)
-        recompute_cost = bool(
+        calc_cost = bool(
             ms_changed or euler is not None or filter is not None or param_vals
         )
         cost = (
-            float(train.calc_cost(z, session).item()) if recompute_cost
+            float(train.calc_cost(z, session).item()) if calc_cost
             else float(best_cost)
         )
 

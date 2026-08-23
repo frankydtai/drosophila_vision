@@ -209,6 +209,7 @@ def resolve_train_opts(
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
     cost_ms=None,
     mbar_sti_opts=None,
+    sbar_sti_opts=None,
     spread_sti_opts=None,
     spot_sti_opts=None,
     network_json=None,
@@ -262,6 +263,7 @@ def resolve_train_opts(
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
         mbar_sti_opts=mbar_sti_opts,
+        sbar_sti_opts=sbar_sti_opts,
     )
     opts = {
         "tasks": tasks,
@@ -350,6 +352,7 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
         "spread_sti_opts": _sti("spread_sti_opts"),
         "spot_sti_opts": _sti("spot_sti_opts"),
         "mbar_sti_opts": _sti("mbar_sti_opts"),
+        "sbar_sti_opts": _sti("sbar_sti_opts"),
     }
     if opts.get("params"):
         train_opts["params"] = copy.deepcopy(opts["params"])

@@ -44,10 +44,9 @@ from build_hex import (
     set_axis_labels,
     xy_deg_from_uv,
 )
-from config import FIGURE_PLOT_STI_SPOT, MODEL, NEURON_SCHEMA, NETWORK_PATH, SPOT_INPUT_GEO, apply_config
+from config import FIGURE_PLOT_STI_SPOT, MODEL, NEURON_SCHEMA, NETWORK_PATH, SPOT_INPUT_GEO, resolve_config
 from network.construction import Network, load_network
 from path import network_run_token, resolve_network_json
-from config import apply_config
 from task.spot.sti_geo import build_spot, standardize_spot_radius
 from train.param import SIM_DTYPE
 
@@ -165,7 +164,7 @@ def plot_multi_spot_tiling(
 
 @hydra.main(version_base=None, config_path="../../conf", config_name="config")
 def main(hydra_config) -> None:
-    apply_config(hydra_config)
+    resolve_config(hydra_config)
     plot_multi_spot_tiling(
         network=str(NETWORK_PATH["network"]),
         spot_radii=FIGURE_PLOT_STI_SPOT.get("spot_radii") or [0.5, 1.0, 1.5, 2.0],

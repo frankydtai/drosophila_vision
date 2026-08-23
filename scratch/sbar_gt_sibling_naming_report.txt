@@ -1,0 +1,347 @@
+Sbar GT — Sibling Report + Naming Report
+=========================================
+Implementation review artifact (scratch/). Prior draft plans discarded.
+
+Pending new files (user-approved paths before vision/ edit):
+  vision/simulation/3_task/3_sbar/3_gt.py
+  vision/simulation/3_task/3_sbar/4_pack.py
+
+Pending edits:
+  vision/simulation/3_task/5_implementation.py
+  vision/simulation/config.py  (sbar_sti_opts assembly)
+
+Explicitly NOT in sbar surface:
+  _assemble_*  _pack_*  _format_*  load_fig*  load_trace*
+  motion_preference  MotionPreference  FIG*  gruntman_* module constants
+  stride  partner_*  trace_token  vm (project binding)
+  load_gt(..., n_t=...)  — n_t MUST NOT be load_gt parameter or gt-module export
+  overlap / overlap_* (any identifier or planned binding)
+  mid_label  mid_form  PC_or_NC  id_a  id_b  id_single  (opaque / format glue)
+  center (bar motion axis — use mid)
+  position (project local — CSV column "position" pandas boundary only)
+  n_t local in build_sbar_gt (use int(sti.n_t) inline at SbarGt(...) only)
+  df / time_ms / vm_mv as project locals (pandas column strings inline only)
+
+
+================================================================================
+PART 1 — SIBLING REPORT
+================================================================================
+
+Layer: task (3_task). Primary siblings: mbar pack/gt + spot load_gt/part_key.
+
+------------------------------------------------------------------------------
+1.1  vision/simulation/3_task/3_sbar/3_gt.py
+------------------------------------------------------------------------------
+
+Function: load_gt
+  Primary sibling Read: task/spot/gt.py load_gt (L77-97) — public loader name
+  Resample interp sibling: task/mbar/gt.py load_fig1_trace (L198-204) — np.interp
+    onto np.arange(...) * delta_ms (cite shape only; do not copy fig1 naming)
+  Action: REPLACE
+  CSV filesystem location: one inline literal inside pd.read_csv(...) — no module constant
+
+  API:
+    load_gt(*, t_onset, ms_response, ms_sti, delta_ms, ms_post=0.0)
+
+  Resample count: inline inside np.arange(...):
+    int(t_onset
+        + t_from_ms(float(ms_response), delta_ms=delta_ms)
+        + t_from_ms(float(ms_post), delta_ms=delta_ms)
+        + 1)
+  No n_t parameter. No n_t local.
+
+  Return: gts — dict[str, np.ndarray]; keys are CSV "trace_id" strings
+  Filter: target_width_led == 1 (pandas literal, not a binding)
+
+  Import from task.mbar.gt (not redefined in sbar gt):
+    GT_CELLS, expand_gt_cells — used in pack / implementation only
+
+------------------------------------------------------------------------------
+1.2  vision/simulation/3_task/3_sbar/4_pack.py
+------------------------------------------------------------------------------
+
+Dataclass SbarGt
+  Sibling: task/mbar/pack.py MbarGt (L54-70)
+  Action: EXTEND — omit cost_pd_nds
+  Fields: i_sti, gts, power, cost_scales, entry_bs, entry_nodes, n_b, n_t,
+    n_cost_hex, active_gts, spec_tokens, entry_part_keys, cost_t0s
+  n_t field: sibling MbarGt L63 — value int(sti.n_t) at construct site only
+
+Dataclass SbarPack
+  Sibling: task/mbar/pack.py MbarPack (L73-88)
+  Action: EXTEND — task="sbar", omit cost_pd_nds
+
+Function part_key(contrast, cell, mid)
+  Sibling: task/spot/pack.py part_key (L44-45)
+  Action: EXTEND
+  Body: f"sbar_{contrast}_{cell}_mid{...}" with signed mid inline in f-string
+    (+d for integer mid, +.1f for half-step — digitization boundary rule; no _format_* helper)
+
+Function _sbar_cost_part_plot_specs(...)
+  Sibling: task/mbar/pack.py _mbar_cost_part_plot_specs (L95-124)
+  Action: EXTEND — inherit established CostPartPlotSpec / plot_specs spelling from mbar
+    (mbar naming debt; sbar does not coin new plot_* identifiers elsewhere)
+  Change axis: cost_pd_nds → mids; CostPartPlotSpec series ("mid", mid)
+
+Function build_sbar_gt(...)
+  Sibling: task/mbar/pack.py build_mbar_gt (L262-365)
+  Action: EXTEND + INLINE entry loop in this function body
+  Forbidden parallel helpers: _assemble_mbar_readouts, _pack_mbar_entries
+
+  Flow:
+    1. specs = gruntman_sbar_specs(...)           3_sbar/2_sti_spec.py L38-47
+    2. sti = build_sbar_signals(...)              3_sbar/2_sti_spec.py L123-175
+    3. gts = load_gt(t_onset=sti.t_onset, ms_response=..., ms_sti=..., ...)  — no n_t arg
+    4. active = active_gt_cells(..., GT_CELLS, ...)   mbar L302-304
+    5. hexes = cost_sti_hexes(...); hex_mask = sbar_line_hex_mask(...) per direction
+    6. mid = float(hex.x) or float(hex.y) by direction — lexicon mid
+    7. inline loops: entry_bs, entry_nodes, entry_gts, entry_cost_scales,
+       entry_cost_t0s, entry_part_keys
+    8. bar_span two-trace sum inline (Part 2.6)
+    9. inline np.asarray → SbarGt(..., n_t=int(sti.n_t), ...)
+
+Function build_sbar_sti_opts / resolve_sbar_sti_opts / sbar_sti_opts
+  Sibling: task/mbar/pack.py L478-539
+  Action: EXTEND
+
+Function build_sbar_pack
+  Sibling: task/mbar/pack.py build_mbar_pack (L542-607)
+  Action: EXTEND
+
+Imports (no new functions):
+  nodes_from_hexes — task/mbar/pack.py L127-149
+  GT_CELLS, expand_gt_cells — task/mbar/gt.py
+  cost_sti_hexes, cost_hex_label — task/spread/pack
+  gruntman_sbar_specs, build_sbar_signals, SbarSpec — task/sbar/sti_spec
+  load_gt — task/sbar/gt
+
+------------------------------------------------------------------------------
+1.3  vision/simulation/3_task/5_implementation.py
+------------------------------------------------------------------------------
+
+Action: EXTEND
+  TASKS += "sbar"
+  _STI_TRAIN_OPT_KEYS += ("sbar", "sbar_sti_opts")
+  _STI_OPTS_BY_TASK["sbar"]
+  _RESOLVE_STI_OPTS["sbar"] = resolve_sbar_sti_opts
+  _GT_CELLS_EXPAND["sbar"] = expand_mbar_gt_cells
+  build_task_pack: task == "sbar" → build_sbar_pack(...)
+
+------------------------------------------------------------------------------
+1.4  vision/simulation/config.py
+------------------------------------------------------------------------------
+
+Action: EXTEND — sbar_sti_opts assembly (spot-family ms_* + SBAR_INPUT_GEO bar_*)
+
+
+================================================================================
+PART 2 — NAMING REPORT
+================================================================================
+
+References: .cursor/rules/2_lexicon.mdc; coding-rules §③ sibling-or-inline.
+
+------------------------------------------------------------------------------
+2.1  load_gt
+------------------------------------------------------------------------------
+
+Parameters (all legal):
+  t_onset       — bare t; sibling spot/gt.py load_gt L80
+  ms_response   — ms; sibling 3_sbar/2_sti_spec.py build_sbar_signals timing
+  ms_sti        — ms; sibling spot/sbar sti
+  delta_ms      — ms; sibling mbar gt interp L198-204
+  ms_post       — ms; sibling 3_sbar/2_sti_spec.py sbar_n_t L55
+
+Forbidden on load_gt:
+  n_t (parameter or local)
+
+Return:
+  gts           — lexicon gts bag; dict keyed by CSV "trace_id"
+
+Allowed locals:
+  gts           — return bag under construction; sibling role mbar load_fig1_traces
+                    dict (L218-221) renamed to gts per gt headword
+  gt            — one (T,) waveform while filling gts[trace_id]; lexicon gt singular
+
+Forbidden locals:
+  n_t, df, time_ms, vm_mv, trace_id (as named loop binding — iterate groupby key inline
+    or use trace_id only as pandas column string "trace_id")
+
+Pandas / load boundary (column strings only, no project locals):
+  pd.read_csv(.../2ax2bc_digitized.csv)
+  groupby("trace_id")
+  row["time_ms"], row["vm_mv"]  OR  grouped["time_ms"], grouped["vm_mv"]
+  filter: grouped["target_width_led"] == 1
+
+Resample (inline, no n_t):
+  np.interp(
+    np.arange(int(t_onset + t_from_ms(float(ms_response), delta_ms=delta_ms)
+                    + t_from_ms(float(ms_post), delta_ms=delta_ms) + 1)) * float(delta_ms),
+    ...,
+    left=..., right=...,
+  )
+
+Module level: none
+
+------------------------------------------------------------------------------
+2.2  SbarGt fields
+------------------------------------------------------------------------------
+
+  i_sti           — sti; MbarGt L56
+  gts             — gts tensor (n_entry, T'); MbarGt L57
+  power           — MbarGt L58 (mbar-established normalization scalar)
+  cost_scales     — cost_scales; L59
+  entry_bs        — entry_bs; L60
+  entry_nodes     — entry_nodes; L61
+  n_b             — n_b; L62
+  n_t             — n_t field only; L63; set n_t=int(sti.n_t) at return — no n_t local
+  n_cost_hex      — L64
+  active_gts      — MbarGt L65 (list of cell names in pack)
+  spec_tokens     — spec_tokens; L67
+  entry_part_keys — entry_part_keys; L70
+  cost_t0s        — cost_t0s; L68
+
+------------------------------------------------------------------------------
+2.3  SbarPack fields
+------------------------------------------------------------------------------
+
+  task, contrast, i_sti, gts, cost_scales, entry_bs, entry_nodes — MbarPack L77-83
+  cost_t0s, cost_radius, entry_part_keys — L84-87
+  cost_part_plot_specs — L88 CostPartPlotSpec dict (mbar-established)
+
+------------------------------------------------------------------------------
+2.4  part_key(contrast, cell, mid)
+------------------------------------------------------------------------------
+
+  contrast  — bright|dark; spot/part_key L44
+  cell      — connectome cell; lexicon cell
+  mid       — motion-axis locus; lexicon mid (not center, not position local)
+
+  f-string: mid magnitude/sign inline (e.g. +1, +0.5) — no mid_label, no _format_*
+
+------------------------------------------------------------------------------
+2.5  _sbar_cost_part_plot_specs(...)
+------------------------------------------------------------------------------
+
+  entry_part_keys, entry_nodes, cost_scales — mbar L96-98
+  mids              — lexicon mids; per-entry mid axis values (replaces cost_pd_nds input)
+  connectome, contrast — mbar L100-101
+  specs             — mbar L103 CostPartPlotSpec dict (not MbarSpec specs)
+  cost_scales_np, entry_nodes_np, node_cells_np — mbar L104-109
+  cells, entry, part_key, cell, mid — mbar L110-117 pattern
+
+------------------------------------------------------------------------------
+2.6  build_sbar_gt(...)
+------------------------------------------------------------------------------
+
+Parameters:
+  connectome, delta_ms, delta_ms_pre, ms_pre, ms_response, ms_post, ms_sti
+  bar_dist, bar_directions, multi_bar, cost_radius
+  i_baseline, i_sti (float peak), contrasts, gt_cells
+  — all sibling-cited from mbar build_mbar_gt + sbar sti_spec timing
+
+Locals (legal):
+  specs       — list[SbarSpec]; gruntman_sbar_specs; lexicon specs
+  sti         — SbarSti; sibling mbar sti = build_mbar_signals L289
+  gts         — load_gt(...) dict; lexicon gts
+  active      — active_gt_cells(...); mbar L302
+  cells       — node_cells(connectome); mbar L306
+  hexes       — cost_sti_hexes(...); lexicon hexes
+  hex_idx     — (u,v) → index; mbar L307-309
+  cost_hex_idxs — mbar L312-313
+  bar_span    — 1 + int(bar_dist); lexicon span → code compound bar_span;
+                4_mbar/1_sti_geo.py sbar_line_hex_mask L229
+  entry_bs, entry_nodes, entry_gts, entry_cost_scales, entry_cost_t0s, entry_part_keys
+                — mbar L183-185
+  b, spec, direction, contrast — mbar L188-204 pattern
+  hex_mask    — sbar_line_hex_mask; 3_sbar/2_sti_spec L100
+  hex         — lexicon hex
+  mid         — float(hex.x) or float(hex.y); lexicon mid
+  cell, node, nodes — lexicon
+
+Forbidden locals in build_sbar_gt:
+  n_t         — use int(sti.n_t) only inside SbarGt(...) call
+  center, position, partner_*, overlap_*, mid_label, mid_form, PC_or_NC
+  id_a, id_b, id_single (use gts[ f"{cell[:2]}_{...}_pos..._w1" ] inline)
+
+PC / NC (string literals only at gts lookup — not contrast binding):
+  "PC" if (cell.startswith("T4") and contrast == "bright")
+      or (cell.startswith("T5") and contrast == "dark") else "NC"
+  Lexicon PC / NC; contrast Forbidden
+
+gts lookup key (inline subscript, one expression per lookup):
+  f"{cell[:2]}_{('PC' if ... else 'NC')}_pos{
+      f'{int(mid):+d}' if float(mid).is_integer() else f'{float(mid):+.1f}'
+  }_w1"
+
+bar_span two-trace sum (inline in entry loop — no extra function, no banned tokens):
+
+  Once per (b, spec): mids = sorted unique axis coordinates with hex_mask == 1
+    (lexicon mids bag on motion axis).
+
+  For each cost hex with axis mid and each cell:
+    If there exists mid0 in mids where (mid - mid0) > 0 and (mid - mid0) < bar_span:
+      mid1 = mid0 + bar_span + ((mid - mid0) - bar_span)
+      if gts[<inline trace_id at mid>] and gts[<inline trace_id at mid1>]:
+        entry_gts.append(gts[...] + gts[...]); continue
+    if gts[<inline trace_id at mid>]:
+      entry_gts.append(gts[...])
+    else:
+      continue   # digitized mid absent in CSV — skip
+
+  mid0, mid1 — loop-only scalars naming two axis mids; not exported.
+  Do not bind partner_*, key_a, key_b, or other glue names.
+
+cost_t0s entry value: int(sti.t_onset) — lexicon t / t_onset on sti
+power: float(np.sum(cost_scales[:, None] * gts ** 2)) — mbar L256-258
+
+------------------------------------------------------------------------------
+2.7  build_sbar_sti_opts / resolve_sbar_sti_opts / sbar_sti_opts
+------------------------------------------------------------------------------
+
+  ms_pre, ms_response, ms_post, ms_sti, delta_ms, delta_ms_pre — mbar/spot sti_opts
+  bar_dist, bar_directions, multi_bar — mbar L494-497
+  gt_cells, sti_opts, opts — lexicon opts / gt_cells
+
+------------------------------------------------------------------------------
+2.8  build_sbar_pack(...)
+------------------------------------------------------------------------------
+
+  contrast, gt_amp, i_sti, sti_opts, opts — mbar L542-549
+  cost_radius — standardize_cost_radius(...)
+  sbar_gt — mbar_gt L555 parallel (build_sbar_gt result)
+  pack — SbarPack(...)
+  info string — inline third return element; mbar L603-606
+
+------------------------------------------------------------------------------
+2.9  5_implementation.py
+------------------------------------------------------------------------------
+
+  "sbar", sbar_sti_opts, expand_mbar_gt_cells, build_sbar_pack — sibling patterns
+
+
+================================================================================
+PART 3 — AUDIT FIX LOG (this revision)
+================================================================================
+
+Removed / replaced illegal report content:
+
+  overlap, overlap_*     — deleted everywhere (including Part 3 prose)
+  n_t on load_gt         — deleted parameter, local, and export
+  n_t local in build_sbar_gt — only int(sti.n_t) at SbarGt construct
+  mid_label, mid_form    — part_key / lookup: inline f-string only
+  PC_or_NC, id_a, id_b, id_single — inline gts[...] subscript keys
+  center (bar axis)      — replaced with mid / mids
+  position (as local)    — CSV "position" column boundary only; axis = mid
+  partner_*              — deleted
+  df, time_ms, vm_mv locals — pandas column access inline only
+  trace_id as project local — prefer groupby("trace_id") without binding
+
+Kept (legal via sibling):
+  n_t SbarGt field       — MbarGt L63
+  _sbar_cost_part_plot_specs — mirrors _mbar_cost_part_plot_specs (mbar debt)
+  power                  — MbarGt L58
+  sbar_n_t (existing module fn name) — not introduced by this task
+
+================================================================================
+END
+================================================================================

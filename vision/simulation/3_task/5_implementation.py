@@ -3,25 +3,27 @@
 from __future__ import annotations
 
 from config import (
-    MBAR_INPUT_GEO,
     MBAR_INPUT_SPEC,
     MODEL,
+    SBAR_INPUT_GEO,
     SPREAD_INPUT_SPEC,
     SPOT_INPUT_GEO,
 )
 from task.mbar.gt import expand_gt_cells as expand_mbar_gt_cells
 from task.mbar.pack import build_mbar_pack, resolve_mbar_sti_opts
+from task.sbar.pack import build_sbar_pack, resolve_sbar_sti_opts
 from task.spot.gt import expand_gt_cells as expand_spot_gt_cells
 from task.spot.pack import build_spot_pack, resolve_spot_sti_opts
 from task.spread.gt import expand_gt_cells as expand_spread_gt_cells
 from task.spread.pack import build_spread_pack, resolve_spread_sti_opts
 
-TASKS = ("spread", "spot", "mbar")
+TASKS = ("spread", "spot", "mbar", "sbar")
 
 _STI_TRAIN_OPT_KEYS = (
     ("spread", "spread_sti_opts"),
     ("spot", "spot_sti_opts"),
     ("mbar", "mbar_sti_opts"),
+    ("sbar", "sbar_sti_opts"),
 )
 
 _STI_OPTS_BY_TASK = {
@@ -49,7 +51,21 @@ _STI_OPTS_BY_TASK = {
         "ms_pre": MBAR_INPUT_SPEC["ms_pre"],
         "delta_ms": MODEL["delta_ms"],
         "delta_ms_pre": MODEL["delta_ms_pre"],
-        "multi_bar": MBAR_INPUT_GEO["multi_bar"],
+        "bar_dist": SBAR_INPUT_GEO["bar_dist"],
+        "bar_ws_deg": list(MBAR_INPUT_SPEC["bar_ws_deg"]),
+        "bar_directions": list(MBAR_INPUT_SPEC["bar_directions"]),
+        "multi_bar": SBAR_INPUT_GEO["multi_bar"],
+    },
+    "sbar": {
+        "ms_pre": SPREAD_INPUT_SPEC["ms_pre"],
+        "ms_response": SPREAD_INPUT_SPEC["ms_response"],
+        "ms_post": SPREAD_INPUT_SPEC["ms_post"],
+        "ms_sti": SPREAD_INPUT_SPEC["ms_sti"],
+        "delta_ms": MODEL["delta_ms"],
+        "delta_ms_pre": MODEL["delta_ms_pre"],
+        "bar_dist": SBAR_INPUT_GEO["bar_dist"],
+        "bar_directions": list(MBAR_INPUT_SPEC["bar_directions"]),
+        "multi_bar": SBAR_INPUT_GEO["multi_bar"],
     },
 }
 
@@ -57,12 +73,14 @@ _RESOLVE_STI_OPTS = {
     "spread": resolve_spread_sti_opts,
     "spot": resolve_spot_sti_opts,
     "mbar": resolve_mbar_sti_opts,
+    "sbar": resolve_sbar_sti_opts,
 }
 
 _GT_CELLS_EXPAND = {
     "spread": expand_spread_gt_cells,
     "spot": expand_spot_gt_cells,
     "mbar": expand_mbar_gt_cells,
+    "sbar": expand_mbar_gt_cells,
 }
 
 
@@ -97,12 +115,14 @@ def resolve_train_sti_opts(
     spread_sti_opts=None,
     spot_sti_opts=None,
     mbar_sti_opts=None,
+    sbar_sti_opts=None,
 ) -> dict[str, dict | None]:
     """Merge defaults + overrides into per-task sti opts sidecar dicts."""
     sti_opts_by_task = {
         "spread": spread_sti_opts,
         "spot": spot_sti_opts,
         "mbar": mbar_sti_opts,
+        "sbar": sbar_sti_opts,
     }
     out: dict[str, dict | None] = {}
     for task, sti_opts_key in _STI_TRAIN_OPT_KEYS:
@@ -147,6 +167,15 @@ def build_task_pack(
         )
     if task == "mbar":
         return build_mbar_pack(
+            connectome,
+            contrast=contrast,
+            gt_amp=gt_amp,
+            i_sti=i_sti,
+            sti_opts=sti_opts,
+            opts=opts,
+        )
+    if task == "sbar":
+        return build_sbar_pack(
             connectome,
             contrast=contrast,
             gt_amp=gt_amp,

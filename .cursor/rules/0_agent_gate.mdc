@@ -5,7 +5,14 @@ alwaysApply: true
 
 # Agent gate (priority 0)
 
-**Loads before** `coding-rules.mdc`. Checkboxes live **only in this file**. Each step: `coding-rules.mdc` §①–④. Lexicon: `lexicon.mdc`.
+**Loads first.** This file is **workflow only** — run order, checkboxes, when `vision/` edits are blocked. **Policy lives elsewhere; do not copy it here.**
+
+| Read | For |
+|------|-----|
+| **`1_coding-rules.mdc`** | ① Plan → ④ Write; audit |
+| **`2_lexicon.mdc`** | Token / Forbidden definitions — audit or explicit coinage only; not a ③ write-time checklist |
+
+Checkboxes live **only in this file**. Each step: execute per **`1_coding-rules.mdc`** §①–④, then flip the matching checkbox when turn evidence below is satisfied.
 
 ## When this file applies
 
@@ -17,9 +24,9 @@ alwaysApply: true
 
 **Before the first `vision/` code edit in this turn:**
 
-1. Read this file and `coding-rules.mdc` §①–④.
+1. Read this file, then **`1_coding-rules.mdc`** §①–④ (and **`2_lexicon.mdc`** only if audit or coinage).
 2. StrReplace every `- [x]` below to `- [ ]`.
-3. Do ① per `coding-rules.mdc` → StrReplace **only** ① to `- [x]`.
+3. Do ① per **`1_coding-rules.mdc`** → StrReplace **only** ① to `- [x]`.
 4. Do ② → StrReplace **only** ② to `- [x]`.
 5. Do ③ → StrReplace **only** ③ to `- [x]`.
 6. **First `vision/` code edit allowed only after ①②③ are `- [x]`.**
@@ -29,20 +36,37 @@ alwaysApply: true
 
 **New function:** StrReplace ②③④ to `- [ ]`; redo ②→③→ `[x]`; edit; ④→ `[x]`. ① stays `- [x]` once per task.
 
-**Forbidden:** any `vision/` code edit while ① or ② or ③ is `- [ ]`; two `- [x]` in one message; claim done while any checkbox is `- [ ]`.
+**Forbidden (gate mechanics only):** any `vision/` code edit while ① or ② or ③ is `- [ ]`; two `- [x]` in one message; claim done while any checkbox is `- [ ]`; mark any checkbox `[x]` without matching turn evidence below. If **`1_coding-rules.mdc`** says a step is incomplete (e.g. ① **Files**), leave that checkbox `- [ ]` — do not edit `vision/`.
+
+## Checkbox evidence (no performative `[x]`)
+
+**① is `- [x]` only when** the same turn prose covers every bullet in **`1_coding-rules.mdc`** §①.
+
+**② is `- [x]` only when** the same turn includes:
+- same-**layer** sibling path you **Read in full** (not Grep-only);
+- at least one `` `path:start-end` `` cite;
+- chosen action: **extend** | **replace** | **inline**.
+
+**③ is `- [x]` only when** the same turn prose covers the edit surface per **`1_coding-rules.mdc`** §③: each binding → sibling cite or inline; each bad-binding fix → delete + inline. **Defer** cites ①.
+
+**④ is `- [x]` only when** the same turn confirms the diff passes **`1_coding-rules.mdc`** §④.
+
+**Missing evidence = checkbox stays `- [ ]`; do not edit `vision/`.**
 
 ## Ask mode
 
-Planning answers about `vision/` code: ①② only; `- [x]` in reply text only; do not edit checkboxes in this file; no ③④.
+Planning answers about `vision/` code: ①② per **`1_coding-rules.mdc`** in prose; mark `[x]` in reply text only; do not edit checkboxes here; skip ③④.
+
+**Audit:** report ①–④ per **`1_coding-rules.mdc`** §Audit. Lexicon-only grep is **not** a completed audit.
 
 ### ① Plan
-- [ ]
+- [x]
 
 ### ② Sibling
-- [ ]
+- [x]
 
 ### ③ Names
-- [ ]
+- [x]
 
 ### ④ Write
-- [ ]
+- [x]

@@ -115,10 +115,12 @@ spot_cost_radius_scale:
   2: 0.3333333333333333
 
 # ---------------------------------------------------------------------------
-# 3.3.1   task.mbar.sti_geo
+# 3.3.1   task.sbar.sti_geo (hex map only; bar math → task.mbar.sti_geo)
 # ---------------------------------------------------------------------------
 multi_bar: true
-bar_radius: 2
+bar_dist: 2
+bar_ws_deg: "2.25,9.0"
+bar_directions: "right,left,up,down"
 
 # ---------------------------------------------------------------------------
 # 4.2   train.session
@@ -126,6 +128,7 @@ bar_radius: 2
 tasks: "spread"
 gt_by_task:
   spread: [L1, L2, L3, L4, L5, Mi1, Tm3, Mi4, Mi9, Tm1, Tm2, Tm4, Tm9]
+  sbar: [T4a, T4b, T4c, T4d, T5a, T5b, T5c, T5d]
 cost_radius: null
 
 # ---------------------------------------------------------------------------

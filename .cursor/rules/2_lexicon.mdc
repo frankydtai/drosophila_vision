@@ -7,13 +7,13 @@ alwaysApply: true
 This document defines a strict, non-overlapping meaning for selected terms used across `vision/`.
 Only words with an unambiguous single definition are included here.
 
-**Write-time gate:** `0_agent_gate.mdc` (priority 0, checkboxes); then `coding-rules.mdc` §①–④ Do/Forbidden; **Read** headwords and **Forbidden** here at ③.
+**Write-time gate:** `0_agent_gate.mdc` → `coding-rules.mdc` §③ **sibling-or-inline** (do **not** read the full Forbidden table each edit). Lexicon headwords / Forbidden: audit, Ask mode, or when ① explicitly coins a new name.
 
 ## How to judge a word (mandatory)
 
 When asked whether a word fits this lexicon or “has a definition,” judge **meaning in `vision/` code**, not whether the token appears in lexicon.
 
-**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `at_uv` `` / `` `at_xy` ``, `` `u` `` / `` `v` `` / `` `du` `` / `` `dv` ``, `` `_by_` ``, `` `mean` ``, `` `_from_` ``, `` `_over_` ``, or `` `a_*` ``). Established task compounds that are one concept in prose (`mbar`, `spot`) may appear as compounds; lexicon-listed short nouns include ``mbar`` (moving bar) and future ``sbar`` (static bar). Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`).
+**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `at_uv` `` / `` `at_xy` ``, `` `u` `` / `` `v` `` / `` `du` `` / `` `dv` ``, `` `_by_` ``, `` `mean` ``, `` `_from_` ``, `` `_over_` ``, or `` `a_*` ``). Established task compounds that are one concept in prose (`mbar`, `spot`) may appear as compounds; lexicon-listed short nouns include ``mbar`` (moving bar) and future ``sbar`` (static bar). Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`). **Abbreviation** = any identifier that truncates a lexicon noun or English role word; banned in project identifiers except argparse `dest` / CLI flag and library API spellings at the call site only (see ``coding-rules.mdc`` §③ **Forbidden bindings**).
 
 **Banned words never get a headword.** A token that is only a forbidden substitute (listed under another concept’s **Forbidden**) must **not** have its own ``### \`word\`` entry — not even an entry whose body says “Forbidden / do not use.” Ban it only by naming it under the canonical concept’s Forbidden line. Creating ``### \`name\`` / ``### \`tag\`` / ``### \`gain\`` / ``### \`polarity\`` (etc.) solely to forbid them is itself a lexicon violation.
 
@@ -25,6 +25,8 @@ When asked whether a word fits this lexicon or “has a definition,” judge **m
 - Moving-bar condition id string ``left_bright_w1`` or its bag → ``spec`` / ``spec_token`` (see ``### spec``).
 
 This rule is enforced by adding the corresponding ``tag`` ban to each canonical headword’s **Forbidden** line; legacy in-code ``*tag`` / ``*_tag`` identifiers are forbidden to keep (rename, don’t alias).
+
+**Garbage substitute locals (project-wide — no headword):** ``tmp`` / ``buf`` / ``res`` / ``ret`` / ``obj`` / ``arr`` / ``rec`` / bare ``out`` / ``output`` (when not ``<role>_path`` or library API) — never as project locals; inline or use the lexicon noun for the bag being built (see ``coding-rules.mdc`` §③ **Forbidden bindings**).
 
 **Evidence:** List every function, method, class, attribute, constant, CLI/opts key, and variable/parameter whose name contains the word (compounds included: `foo_word`, `word_bar`, `WordBaz`). If meanings differ, partition the list into one class per distinct definition; put unrelated homographs (library APIs, other biophysics, …) in an “other” class — still list them.
 
@@ -70,9 +72,9 @@ Forbidden: `batch`, `batches`, `batch_idx`, `n_batch`, `batched`, and other `*ba
 
 ### `bar` / `bars`
 
-Definition: One geometric bar — ``direction`` plus ``w`` (``w_deg``) — placed on the motion axis by a ``bar_bound``. Not the task family (``mbar`` / ``sbar``). ``bar_span_deg`` is one ``multi_bar`` tile step along ``direction``: ``(ceil(w_deg / DEG) + bar_radius) * DEG``.
-Example: `bar_bounds(bar, bar_bound, view_deg, bar_bound0, bar_bound1)`, `bar_radius`, `BAR_RADIUS`, `bar_span_deg = (math.ceil(float(bar.w_deg) / float(DEG)) + int(bar_radius)) * float(DEG)`, `Bar` (protocol)
-Forbidden: `geo` / `Geo`; calling the task family `bar`; `width` (that is `w`); `col` / `cols` (figure only); `pitch` / `pitch_deg` / `stride` for ``bar_span_deg``; `w_hex` / `*_hex` for bar ``w`` hex-step count — use ``w_deg`` and ``bar_span_deg``.
+Definition: One geometric bar — ``direction`` plus ``bar_w`` (``bar_w_deg``) — placed on the motion axis by a ``bar_bound``. Not the task family (``mbar`` / ``sbar``). ``bar_dist`` is the integer hex-node gap between simultaneous ``multi_bar`` tiles (not bar angular width). ``bar_span_deg`` is one ``multi_bar`` tile step along ``direction``: ``(ceil(bar_w_deg / DEG) + bar_dist) * DEG``.
+Example: `bar_bounds(bar, bar_bound, view_deg, bar_bound0, bar_bound1)`, `bar_dist`, `SBAR_INPUT_GEO["bar_dist"]`, `bar_span_deg = (math.ceil(float(bar.bar_w_deg) / float(DEG)) + int(bar_dist)) * float(DEG)`, `Bar` (protocol), `MbarSpec.bar_w_deg`
+Forbidden: calling the task family `bar`; `width` (that is `bar_w` / ``bar_w_deg``); bare ``w_deg`` / ``ws_deg`` on bar fields (use ``bar_w_deg`` / ``bar_ws_deg``); `col` / `cols` (figure only); `pitch` / `pitch_deg` / ``stride`` for ``bar_span_deg``; `w_hex` / ``*_hex`` for bar width hex-step count — use ``bar_w_deg`` and ``bar_span_deg``; ``bar_radius`` (use ``bar_dist``).
 
 ### `bound` / `bounds`
 
@@ -123,7 +125,7 @@ Definition: Bright vs dark sti variant (``"bright"`` | ``"dark"``) for spot / mb
 - ``contrasts`` (plural): a list/set/tuple of those tokens.
 The ±1 for a contrast is ``contrast_sign`` (see ``sign``), not ``contrast`` itself.
 Example: `contrast_sign(contrast)`, `SPOT_CONTRASTS`, `MBAR_CONTRASTS`, `GRUNTMAN_CONTRASTS`, `MbarSpec.contrast`, `contrast_for_task`, `contrasts=(contrast,)`, pack info ``"contrast"``, figure keys `{contrast: readout}`
-Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do not use `contrast` for a ±1 — that is `sign` / `contrast_sign`. Do not use `contrast` for intensity / adapt gates or other non-bright/dark senses.
+Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do not use `contrast` for a ±1 — that is `sign` / `contrast_sign`. Do not use `contrast` for intensity / adapt gates or other non-bright/dark senses. Do not use `contrast` for Gruntman pathway tokens ``"PC"`` / ``"NC"`` — that is ``PC`` / ``NC`` (see ``### PC`` / ``NC``); CSV field ``"contrast"`` may hold those tokens only at the load boundary.
 
 ### `cost` / `costs`
 
@@ -165,7 +167,7 @@ Forbidden: do not use `syn` to refer to a network edge or its idx. `edge` is a n
 ### `direction` / `directions`
 
 Definition: Bar orientation / motion token ∈ {``left``, ``right``, ``up``, ``down``}. One field of an mbar ``spec``, not the whole spec.
-Example: `bar.direction`, `GRUNTMAN_directions`
+Example: `bar.direction`, `MBAR_INPUT_SPEC["bar_directions"]`
 Forbidden: `mode`; `spec`; bare ``axis``.
 
 ### `entry` / `entries`
@@ -184,7 +186,7 @@ Forbidden: `freq`, `freqs`, `freq_hz`, `frequency`, `hz` as naming tokens for th
 
 Definition: Noun qualifier for the visualization path when a name must stay distinct from the corresponding train value (kwargs, gts, filter token, CLI registration, displayed ``n_t``, ordered cells, …). Also the ``5_figure`` package and saved figure files.
 Example: `figure_kwargs`, `figure_gts`, `filter_figure_token`, `add_figure_arguments`, `resolve_figure_kwargs`, `do_figure`, `figure_cells`, `figure_traces`, `n_t_figure`, `for_figure`, `figure_file_ext`, `log_figure_elapsed`, `ElapsedTimer`
-Forbidden: using ``plot`` as that noun qualifier (`plot_kwargs`, `plot_gts`, `filter_plot_token`, `add_plot_*`, `do_plot`, …). Do not use ``figure`` for the verb of drawing — that is ``plot``.
+Forbidden: using ``plot`` as that noun qualifier (`plot_kwargs`, `plot_gts`, `filter_plot_token`, `add_plot_*`, `do_plot`, …). Do not use ``figure`` for the verb of drawing — that is ``plot``. ``mod`` / ``_mod`` as a local, parameter, or attribute for an imported Python module object (e.g. ``mod.build_readout``) — inline ``importlib.import_module(...)`` or drop the binding when ``task`` already selects the module; library API ``module`` / ``__module__`` may remain at call sites only.
 
 ### `degree` / `degrees`
 
@@ -327,7 +329,7 @@ Forbidden: do not use `opt` for this concept (`opt` / `opts` are input options o
 
 Definition: Presynaptic output from a neuron — thresholded ``v`` signal multiplied by `a_out`: `v_out = relu(v − v_th) · a_out`. Connectome node JSON key `"output"` marks readout/output nodes when set.
 Example: `v_out`, `params["a_out"]`, `"output": False` in `network.json` nodes
-Forbidden: `output` for persisted run files or sidecar tables — use `data`. Do not use `out` for total ``in`` — use `in`. Do not use `out` for light sti — use `sti`.
+Forbidden: `output` for persisted run files or sidecar tables — use `data`. Do not use `out` for total ``in`` — use `in`. Do not use `out` for light sti — use `sti`. Do not use bare ``out`` / ``outs`` as a local, parameter, or attribute for a generic return buffer, dict/list under construction, or accumulator — that is not presynaptic ``out``; inline or name the domain noun (`readout`, `opts`, `parts`, …). Role-qualified paths such as ``out_path`` remain ``<role>_path`` (see ``### dir``).
 
 ### `pack` / `packs`
 
@@ -353,6 +355,18 @@ Forbidden: ``segment`` / ``segments`` for this concept or schema packing unit. `
 Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"mbar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entries` sharing the same `part_key` are summed via `part_idxs` into one `part`. The total cost is `Σ W·part / Σ W` over parts with non-zero scale.
 Example: `parts[part_key] = part` in `calc_cost_parts`
 
+### `PC` / `NC`
+
+Definition: Gruntman digitized T4/T5 flash-trace **pathway** labels — token ``"PC"`` (ON-pathway) and ``"NC"`` (OFF-pathway). Not bright/dark ``contrast``. T4: bright→``"PC"``, dark→``"NC"``; T5: dark→``"PC"``, bright→``"NC"``. CSV column ``"contrast"`` may hold ``"PC"`` / ``"NC"`` only at the load boundary; trace_id tokens like ``T4_PC_pos+0_w1``, ``T5_NC_pos+0_w1``.
+Example: `T4_PC_pos+0_w1`, `T5_NC_pos+0_w1`, `load_gt` lookup `gts["T4_PC_pos+0_w1"]`
+Forbidden: using project binding ``contrast`` for ``"PC"`` / ``"NC"``; ``polarity``; ``pc_nc`` / ``PC_NC`` as a lexicon headword; ``tag``; ``vm``; ``gruntman_*``
+
+### `PD` / `ND`
+
+Definition: Moving-bar / fig1 **preferred-direction** and **null-direction** response-bucket tokens — literal ``"PD"`` and ``"ND"``. For one ``direction`` + ``cell``: same direction as ``pd_direction(side, cell)`` → ``"PD"``; opposite → ``"ND"``. In ``PD_ND_LABELS``, ``cost_pd_nds``, ``part_key`` suffixes, fig1 trace tokens (``…_PD``, ``…_ND``).
+Example: `PD_ND_LABELS = ("PD", "ND")`, `cell_part_key(..., "PD")`, `T4_PC_w1_PD`, `T4_PC_w1_ND`
+Forbidden: ``motion_preference`` / ``MotionPreference`` / ``preference``; ``pd_dir`` / ``*_dir``; ``pd_nd`` / ``PD_ND`` as a lexicon headword; ``mode``; ``tag``
+
 ### `prep`
 
 Definition: Figure-pipeline wall-clock phase before draw — forwarding / assembling readouts that feed a figure (timed as ``prep_s`` / ``ElapsedTimer`` prep; log field ``prep=…s``). Noun for that timing slot only — not a verb for model hooks.
@@ -361,7 +375,7 @@ Forbidden: `prepare` as a naming token for this timing phase. Do not use `prep` 
 
 ### `radius` / `radii`
 
-Definition: An integer hex-lattice distance used as an **inclusive disc / area size** (``hex_radius(u, v) <= N``) or as a footprint / cost / RF extent label — connectome geometry (`connectome.meta["radius"]`), spot footprint (`spot_radius`), sub-spot shift neighbourhood (`shift_radius`), bar ``w``+spacing (`bar_radius`), cost hex-disc (`cost_radius`), spot cost / RF / ``a_sti_radius`` axes (`entry_radii`, ``spot_cost_radii``, ``RF_N_RADII``). Measured by ``build_hex.hex_radius`` (not Euclidean or angular distance). Distinct from ``shell``, which is the **exact-distance** locus ``hex_radius == N``.
+Definition: An integer hex-lattice distance used as an **inclusive disc / area size** (``hex_radius(u, v) <= N``) or as a footprint / cost / RF extent label — connectome geometry (`connectome.meta["radius"]`), spot footprint (`spot_radius`), sub-spot shift neighbourhood (`shift_radius`), cost hex-disc (`cost_radius`), spot cost / RF / ``a_sti_radius`` axes (`entry_radii`, ``spot_cost_radii``, ``RF_N_RADII``). Measured by ``build_hex.hex_radius`` (not Euclidean or angular distance). Distinct from ``shell``, which is the **exact-distance** locus ``hex_radius == N``. Bar ``multi_bar`` tile gap is ``bar_dist`` (see ``### bar``), not ``radius``.
 Example: `connectome_radius = int(connectome.meta.get("radius", -1))` (JSON key `"radius"` in `network.json`), `entry_radii`, `radius_hexes`, `radius_mask(..., radius)`, `ids_by_cell(..., radius=)`, `--radius`
 Forbidden: `ring` / `rings` as naming or prose substitutes for this concept; `extent` for any hex-lattice radius count; Euclidean / angular distance for this noun. Do not use ``shell`` for inclusive discs / footprints / cost discs. Do not use ``radius`` when the selection is exact-distance-only (``hex_radius == N``) — that is ``shell``. Forbidden: ``inside_mask`` / ``hex_in_cost_radius`` — use ``radius_mask`` / ``cost_radius_mask``. Forbidden: ``rad`` / ``rads`` / ``rad_*`` / ``*_rad`` / ``*_rad_*`` / ``rad_t`` as naming tokens; bare ``r`` / ``r_*`` compounds for this concept (``r_f``, ``r_i``, ``r_l``, ``r_k``, ``ri``, …); type-coercion suffixes on ``radius`` (``radius_f``, ``radius_i``, …) — spell ``radius`` / ``radii``.
 
@@ -418,6 +432,12 @@ Definition: Per-hex sti drive level in [0, 1] — how much of the hex polygon li
 Example: `_fill(vertex_x_degs, vertex_y_degs, x_deg0, y_deg0, x_deg1, y_deg1)`, `fills[t, hex_idx] += _fill(...)`, `i_baseline + fills * (i_sti - i_baseline)`
 Forbidden: ``view``; ``bound`` / ``bounds`` (the box); ``mask``; ``coverage``; ``rect``; ``area``; ``frac``; ``footprint``; ``trail``; ``lane``; ``pitch``. Do not name a time stack of fills a ``trace`` (``trace`` is a signal waveform).
 
+### `geo`
+
+Definition: Sti spatial geometry — hex placement, bar bounds/fills, spot centers/shifts, and related builders/resolvers for one task's sti layout (not a single connectome ``hex`` or degree ``view`` box alone). Compounds: ``sti_geo`` (task module basename), ``INPUT_GEO`` / ``SPOT_INPUT_GEO`` / ``SBAR_INPUT_GEO`` (config bags for sti footprint opts), ``figure_subtitle_sti_geo``, ``resolve_spot`` / ``build_spot`` on geo modules.
+Example: `from task.spot.sti_geo import build_spot`, `SPOT_INPUT_GEO["spot_radius"]`, `task.sbar.sti_geo.bar_bounds`, `figure_subtitle_sti_geo(session, task)`
+Forbidden: ``geometry`` / ``geometric`` as naming tokens; using ``geo`` for connectome column position (``column``), train numeric range (``clamp``), or figure panel layout — those use their own headwords.
+
 ### `key` / `keys`
 
 Definition: A sub-option under a named parent — never the parent itself. Identifiers must use ``<parent>_key`` / ``<parent>_keys``; bare ``key`` / ``keys`` as project naming tokens are forbidden.
@@ -437,7 +457,7 @@ Forbidden: `kw` as a naming token (`figure_kw`, `timing_kw`, bare `kw`, `_take_f
 
 Definition: Human-facing display name of a figure / report series, at_xy curve, snapshot stage, axis, formula fragment, or console row — the string shown to the reader and, when used as a bag key, the same string. Singular ``label`` is one such name; plural ``labels`` is the ordered bag.
 Example: `mean_hex_by_label[label]`, `labels = ("start", "mid", "exit")`, `_BLACK_TRACE_LABELS`, `baseline_label`, formula row ``for label, series in formula``, `axis_label` returning a display ``label``.
-Forbidden: ``text`` / ``*_text`` as project identifiers (library ``ax.text`` / ``get_text`` / ``set_text`` / ``write_text`` / plotly kwargs ``text=`` may remain). Do not use ``label`` as the raw CLI / opts parse input — that is ``token``. Do not use ``label`` for connectome types (``cell``), CSV columns (``field``), or param-axis CLI ids. When a formula tuple pairs a drawn string with a color-source curve name, the drawn string is ``label`` and the color source is ``series`` (not a second ``label``). Do not use ``tag`` / ``_tag`` / ``*_tag`` / ``*tag*`` for any human-facing display string, figure/report series name, at_xy curve key, snapshot stage, axis label, or display dedup-suffix — that is ``label`` (e.g. ``hex_scope_tag`` → ``at_xy_label``, ``_network_spot_tag`` → ``_network_spot_label``, ``row_tag`` → ``row_label``, ``panel_tag`` → ``panel_label``, ``radius_tag`` → ``radius_label``, ``*_display_tag`` → ``*_display_label``).
+Forbidden: ``text`` / ``*_text`` as project identifiers (library ``ax.text`` / ``get_text`` / ``set_text`` / ``write_text`` / plotly kwargs ``text=`` may remain). Do not use ``lines`` / ``*_lines`` / ``lines_*`` as naming tokens for human-facing display-string bags or title rows — use ``labels``. Do not use ``format`` / ``*_format_*`` / ``format_*`` as project identifiers for display-string coercion — inline at the call site. Do not use ``str`` / ``scalar`` / ``*_str`` / ``*_scalar`` / ``str_*`` / ``scalar_*`` as project naming tokens — inline or use ``label`` / ``token`` role nouns (Python builtin ``str(...)``, type hints ``-> str``, and library kwargs may remain at call sites only). Do not use ``label`` as the raw CLI / opts parse input — that is ``token``. Do not use ``label`` for connectome types (``cell``), CSV columns (``field``), or param-axis CLI ids. When a formula tuple pairs a drawn string with a color-source curve name, the drawn string is ``label`` and the color source is ``series`` (not a second ``label``). Do not use ``tag`` / ``_tag`` / ``*_tag`` / ``*tag*`` for any human-facing display string, figure/report series name, at_xy curve key, snapshot stage, axis label, or display dedup-suffix — that is ``label`` (e.g. ``hex_scope_tag`` → ``at_xy_label``, ``_network_spot_tag`` → ``_network_spot_label``, ``row_tag`` → ``row_label``, ``panel_tag`` → ``panel_label``, ``radius_tag`` → ``radius_label``, ``*_display_tag`` → ``*_display_label``).
 
 ### `list` / `lists`
 
@@ -502,9 +522,15 @@ Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do n
 
 ### `spec` / `specs`
 
-Definition: One moving-bar sti condition — direction × contrast × ``w`` (and speed), identified by token ``left_bright_w1`` / ``right_dark_w4`` / …. Type ``MbarSpec``; plural ``specs`` is a list of those conditions; string id is ``spec_token`` / bag ``spec_tokens``. Orthogonal to ``task`` (``mbar_bright`` holds many specs). Analyze report field ``"spec"`` and CLI ``--spec`` select this condition.
-Example: `MbarSpec(direction=..., contrast=..., w_deg=...)`, `spec.token`, `gruntman_mbar_specs()`, `bar_specs_from_task(...)`, `parse_mbar_spec(token)`, `reports_by_spec[spec][cell]`, `--spec right_bright_w1`
+Definition: One moving-bar sti condition — direction × contrast × ``bar_w`` (and speed), identified by token ``left_bright_w1`` / ``right_dark_w4`` / …. Type ``MbarSpec``; plural ``specs`` is a list of those conditions; string id is ``spec_token`` / bag ``spec_tokens``. Orthogonal to ``task`` (``mbar_bright`` holds many specs). Analyze report field ``"spec"`` and CLI ``--spec`` select this condition.
+Example: `MbarSpec(direction=..., contrast=..., bar_w_deg=...)`, `spec.token`, `gruntman_mbar_specs()`, `bar_specs_from_task(...)`, `parse_mbar_spec(token)`, `reports_by_spec[spec][cell]`, `--spec right_bright_w1`
 Forbidden: component-plot layout bags (`_ComponentLayout` / ``layout``); generic config / curve / at_xy bags; connectome run or path strings; ``condition`` / ``variant`` as naming tokens for this concept. Do not use ``tag`` / ``_tag`` / ``*_tag`` for a moving-bar condition id or its bag — that is ``spec`` (e.g. ``left_bright_tag`` → ``left_bright`` or ``spec_token``, ``*_spec_tag`` → ``*_spec_token``). Module files ``sti_spec`` (timing / ``i_sti`` assembly) may keep that basename. Library ``gridspec`` / ``ModuleSpec`` / ``inspect`` may remain.
+
+### `span`
+
+Definition: Integer hex-axis step count between adjacent lit width-1 static-bar anchor positions along the motion axis — one width-1 tile plus ``bar_dist`` gap: ``1 + bar_dist``. Code compound: ``bar_span`` (integer). Degree motion-axis step is ``bar_span_deg`` (see ``### bar``). Sbar overlap GT: two bar traces sum when axis offsets differ by ``bar_span``.
+Example: `bar_span = 1 + int(bar_dist)`, `sbar_line_hex_mask(..., bar_dist=...)`, `lit = lit[0::bar_span]`
+Forbidden: ``stride`` (including ``stride = 1 + bar_dist``); ``pitch`` / ``pitch_deg``; ``bar_span`` as a lexicon headword (headword is ``span`` only)
 
 ### `spot` / `spots`
 
@@ -549,8 +575,8 @@ Example: `for name in session.tasks: ...`
 ### `token` / `tokens`
 
 Definition: (1) CLI / opts / parse grammar atom — one raw string unit still being decoded by ``parse_*``, ``split``, or ``partition`` (argv value, comma-list piece, ``KEY=VALUE`` / ``SOURCE:BOOL`` slice, ``part_key`` substring awaiting cast, or enum string id such as ``spec.token`` / mode / contrast); or (2) a stem / suffix fragment written into a **filename** (run / figure path). Singular ``token`` is one such atom; plural ``tokens`` is the ordered bag.
-Example: `parse_comma_list(token)`, `parse_bool(token)`, `parse_mbar_spec(token)`, `enabled_token`, `radius_token = part_key[pos + 2:]`, `spec.token`, `spec_tokens`, `filter_figure_token`, `_format_filename_token`, filename stem ``filter_token``.
-Forbidden: ``text`` / ``*_text`` as project identifiers (library APIs may remain — see ``### label``). Do not use ``token`` for legend / at_xy / formula / title / subtitle / console display names — that is ``label``. Do not use ``token`` for ``cell``, CSV ``field``, or arbitrary ``str`` locals that are neither parse/opts atoms nor filename fragments. Do not use ``tag`` / ``_tag`` / ``*_tag`` for any CLI / opts parse atom or filename stem fragment — that is ``token`` (e.g. ``w_tag(w_deg)`` → ``w_token(w_deg)``, ``network_run_tag`` → ``network_run_token``, ``_cell_tag`` → ``_cell_token``, ``checkpoint_iter_tag`` → ``checkpoint_iter_token``).
+Example: `parse_comma_list(token)`, `parse_bool(token)`, `parse_mbar_spec(token)`, `enabled_token`, `radius_token = part_key[pos + 2:]`, `spec.token`, `spec_tokens`, `filter_figure_token`, `_filename_token`, filename stem ``filter_token``.
+Forbidden: ``text`` / ``*_text`` as project identifiers (library APIs may remain — see ``### label``). Do not use ``format`` / ``*_format_*`` / ``format_*`` as project identifiers — inline (see ``### label``). Do not use ``str`` / ``scalar`` / ``*_str`` / ``*_scalar`` as project naming tokens (see ``### label``). Do not use ``token`` for legend / at_xy / formula / title / subtitle / console display names — that is ``label``. Do not use ``token`` for ``cell``, CSV ``field``, or arbitrary ``str`` locals that are neither parse/opts atoms nor filename fragments. Do not use ``tag`` / ``_tag`` / ``*_tag`` for any CLI / opts parse atom or filename stem fragment — that is ``token`` (e.g. ``w_tag(bar_w_deg)`` → ``bar_w_token(bar_w_deg)``, ``network_run_tag`` → ``network_run_token``, ``_cell_tag`` → ``_cell_token``, ``checkpoint_iter_tag`` → ``checkpoint_iter_token``).
 
 ### `total`
 
@@ -590,9 +616,9 @@ Forbidden: ``vf``, ``VF``, ``vf_opts``, or any other abbreviation. **Verb except
 
 ### `w` / `ws`
 
-Definition: Extent along the horizontal / along-track / column axis — bar angular size (``w_deg``), figure panel size (``PANEL_W`` / ``panel_w``), print-field character count, histogram bar size, pulse span in samples, and prose for full-w node vals. Singular ``w``; plural bag ``ws``. Compounds: ``w_deg``, ``ws_deg``, ``w_token``, ``w_cols``, ``PANEL_W``, ``GRUNTMAN_WS_DEG``, ``RF_CENTER_W``.
-Example: `w = float(spec.w_deg)`, `w_token(w_deg)`, `for w in GRUNTMAN_WS_DEG`, `PANEL_W`, `ws` for a bag of print-field extents
-Forbidden: `width` / `widths` / ``WIDTH`` / any project identifier containing ``width`` (``w_deg``, ``ws_deg``, ``w_token``, ``full-w``, ``float w``, ``GRUNTMAN_WS_DEG``, …). Do not use bare ``w`` for cost ``scale`` or for the trainable vector ``z``. Library APIs may remain (``ax.bar(..., width=)``, ``get_figwidth()``, ``linewidth``, plotly layout key ``"width"``).
+Definition: Extent along the horizontal / along-track / column axis — figure panel size (``PANEL_W`` / ``panel_w``), print-field character count, histogram bar size, pulse span in samples, and prose for full-w node vals. Bar angular width is ``bar_w_deg`` (see ``### bar``), not bare ``w_deg``. Singular ``w``; plural bag ``ws``. Compounds: ``w_cols``, ``PANEL_W``, ``RF_CENTER_W``, ``bar_w_deg``, ``bar_ws_deg``, ``bar_w_token``, ``GRUNTMAN_BAR_WS_DEG``.
+Example: `PANEL_W`, `bar_w_token(bar_w_deg)`, `MBAR_INPUT_SPEC["bar_ws_deg"]`, `ws` for a bag of print-field extents
+Forbidden: `width` / `widths` / ``WIDTH`` / any project identifier containing ``width`` (``bar_w_deg``, ``bar_ws_deg``, ``bar_w_token``, ``full-w``, ``float w``, …). Do not use bare ``w_deg`` / ``ws_deg`` / ``w_token`` / ``GRUNTMAN_BAR_WS_DEG`` / module-level ``bar_ws_deg`` literals for bar width (use ``config.yaml`` ``bar_ws_deg`` → ``MBAR_INPUT_SPEC["bar_ws_deg"]``). Do not use bare ``w`` for cost ``scale`` or for the trainable vector ``z``. Library APIs may remain (``ax.bar(..., width=)``, ``get_figwidth()``, ``linewidth``, plotly layout key ``"width"``).
 
 ### `weight` / `weights`
 
@@ -622,8 +648,8 @@ Forbidden: verb `fuse` as a naming token (`fuse_forward`, `FuseForward`, `*_fuse
 
 ### `multi`
 
-Definition: Boolean modifier — more than one of the following noun is placed or shown together in one sti / figure. Compound as ``multi_<noun>`` only. ``multi_spot``: simultaneous spot ``centers`` (False = sole ``(0, 0)``). ``multi_bar``: simultaneous bars along the motion axis with ``bar_radius`` gaps (False = one ``(bound0, bound1)`` covering the whole ``view``). ``multi_report``: more than one analyze ``report`` drawn together.
-Example: `multi_spot`, `multi_bar`, `multi_report`, `SPOT_INPUT_GEO["multi_spot"]`, `MBAR_INPUT_GEO["multi_bar"]`, `_bounds(..., multi_bar=...)`, `build_spot(..., multi_spot=...)`
+Definition: Boolean modifier — more than one of the following noun is placed or shown together in one sti / figure. Compound as ``multi_<noun>`` only. ``multi_spot``: simultaneous spot ``centers`` (False = sole ``(0, 0)``). ``multi_bar``: simultaneous bars along the motion axis with ``bar_dist`` gaps (False = one ``(bound0, bound1)`` covering the whole ``view``). ``multi_report``: more than one analyze ``report`` drawn together.
+Example: `multi_spot`, `multi_bar`, `multi_report`, `SPOT_INPUT_GEO["multi_spot"]`, `SBAR_INPUT_GEO["multi_bar"]`, `_bounds(..., multi_bar=...)`, `build_spot(..., multi_spot=...)`
 Forbidden: ``n_bar`` / ``n_spot`` / ``n_report`` for this boolean; ``all_`` prefix; ``fused`` (that is pack join along ``b``). Do not use bare ``multi``. Do not spell a second flag for the same tiling (``tiling``, ``simultaneous`` as naming tokens).
 
 ## Verbs (A-Z)

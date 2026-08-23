@@ -2,15 +2,19 @@
 """Scale Figure 2A pulse responses by Figure 2C/B width ratios.
 
 For each T4/T5, PC/NC, and receptive-field position, calculate the ratio of
-the Figure 2C width-1 response extremum to the Figure 2B width-4 response
-extremum.  If both depolarization and hyperpolarization ratios exist, use their
+the Figure 2C width-1 or width-2 response extremum to the Figure 2B width-4
+response extremum.  If both depolarization and hyperpolarization ratios exist, use their
 arithmetic mean; if only one exists, use it.  If a PC or NC condition has no
 native ratio, use the opposite contrast's scale for the same cell type and
 position.  The resulting position-specific scalar multiplies every time sample
-in the matching Figure 2A pulse-response trace.  T5 NC depolarization ratios at
-positions -1 and 0 are the specified exception: they are linearly interpolated
+in the matching Figure 2A pulse-response trace.  Width-1 T5 NC depolarization
+ratios at positions -1 and 0 are the specified exception: they are linearly interpolated
 between the measured ratios at positions -2 and +1.  Positions -6 and -5 are
-excluded entirely from the outputs.
+excluded entirely from the outputs, as is position +5.  Output positions are
+the retained source positions divided by two, spanning -2 to +2 in 0.5 steps.
+T4 width-2 NC depolarization responses at positions -4 and -3 are linearly
+interpolated between the visible width-2 markers at -6 and -2 before division
+by the matching width-4 response.
 
 Outputs ``2ax2bc_digitized.csv`` and ``2ax2bc_digitized.png`` beside this
 script.  The CSV preserves the original voltage as ``source_vm_mv`` and stores
@@ -38,16 +42,20 @@ DEFAULT_EXTREMA = HERE / "2bc_digitized.csv"
 OUT_STEM = HERE / "2ax2bc_digitized"
 
 SOURCE_WIDTH_LED = 4
-TARGET_WIDTH_LED = 1
+TARGET_WIDTHS_LED = (1, 2)
 DEGREES_PER_LED = 2.25
 FLASH_DURATION_MS = 160.0
 INPUT_TRACE_COUNT = 48
-OUTPUT_POSITIONS = tuple(range(-4, 6))
-EXPECTED_TRACE_COUNT = 40
-EXPECTED_POINT_COUNT = 8_655
-EXPECTED_FALLBACK_TRACE_COUNT = 5
+OUTPUT_SOURCE_POSITIONS = tuple(range(-4, 5))
+OUTPUT_POSITIONS = tuple(position / 2 for position in OUTPUT_SOURCE_POSITIONS)
+EXPECTED_SOURCE_TRACE_COUNT = 36
+EXPECTED_OUTPUT_TRACE_COUNT = 72
+EXPECTED_POINT_COUNT = 15_590
+EXPECTED_FALLBACK_COUNTS = {1: 4}
 T5_NC_INTERPOLATION_POSITIONS = (-1, 0)
 T5_NC_INTERPOLATION_ANCHORS = (-2, 1)
+T4_NC_W2_INTERPOLATION_POSITIONS = (-4, -3)
+T4_NC_W2_INTERPOLATION_ANCHORS = (-6, -2)
 
 SCALE_KEYS = ["cell_type", "contrast", "position"]
 RATIO_KEYS = ["cell_type", "contrast", "extremum", "position_led"]
@@ -59,8 +67,15 @@ def require_columns(df: pd.DataFrame, columns: set[str], name: str) -> None:
         raise ValueError(f"{name} is missing columns: {', '.join(missing)}")
 
 
-def ratio_table(extrema: pd.DataFrame) -> pd.DataFrame:
-    """Return one available width-1/width-4 ratio per extremum and position."""
+def format_position(position: float) -> str:
+    """Format an integer or half-step position with an explicit sign."""
+    if float(position).is_integer():
+        return f"{int(position):+d}"
+    return f"{position:+.1f}"
+
+
+def ratio_table(extrema: pd.DataFrame, target_width_led: int) -> pd.DataFrame:
+    """Return one target-width/width-4 ratio per extremum and position."""
     require_columns(
         extrema,
         {
@@ -73,23 +88,72 @@ def ratio_table(extrema: pd.DataFrame) -> pd.DataFrame:
         },
         "extrema CSV",
     )
-    width1 = extrema[extrema.width_led == TARGET_WIDTH_LED][
+    target = extrema[extrema.width_led == target_width_led][
         [*RATIO_KEYS, "response_mv"]
-    ].rename(columns={"response_mv": "width1_response_mv"})
+    ].rename(columns={"response_mv": "target_response_mv"})
     width4 = extrema[extrema.width_led == SOURCE_WIDTH_LED][
         [*RATIO_KEYS, "response_mv"]
     ].rename(columns={"response_mv": "width4_response_mv"})
 
-    paired = width1.merge(width4, on=RATIO_KEYS, how="inner", validate="one_to_one")
+    paired = target.merge(width4, on=RATIO_KEYS, how="inner", validate="one_to_one")
     if (paired.width4_response_mv == 0).any():
         raise ValueError("cannot divide by a zero width-4 response")
-    paired["ratio"] = paired.width1_response_mv / paired.width4_response_mv
+    paired["ratio"] = paired.target_response_mv / paired.width4_response_mv
     if not np.isfinite(paired.ratio.to_numpy()).all():
         raise ValueError("non-finite width-1/width-4 ratio")
     return paired
 
 
-def build_scales(traces: pd.DataFrame, extrema: pd.DataFrame) -> pd.DataFrame:
+def t4_nc_w2_interpolated_ratios(extrema: pd.DataFrame) -> pd.DataFrame:
+    """Return missing T4 NC width-2 depolarization ratios from response space."""
+    target = extrema[
+        (extrema.cell_type == "T4")
+        & (extrema.contrast == "NC")
+        & (extrema.extremum == "depolarization")
+        & (extrema.width_led == 2)
+        & extrema.position_led.isin(T4_NC_W2_INTERPOLATION_ANCHORS)
+    ].set_index("position_led")["response_mv"]
+    if set(target.index) != set(T4_NC_W2_INTERPOLATION_ANCHORS):
+        raise ValueError("missing T4 NC width-2 interpolation response anchor")
+
+    width4 = extrema[
+        (extrema.cell_type == "T4")
+        & (extrema.contrast == "NC")
+        & (extrema.extremum == "depolarization")
+        & (extrema.width_led == SOURCE_WIDTH_LED)
+        & extrema.position_led.isin(T4_NC_W2_INTERPOLATION_POSITIONS)
+    ].set_index("position_led")["response_mv"]
+    if set(width4.index) != set(T4_NC_W2_INTERPOLATION_POSITIONS):
+        raise ValueError("missing T4 NC width-4 interpolation denominator")
+
+    positions = np.asarray(T4_NC_W2_INTERPOLATION_POSITIONS, dtype=float)
+    responses = np.interp(
+        positions,
+        np.asarray(T4_NC_W2_INTERPOLATION_ANCHORS, dtype=float),
+        target.loc[list(T4_NC_W2_INTERPOLATION_ANCHORS)].to_numpy(dtype=float),
+    )
+    rows = []
+    for position, response in zip(T4_NC_W2_INTERPOLATION_POSITIONS, responses):
+        denominator = float(width4.loc[position])
+        rows.append(
+            {
+                "cell_type": "T4",
+                "contrast": "NC",
+                "extremum": "depolarization",
+                "position_led": position,
+                "target_response_mv": response,
+                "width4_response_mv": denominator,
+                "ratio": response / denominator,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_scales(
+    traces: pd.DataFrame,
+    extrema: pd.DataFrame,
+    target_width_led: int,
+) -> pd.DataFrame:
     """Build one scalar for every condition/position present in Figure 2A."""
     require_columns(
         traces,
@@ -100,7 +164,11 @@ def build_scales(traces: pd.DataFrame, extrema: pd.DataFrame) -> pd.DataFrame:
     if trace_conditions.trace_id.duplicated().any():
         raise ValueError("a trace_id maps to multiple experimental conditions")
 
-    ratios = ratio_table(extrema)
+    ratios = ratio_table(extrema, target_width_led)
+    if target_width_led == 2:
+        ratios = pd.concat(
+            [ratios, t4_nc_w2_interpolated_ratios(extrema)], ignore_index=True
+        )
     ratio_wide = ratios.pivot(
         index=["cell_type", "contrast", "position_led"],
         columns="extremum",
@@ -124,25 +192,37 @@ def build_scales(traces: pd.DataFrame, extrema: pd.DataFrame) -> pd.DataFrame:
         how="left",
         validate="one_to_one",
     )
-    interpolation_mask = (
-        (scales.cell_type == "T5")
-        & (scales.contrast == "NC")
-        & scales.position.isin(T5_NC_INTERPOLATION_POSITIONS)
-    )
-    anchor_ratios = ratio_wide[
-        (ratio_wide.cell_type == "T5")
-        & (ratio_wide.contrast == "NC")
-        & ratio_wide.position.isin(T5_NC_INTERPOLATION_ANCHORS)
-    ].set_index("position")["depolarization_ratio"]
-    if set(anchor_ratios.index) != set(T5_NC_INTERPOLATION_ANCHORS):
-        raise ValueError("missing T5 NC depolarization interpolation anchor")
-    if scales.loc[interpolation_mask, "depolarization_ratio"].notna().any():
-        raise ValueError("T5 NC interpolation target already has a measured ratio")
-    scales.loc[interpolation_mask, "depolarization_ratio"] = np.interp(
-        scales.loc[interpolation_mask, "position"],
-        np.asarray(T5_NC_INTERPOLATION_ANCHORS, dtype=float),
-        anchor_ratios.loc[list(T5_NC_INTERPOLATION_ANCHORS)].to_numpy(dtype=float),
-    )
+    interpolation_mask = pd.Series(False, index=scales.index)
+    if target_width_led == 1:
+        interpolation_mask = (
+            (scales.cell_type == "T5")
+            & (scales.contrast == "NC")
+            & scales.position.isin(T5_NC_INTERPOLATION_POSITIONS)
+        )
+        anchor_ratios = ratio_wide[
+            (ratio_wide.cell_type == "T5")
+            & (ratio_wide.contrast == "NC")
+            & ratio_wide.position.isin(T5_NC_INTERPOLATION_ANCHORS)
+        ].set_index("position")["depolarization_ratio"]
+        if set(anchor_ratios.index) != set(T5_NC_INTERPOLATION_ANCHORS):
+            raise ValueError("missing T5 NC depolarization interpolation anchor")
+        if scales.loc[interpolation_mask, "depolarization_ratio"].notna().any():
+            raise ValueError(
+                "T5 NC interpolation target already has a measured ratio"
+            )
+        scales.loc[interpolation_mask, "depolarization_ratio"] = np.interp(
+            scales.loc[interpolation_mask, "position"],
+            np.asarray(T5_NC_INTERPOLATION_ANCHORS, dtype=float),
+            anchor_ratios.loc[
+                list(T5_NC_INTERPOLATION_ANCHORS)
+            ].to_numpy(dtype=float),
+        )
+    elif target_width_led == 2:
+        interpolation_mask = (
+            (scales.cell_type == "T4")
+            & (scales.contrast == "NC")
+            & scales.position.isin(T4_NC_W2_INTERPOLATION_POSITIONS)
+        )
 
     has_depolarization = scales.depolarization_ratio.notna()
     has_hyperpolarization = scales.hyperpolarization_ratio.notna()
@@ -202,11 +282,20 @@ def build_scales(traces: pd.DataFrame, extrema: pd.DataFrame) -> pd.DataFrame:
         "fallback_" + scales.loc[missing_native, "fallback_contrast"]
     )
     scales = scales.drop(columns=["fallback_contrast", "fallback_scale_factor"])
+    scales["target_width_led"] = target_width_led
+    scales["target_width_deg"] = target_width_led * DEGREES_PER_LED
     return scales.sort_values(SCALE_KEYS).reset_index(drop=True)
 
 
 def scale_traces(traces: pd.DataFrame, scales: pd.DataFrame) -> pd.DataFrame:
-    output = traces.rename(columns={"vm_mv": "source_vm_mv"}).merge(
+    target_widths = scales.target_width_led.unique()
+    if len(target_widths) != 1:
+        raise ValueError("scale_traces requires exactly one target width")
+    target_width_led = int(target_widths[0])
+
+    output = traces.rename(
+        columns={"trace_id": "source_trace_id", "vm_mv": "source_vm_mv"}
+    ).merge(
         scales[
             [
                 "trace_id",
@@ -215,8 +304,8 @@ def scale_traces(traces: pd.DataFrame, scales: pd.DataFrame) -> pd.DataFrame:
                 "scale_factor",
                 "scale_source",
             ]
-        ],
-        on="trace_id",
+        ].rename(columns={"trace_id": "source_trace_id"}),
+        on="source_trace_id",
         how="left",
         validate="many_to_one",
     )
@@ -224,14 +313,26 @@ def scale_traces(traces: pd.DataFrame, scales: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("at least one Figure 2A row has no scale assignment")
     output["source_width_led"] = SOURCE_WIDTH_LED
     output["source_width_deg"] = SOURCE_WIDTH_LED * DEGREES_PER_LED
-    output["target_width_led"] = TARGET_WIDTH_LED
-    output["target_width_deg"] = TARGET_WIDTH_LED * DEGREES_PER_LED
+    output["target_width_led"] = target_width_led
+    output["target_width_deg"] = target_width_led * DEGREES_PER_LED
+    output["source_position"] = output.position / 2
+    output["position"] = output.source_position
+    output["trace_id"] = (
+        output.cell_type
+        + "_"
+        + output.contrast
+        + "_pos"
+        + output.position.map(format_position)
+        + f"_w{target_width_led}"
+    )
     output["vm_mv"] = output.source_vm_mv * output.scale_factor
 
     column_order = [
         "trace_id",
+        "source_trace_id",
         "cell_type",
         "contrast",
+        "source_position",
         "position",
         "rf_side",
         "color",
@@ -255,21 +356,33 @@ def validate(
     scales: pd.DataFrame,
     output: pd.DataFrame,
 ) -> None:
-    if source.trace_id.nunique() != EXPECTED_TRACE_COUNT:
+    if source.trace_id.nunique() != EXPECTED_SOURCE_TRACE_COUNT:
         raise ValueError(
-            f"expected {EXPECTED_TRACE_COUNT} source traces, "
+            f"expected {EXPECTED_SOURCE_TRACE_COUNT} source traces, "
             f"got {source.trace_id.nunique()}"
         )
-    if scales.trace_id.nunique() != EXPECTED_TRACE_COUNT:
-        raise ValueError("scale table does not cover all source traces exactly once")
-    if len(output) != len(source):
-        raise ValueError("scaling changed the number of time samples")
+    if scales.duplicated(["trace_id", "target_width_led"]).any():
+        raise ValueError("duplicate source trace/target width in scale table")
+    for target_width_led in TARGET_WIDTHS_LED:
+        target_scales = scales[scales.target_width_led == target_width_led]
+        if target_scales.trace_id.nunique() != EXPECTED_SOURCE_TRACE_COUNT:
+            raise ValueError(
+                f"width {target_width_led} scales do not cover every source trace"
+            )
     if len(output) != EXPECTED_POINT_COUNT:
         raise ValueError(
             f"expected {EXPECTED_POINT_COUNT} output points, got {len(output)}"
         )
-    if output.trace_id.nunique() != source.trace_id.nunique():
-        raise ValueError("scaling changed the number of traces")
+    if output.trace_id.nunique() != EXPECTED_OUTPUT_TRACE_COUNT:
+        raise ValueError(
+            f"expected {EXPECTED_OUTPUT_TRACE_COUNT} output traces, "
+            f"got {output.trace_id.nunique()}"
+        )
+    if set(output.target_width_led.unique()) != set(TARGET_WIDTHS_LED):
+        raise ValueError("output does not contain both requested target widths")
+    per_source = output.groupby("source_trace_id").trace_id.nunique()
+    if not (per_source == len(TARGET_WIDTHS_LED)).all():
+        raise ValueError("a source trace is missing a target-width result")
 
     numeric = output.select_dtypes(include=[np.number])
     # Ratio columns are intentionally NaN when the corresponding extremum is
@@ -293,32 +406,45 @@ def validate(
     if not (scales.scale_factor > 0).all():
         raise ValueError("every retained trace must have a positive scale")
     fallback_scales = scales[scales.scale_source.str.startswith("fallback_")]
-    if len(fallback_scales) != EXPECTED_FALLBACK_TRACE_COUNT:
+    fallback_counts = fallback_scales.groupby("target_width_led").size().to_dict()
+    if fallback_counts != EXPECTED_FALLBACK_COUNTS:
         raise ValueError(
-            f"expected {EXPECTED_FALLBACK_TRACE_COUNT} fallback traces, "
-            f"got {len(fallback_scales)}"
+            f"expected fallback counts {EXPECTED_FALLBACK_COUNTS}, "
+            f"got {fallback_counts}"
         )
+    if set(output.source_position.unique()) != set(OUTPUT_POSITIONS):
+        raise ValueError("output contains an unexpected source-position column")
     if set(output.position.unique()) != set(OUTPUT_POSITIONS):
         raise ValueError("output contains an unexpected position column")
+    if not np.array_equal(
+        output.position.to_numpy(), output.source_position.to_numpy()
+    ):
+        raise ValueError("output position and source_position do not match")
 
 
 def plot_check(output: pd.DataFrame, scales: pd.DataFrame, path: Path) -> None:
-    fig, axes = plt.subplots(2, 10, figsize=(15.5, 5.8), sharex=True, sharey=True)
+    row_specs = ((1, "T4"), (1, "T5"), (2, "T4"), (2, "T5"))
+    fig, axes = plt.subplots(4, 9, figsize=(14.2, 10.2), sharex=True, sharey=True)
     palette = {"green": "#549f5c", "black": "#303030"}
-    scale_lookup = scales.set_index(["cell_type", "contrast", "position"])
+    scale_lookup = scales.set_index(
+        ["target_width_led", "cell_type", "contrast", "position"]
+    )
 
-    for row, cell_type in enumerate(("T4", "T5")):
-        for column, position in enumerate(OUTPUT_POSITIONS):
+    for row, (target_width_led, cell_type) in enumerate(row_specs):
+        for column, scale_position in enumerate(OUTPUT_SOURCE_POSITIONS):
             ax = axes[row, column]
+            position = scale_position / 2
             for contrast in ("PC", "NC"):
                 trace = output[
-                    (output.cell_type == cell_type)
+                    (output.target_width_led == target_width_led)
+                    & (output.cell_type == cell_type)
                     & (output.contrast == contrast)
-                    & (output.position == position)
+                    & (output.source_position == position)
                 ]
                 if trace.empty:
                     raise ValueError(
-                        f"missing plotted trace: {cell_type} {contrast} {position:+d}"
+                        "missing plotted trace: "
+                        f"{cell_type} {contrast} {format_position(position)}"
                     )
                 color = str(trace.color.iloc[0])
                 ax.plot(
@@ -328,22 +454,32 @@ def plot_check(output: pd.DataFrame, scales: pd.DataFrame, path: Path) -> None:
                     lw=1.35,
                     label=contrast,
                 )
-            pc_scale = scale_lookup.loc[(cell_type, "PC", position), "scale_factor"]
-            nc_scale = scale_lookup.loc[(cell_type, "NC", position), "scale_factor"]
+            pc_scale = scale_lookup.loc[
+                (target_width_led, cell_type, "PC", scale_position),
+                "scale_factor",
+            ]
+            nc_scale = scale_lookup.loc[
+                (target_width_led, cell_type, "NC", scale_position),
+                "scale_factor",
+            ]
             ax.axvspan(0, FLASH_DURATION_MS, color="0.9", zorder=-1)
             ax.axhline(0, color="0.82", lw=0.6, zorder=-1)
             ax.set_title(
-                f"{position:+d}\nPC×{pc_scale:.2f}  NC×{nc_scale:.2f}", fontsize=7
+                f"{format_position(position)}\n"
+                f"PC×{pc_scale:.2f}  NC×{nc_scale:.2f}",
+                fontsize=7,
             )
             if column == 0:
-                ax.set_ylabel(f"{cell_type}\nVm (mV)")
+                ax.set_ylabel(
+                    f"{cell_type}\nwidth {target_width_led}/4\nVm (mV)"
+                )
             ax.tick_params(labelsize=7)
 
     axes[0, -1].legend(frameon=False, fontsize=7)
     for ax in axes[-1]:
         ax.set_xlabel("ms", fontsize=8)
     fig.suptitle(
-        "Gruntman et al. 2021 Figure 2A × position-specific width-1/width-4 scale"
+        "Gruntman et al. 2021 Figure 2A × position-specific width-1/4 and width-2/4 scales"
     )
     fig.tight_layout()
     fig.savefig(path, dpi=180)
@@ -363,7 +499,7 @@ def print_scale_summary(scales: pd.DataFrame) -> None:
             else f"{row.hyperpolarization_ratio:.6f}"
         )
         print(
-            f"{row.trace_id}: dep={dep}, hyper={hyp}, "
+            f"w{row.target_width_led} {row.trace_id}: dep={dep}, hyper={hyp}, "
             f"scale={row.scale_factor:.6f} ({row.scale_source})"
         )
 
@@ -393,10 +529,22 @@ def main() -> None:
             f"expected {INPUT_TRACE_COUNT} input traces, "
             f"got {source_all.trace_id.nunique()}"
         )
-    source = source_all[source_all.position.isin(OUTPUT_POSITIONS)].copy()
+    source = source_all[
+        source_all.position.isin(OUTPUT_SOURCE_POSITIONS)
+    ].copy()
     extrema = pd.read_csv(args.extrema)
-    scales = build_scales(source, extrema)
-    output = scale_traces(source, scales)
+    scale_tables = [
+        build_scales(source, extrema, target_width_led)
+        for target_width_led in TARGET_WIDTHS_LED
+    ]
+    scales = pd.concat(scale_tables, ignore_index=True)
+    output = pd.concat(
+        [
+            scale_traces(source, target_scales)
+            for target_scales in scale_tables
+        ],
+        ignore_index=True,
+    )
     validate(source, scales, output)
 
     csv_path = args.output.with_suffix(".csv")

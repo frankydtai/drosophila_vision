@@ -26,7 +26,7 @@ SPREAD_INPUT_SPEC: Dict[str, object] = {}
 SPREAD_GT: Dict[str, object] = {}
 SPOT_INPUT_GEO: Dict[str, object] = {}
 SPOT_PACK: Dict[str, object] = {}
-MBAR_INPUT_GEO: Dict[str, object] = {}
+SBAR_INPUT_GEO: Dict[str, object] = {}
 MBAR_INPUT_SPEC: Dict[str, object] = {}
 TRAIN_CONFIG: Dict[str, object] = {}
 VAL_FROM: Dict[str, object] = {}
@@ -72,7 +72,7 @@ def load_config() -> dict:
     return data
 
 
-def _comma_str_list(value, *, key: str) -> List[str]:
+def _comma_tokens(value, *, key: str) -> List[str]:
     if not isinstance(value, str):
         raise ValueError(f"{key} must be a comma-separated string, got {value!r}")
     tokens = parse_comma_list(value)
@@ -82,18 +82,18 @@ def _comma_str_list(value, *, key: str) -> List[str]:
 
 
 def _comma_int_list(value, *, key: str) -> List[int]:
-    return [int(token) for token in _comma_str_list(value, key=key)]
+    return [int(token) for token in _comma_tokens(value, key=key)]
 
 
 def _comma_float_list(value, *, key: str) -> List[float]:
-    return [float(token) for token in _comma_str_list(value, key=key)]
+    return [float(token) for token in _comma_tokens(value, key=key)]
 
 
 def _bind_config(config: dict) -> None:
     global RUN_NAME, RUN_PATH
     global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
     global SPREAD_INPUT_SPEC, SPREAD_GT, SPOT_INPUT_GEO, SPOT_PACK
-    global MBAR_INPUT_GEO, MBAR_INPUT_SPEC
+    global SBAR_INPUT_GEO, MBAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
     global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, FIGURE_PLOT_STI_MBAR, ANALYZE_RUNS
     global ANALYZE_CELL_DYNAMICS, ANALYZE_SYN_SIGN, ANALYZE_TRACE
@@ -110,7 +110,7 @@ def _bind_config(config: dict) -> None:
         "syn_mode": config["syn_mode"],
         "a_lo": config["a_lo"],
         "a_hi": config["a_hi"],
-        "h_cells": _comma_str_list(config["h_cells"], key="h_cells"),
+        "h_cells": _comma_tokens(config["h_cells"], key="h_cells"),
         "params": config["params"],
     }
     NEURON_FORWARD = {"pre_grad": config["pre_grad"]}
@@ -137,17 +137,19 @@ def _bind_config(config: dict) -> None:
         "a_sti_radii": _comma_int_list(config["a_sti_radii"], key="a_sti_radii"),
         "spot_cost_radius_scale": config["spot_cost_radius_scale"],
     }
-    MBAR_INPUT_GEO = {
+    SBAR_INPUT_GEO = {
         "multi_bar": config["multi_bar"],
-        "bar_radius": config["bar_radius"],
+        "bar_dist": config["bar_dist"],
     }
     MBAR_INPUT_SPEC = {
         "ms_pre": config["ms_pre"],
+        "bar_ws_deg": _comma_float_list(config["bar_ws_deg"], key="bar_ws_deg"),
+        "bar_directions": _comma_tokens(config["bar_directions"], key="bar_directions"),
     }
-    tasks = _comma_str_list(config["tasks"], key="tasks")
+    tasks = _comma_tokens(config["tasks"], key="tasks")
     TRAIN_CONFIG = {
         "tasks": tasks,
-        "contrasts": _comma_str_list(config["contrasts"], key="contrasts"),
+        "contrasts": _comma_tokens(config["contrasts"], key="contrasts"),
         "i_sti": {
             str(contrast): float(val)
             for contrast, val in config["i_sti"].items()
@@ -198,7 +200,7 @@ def _bind_config(config: dict) -> None:
     if not analyze_runs:
         ANALYZE_RUNS = [RUN_PATH]
     elif isinstance(analyze_runs, str):
-        ANALYZE_RUNS = _comma_str_list(analyze_runs, key="analyze_runs")
+        ANALYZE_RUNS = _comma_tokens(analyze_runs, key="analyze_runs")
     else:
         raise ValueError(
             f"analyze_runs must be null or a comma-separated string, got {analyze_runs!r}"
@@ -239,7 +241,7 @@ def active_config() -> dict:
     return _ACTIVE
 
 
-def apply_config(hydra_config) -> dict:
+def resolve_config(hydra_config) -> dict:
     global _ACTIVE
     _ACTIVE = (
         OmegaConf.to_container(hydra_config, resolve=True)
@@ -326,7 +328,7 @@ def _resolve_train_run_name(*, script_token: str) -> str:
 def resolve_figure_kwargs(hydra_config) -> dict:
     from figure.plot import parse_align_xy, parse_at_xs, parse_ms_shown
 
-    apply_config(hydra_config)
+    resolve_config(hydra_config)
     figure_plot = FIGURE_PLOT
     align_xy = parse_align_xy(figure_plot.get("align_xy"))
     align_at_x, align_at_y = align_xy if align_xy is not None else (None, None)
@@ -369,7 +371,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
     import train
     from train.implementation import build_run_dir
 
-    apply_config(hydra_config)
+    resolve_config(hydra_config)
     config = active_config()
 
     model = str(NEURON_SCHEMA["model"])
@@ -401,10 +403,19 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         "delta_ms_pre": float(MODEL["delta_ms_pre"]),
     }
     mbar_sti_opts = {
-        "multi_bar": MBAR_INPUT_GEO["multi_bar"],
+        "bar_dist": SBAR_INPUT_GEO["bar_dist"],
+        "bar_ws_deg": list(MBAR_INPUT_SPEC["bar_ws_deg"]),
+        "bar_directions": list(MBAR_INPUT_SPEC["bar_directions"]),
+        "multi_bar": SBAR_INPUT_GEO["multi_bar"],
         "ms_pre": timing["ms_pre"],
         "delta_ms": timing["delta_ms"],
         "delta_ms_pre": timing["delta_ms_pre"],
+    }
+    sbar_sti_opts = {
+        **timing,
+        "bar_dist": SBAR_INPUT_GEO["bar_dist"],
+        "bar_directions": list(MBAR_INPUT_SPEC["bar_directions"]),
+        "multi_bar": SBAR_INPUT_GEO["multi_bar"],
     }
     spot_sti_opts = {
         **timing,
@@ -419,7 +430,12 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
 
     gt_cells_by_task = train.resolve_gt_cells_by_task(TRAIN_CONFIG.get("gt_by_task"))
     if gt_cells_by_task:
-        gt_opts = {"mbar": mbar_sti_opts, "spot": spot_sti_opts, "spread": spread_sti_opts}
+        gt_opts = {
+            "mbar": mbar_sti_opts,
+            "sbar": sbar_sti_opts,
+            "spot": spot_sti_opts,
+            "spread": spread_sti_opts,
+        }
         for task, cells in gt_cells_by_task.items():
             gt_opts[task]["gt_cells"] = list(cells)
 
@@ -452,6 +468,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         cost_ms=cost_ms,
         cost_radius=cost_radius,
         mbar_sti_opts=mbar_sti_opts,
+        sbar_sti_opts=sbar_sti_opts,
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
         euler=str(MODEL["euler"]),

@@ -38,7 +38,7 @@ Queue: `.cursor/skills/slim-core-script/slim-core-queue.md`.
    Forbidden this turn: inventing a substitute for a lexicon concept; inventing a synonym for an existing local (`vals` → `param_vals`, `base` → something you made up, opaque shorts → other opaque shorts). **Inline deletes the name; it does not replace it.**
 4. If a local is used **more than once**, keep the assignment. Do **not** invent a “better” name for it. Only if the existing name is a **lexicon Forbidden** substitute or a banned abbreviation may you rename it — and then **only** to the exact lexicon headword for that concept (or the file’s existing canonical name for that concept). If the concept is not in the lexicon and the current name is already full English + `_`, leave it.
 5. Shadowing a parameter with its payload (`param = params.get(param, …)`) = do not ship. Inline or keep a name that already exists in-file / lexicon for that bag — do not mint a new one.
-6. Obey `.cursor/rules/coding-rules.mdc` (minimal code; no abbreviations; no fake `resolve_*`; no backward-compat shims).
+6. Obey `.cursor/rules/coding-rules.mdc` §③ **Forbidden bindings** (abbreviation, opaque short locals, lexicon-headword misuse, non-lexicon glue locals); no fake `resolve_*`; no backward-compat shims.
 7. After this file: mark `[x]` only if checks pass; report; **end turn**. Auto continuation is the `stop` hook only.
 
 ## Single-use local — definition and transform
@@ -108,7 +108,7 @@ Smoke fails twice in a row → disarm auto and stop.
 ## Out of scope
 
 - `__init__.py` unless the user names it
-- `experiment/`, `scratch/`, `0_runs/`, `0_logs/`
+- `experiment/`, `scratch/`, `simulation/analyze/`, `0_runs/`, `0_logs/`
 - Behavior / public API changes
 - Multi-file renames
 - Coining identifiers for “clarity”

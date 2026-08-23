@@ -23,21 +23,17 @@ from figure.spread import (
     _style_time_axis,
     contrast_linestyle,
     contrast_order,
+    plot_trace_all,
+    plot_trace_gt,
 )
 from figure.panel import (
     GT_COLOR,
     V_READOUT_COLOR,
     TRACE_LINE_W,
-    N_COL_ALL,
-    N_COL_GT,
-    PANEL_H,
-    PANEL_W,
-    ElapsedTimer,
     annotate_v_th,
     as_numpy,
     gt_trace_affine,
     e_leak_from_z,
-    readout_prep_s,
     save_figure,
     at_xy_label,
     mark_sti_on,
@@ -60,7 +56,7 @@ from task.spread.pack import cost_sti_hexes
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from network.construction import active_gt_cells, cell_rows, cells_in_order, gt_cells_from_opts
 import build_hex
-from task.mbar.sti_geo import (
+from task.sbar.sti_geo import (
     sti_hexes_at_xy,
     node_us_vs,
 )
@@ -80,23 +76,6 @@ from task.spot.gt import (
 )
 
 RF_RADIUS_X = np.arange(RF_N_RADII) * RF_RADIUS_DEG
-
-
-def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
-    """Time-panel title: ``radius=0 (n=252)`` + ``bright: 63.3`` / ``dark: …``."""
-    radius = float(radius)
-    radius_label = str(int(radius)) if radius == int(radius) else str(radius)
-    head = f'radius={radius_label}'
-    if n is not None:
-        head = f'{head} (n={int(n)})'
-    if not cost_parts or not contrasts:
-        return head
-    lines = [head]
-    for contrast in contrasts:
-        part_key = spot_part_key(contrast, cell, radius)
-        if part_key in cost_parts:
-            lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
-    return '\n'.join(lines)
 
 
 PLOT_AT_XY = True
@@ -866,7 +845,6 @@ def _spot_suptitle(title, readout):
 
 
 _TASK = "spot"
-_GRID_KWARGS = dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98)
 
 
 def _plot_figure(
@@ -959,13 +937,19 @@ def _plot_figure(
     def _plot_cell(cell, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
         n_by_radius = primary.n_by_cell.get(cell) or {}
-        time_title = format_spot_radius_time_title(
-            center_radius,
-            n_by_radius.get(center_radius),
-            cell,
-            cost_parts,
-            order,
-        )
+        radius = float(center_radius)
+        radius_label = str(int(radius)) if radius == int(radius) else str(radius)
+        time_title = f'radius={radius_label}'
+        n_center = n_by_radius.get(center_radius)
+        if n_center is not None:
+            time_title = f'{time_title} (n={int(n_center)})'
+        if cost_parts and order:
+            for contrast in order:
+                key = spot_part_key(contrast, cell, center_radius)
+                if key in cost_parts:
+                    time_title = (
+                        f'{time_title}\n{contrast}: {float(cost_parts[key]):.1f}'
+                    )
         v_th = primary.v_th_by_cell.get(cell)
         e_leak = primary.e_leak_by_cell.get(cell)
         if has_at_xy:
@@ -1061,9 +1045,20 @@ def _plot_figure(
                     ax_time_radius.axis("off")
                     continue
                 radius = int(radii[radius_row])
-                time_title = format_spot_radius_time_title(
-                    radius, n_by_radius.get(radius), cell, cost_parts, order,
-                )
+                radius_f = float(radius)
+                radius_label = str(int(radius_f)) if radius_f == int(radius_f) else str(radius_f)
+                time_title = f'radius={radius_label}'
+                n_radius = n_by_radius.get(radius)
+                if n_radius is not None:
+                    time_title = f'{time_title} (n={int(n_radius)})'
+                if cost_parts and order:
+                    for contrast in order:
+                        key = spot_part_key(contrast, cell, radius)
+                        if key in cost_parts:
+                            time_title = (
+                                f'{time_title}\n{contrast}: '
+                                f'{float(cost_parts[key]):.1f}'
+                            )
                 plot_cell_time(
                     ax_time_radius,
                     traces_with_cost_ts(
@@ -1093,37 +1088,19 @@ def _plot_figure(
     save_figure(fig, path, dpi=150, timer=timer)
 
 
-def plot_network_gt(path, *, readouts, title, gts=None, cost_parts=None):
+def plot_gt(path, *, readouts, title, gts=None, cost_parts=None):
     """Plot gt figure (active gt cells; model ca for all active)."""
-    gt_readouts = {
-        contrast: _spot_gt_readout(readout)
-        for contrast, readout in readouts.items()
-    }
-    _plot_figure(
-        path,
-        timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
-        readouts=gt_readouts,
-        title=title,
-        gts=gts,
-        n_col=N_COL_GT,
-        figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
-        gridspec_kwargs=_GRID_KWARGS,
-        cost_parts=cost_parts,
+    plot_trace_gt(
+        path, readouts=readouts, title=title, gts=gts, cost_parts=cost_parts,
+        gt_readout=_spot_gt_readout, plot_figure=_plot_figure,
     )
 
 
-def plot_network_all(path, *, readouts, title, gts=None, cost_parts=None):
+def plot_all(path, *, readouts, title, gts=None, cost_parts=None):
     """Plot ca-all figure (all types) from contrast → readout."""
-    _plot_figure(
-        path,
-        timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
-        readouts=readouts,
-        title=title,
-        gts=gts,
-        n_col=N_COL_ALL,
-        figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
-        gridspec_kwargs=_GRID_KWARGS,
-        cost_parts=cost_parts,
+    plot_trace_all(
+        path, readouts=readouts, title=title, gts=gts, cost_parts=cost_parts,
+        plot_figure=_plot_figure,
     )
 
 
@@ -1145,6 +1122,3 @@ def figure_titles(session, suffix, token, *, contrast=None):
         f'spot {contrast} {token}-all ({suffix}){net_label}',
     )
 
-
-plot_gt = plot_network_gt
-plot_all = plot_network_all

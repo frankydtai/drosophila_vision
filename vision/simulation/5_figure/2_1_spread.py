@@ -272,17 +272,6 @@ def _layout_cells_from_readouts(readouts, order):
     return cells, _rows_from_cell_rows(rows, cells)
 
 
-def _format_spread_cell_time_title(cell, cost_parts, contrasts):
-    if not cost_parts or not contrasts:
-        return cell
-    lines = [cell]
-    for contrast in contrasts:
-        part_key = spread_part_key(contrast, cell)
-        if part_key in cost_parts:
-            lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
-    return '\n'.join(lines)
-
-
 @dataclass
 class TraceReadout:
     """One forward pass; per-cell mean time traces."""
@@ -474,7 +463,14 @@ def _plot_figure(
             if not traces:
                 ax.axis("off")
                 continue
-            time_title = _format_spread_cell_time_title(cell, cost_parts, order)
+            time_title = cell
+            if cost_parts and order:
+                for contrast in order:
+                    key = spread_part_key(contrast, cell)
+                    if key in cost_parts:
+                        time_title = (
+                            f'{time_title}\n{contrast}: {float(cost_parts[key]):.1f}'
+                        )
             plot_cell_time(
                 ax, traces,
                 title=time_title,
@@ -495,37 +491,75 @@ def _plot_figure(
     save_figure(fig, path, dpi=150, timer=timer)
 
 
-def plot_network_gt(path, *, readouts, title, gts=None, cost_parts=None):
-    """Plot gt figure (active gt cells)."""
-    gt_readouts = {
-        contrast: _spread_gt_readout(readout)
-        for contrast, readout in readouts.items()
-    }
-    _plot_figure(
-        path,
-        timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
-        readouts=gt_readouts,
-        title=title,
-        gts=gts,
-        n_col=N_COL_GT,
-        figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
-        gridspec_kwargs=_GRID_KWARGS,
-        cost_parts=cost_parts,
-    )
-
-
-def plot_network_all(path, *, readouts, title, gts=None, cost_parts=None):
-    """Plot all-cell figure from contrast → readout."""
-    _plot_figure(
+def plot_trace_figure(
+    path, *, readouts, title, plot_figure, gts=None, cost_parts=None, **plot_figure_kwargs,
+):
+    """Trace figure dispatch with prep timer; task ``plot_figure`` draws and saves."""
+    plot_figure(
         path,
         timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
         readouts=readouts,
         title=title,
         gts=gts,
-        n_col=N_COL_ALL,
+        cost_parts=cost_parts,
+        **plot_figure_kwargs,
+    )
+
+
+def plot_trace_gt(
+    path, *, readouts, title, gt_readout, plot_figure, gts=None, cost_parts=None,
+    n_col=N_COL_GT, **plot_figure_kwargs,
+):
+    """Gt figure dispatch: filter readouts, then task ``plot_figure``."""
+    plot_figure(
+        path,
+        timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
+        readouts={
+            contrast: gt_readout(readout)
+            for contrast, readout in readouts.items()
+        },
+        title=title,
+        gts=gts,
+        n_col=n_col,
         figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
         gridspec_kwargs=_GRID_KWARGS,
         cost_parts=cost_parts,
+        **plot_figure_kwargs,
+    )
+
+
+def plot_trace_all(
+    path, *, readouts, title, plot_figure, gts=None, cost_parts=None, n_col=N_COL_ALL,
+    **plot_figure_kwargs,
+):
+    """All-cell figure dispatch: contrast → readout, then task ``plot_figure``."""
+    plot_figure(
+        path,
+        timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
+        readouts=readouts,
+        title=title,
+        gts=gts,
+        n_col=n_col,
+        figure_size_from_grid=lambda n_col, n_row: (PANEL_W * n_col, PANEL_H * n_row),
+        gridspec_kwargs=_GRID_KWARGS,
+        cost_parts=cost_parts,
+        **plot_figure_kwargs,
+    )
+
+
+def plot_gt(path, *, readouts, title, gts=None, cost_parts=None):
+    """Plot gt figure (active gt cells)."""
+    plot_trace_gt(
+        path, readouts=readouts, title=title, gts=gts, cost_parts=cost_parts,
+        gt_readout=_spread_gt_readout, plot_figure=_plot_figure,
+    )
+
+
+def plot_all(path, *, readouts, title, gts=None, cost_parts=None):
+    """Plot all-cell figure from contrast → readout."""
+    plot_trace_all(
+        path, readouts=readouts, title=title, gts=gts, cost_parts=cost_parts,
+        plot_figure=_plot_figure,
     )
 
 
@@ -546,6 +580,3 @@ def figure_titles(session, suffix, token, *, contrast=None):
         f'spread {contrast} {token}-all ({suffix})',
     )
 
-
-plot_gt = plot_network_gt
-plot_all = plot_network_all

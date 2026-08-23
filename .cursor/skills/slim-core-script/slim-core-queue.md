@@ -78,10 +78,6 @@ rm -f .cursor/slim-core-auto.on
 - [ ] vision/simulation/5_figure/plot_sti/spot.py
 - [ ] vision/simulation/5_figure/plot_sti/mbar.py
 
-### 6_analyze
+### analyze
 
-- [ ] vision/simulation/6_analyze/cell_dynamics.py
-- [ ] vision/simulation/6_analyze/cost_part.py
-- [ ] vision/simulation/6_analyze/trace.py
-- [ ] vision/simulation/6_analyze/syn_sign.py
-- [ ] vision/simulation/6_analyze/syn_strength.py
+Excluded (unmaintained — same as `scratch/`; see `coding-rules.mdc` §① Policy).

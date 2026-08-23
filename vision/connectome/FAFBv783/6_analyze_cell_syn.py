@@ -135,16 +135,6 @@ def resolve_query_labels(
     return labels, dict(labels_from_self_cell), dict(labels_from_self_id)
 
 
-def _format_table_scalar(z: float) -> str:
-    if abs(z - round(z)) < 1e-9:
-        return str(int(round(z)))
-    return f"{z:g}"
-
-
-def _format_table_mean_scalar(z: float) -> str:
-    return f"{z:.2f}"
-
-
 def _node_uv_xy(
     n: dict,
 ) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
@@ -157,72 +147,6 @@ def _node_uv_xy(
         return (u, v), xy
     except (KeyError, TypeError, ValueError):
         return None
-
-
-def _format_pairs(
-    pairs: Iterable[Tuple[float, float]],
-    *,
-    mean: bool,
-) -> str:
-    items = list(pairs)
-    if not items:
-        return ""
-    if mean:
-        n = float(len(items))
-        dx = sum(p[0] for p in items) / n
-        dy = sum(p[1] for p in items) / n
-        return (
-            f"({_format_table_mean_scalar(dx)},{_format_table_mean_scalar(dy)})"
-        )
-    return ";".join(
-        f"({_format_table_scalar(p[0])},{_format_table_scalar(p[1])})"
-        for p in sorted(items)
-    )
-
-
-def _format_partner_uv(
-    uvs: Set[Tuple[float, float]],
-    origin: Optional[Tuple[float, float]] = None,
-    *,
-    mean: bool,
-) -> str:
-    """Format partner ``(u,v)`` or ``(du,dv)`` when ``origin`` is set."""
-    if origin is None:
-        pairs = ((float(u), float(v)) for u, v in uvs)
-    else:
-        ou, ov = origin
-        pairs = ((float(u) - ou, float(v) - ov) for u, v in uvs)
-    return _format_pairs(pairs, mean=mean)
-
-
-def _format_partner_xy(
-    uvs: Set[Tuple[float, float]],
-    partner_xy: Set[Tuple[float, float]],
-    origin: Optional[Tuple[float, float]] = None,
-    *,
-    mean: bool,
-) -> str:
-    """Format partner ``(x,y)`` or ``(dx,dy)``; prefer explicit ``partner_xy``."""
-    if partner_xy:
-        if origin is None:
-            pairs = ((float(x), float(y)) for x, y in partner_xy)
-        else:
-            ox, oy = origin
-            pairs = ((x - ox, y - oy) for x, y in partner_xy)
-    elif origin is None:
-        pairs = (
-            (float(xy_from_uv(u, v)[0]), float(xy_from_uv(u, v)[1])) for u, v in uvs
-        )
-    else:
-        ox, oy = origin
-        pairs = (
-            (
-                float(xy_from_uv(u, v)[0]) - ox,
-                float(xy_from_uv(u, v)[1]) - oy,
-            )
-            for u, v in uvs
-        )
-    return _format_pairs(pairs, mean=mean)
 
 
 def _self_node_origin(
@@ -633,31 +557,98 @@ def print_table(
             if show_uv:
                 if origin_uv is None:
                     row.append("")
-                else:
+                elif use_mean_delta:
+                    ou, ov = origin_uv
+                    n = 0
+                    du_sum = 0.0
+                    dv_sum = 0.0
+                    for u, v in uvs:
+                        n += 1
+                        du_sum += float(u) - ou
+                        dv_sum += float(v) - ov
                     row.append(
-                        _format_partner_uv(uvs, origin_uv, mean=use_mean_delta)
+                        f"({du_sum / n:.2f},{dv_sum / n:.2f})" if n else ""
                     )
+                elif not uvs:
+                    row.append("")
+                else:
+                    ou, ov = origin_uv
+                    row.append(";".join(
+                        f"({float(u) - ou:g},{float(v) - ov:g})"
+                        for u, v in sorted(uvs)
+                    ))
             if show_d_xy:
                 if origin_xy is None:
                     row.append("")
-                else:
+                elif use_mean_delta:
+                    ox, oy = origin_xy
+                    partner_xy = (partner_xy_by_type or {}).get(pt, set())
+                    n = 0
+                    dx_sum = 0.0
+                    dy_sum = 0.0
+                    if partner_xy:
+                        for x, y in partner_xy:
+                            n += 1
+                            dx_sum += float(x) - ox
+                            dy_sum += float(y) - oy
+                    else:
+                        for u, v in uvs:
+                            n += 1
+                            hx, hy = xy_from_uv(u, v)
+                            dx_sum += float(hx) - ox
+                            dy_sum += float(hy) - oy
                     row.append(
-                        _format_partner_xy(
-                            uvs,
-                            (partner_xy_by_type or {}).get(pt, set()),
-                            origin_xy,
-                            mean=use_mean_delta,
-                        )
+                        f"({dx_sum / n:.2f},{dy_sum / n:.2f})" if n else ""
                     )
+                else:
+                    partner_xy = (partner_xy_by_type or {}).get(pt, set())
+                    ox, oy = origin_xy
+                    if partner_xy:
+                        row.append(";".join(
+                            f"({x - ox:g},{y - oy:g})"
+                            for x, y in sorted(partner_xy)
+                        ))
+                    elif not uvs:
+                        row.append("")
+                    else:
+                        row.append(";".join(
+                            f"({float(xy_from_uv(u, v)[0]) - ox:g},"
+                            f"{float(xy_from_uv(u, v)[1]) - oy:g})"
+                            for u, v in sorted(uvs)
+                        ))
             if show_xy:
-                row.append(
-                    _format_partner_xy(
-                        uvs,
-                        (partner_xy_by_type or {}).get(pt, set()),
-                        None,
-                        mean=use_mean_delta,
+                partner_xy = (partner_xy_by_type or {}).get(pt, set())
+                if use_mean_delta:
+                    n = 0
+                    dx_sum = 0.0
+                    dy_sum = 0.0
+                    if partner_xy:
+                        for x, y in partner_xy:
+                            n += 1
+                            dx_sum += float(x)
+                            dy_sum += float(y)
+                    else:
+                        for u, v in uvs:
+                            n += 1
+                            hx, hy = xy_from_uv(u, v)
+                            dx_sum += float(hx)
+                            dy_sum += float(hy)
+                    row.append(
+                        f"({dx_sum / n:.2f},{dy_sum / n:.2f})" if n else ""
                     )
-                )
+                elif partner_xy:
+                    row.append(";".join(
+                        f"({float(x):g},{float(y):g})"
+                        for x, y in sorted(partner_xy)
+                    ))
+                elif not uvs:
+                    row.append("")
+                else:
+                    row.append(";".join(
+                        f"({float(xy_from_uv(u, v)[0]):g},"
+                        f"{float(xy_from_uv(u, v)[1]):g})"
+                        for u, v in sorted(uvs)
+                    ))
             rows.append(row)
 
     sum_row = ["SUM"]
@@ -731,14 +722,14 @@ def resolve_xy_ids(
         ids_by_cell = build_ids_by_cell(nodes, at_u=hu, at_v=hv)
         at_ref_xy = (float(at_x), float(at_y))
         hex_note = (
-            f" at (x,y)=({_format_table_scalar(at_ref_xy[0])},"
-            f"{_format_table_scalar(at_ref_xy[1])})"
+            f" at (x,y)=({at_ref_xy[0]:g},"
+            f"{at_ref_xy[1]:g})"
         )
         logger.info(
             "Restricting to ids at (x,y)=(%s,%s) (u,v)=(%s,%s); "
             "%d cells have ≥1 node there",
-            _format_table_scalar(at_ref_xy[0]),
-            _format_table_scalar(at_ref_xy[1]),
+            f"{at_ref_xy[0]:g}",
+            f"{at_ref_xy[1]:g}",
             hu,
             hv,
             sum(1 for ids in ids_by_cell.values() if ids),
@@ -750,9 +741,9 @@ def resolve_xy_ids(
         raise ValueError(f"no ids match --x={at_x!r} --y={at_y!r}")
     parts = []
     if at_x is not None:
-        parts.append(f"x={_format_table_scalar(at_x)}")
+        parts.append(f"x={at_x:g}")
     if at_y is not None:
-        parts.append(f"y={_format_table_scalar(at_y)}")
+        parts.append(f"y={at_y:g}")
     hex_note = " at " + ", ".join(parts)
     logger.info(
         "Restricting to ids on %s; %d cells have ≥1 node there",
@@ -972,16 +963,16 @@ def main(argv: List[str] | None = None) -> int:
             at_ref_xy = (hx, hy)
             hex_note += (
                 f" at hex (u,v)=({hu},{hv}) "
-                f"(x,y)=({_format_table_scalar(hx)},"
-                f"{_format_table_scalar(hy)})"
+                f"(x,y)=({hx:g},"
+                f"{hy:g})"
             )
             logger.info(
                 "Restricting to ids at (u,v)=(%s,%s) "
                 "(x,y)=(%s,%s); %d cells have ≥1 node there",
                 hu,
                 hv,
-                _format_table_scalar(hx),
-                _format_table_scalar(hy),
+                f"{hx:g}",
+                f"{hy:g}",
                 sum(1 for ids in ids_by_cell.values() if ids),
             )
         else:

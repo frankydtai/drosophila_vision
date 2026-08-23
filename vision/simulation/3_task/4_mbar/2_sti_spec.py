@@ -14,16 +14,16 @@ import numpy as np
 
 from path import MBAR_CACHE_DIRNAME
 from neuron.borst import t_from_ms
+from build_hex import DEG, hex_vertices
 from task.mbar.sti_geo import (
-    BAR_RADIUS,
-    GRUNTMAN_directions,
-    GRUNTMAN_WS_DEG,
-    Hex,
-    StiHex,
     bar_bound0_bar_bound1s,
     _fill,
     bar_bounds,
     view_bounds,
+)
+from task.sbar.sti_geo import (
+    Hex,
+    StiHex,
     i_sti_nodes_from_hexes,
     sti_hexes,
 )
@@ -51,19 +51,19 @@ PD_IDX, ND_IDX = 0, 1
 class MbarSpec:
     direction: str
     contrast: str
-    w_deg: float
+    bar_w_deg: float
     speed_deg_over_s: float = GRUNTMAN_SPEED_DEG_OVER_S
 
     @property
     def token(self) -> str:
-        return f"{self.direction}_{self.contrast}_{'w1' if self.w_deg <= 3.0 else 'w4'}"
+        return f"{self.direction}_{self.contrast}_{'w1' if self.bar_w_deg <= 3.0 else 'w4'}"
 
 
 def gruntman_mbar_specs(
     *,
     contrasts: Sequence[str],
-    directions: Sequence[str] = GRUNTMAN_directions,
-    ws_deg: Sequence[float] = GRUNTMAN_WS_DEG,
+    bar_ws_deg: Sequence[float],
+    bar_directions: Sequence[str],
     speed_deg_over_s: float = GRUNTMAN_SPEED_DEG_OVER_S,
 ) -> List[MbarSpec]:
     """The Gruntman-style whole-view moving-bar conditions for ``contrasts``."""
@@ -71,12 +71,12 @@ def gruntman_mbar_specs(
         MbarSpec(
             direction=direction,
             contrast=contrast,
-            w_deg=w_deg,
+            bar_w_deg=bar_w_deg,
             speed_deg_over_s=speed_deg_over_s,
         )
-        for direction in directions
+        for direction in bar_directions
         for contrast in contrasts
-        for w_deg in ws_deg
+        for bar_w_deg in bar_ws_deg
     ]
 
 
@@ -104,7 +104,7 @@ def t_from_bar_bound(
 def mbar_sweep_end_t(
     specs: Sequence[MbarSpec],
     view_deg: Tuple[float, float, float, float],
-    bar_radius: int,
+    bar_dist: int,
     *,
     multi_bar: bool = True,
     t_onset: int = None,
@@ -116,12 +116,12 @@ def mbar_sweep_end_t(
     t_exit = t_onset
     for spec in specs:
         for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
-            spec, view_deg, bar_radius, multi_bar=multi_bar,
+            spec, view_deg, bar_dist, multi_bar=multi_bar,
         ):
             if spec.direction in ("right", "up"):
-                bar_bound, bar_bound_end = float(bar_bound0) - float(spec.w_deg), float(bar_bound1)
+                bar_bound, bar_bound_end = float(bar_bound0) - float(spec.bar_w_deg), float(bar_bound1)
             elif spec.direction in ("left", "down"):
-                bar_bound, bar_bound_end = float(bar_bound1) + float(spec.w_deg), float(bar_bound0)
+                bar_bound, bar_bound_end = float(bar_bound1) + float(spec.bar_w_deg), float(bar_bound0)
             else:
                 raise ValueError(f"unknown direction {spec.direction!r}")
             t_exit = max(
@@ -134,7 +134,7 @@ def mbar_sweep_end_t(
 def mbar_n_t(
     specs: Sequence[MbarSpec],
     view_deg: Tuple[float, float, float, float],
-    bar_radius: int,
+    bar_dist: int,
     *,
     multi_bar: bool = True,
     t_onset: int = None,
@@ -143,14 +143,14 @@ def mbar_n_t(
 ) -> int:
     """Simulation length: baseline + multi-bar sweep + post-sweep tail."""
     return mbar_sweep_end_t(
-        specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
+        specs, view_deg, bar_dist, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
     ) + t_from_ms(t_tail_ms, delta_ms=delta_ms)
 
 
 def mbar_transit_times(
     spec: MbarSpec,
     view_deg: Tuple[float, float, float, float],
-    bar_radius: int,
+    bar_dist: int,
     *,
     multi_bar: bool = True,
     t_onset: int = None,
@@ -159,25 +159,25 @@ def mbar_transit_times(
 ) -> Tuple[int, int, int]:
     """Return ``(entry, mid, exit)`` t idxs for the first simultaneous bar."""
     bar_bound0, bar_bound1 = bar_bound0_bar_bound1s(
-        spec, view_deg, bar_radius, multi_bar=multi_bar,
+        spec, view_deg, bar_dist, multi_bar=multi_bar,
     )[0]
-    w_deg = float(spec.w_deg)
+    bar_w_deg = float(spec.bar_w_deg)
     shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
     if spec.direction in ("left", "down"):
         shift_deg = -shift_deg
     elif spec.direction not in ("right", "up"):
         raise ValueError(f"unknown direction {spec.direction!r}")
     if spec.direction in ("right", "up"):
-        bar_bound, bar_bound_end = float(bar_bound0) - w_deg, float(bar_bound1)
+        bar_bound, bar_bound_end = float(bar_bound0) - bar_w_deg, float(bar_bound1)
     else:
-        bar_bound, bar_bound_end = float(bar_bound1) + w_deg, float(bar_bound0)
+        bar_bound, bar_bound_end = float(bar_bound1) + bar_w_deg, float(bar_bound0)
     return (
         t_from_bar_bound(spec, bar_bound, bar_bound + shift_deg, t_onset, delta_ms, n_t),
         t_from_bar_bound(
             spec,
             bar_bound,
             float(bar_bound0) + 0.5 * (
-                float(bar_bound1) - float(bar_bound0) - math.copysign(1.0, shift_deg) * w_deg
+                float(bar_bound1) - float(bar_bound0) - math.copysign(1.0, shift_deg) * bar_w_deg
             ),
             t_onset,
             delta_ms,
@@ -210,7 +210,7 @@ def build_i_sti_hex(
     hexes: Sequence[Hex],
     specs: Sequence[MbarSpec],
     n_t: int,
-    bar_radius: int,
+    bar_dist: int,
     *,
     multi_bar: bool = True,
     t_onset: int = None,
@@ -237,7 +237,7 @@ def build_i_sti_hex(
 
     by_geometry: dict[Tuple[str, float, float], List[int]] = {}
     for b, spec in enumerate(specs):
-        geometry = (spec.direction, float(spec.w_deg), float(spec.speed_deg_over_s))
+        geometry = (spec.direction, float(spec.bar_w_deg), float(spec.speed_deg_over_s))
         by_geometry.setdefault(geometry, []).append(b)
 
     for bs in by_geometry.values():
@@ -250,20 +250,24 @@ def build_i_sti_hex(
         n_post = n_t - t_onset
         fills = np.zeros((n_post, n_hex), dtype=np.float64)
         for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
-            spec, view_deg, bar_radius, multi_bar=multi_bar,
+            spec, view_deg, bar_dist, multi_bar=multi_bar,
         ):
             if spec.direction in ("right", "up"):
-                bar_bound = float(bar_bound0) - float(spec.w_deg)
+                bar_bound = float(bar_bound0) - float(spec.bar_w_deg)
             else:
-                bar_bound = float(bar_bound1) + float(spec.w_deg)
+                bar_bound = float(bar_bound1) + float(spec.bar_w_deg)
             for t in range(n_post):
                 visible_bar = bar_bounds(spec, bar_bound, view_deg, bar_bound0, bar_bound1)
                 if visible_bar is not None:
                     x_deg0, y_deg0, x_deg1, y_deg1 = visible_bar
                     for hex_idx in range(n_hex):
                         hex = hexes[hex_idx]
+                        vertex_degs = hex_vertices(
+                            float(hex.x) * float(DEG), float(hex.y) * float(DEG),
+                        )
                         fills[t, hex_idx] += _fill(
-                            hex.vertex_x_degs, hex.vertex_y_degs,
+                            np.asarray(vertex_degs[:, 0], dtype=np.float64),
+                            np.asarray(vertex_degs[:, 1], dtype=np.float64),
                             x_deg0, y_deg0, x_deg1, y_deg1,
                         )
                 bar_bound += shift_deg
@@ -287,7 +291,7 @@ class MbarSti:
     i_baseline: float
     sweep_t: int
     sweep_s: float
-    bar_radius: int
+    bar_dist: int
     multi_bar: bool
 
 
@@ -366,7 +370,7 @@ def _mbar_cache_digest(
     t_onset: int,
     delta_ms: float,
     i_baseline: float,
-    bar_radius: int,
+    bar_dist: int,
     multi_bar: bool = True,
     i_sti: Optional[float] = None,
 ) -> str:
@@ -376,13 +380,13 @@ def _mbar_cache_digest(
         "network_mtime_ns": stat.st_mtime_ns,
         "network_size": stat.st_size,
         "hex_uv": list(hex_uv),
-        "bar_radius": int(bar_radius),
+        "bar_dist": int(bar_dist),
         "multi_bar": bool(multi_bar),
         "specs": [
             {
                 "direction": spec.direction,
                 "contrast": spec.contrast,
-                "w_deg": spec.w_deg,
+                "bar_w_deg": spec.bar_w_deg,
                 "speed_deg_over_s": spec.speed_deg_over_s,
             }
             for spec in specs
@@ -404,14 +408,14 @@ def _mbar_cache_path(
     t_onset: int,
     delta_ms: float,
     i_baseline: float,
-    bar_radius: int,
+    bar_dist: int,
     multi_bar: bool = True,
     i_sti: Optional[float] = None,
 ) -> Path:
     return (
         Path(network_json).resolve().parent
         / MBAR_CACHE_DIRNAME
-        / f"{_mbar_cache_digest(network_json, specs, hex_uv, n_t, t_onset, delta_ms, i_baseline, bar_radius, multi_bar, i_sti)}.npz"
+        / f"{_mbar_cache_digest(network_json, specs, hex_uv, n_t, t_onset, delta_ms, i_baseline, bar_dist, multi_bar, i_sti)}.npz"
     )
 
 
@@ -439,7 +443,7 @@ def build_mbar_signals(
     t_onset: int = None,
     *,
     delta_ms: float,
-    bar_radius: int = BAR_RADIUS,
+    bar_dist: int,
     multi_bar: bool = True,
     i_baseline: float,
     i_sti: float,
@@ -452,7 +456,7 @@ def build_mbar_signals(
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
     Peak current ``i_sti`` is for this build (one contrast at a time).
     """
-    bar_radius = int(bar_radius)
+    bar_dist = int(bar_dist)
     multi_bar = bool(multi_bar)
     specs = list(specs)
     i_sti = float(i_sti)
@@ -461,11 +465,11 @@ def build_mbar_signals(
     view_deg = view_bounds(sti)
     if n_t is None:
         n_t = mbar_n_t(
-            specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
+            specs, view_deg, bar_dist, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
         )
     n_b = len(specs)
     sweep_t = mbar_sweep_end_t(
-        specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
+        specs, view_deg, bar_dist, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
     ) - t_onset
 
     cache_path: Optional[Path] = None
@@ -474,7 +478,7 @@ def build_mbar_signals(
     if source_json is not None:
         cache_path = _mbar_cache_path(
             source_json, specs, hex_uv, n_t, t_onset, delta_ms,
-            i_baseline, bar_radius, multi_bar, i_sti,
+            i_baseline, bar_dist, multi_bar, i_sti,
         )
 
     i_sti_hex: Optional[np.ndarray] = None
@@ -485,7 +489,7 @@ def build_mbar_signals(
 
     if i_sti_hex is None:
         i_sti_hex = build_i_sti_hex(
-            sti, specs, n_t=n_t, bar_radius=bar_radius, multi_bar=multi_bar,
+            sti, specs, n_t=n_t, bar_dist=bar_dist, multi_bar=multi_bar,
             t_onset=t_onset, delta_ms=delta_ms,
             i_baseline=i_baseline, i_sti=i_sti,
         )
@@ -503,6 +507,6 @@ def build_mbar_signals(
         i_baseline=i_baseline,
         sweep_t=sweep_t,
         sweep_s=sweep_t * delta_ms / 1000.0,
-        bar_radius=bar_radius,
+        bar_dist=bar_dist,
         multi_bar=multi_bar,
     )

@@ -32,7 +32,7 @@ import network.path  # noqa: F401  # FAFB on sys.path
 import analyze_cell_syn
 import train
 import figure.plot as plot
-import train.implementation as train_mod
+from train.implementation import load_best_node_vals
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_idxs
 from network.construction import load_network_json
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        node_vals, cells_npz, pairs = train_mod.load_best_node_vals(run_dir)
+        node_vals, cells_npz, pairs = load_best_node_vals(run_dir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
 

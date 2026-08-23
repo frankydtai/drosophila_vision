@@ -36,7 +36,7 @@ import matplotlib.pyplot as plt
 import network.path  # noqa: F401
 import numpy as np
 import train
-import train.implementation as train_mod
+from train.implementation import load_best_node_vals
 import figure.plot as plot
 import figure.spot as spot
 from figure.panel import (
@@ -310,7 +310,7 @@ def save_syn_sign_figures(run_dir, *, post=False, bins=None) -> None:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        node_vals, cells_npz, pairs = train_mod.load_best_node_vals(run_dir)
+        node_vals, cells_npz, pairs = load_best_node_vals(run_dir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
     if "syn_strength_cell" not in node_vals:
@@ -355,9 +355,9 @@ def save_syn_sign_figures(run_dir, *, post=False, bins=None) -> None:
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(hydra_config) -> None:
-    from config import apply_config
+    from config import resolve_config
 
-    apply_config(hydra_config)
+    resolve_config(hydra_config)
     post = bool(ANALYZE_SYN_SIGN["post"])
     bins = int(ANALYZE_SYN_SIGN["bins"])
     for run in ANALYZE_RUNS:

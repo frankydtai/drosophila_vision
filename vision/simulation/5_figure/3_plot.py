@@ -17,7 +17,14 @@ from figure.panel import (
     plot_cost_total,
 )
 from train.session import run_data_dir
-from train.implementation import resolve_run_dir
+from train.implementation import (
+    best_param_path,
+    load_best_node_vals,
+    load_stored_costs,
+    resolve_run_dir,
+    save_best_param,
+    session_z_from_node_vals,
+)
 from network.construction import cell_rows
 
 
@@ -36,8 +43,10 @@ def session_filter_figure_token(session) -> str:
 def figure_subtitle_sti_geo(session, task):
     """Subtitle suffix from sti geometry (centers × shifts, hex count)."""
     opts = (session.train_opts or {}).get(f'{task}_sti_opts') or {}
-    sti_geo_mod = importlib.import_module('task.' + task + '.sti_geo')
-    resolve = getattr(sti_geo_mod, 'resolve_' + task)
+    resolve = getattr(
+        importlib.import_module('task.' + task + '.sti_geo'),
+        'resolve_' + task,
+    )
     geo = resolve(session.connectome, sti_opts=opts)
     n_center = len(geo.centers)
     n_shift = len(geo.shifts)
@@ -46,10 +55,6 @@ def figure_subtitle_sti_geo(session, task):
         f'  [avg over {n_center} centers x {n_shift} shifts = {n_center * n_shift}]\n'
         f'({n_hex} hexes in network)'
     )
-
-
-def _figure_module(task):
-    return importlib.import_module('figure.' + task)
 
 
 def plot_cost(costs, path, *, costs_by_part=None, part_order=None, session=None):
@@ -163,7 +168,7 @@ def resolve_model(run_dir, model=None):
 
 
 def select_best(params, session, *, final_costs=None, verbose=True):
-    """Pick the best parameter row via ``argmin`` of costs; recompute only when not supplied."""
+    """Pick the best parameter row via ``argmin`` of costs; ``calc_cost`` only when not supplied."""
     params = np.atleast_2d(params)
     valid_mask = np.any(params != 0, axis=1)
     valid = params[valid_mask]
@@ -200,31 +205,19 @@ def select_best(params, session, *, final_costs=None, verbose=True):
 
 def _session_z_from_best_param(session, run_dir):
     """Remap ``best_param.npz`` per-param vals onto ``session``; return ``(session, z)``."""
-    import train.implementation as train_mod
-
-    node_vals, cells, pairs = train_mod.load_best_node_vals(run_dir)
-    node_vals_remapped = train.remap_node_vals(
-        node_vals, cells, pairs, train.schema_copy(session.schema), session.connectome,
-    )
-    schema = train.schema_with_param_carry(train.schema_copy(session.schema), node_vals_remapped)
-    session = session.with_schema(schema)
-    z = train.z_from_node_vals(
-        node_vals_remapped, schema, dtype=session.sim_dtype, device=session.device,
-    )
-    return session, z
+    node_vals, cells, pairs = load_best_node_vals(run_dir)
+    return session_z_from_node_vals(node_vals, cells, pairs, session)
 
 
 def load_best(run_dir, *, model=None, verbose=False):
     """Load session and best ``z`` from a train run (``best_param.npz`` + costs)."""
-    import train.implementation as train_mod
-
     run_dir = os.path.abspath(run_dir)
     if not os.path.isdir(run_dir):
         raise SystemExit(f'run dir not found: {run_dir}')
     model = resolve_model(run_dir, model=model)
     session, z = _session_z_from_best_param(train.session_from_run_dir(run_dir, model=model), run_dir)
     best_cost = None
-    final_costs, _, _, _ = train_mod.load_stored_costs(run_dir)
+    final_costs, _, _, _ = load_stored_costs(run_dir)
     if final_costs is not None and len(final_costs) > 0:
         best_cost = float(final_costs[int(np.argmin(final_costs))])
     if best_cost is None:
@@ -349,7 +342,7 @@ def override_session(
     return session, z, ms_changed
 
 
-def _format_filename_token(value):
+def _filename_token(value):
     val = float(value)
     if val == int(val):
         return str(int(val))
@@ -383,7 +376,7 @@ def ms_filename_suffix(
         ("delta_pre", delta_ms_pre),
     ):
         if val is not None:
-            parts.append(f"{name}_{_format_filename_token(val)}")
+            parts.append(f"{name}_{_filename_token(val)}")
     if not parts:
         return ""
     return "_" + "_".join(parts)
@@ -406,11 +399,11 @@ def param_filename_suffix(param_vals=None):
             for node, number in bag.items():
                 parts.append("_".join([
                     str(param), "val", str(node).replace(":", "_"),
-                    _format_filename_token(number),
+                    _filename_token(number),
                 ]))
         else:
             parts.append("_".join([
-                str(param), "val", _format_filename_token(bag),
+                str(param), "val", _filename_token(bag),
             ]))
     if not parts:
         return ""
@@ -419,9 +412,7 @@ def param_filename_suffix(param_vals=None):
 
 def _stored_cost_parts(run_dir):
     """Best-run per-part costs from ``costs_by_part.npz`` (no forward)."""
-    import train.implementation as train_mod
-
-    final_costs, _, _, final_costs_by_part = train_mod.load_stored_costs(run_dir)
+    final_costs, _, _, final_costs_by_part = load_stored_costs(run_dir)
     if not final_costs_by_part or final_costs is None or len(final_costs) == 0:
         return {}
     run = int(np.argmin(np.asarray(final_costs)))
@@ -437,131 +428,98 @@ def plot_path(run_dir, token, file_suffix="", *, html=False):
     return os.path.join(run_dir, f"{token}{file_suffix}{'.html' if html else '.png'}")
 
 
-def readout_figure_token(base_token, session):
+def figure_path_token(base_token, session):
     """``{base_token}_v`` / ``{base_token}_ca`` (filter chooses ``v`` or ``ca``, not both)."""
     return f"{base_token}_{session_filter_figure_token(session)}"
 
 
-def readout_gt_token(task):
+def figure_gt_token(task):
     return f"{task}_gt"
 
 
-def readout_all_token(task):
+def figure_all_token(task):
     return f"{task}_all"
 
 
-def _readout_kwargs(mod, **kwargs):
+def _readout_kwargs(task, **kwargs):
     readout_kwargs = {}
     if kwargs.get('ms_shown') is not None:
         readout_kwargs['ms_shown'] = kwargs['ms_shown']
-    if getattr(mod, 'PLOT_AT_XY', False):
+    figure_task = importlib.import_module('figure.' + task)
+    if getattr(figure_task, 'PLOT_AT_XY', False):
         readout_kwargs['at_xs'] = kwargs.get('at_x')
         readout_kwargs['at_ys'] = kwargs.get('at_y')
-    if getattr(mod, 'PLOT_ALIGN_XY', False):
+    if getattr(figure_task, 'PLOT_ALIGN_XY', False):
         readout_kwargs['align_at_x'] = kwargs.get('align_at_x')
         readout_kwargs['align_at_y'] = kwargs.get('align_at_y')
     return readout_kwargs
 
 
-def plot_figures(session, z, run_dir, suffix, model_all, *, task, mod, **kwargs):
-    """Dispatch gt/all figures for one train ``task`` via hooks on ``mod``."""
+def plot_figures(session, z, run_dir, suffix, model_all, *, task, **kwargs):
+    """Dispatch gt/all figures for one train ``task`` via ``figure.<task>`` hooks."""
+    figure_task = importlib.import_module('figure.' + task)
     token = session_filter_figure_token(session)
-    gt_token = readout_gt_token(task)
-    all_token = readout_all_token(task)
+    gt_token = figure_gt_token(task)
+    all_token = figure_all_token(task)
     file_suffix = kwargs.get('file_suffix', '')
     html = kwargs.get('html', False)
     figure_kwargs = dict(
         gts=kwargs.get('gts'),
         cost_parts=kwargs.get('cost_parts'),
     )
-    readout_kwargs = _readout_kwargs(mod, **kwargs)
+    readout_kwargs = _readout_kwargs(task, **kwargs)
     contrasts = tuple(session.contrasts)
-    paired = getattr(mod, 'PLOT_PAIRED', False)
     plot_gt_extra = {}
-    if paired and getattr(mod, 'PLOT_ALIGN_XY', False):
+    if getattr(figure_task, 'PLOT_ALIGN_XY', False):
         plot_gt_extra['right_only'] = kwargs.get('plot_right_only', True)
 
     if set(contrasts) >= {"bright", "dark"}:
-        if paired:
-            readout_bright = mod.build_readout(session, z, "bright", **readout_kwargs)
-            readout_dark = mod.build_readout(session, z, "dark", **readout_kwargs)
-            gt_title, all_title = mod.figure_titles(session, suffix, token)
-            gt_path = plot_path(
-                run_dir, readout_figure_token(gt_token, session), file_suffix, html=html,
-            )
-            mod.plot_gt(
-                gt_path,
-                readout=readout_bright,
-                paired_readout=readout_dark,
-                title=gt_title,
-                cost_parts=figure_kwargs.get('cost_parts'),
-                **plot_gt_extra,
-            )
-            all_path = None
-            if model_all:
-                all_path = plot_path(
-                    run_dir, readout_figure_token(all_token, session), file_suffix, html=html,
-                )
-                mod.plot_all(
-                    all_path,
-                    readout=readout_bright,
-                    paired_readout=readout_dark,
-                    title=all_title,
-                    cost_parts=figure_kwargs.get('cost_parts'),
-                    **plot_gt_extra,
-                )
-            return gt_path, all_path
         readouts = {
-            contrast: mod.build_readout(session, z, contrast, **readout_kwargs)
+            contrast: figure_task.build_readout(session, z, contrast, **readout_kwargs)
             for contrast in ("bright", "dark")
         }
-        gt_title, all_title = mod.figure_titles(session, suffix, token)
+        gt_title, all_title = figure_task.figure_titles(session, suffix, token)
         gt_path = plot_path(
-            run_dir, readout_figure_token(gt_token, session), file_suffix, html=html,
+            run_dir, figure_path_token(gt_token, session), file_suffix, html=html,
         )
-        mod.plot_gt(gt_path, readouts=readouts, title=gt_title, **figure_kwargs)
+        figure_task.plot_gt(
+            gt_path, readouts=readouts, title=gt_title,
+            cost_parts=figure_kwargs.get('cost_parts'),
+            **plot_gt_extra,
+        )
         all_path = None
         if model_all:
             all_path = plot_path(
-                run_dir, readout_figure_token(all_token, session), file_suffix, html=html,
+                run_dir, figure_path_token(all_token, session), file_suffix, html=html,
             )
-            mod.plot_all(all_path, readouts=readouts, title=all_title, **figure_kwargs)
+            figure_task.plot_all(
+                all_path, readouts=readouts, title=all_title,
+                cost_parts=figure_kwargs.get('cost_parts'),
+                **plot_gt_extra,
+            )
         return gt_path, all_path
 
     gt_path = all_path = None
     for contrast in contrasts:
-        gt_title, all_title = mod.figure_titles(session, suffix, token, contrast=contrast)
+        gt_title, all_title = figure_task.figure_titles(session, suffix, token, contrast=contrast)
         gt_path = plot_path(
-            run_dir, readout_figure_token(gt_token, session), file_suffix, html=html,
+            run_dir, figure_path_token(gt_token, session), file_suffix, html=html,
         )
-        if paired:
-            readout = mod.build_readout(session, z, contrast, **readout_kwargs)
-            mod.plot_gt(
-                gt_path,
-                readout=readout,
-                title=gt_title,
+        readouts = {contrast: figure_task.build_readout(session, z, contrast, **readout_kwargs)}
+        figure_task.plot_gt(
+            gt_path, readouts=readouts, title=gt_title,
+            cost_parts=figure_kwargs.get('cost_parts'),
+            **plot_gt_extra,
+        )
+        if model_all:
+            all_path = plot_path(
+                run_dir, figure_path_token(all_token, session), file_suffix, html=html,
+            )
+            figure_task.plot_all(
+                all_path, readouts=readouts, title=all_title,
                 cost_parts=figure_kwargs.get('cost_parts'),
                 **plot_gt_extra,
             )
-            if model_all:
-                all_path = plot_path(
-                    run_dir, readout_figure_token(all_token, session), file_suffix, html=html,
-                )
-                mod.plot_all(
-                    all_path,
-                    readout=readout,
-                    title=all_title,
-                    cost_parts=figure_kwargs.get('cost_parts'),
-                    **plot_gt_extra,
-                )
-            continue
-        readouts = {contrast: mod.build_readout(session, z, contrast, **readout_kwargs)}
-        mod.plot_gt(gt_path, readouts=readouts, title=gt_title, **figure_kwargs)
-        if model_all:
-            all_path = plot_path(
-                run_dir, readout_figure_token(all_token, session), file_suffix, html=html,
-            )
-            mod.plot_all(all_path, readouts=readouts, title=all_title, **figure_kwargs)
     return gt_path, all_path
 
 
@@ -574,9 +532,7 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    file_suffix="", html=False, ms_shown=None,
-                   recompute_cost=False):
-    import train.implementation as train_mod
-
+                   calc_cost=False):
     os.makedirs(run_dir, exist_ok=True)
     ctx = context_dir or run_dir
     if model is None and session is not None:
@@ -588,14 +544,14 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
 
     params = np.atleast_2d(params)
     if final_costs is None:
-        final_costs, _, _, _ = train_mod.load_stored_costs(run_dir)
+        final_costs, _, _, _ = load_stored_costs(run_dir)
 
     print(f'plot device={_plot_device_label()}')
     best, best_cost = select_best(
         params, session, final_costs=final_costs,
     )
     z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
-    if recompute_cost:
+    if calc_cost:
         with torch.no_grad():
             parts = train.calc_cost_parts(z, session)
             cost_parts = {k: float(v.item()) for k, v in parts.items()}
@@ -613,9 +569,8 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
     if only_tasks is not None:
         tasks = [task for task in tasks if task in only_tasks]
 
-    active_mods = [_figure_module(task) for task in tasks]
     if (at_x is not None or at_y is not None) and not any(
-        getattr(mod, 'PLOT_AT_XY', False) for mod in active_mods
+        getattr(importlib.import_module('figure.' + task), 'PLOT_AT_XY', False) for task in tasks
     ):
         raise SystemExit('--x/--y require a task figure module with PLOT_AT_XY')
     if align_at_x is not None or align_at_y is not None:
@@ -623,14 +578,13 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
             raise SystemExit('--align-xy requires X,Y')
         if at_x is None and at_y is None:
             raise SystemExit('--align-xy requires --x and/or --y')
-        if not any(getattr(mod, 'PLOT_ALIGN_XY', False) for mod in active_mods):
+        if not any(getattr(importlib.import_module('figure.' + task), 'PLOT_ALIGN_XY', False) for task in tasks):
             raise SystemExit('--align-xy requires a task figure module with PLOT_ALIGN_XY')
 
     for task in tasks:
-        mod = _figure_module(task)
         plot_figures(
             session, z, run_dir, suffix, model_all,
-            task=task, mod=mod,
+            task=task,
             gts=gts,
             file_suffix=file_suffix,
             html=html,
@@ -646,7 +600,7 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
     if save_data:
         os.makedirs(run_data_dir(os.path.abspath(run_dir)), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
-        train_mod.save_best_param(run_dir, z_best, session)
+        save_best_param(run_dir, z_best, session)
     return best, best_cost
 
 
@@ -687,15 +641,6 @@ def parse_ms_shown(token, *, flag="ms_shown"):
     return start, stop
 
 
-def override_params(z, schema, session, param_vals=None):
-    try:
-        return train.override_params(
-            z, schema, session, param_vals=param_vals,
-        )
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
-
-
 def plot_trained_run(
     run_dir,
     *,
@@ -711,8 +656,6 @@ def plot_trained_run(
     delta_ms_pre=None,
 ):
     """Re-plot one trained run (shared by Hydra ``figure.plot`` main)."""
-    import train.implementation as train_mod
-
     param_vals = param_vals or {}
     session, z, best_cost = load_best(run_dir, verbose=True)
     session, z, ms_changed = override_session(
@@ -731,11 +674,14 @@ def plot_trained_run(
         else torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64,
                           device=session.device)
     )
-    z, schema = override_params(
-        z, train.schema_copy(session.schema), session, param_vals=param_vals,
-    )
+    try:
+        z, schema = train.override_params(
+            z, train.schema_copy(session.schema), session, param_vals=param_vals,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     session = session.with_schema(schema)
-    recompute_cost = bool(
+    calc_cost = bool(
         ms_changed or euler is not None or filter is not None or param_vals
     )
     file_suffix = (
@@ -745,7 +691,7 @@ def plot_trained_run(
     )
     model = resolve_model(run_dir)
     z = z.detach().cpu().numpy()
-    print(f'params={train_mod.best_param_path(run_dir)}')
+    print(f'params={best_param_path(run_dir)}')
     print(f'model={model} ({z.shape[-1]} params)')
     plot_rf_t(
         np.atleast_2d(z),
@@ -755,7 +701,7 @@ def plot_trained_run(
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
         save_data=not param_vals,
-        recompute_cost=recompute_cost,
+        calc_cost=calc_cost,
         **figure_kwargs,
     )
 
@@ -764,12 +710,12 @@ def plot_trained_run(
 def main(hydra_config):
     from config import (
         active_config,
-        apply_config,
+        resolve_config,
         resolve_figure_kwargs,
         session_kwargs_from_cli,
     )
 
-    apply_config(hydra_config)
+    resolve_config(hydra_config)
     figure_kwargs = resolve_figure_kwargs(hydra_config)
     run_dir = resolve_run_dir(active_config()["run_path"])
     session_kwargs = session_kwargs_from_cli(hydra_config)

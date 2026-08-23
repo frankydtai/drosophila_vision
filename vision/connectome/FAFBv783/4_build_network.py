@@ -403,7 +403,7 @@ def _write_summary(run_dir: Path, meta: Dict[str, object]) -> Path:
 
     n_node = int(meta["n_node"])
     n_with_column = int(meta["n_node_with_column"])
-    lines = [
+    labels = [
         f"network summary: {run_dir.name}",
         "=" * 40,
         f"side                 : {meta['side']}",
@@ -425,7 +425,7 @@ def _write_summary(run_dir: Path, meta: Dict[str, object]) -> Path:
         "",
     ]
     summary_path = run_dir / "summary.txt"
-    summary_path.write_text("\n".join(lines))
+    summary_path.write_text("\n".join(labels))
     logger.info("Wrote %s", summary_path)
     return summary_path
 

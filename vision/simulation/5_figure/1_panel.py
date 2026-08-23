@@ -75,16 +75,16 @@ def _cost_yscale(ax, *costs):
 
 def annotate_v_th(ax, v_th, *, e_leak=None):
     """Text annotation ``e_leak=…`` / ``v_th=…`` on time panels (no horizontal line)."""
-    lines = []
+    labels = []
     if v_th is not None and np.isfinite(v_th):
-        lines.append(f"v_th={float(v_th):.1f}")
+        labels.append(f"v_th={float(v_th):.1f}")
     if e_leak is not None and np.isfinite(e_leak):
-        lines.append(f"e_leak={float(e_leak):.1f}")
-    if not lines:
+        labels.append(f"e_leak={float(e_leak):.1f}")
+    if not labels:
         return
     ax.text(
         0.98, 0.02,
-        '\n'.join(lines),
+        '\n'.join(labels),
         transform=ax.transAxes,
         ha="right", va="bottom",
         fontsize=6, color="k",
@@ -612,16 +612,20 @@ def _save_interactive_html(fig, path):
                 vertices = np.asarray(collection_path.vertices, dtype=float)
                 if vertices.size == 0:
                     continue
-                face_color_str = _plotly_color(
-                    face_colors[min(path_index, len(face_colors) - 1)],
-                )
                 traces.append(go.Scatter(
                     x=vertices[:, 0],
                     y=vertices[:, 1],
                     mode='lines',
                     fill='toself',
-                    fillcolor=face_color_str,
-                    line=dict(width=0, color=face_color_str),
+                    fillcolor=_plotly_color(
+                        face_colors[min(path_index, len(face_colors) - 1)],
+                    ),
+                    line=dict(
+                        width=0,
+                        color=_plotly_color(
+                            face_colors[min(path_index, len(face_colors) - 1)],
+                        ),
+                    ),
                     hoverinfo='skip',
                     showlegend=False,
                     xaxis=xaxis,
