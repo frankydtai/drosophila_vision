@@ -8,9 +8,9 @@ from typing import List, Optional, Sequence, Tuple
 import numpy as np
 
 from neuron.borst import t_from_ms
-from task.mbar.sti_geo import sbar_line_hex_mask
 from task.sbar.sti_geo import (
     i_sti_nodes_from_hexes,
+    sbar_line_hex_mask,
     sti_hexes,
 )
 from task.spread.sti_spec import sti_mask

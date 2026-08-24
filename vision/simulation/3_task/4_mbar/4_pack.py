@@ -43,6 +43,7 @@ from task.mbar.sti_spec import (
     MbarSpec,
     ND_IDX,
     PD_IDX,
+    PD_ND_LABELS,
     build_mbar_signals,
     build_mbar_t0_grids,
     gruntman_mbar_specs,
@@ -82,6 +83,7 @@ class MbarPack:
     entry_bs: torch.Tensor
     entry_nodes: torch.Tensor
     cost_t0s: Optional[torch.Tensor] = None
+    cost_ts: Optional[torch.Tensor] = None
     cost_radius: Optional[int] = None
     cost_pd_nds: Optional[torch.Tensor] = None
     entry_part_keys: Tuple[str, ...] = ()

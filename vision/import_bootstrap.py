@@ -100,10 +100,16 @@ def _iter_children(directory: Path) -> Iterable[Path]:
 
 
 def child_by_logical(directory: Path, want: str) -> Optional[Path]:
-    """Return the child whose logical name equals ``want``, or None."""
+    """Return the child whose logical name equals ``want``, or None.
+
+    Only directories and ``.py`` modules participate; sidecars such as
+    ``run.slurm`` / ``run.log`` must not collide with ``run.py``.
+    """
     child_path: Optional[Path] = None
     for child in _iter_children(directory):
         if child.name == "__init__.py":
+            continue
+        if child.is_file() and child.suffix != ".py":
             continue
         key = logical_name(child.stem if child.is_file() else child.name)
         if key != want:

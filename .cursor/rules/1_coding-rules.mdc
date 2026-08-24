@@ -7,20 +7,6 @@ alwaysApply: true
 
 ## No new files — check this first
 
-**Before** scope, ① Plan, sibling Read, or any `vision/` edit: every path in the task must be an **existing file**, unless the user **explicitly approved that exact new path** in this conversation.
-
-- **Forbidden:** `Write` / create / add any new file under `vision/` — especially new `.py` modules — without that approval (e.g. user says “add `5_figure/1_trace.py`”).
-- **Not approval:** task prose (“共用基礎”), refactor convenience, “cleaner split”, duplicate code, or an agent-proposed path without a user yes. **Propose path + role, then stop** — no implementation, no draft, no scaffold.
-- **Default refactor:** extend an **existing** module for the role (e.g. shared trace figure → `5_figure/2_1_spread.py` or `5_figure/1_panel.py`; not a new `1_trace.py` unless approved).
-- **Glob/Read** each path in **Files** before ① is complete; a path not on disk without approval → **no `vision/` edit**.
-- **④ fails** if the diff adds any new file under `vision/` without that approval.
-
----
-
-Scope: `vision/`. **Execution order is fixed:** ① Plan → ② Sibling → ③ Names → ④ Write (see `0_agent_gate.mdc` checkboxes). First `vision/` code edit only after ①②③ are done for the current function.
-
-**Division of labor:** run order and checkboxes → `0_agent_gate.mdc` only (do not restate ①–④ procedure there). Naming tokens and **Forbidden** → `lexicon.mdc` only (do not restate token lists here). Disk paths, import graph, entrypoints → Read/Grep the repo (do not copy here).
-
 ---
 
 ### Audit — “哪些 code 違反 coding-rules?” (read-only; no `vision/` edits)

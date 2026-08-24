@@ -72,9 +72,9 @@ Forbidden: `batch`, `batches`, `batch_idx`, `n_batch`, `batched`, and other `*ba
 
 ### `bar` / `bars`
 
-Definition: One geometric bar — ``direction`` plus ``bar_w`` (``bar_w_deg``) — placed on the motion axis by a ``bar_bound``. Not the task family (``mbar`` / ``sbar``). ``bar_dist`` is the integer hex-node gap between simultaneous ``multi_bar`` tiles (not bar angular width). ``bar_span_deg`` is one ``multi_bar`` tile step along ``direction``: ``(ceil(bar_w_deg / DEG) + bar_dist) * DEG``.
-Example: `bar_bounds(bar, bar_bound, view_deg, bar_bound0, bar_bound1)`, `bar_dist`, `SBAR_INPUT_GEO["bar_dist"]`, `bar_span_deg = (math.ceil(float(bar.bar_w_deg) / float(DEG)) + int(bar_dist)) * float(DEG)`, `Bar` (protocol), `MbarSpec.bar_w_deg`
-Forbidden: calling the task family `bar`; `width` (that is `bar_w` / ``bar_w_deg``); bare ``w_deg`` / ``ws_deg`` on bar fields (use ``bar_w_deg`` / ``bar_ws_deg``); `col` / `cols` (figure only); `pitch` / `pitch_deg` / ``stride`` for ``bar_span_deg``; `w_hex` / ``*_hex`` for bar width hex-step count — use ``bar_w_deg`` and ``bar_span_deg``; ``bar_radius`` (use ``bar_dist``).
+Definition: One geometric bar — ``direction`` plus ``bar_w`` (``bar_w_deg``) — placed on the motion axis by a ``bar_bound``. Not the task family (``mbar`` / ``sbar``). ``bar_dist`` is the integer hex-axis step between simultaneous ``multi_bar`` anchors (not bar angular width): sbar lights motion-axis positions at multiples of ``bar_dist`` (e.g. ``bar_dist=4`` → …,-8,-4,0,4,8,…). ``bar_span_deg`` is one mbar ``multi_bar`` tile step along ``direction``: ``(ceil(bar_w_deg / DEG) + bar_dist) * DEG``.
+Example: `bar_bounds(bar, bar_bound, view_deg, bar_bound0, bar_bound1)`, `bar_dist`, `SBAR_INPUT_GEO["bar_dist"]`, `sbar_line_hex_mask(..., bar_dist=...)`, `bar_span_deg = (math.ceil(float(bar.bar_w_deg) / float(DEG)) + int(bar_dist)) * float(DEG)`, `Bar` (protocol), `MbarSpec.bar_w_deg`
+Forbidden: calling the task family `bar`; `width` (that is `bar_w` / ``bar_w_deg``); bare ``w_deg`` / ``ws_deg`` on bar fields (use ``bar_w_deg`` / ``bar_ws_deg``); `col` / `cols` (figure only); `pitch` / `pitch_deg` / ``stride``; ``bar_span`` / ``1 + bar_dist`` as an sbar step (use ``bar_dist``); `w_hex` / ``*_hex`` for bar width hex-step count — use ``bar_w_deg`` and ``bar_span_deg``; ``bar_radius`` (use ``bar_dist``).
 
 ### `bound` / `bounds`
 
@@ -525,12 +525,6 @@ Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do n
 Definition: One moving-bar sti condition — direction × contrast × ``bar_w`` (and speed), identified by token ``left_bright_w1`` / ``right_dark_w4`` / …. Type ``MbarSpec``; plural ``specs`` is a list of those conditions; string id is ``spec_token`` / bag ``spec_tokens``. Orthogonal to ``task`` (``mbar_bright`` holds many specs). Analyze report field ``"spec"`` and CLI ``--spec`` select this condition.
 Example: `MbarSpec(direction=..., contrast=..., bar_w_deg=...)`, `spec.token`, `gruntman_mbar_specs()`, `bar_specs_from_task(...)`, `parse_mbar_spec(token)`, `reports_by_spec[spec][cell]`, `--spec right_bright_w1`
 Forbidden: component-plot layout bags (`_ComponentLayout` / ``layout``); generic config / curve / at_xy bags; connectome run or path strings; ``condition`` / ``variant`` as naming tokens for this concept. Do not use ``tag`` / ``_tag`` / ``*_tag`` for a moving-bar condition id or its bag — that is ``spec`` (e.g. ``left_bright_tag`` → ``left_bright`` or ``spec_token``, ``*_spec_tag`` → ``*_spec_token``). Module files ``sti_spec`` (timing / ``i_sti`` assembly) may keep that basename. Library ``gridspec`` / ``ModuleSpec`` / ``inspect`` may remain.
-
-### `span`
-
-Definition: Integer hex-axis step count between adjacent lit width-1 static-bar anchor positions along the motion axis — one width-1 tile plus ``bar_dist`` gap: ``1 + bar_dist``. Code compound: ``bar_span`` (integer). Degree motion-axis step is ``bar_span_deg`` (see ``### bar``). Sbar overlap GT: two bar traces sum when axis offsets differ by ``bar_span``.
-Example: `bar_span = 1 + int(bar_dist)`, `sbar_line_hex_mask(..., bar_dist=...)`, `lit = lit[0::bar_span]`
-Forbidden: ``stride`` (including ``stride = 1 + bar_dist``); ``pitch`` / ``pitch_deg``; ``bar_span`` as a lexicon headword (headword is ``span`` only)
 
 ### `spot` / `spots`
 

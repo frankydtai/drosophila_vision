@@ -306,9 +306,11 @@ def resolve_train_opts(
 
 
 def _cost_ms_sidecar(cost_ms):
-    """JSON sidecar: interval float or explicit ``mss`` list."""
-    if isinstance(cost_ms, bool) or cost_ms is None:
-        raise ValueError("cost_ms must be an interval or a list of ms")
+    """JSON sidecar: ``null``, interval float, or explicit ``mss`` list."""
+    if cost_ms is None:
+        return None
+    if isinstance(cost_ms, bool):
+        raise ValueError("cost_ms must be null, an interval, or a list of ms")
     if isinstance(cost_ms, dict):
         raise ValueError("cost_ms must be an interval or a list of ms, not a radius map")
     if isinstance(cost_ms, (int, float)):
@@ -417,6 +419,8 @@ def _build_session(
 ) -> TrainSession:
     device = device or active_device()
     sequential = False if sequential is None else bool(sequential)
+    if str(device).startswith("cpu"):
+        sequential = True
     neuron_const = MODEL
     if train_opts is not None:
         train_opts["model"] = model

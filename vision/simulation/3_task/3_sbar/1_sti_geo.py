@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -96,3 +96,43 @@ def i_sti_nodes_from_hexes(i_sti_hex, hexes, n_node):
     if len(hex_idxs):
         i_sti[:, :, np.asarray(nodes, dtype=np.int64)] = i_sti_hex[:, :, np.asarray(hex_idxs, dtype=np.int64)]
     return i_sti
+
+
+def sbar_line_hex_mask(
+    hexes: Sequence,
+    direction: str,
+    bar_dist: int,
+    *,
+    multi_bar: bool = True,
+) -> np.ndarray:
+    """Static-bar width-1 lines: binary ``hex_mask`` ``(n_hex,)`` on ``bar_dist`` steps."""
+    n_hex = len(hexes)
+    hex_mask = np.zeros(n_hex, dtype=np.float64)
+    if n_hex == 0:
+        return hex_mask
+    bar_dist = int(bar_dist)
+    if direction in ("right", "left"):
+        lit = sorted({float(hex.x) for hex in hexes})
+        if direction == "left":
+            lit = lit[::-1]
+        if not multi_bar:
+            lit = lit[:1]
+        elif bar_dist > 0:
+            lit = [v for v in lit if abs(v - bar_dist * round(v / bar_dist)) < 1e-9]
+        for hex_idx, hex in enumerate(hexes):
+            if float(hex.x) in lit:
+                hex_mask[hex_idx] = 1.0
+    elif direction in ("up", "down"):
+        lit = sorted({float(hex.y) for hex in hexes})
+        if direction == "down":
+            lit = lit[::-1]
+        if not multi_bar:
+            lit = lit[:1]
+        elif bar_dist > 0:
+            lit = [v for v in lit if abs(v - bar_dist * round(v / bar_dist)) < 1e-9]
+        for hex_idx, hex in enumerate(hexes):
+            if float(hex.y) in lit:
+                hex_mask[hex_idx] = 1.0
+    else:
+        raise ValueError(f"unknown direction {direction!r}")
+    return hex_mask

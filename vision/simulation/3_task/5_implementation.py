@@ -11,6 +11,7 @@ from config import (
 )
 from task.mbar.gt import expand_gt_cells as expand_mbar_gt_cells
 from task.mbar.pack import build_mbar_pack, resolve_mbar_sti_opts
+from task.sbar.gt import expand_gt_cells as expand_sbar_gt_cells
 from task.sbar.pack import build_sbar_pack, resolve_sbar_sti_opts
 from task.spot.gt import expand_gt_cells as expand_spot_gt_cells
 from task.spot.pack import build_spot_pack, resolve_spot_sti_opts
@@ -80,7 +81,7 @@ _GT_CELLS_EXPAND = {
     "spread": expand_spread_gt_cells,
     "spot": expand_spot_gt_cells,
     "mbar": expand_mbar_gt_cells,
-    "sbar": expand_mbar_gt_cells,
+    "sbar": expand_sbar_gt_cells,
 }
 
 

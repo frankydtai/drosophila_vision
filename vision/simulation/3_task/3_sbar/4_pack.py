@@ -19,15 +19,18 @@ from network.construction import (
     node_cells,
     standardize_cost_radius,
 )
-from task.mbar.gt import GT_CELLS
-from task.mbar.sti_geo import sbar_line_hex_mask
-from task.sbar.gt import load_gt
-from task.sbar.sti_geo import sti_hexes
+from task.sbar.gt import GT_CELLS, load_gt
+from task.sbar.sti_geo import sbar_line_hex_mask, sti_hexes
 from task.sbar.sti_spec import (
     build_sbar_signals,
     gruntman_sbar_specs,
 )
-from task.spread.pack import CostPartPlotSpec, cost_hex_label, cost_sti_hexes
+from task.spread.pack import (
+    CostPartPlotSpec,
+    cost_hex_label,
+    cost_sti_hexes,
+)
+from task.spread.pack import build_cost_ts, post_onset_n_t
 from task.spread.sti_spec import i_baseline_from_i_sti
 
 
@@ -60,6 +63,7 @@ class SbarPack:
     entry_bs: torch.Tensor
     entry_nodes: torch.Tensor
     cost_t0s: Optional[torch.Tensor] = None
+    cost_ts: Optional[torch.Tensor] = None
     cost_radius: Optional[int] = None
     entry_part_keys: Tuple[str, ...] = ()
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
@@ -117,6 +121,28 @@ def build_sbar_gt(
     contrasts: Sequence[str],
     gt_cells: Optional[Sequence[str]] = None,
 ) -> SbarGt:
+    """Build sbar cost GT.
+
+    CRITICAL GT FACTS (from ``3_gt.py`` docstring — read there first):
+    - CSV has exactly 9 distinct positions: -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2 degrees.
+      The 0.5-step positions (e.g. pos+0.5, pos-1.5) ARE REQUIRED — do not skip them.
+    - ``target_width_led == 1`` filter selects width-1 traces only (2.25° wide).
+      The same CSV also has ``target_width_led == 2`` (width-2, 4.5°) — those are a
+      different task variant and MUST be excluded by the ``load_gt`` call.
+    - Trace ID format: ``{cell_prefix}_{PC|NC}_pos{SIGN}_w1``, e.g. ``T4_PC_pos+0.5_w1``.
+      The float position in the trace_id (e.g. ``+0.5``) MUST match the CSV ``position`` field.
+    - ``mid`` = cost-node hex-step ``x`` (left/right) or ``y`` (up/down). Cost
+      entries cover every cost hex whose ``mid`` has a Gruntman GT key (exactly
+      -2..+2), including hexes not on a lit multi_bar line — same split as spot
+      ``spot_cost_radii`` vs ``a_sti_radii``. Lit lines (``sbar_line_hex_mask``)
+      only drive sti and the optional two-trace overlap below.
+
+    Two-trace overlap logic:
+    When multi_bar=True, sti places bars on ``bar_dist`` multiples (e.g. d=4 →
+    …,-8,-4,0,4,8,…). If a cost ``mid`` lies between two lit anchors and CSV
+    has both ``pos{mid}`` and ``pos{b_off}``, GT is their sum; else single
+    ``pos{mid}``.
+    """
     specs = gruntman_sbar_specs(
         contrasts=tuple(contrasts),
         bar_directions=bar_directions,
@@ -149,7 +175,7 @@ def build_sbar_gt(
     cells = node_cells(connectome)
     hexes = sti_hexes(connectome)
     cost_hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
-    bar_span = 1 + int(bar_dist)
+    bar_dist = int(bar_dist)
     t0 = int(sti.t_onset)
     n_t_cost = int(t_from_ms(float(ms_response), delta_ms=float(delta_ms)) + 1)
 
@@ -157,14 +183,10 @@ def build_sbar_gt(
         [], [], [], [], [],
     )
     entry_part_keys: List[str] = []
-    hex_idx = {
-        (int(hex.u), int(hex.v)): hex_idx
-        for hex_idx, hex in enumerate(hexes)
-    }
 
     for b, spec in enumerate(sti.specs):
         hex_mask = sbar_line_hex_mask(
-            hexes, spec.direction, int(bar_dist), multi_bar=bool(multi_bar),
+            hexes, spec.direction, bar_dist, multi_bar=bool(multi_bar),
         )
         if spec.direction in ("right", "left"):
             mids = sorted(
@@ -180,8 +202,6 @@ def build_sbar_gt(
             )
         mids_set = set(mids)
         for hex in cost_hexes:
-            if hex_mask[hex_idx[(int(hex.u), int(hex.v))]] <= 0.0:
-                continue
             mid = float(hex.x if spec.direction in ("right", "left") else hex.y)
             for cell in active:
                 nodes = connectome.nodes_at_uv(hex.u, hex.v, cell, cells=cells)
@@ -189,11 +209,11 @@ def build_sbar_gt(
                     continue
                 gt = None
                 for mid0 in mids:
-                    if not (0.0 < mid - mid0 < float(bar_span)):
+                    if not (0.0 < mid - mid0 < float(bar_dist)):
                         continue
-                    if (mid0 + bar_span) not in mids_set:
+                    if (mid0 + bar_dist) not in mids_set:
                         continue
-                    b_off = mid - mid0 - bar_span
+                    b_off = mid - mid0 - bar_dist
                     if (
                         f"{cell[:2]}_{'PC' if (cell.startswith('T4') and spec.contrast == 'bright') or (cell.startswith('T5') and spec.contrast == 'dark') else 'NC'}_pos{(f'{int(mid):+d}' if float(mid).is_integer() else f'{float(mid):+.1f}')}_w1" in gts
                         and f"{cell[:2]}_{'PC' if (cell.startswith('T4') and spec.contrast == 'bright') or (cell.startswith('T5') and spec.contrast == 'dark') else 'NC'}_pos{(f'{int(b_off):+d}' if float(b_off).is_integer() else f'{float(b_off):+.1f}')}_w1" in gts
@@ -228,7 +248,7 @@ def build_sbar_gt(
         power = 1.0
 
     return SbarGt(
-        i_sti=torch.as_tensor(sti.i_sti, dtype=torch.float64),
+        i_sti=sti.i_sti,
         gts=gts,
         power=power,
         cost_scales=cost_scales,
@@ -328,7 +348,7 @@ def build_sbar_pack(
     sti_opts: Optional[dict],
     opts: dict,
 ):
-    del gt_amp, opts
+    del gt_amp
     if not sti_opts:
         raise ValueError("sbar requires sti opts (from resolve_train_opts / CLI)")
     sti_opts = dict(sti_opts)
@@ -364,6 +384,7 @@ def build_sbar_pack(
         entry_bs=sbar_gt.entry_bs,
         entry_nodes=sbar_gt.entry_nodes,
         cost_t0s=sbar_gt.cost_t0s,
+        cost_ts=build_cost_ts(sti_opts, cost_ms=opts.get("cost_ms")),
         cost_radius=cost_radius,
         entry_part_keys=sbar_gt.entry_part_keys,
         cost_part_plot_specs=_sbar_cost_part_plot_specs(

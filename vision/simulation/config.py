@@ -73,9 +73,14 @@ def load_config() -> dict:
 
 
 def _comma_tokens(value, *, key: str) -> List[str]:
-    if not isinstance(value, str):
-        raise ValueError(f"{key} must be a comma-separated string, got {value!r}")
-    tokens = parse_comma_list(value)
+    if isinstance(value, str):
+        tokens = parse_comma_list(value)
+    elif isinstance(value, (list, tuple)):
+        tokens = [str(token).strip() for token in value if str(token).strip()]
+    else:
+        raise ValueError(
+            f"{key} must be a comma-separated string or list, got {value!r}"
+        )
     if not tokens:
         raise ValueError(f"{key} must list at least one token")
     return tokens

@@ -16,6 +16,10 @@ T4 width-2 NC depolarization responses at positions -4 and -3 are linearly
 interpolated between the visible width-2 markers at -6 and -2 before division
 by the matching width-4 response.
 
+The Figure 2A pulse traces are linearly resampled from their native 5 ms grid
+to a 1 ms grid before scaling.  Original sample values and trace endpoints are
+preserved exactly; no zero padding or extrapolation is introduced.
+
 Outputs ``2ax2bc_digitized.csv`` and ``2ax2bc_digitized.png`` beside this
 script.  The CSV preserves the original voltage as ``source_vm_mv`` and stores
 both component ratios, the final scale, and the scale-selection rule.
@@ -45,12 +49,13 @@ SOURCE_WIDTH_LED = 4
 TARGET_WIDTHS_LED = (1, 2)
 DEGREES_PER_LED = 2.25
 FLASH_DURATION_MS = 160.0
+OUTPUT_DELTA_T_MS = 1.0
 INPUT_TRACE_COUNT = 48
 OUTPUT_SOURCE_POSITIONS = tuple(range(-4, 5))
 OUTPUT_POSITIONS = tuple(position / 2 for position in OUTPUT_SOURCE_POSITIONS)
 EXPECTED_SOURCE_TRACE_COUNT = 36
 EXPECTED_OUTPUT_TRACE_COUNT = 72
-EXPECTED_POINT_COUNT = 15_590
+EXPECTED_POINT_COUNT = 77_662
 EXPECTED_FALLBACK_COUNTS = {1: 4}
 T5_NC_INTERPOLATION_POSITIONS = (-1, 0)
 T5_NC_INTERPOLATION_ANCHORS = (-2, 1)
@@ -72,6 +77,42 @@ def format_position(position: float) -> str:
     if float(position).is_integer():
         return f"{int(position):+d}"
     return f"{position:+.1f}"
+
+
+def resample_traces(traces: pd.DataFrame) -> pd.DataFrame:
+    """Linearly resample every Figure 2A trace onto a 1 ms time grid."""
+    resampled = []
+    for trace_id, trace in traces.groupby("trace_id", sort=False):
+        trace = trace.sort_values("time_ms").reset_index(drop=True)
+        if trace.time_ms.duplicated().any():
+            raise ValueError(f"duplicate source time sample in {trace_id}")
+        if not trace.time_ms.is_monotonic_increasing:
+            raise ValueError(f"non-monotonic source time in {trace_id}")
+        for column in trace.columns.difference(["time_ms", "vm_mv"]):
+            if trace[column].nunique(dropna=False) != 1:
+                raise ValueError(f"{column} is not constant within {trace_id}")
+
+        start = float(trace.time_ms.iloc[0])
+        stop = float(trace.time_ms.iloc[-1])
+        count = int(round((stop - start) / OUTPUT_DELTA_T_MS)) + 1
+        time_ms = start + np.arange(count, dtype=float) * OUTPUT_DELTA_T_MS
+        if not np.isclose(time_ms[-1], stop, rtol=0, atol=1e-12):
+            raise ValueError(f"trace endpoints do not fit a 1 ms grid: {trace_id}")
+
+        block = trace.iloc[[0] * count].copy().reset_index(drop=True)
+        block["time_ms"] = time_ms
+        block["vm_mv"] = np.interp(
+            time_ms,
+            trace.time_ms.to_numpy(dtype=float),
+            trace.vm_mv.to_numpy(dtype=float),
+        )
+        original = block[block.time_ms.isin(trace.time_ms)]
+        if not np.array_equal(
+            original.vm_mv.to_numpy(), trace.vm_mv.to_numpy()
+        ):
+            raise ValueError(f"resampling changed an original sample: {trace_id}")
+        resampled.append(block)
+    return pd.concat(resampled, ignore_index=True)
 
 
 def ratio_table(extrema: pd.DataFrame, target_width_led: int) -> pd.DataFrame:
@@ -315,16 +356,15 @@ def scale_traces(traces: pd.DataFrame, scales: pd.DataFrame) -> pd.DataFrame:
     output["source_width_deg"] = SOURCE_WIDTH_LED * DEGREES_PER_LED
     output["target_width_led"] = target_width_led
     output["target_width_deg"] = target_width_led * DEGREES_PER_LED
-    output["source_position"] = output.position / 2
-    output["position"] = output.source_position
-    output["trace_id"] = (
+    output["position"] = output.position / 2
+    output["source_trace_id"] = (
         output.cell_type
         + "_"
         + output.contrast
         + "_pos"
         + output.position.map(format_position)
-        + f"_w{target_width_led}"
     )
+    output["trace_id"] = output.source_trace_id + f"_w{target_width_led}"
     output["vm_mv"] = output.source_vm_mv * output.scale_factor
 
     column_order = [
@@ -332,7 +372,6 @@ def scale_traces(traces: pd.DataFrame, scales: pd.DataFrame) -> pd.DataFrame:
         "source_trace_id",
         "cell_type",
         "contrast",
-        "source_position",
         "position",
         "rf_side",
         "color",
@@ -401,6 +440,9 @@ def validate(
     for trace_id, trace in output.groupby("trace_id", sort=False):
         if not trace.time_ms.is_monotonic_increasing:
             raise ValueError(f"time is not monotonic for {trace_id}")
+        delta_t = trace.time_ms.diff().dropna().to_numpy()
+        if not np.allclose(delta_t, OUTPUT_DELTA_T_MS, rtol=0, atol=1e-12):
+            raise ValueError(f"time step is not 1 ms for {trace_id}")
         if trace.scale_factor.nunique() != 1:
             raise ValueError(f"scale is not constant within {trace_id}")
     if not (scales.scale_factor > 0).all():
@@ -412,14 +454,8 @@ def validate(
             f"expected fallback counts {EXPECTED_FALLBACK_COUNTS}, "
             f"got {fallback_counts}"
         )
-    if set(output.source_position.unique()) != set(OUTPUT_POSITIONS):
-        raise ValueError("output contains an unexpected source-position column")
     if set(output.position.unique()) != set(OUTPUT_POSITIONS):
         raise ValueError("output contains an unexpected position column")
-    if not np.array_equal(
-        output.position.to_numpy(), output.source_position.to_numpy()
-    ):
-        raise ValueError("output position and source_position do not match")
 
 
 def plot_check(output: pd.DataFrame, scales: pd.DataFrame, path: Path) -> None:
@@ -439,7 +475,7 @@ def plot_check(output: pd.DataFrame, scales: pd.DataFrame, path: Path) -> None:
                     (output.target_width_led == target_width_led)
                     & (output.cell_type == cell_type)
                     & (output.contrast == contrast)
-                    & (output.source_position == position)
+                    & (output.position == position)
                 ]
                 if trace.empty:
                     raise ValueError(
@@ -529,9 +565,10 @@ def main() -> None:
             f"expected {INPUT_TRACE_COUNT} input traces, "
             f"got {source_all.trace_id.nunique()}"
         )
-    source = source_all[
+    source_native = source_all[
         source_all.position.isin(OUTPUT_SOURCE_POSITIONS)
     ].copy()
+    source = resample_traces(source_native)
     extrema = pd.read_csv(args.extrema)
     scale_tables = [
         build_scales(source, extrema, target_width_led)

@@ -196,6 +196,8 @@ def cost_mss(cost_ms, *, post, delta_ms) -> list:
 
 
 def build_cost_ts(opts, *, cost_ms):
+    if cost_ms is None:
+        return None
     post, delta_ms = post_onset_n_t(opts)
     ts = set()
     for ms in cost_mss(cost_ms, post=post, delta_ms=delta_ms):

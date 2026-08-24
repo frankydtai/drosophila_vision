@@ -488,7 +488,7 @@ def plot_figures(session, z, run_dir, suffix, model_all, *, task, **kwargs):
             **plot_gt_extra,
         )
         all_path = None
-        if model_all:
+        if model_all and hasattr(figure_task, "plot_all"):
             all_path = plot_path(
                 run_dir, figure_path_token(all_token, session), file_suffix, html=html,
             )
@@ -511,7 +511,7 @@ def plot_figures(session, z, run_dir, suffix, model_all, *, task, **kwargs):
             cost_parts=figure_kwargs.get('cost_parts'),
             **plot_gt_extra,
         )
-        if model_all:
+        if model_all and hasattr(figure_task, "plot_all"):
             all_path = plot_path(
                 run_dir, figure_path_token(all_token, session), file_suffix, html=html,
             )

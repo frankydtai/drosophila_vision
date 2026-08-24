@@ -396,7 +396,7 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
     pack = session.packs[task][contrast]
     params = train.params_from_z(z, session)
     trace = as_numpy(train.forward_pack(session, params, pack.i_sti, pack))
-    specs = bar_specs_from_task(session, task)
+    specs = bar_specs_from_task(session, task, contrast)
     spec_tokens = [spec.token for spec in specs]
     n_t = int(session.n_t)
     connectome = session.connectome
