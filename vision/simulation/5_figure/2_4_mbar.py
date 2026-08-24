@@ -340,7 +340,10 @@ def _load_mbar_gt_traces(session, task, contrast, cells, specs, side):
             trace_token = fig1_trace_from_sti(side, cell, spec)
             if trace_token is None:
                 continue
-            trace = _fig1_trace_delta(load_fig1_trace(trace_token), session.delta_ms)
+            trace = _fig1_trace_delta(
+                load_fig1_trace(trace_token, delta_ms=session.delta_ms),
+                session.delta_ms,
+            )
             gt_traces[(cell, spec.token)] = trace
     return gt_traces
 
@@ -844,13 +847,16 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
     timer = ElapsedTimer(prior_prep=readout_prep_s(*readouts.values()))
     timer.end_prep()
     single_hex = readout.single_hex
-    row_specs = mbar_specs_by_cell(readout.session, readout.task, readout.side)
+    row_specs = mbar_specs_by_cell(
+        readout.session, readout.task, readout.contrast, readout.side,
+    )
     gt_cells = list(row_specs.keys())
     n_col_half = max((len(specs) for specs in row_specs.values()), default=8)
     cost_contrasts = _mbar_cost_contrasts(readouts)
     if paired_readout is not None:
         paired_row_specs = mbar_specs_by_cell(
-            paired_readout.session, paired_readout.task, paired_readout.side,
+            paired_readout.session, paired_readout.task,
+            paired_readout.contrast, paired_readout.side,
         )
         n_col_half = max(
             n_col_half, max((len(specs) for specs in paired_row_specs.values()), default=8),
