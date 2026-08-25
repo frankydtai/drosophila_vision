@@ -27,6 +27,7 @@ SPREAD_GT: Dict[str, object] = {}
 SPOT_INPUT_GEO: Dict[str, object] = {}
 SPOT_PACK: Dict[str, object] = {}
 SBAR_INPUT_GEO: Dict[str, object] = {}
+SBAR_PACK: Dict[str, object] = {}
 MBAR_INPUT_SPEC: Dict[str, object] = {}
 TRAIN_CONFIG: Dict[str, object] = {}
 VAL_FROM: Dict[str, object] = {}
@@ -98,7 +99,7 @@ def _bind_config(config: dict) -> None:
     global RUN_NAME, RUN_PATH
     global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
     global SPREAD_INPUT_SPEC, SPREAD_GT, SPOT_INPUT_GEO, SPOT_PACK
-    global SBAR_INPUT_GEO, MBAR_INPUT_SPEC
+    global SBAR_INPUT_GEO, SBAR_PACK, MBAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
     global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, FIGURE_PLOT_STI_MBAR, ANALYZE_RUNS
     global ANALYZE_CELL_DYNAMICS, ANALYZE_SYN_SIGN, ANALYZE_TRACE
@@ -145,6 +146,12 @@ def _bind_config(config: dict) -> None:
     SBAR_INPUT_GEO = {
         "multi_bar": config["multi_bar"],
         "bar_dist": config["bar_dist"],
+        "shift_mid": config["shift_mid"],
+    }
+    SBAR_PACK = {
+        "a_sti_mids": _comma_float_list(
+            config["a_sti_mids"], key="a_sti_mids",
+        ),
     }
     MBAR_INPUT_SPEC = {
         "ms_pre": config["ms_pre"],
@@ -421,6 +428,8 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         "bar_dist": SBAR_INPUT_GEO["bar_dist"],
         "bar_directions": list(MBAR_INPUT_SPEC["bar_directions"]),
         "multi_bar": SBAR_INPUT_GEO["multi_bar"],
+        "shift_mid": SBAR_INPUT_GEO["shift_mid"],
+        "a_sti_mids": list(SBAR_PACK["a_sti_mids"]),
     }
     spot_sti_opts = {
         **timing,

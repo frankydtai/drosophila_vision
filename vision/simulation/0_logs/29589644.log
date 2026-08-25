@@ -1,0 +1,196 @@
+Job ID: 29589644
+Node:   spartan-gpgpu099
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+  MIG 1g.10gb     Device  0: (UUID: MIG-5132f33e-77a5-5b3f-bda3-60f338a8b15d)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+cuda: True NVIDIA A100 80GB PCIe MIG 1g.10gb
+Start:  Tue 25 Aug 2026 21:48:59 AEST
+==== config ====
+{'RUN_NAME': '29589060-run-n_iter-300-tasks-spread,sbar-multi_bar-true',
+ 'RUN_PATH': 'hp_lp/29589060-run-n_iter-300-tasks-spread,sbar-multi_bar-true',
+ 'MODEL': {'delta_ms': 2.0,
+           'delta_ms_pre': 2.0,
+           'cap': 40.0,
+           'g_leak': 1.0,
+           'e_exc': 10.0,
+           'e_inh': -70.0,
+           'e_h': 50.0,
+           'h_g_max': 100.0,
+           'gt_amp': 20.0,
+           'v_clamp': 1000000.0,
+           'a_syn_exc': 0.001,
+           'a_syn_inh': 0.001,
+           'euler': 'im'},
+ 'NEURON_SCHEMA': {'model': 'hp_lp',
+                   'filter': 'none',
+                   'syn_mode': 'per_cell',
+                   'a_lo': 0.1,
+                   'a_hi': 10.0,
+                   'h_cells': ['L1', 'L2', 'L4', 'L5'],
+                   'params': {'a_gt': {'lo': 0.5, 'hi': 2.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'syn_strength_cell': {'lo': 0.1,
+                                                    'hi': 10.0,
+                                                    'init': 1.0,
+                                                    'jit': 0.1,
+                                                    'mode': 'indi',
+                                                    'modes': {'indi': 'Mi4:T4a,Mi4:T4b,Mi4:T4c,Mi4:T4d,Mi9:T4a,Mi9:T4b,Mi9:T4c,Mi9:T4d'}},
+                              'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 1.0, 'jit': 0.1, 'mode': 'shared'},
+                              'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'e_leak': {'lo': -50.0, 'hi': 50.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'v_th': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'},
+                              'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 10.0, 'jit': 2.0, 'mode': 'indi'},
+                              'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'a_h': {'lo': 0.0,
+                                      'hi': 1.0,
+                                      'init': 0.0,
+                                      'inits': {'L1': 0.5, 'L2': 0.5, 'L4': 0.5, 'L5': 0.5},
+                                      'jit': 0.1,
+                                      'mode': 'indi'},
+                              'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'a_h_rev': {'lo': 0.0,
+                                          'hi': 1.0,
+                                          'init': 0.0,
+                                          'jit': 0.1,
+                                          'mode': 'fixed',
+                                          'modes': {'indi': 'L1,L2,L4,L5'}},
+                              'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau_rev': {'lo': -70.0,
+                                                  'hi': -40.0,
+                                                  'init': -50.0,
+                                                  'jit': 5.0,
+                                                  'mode': 'shared'},
+                              'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'},
+                              'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'},
+                              'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'},
+                              'a_sti_mid': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'}}},
+ 'NEURON_FORWARD': {'pre_grad': True},
+ 'NETWORK_PATH': {'network': 'right_min_neuron1_r10'},
+ 'SPREAD_INPUT_SPEC': {'ms_pre': 20.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0},
+ 'SPREAD_GT': {'spread_gt_mode': 'pos'},
+ 'SPOT_INPUT_GEO': {'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0},
+ 'SPOT_PACK': {'spot_cost_radii': [0, 1, 2],
+               'a_sti_radii': [1, 2],
+               'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}},
+ 'SBAR_INPUT_GEO': {'multi_bar': False, 'bar_dist': 4, 'shift_mid': 2},
+ 'SBAR_PACK': {'a_sti_mids': [0.5, 1.0, 1.5, 2.0]},
+ 'MBAR_INPUT_SPEC': {'ms_pre': 20.0, 'bar_ws_deg': [2.25, 9.0], 'bar_directions': ['right', 'left', 'up', 'down']},
+ 'TRAIN_CONFIG': {'tasks': ['sbar'],
+                  'contrasts': ['bright', 'dark'],
+                  'i_sti': {'bright': 40.0, 'dark': 0.0},
+                  'gt_by_task': {'spread': ['L1',
+                                            'L2',
+                                            'L3',
+                                            'L4',
+                                            'L5',
+                                            'Mi1',
+                                            'Tm3',
+                                            'Mi4',
+                                            'Mi9',
+                                            'Tm1',
+                                            'Tm2',
+                                            'Tm4',
+                                            'Tm9'],
+                                 'sbar': ['T4a', 'T4b', 'T4c', 'T4d', 'T5a', 'T5b', 'T5c', 'T5d']},
+                  'cost_radius': None},
+ 'VAL_FROM': {'bias_gt': {'source': 'v_onset', 'enabled': True},
+              'v_th_ca': {'source': 'v_th', 'enabled': False},
+              'a_ca': {'source': 'a_out', 'enabled': False},
+              'a_h_rev': {'source': 'a_h', 'enabled': False},
+              'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False},
+              'h_slope_rev': {'source': 'h_slope', 'enabled': False},
+              'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}},
+ 'TRAIN_OPTIMIZATION': {'part_cost_scales': {},
+                        'cost_norm': 'a_gt2',
+                        'cost_ms': None,
+                        'pre_steady': 'solve',
+                        'pre_steady_n_iter': 50,
+                        'pre_steady_damp': 0.1,
+                        'n_run': 1,
+                        'n_iter': 0,
+                        'lrs': [0.1],
+                        'checkpoint_interval': 1000},
+ 'TRAIN_SESSION': {'fp': 32, 'sequential': False},
+ 'FIGURE_PLOT': {'html': False, 'plot_right_only': True, 'x': None, 'y': None, 'align_xy': None, 'ms_shown': None},
+ 'FIGURE_PLOT_STI_SPOT': {'spot_radii': [0.5, 1.0, 1.5, 2.0], 'output': None},
+ 'FIGURE_PLOT_STI_MBAR': {'output': None,
+                          'gif': False,
+                          'gif_output': None,
+                          't_stride': 2,
+                          't': None,
+                          'direction': 'left'},
+ 'ANALYZE_RUNS': ['hp_lp/29589060-run-n_iter-300-tasks-spread,sbar-multi_bar-true'],
+ 'ANALYZE_CELL_DYNAMICS': {'cells': None,
+                           'spec': None,
+                           'node': None,
+                           'radius': 0,
+                           't_rel_start': None,
+                           't_rel_stop': None,
+                           'figure': True,
+                           'json': False},
+ 'ANALYZE_SYN_SIGN': {'bins': 20, 'after_train': False, 'post': False},
+ 'ANALYZE_TRACE': {'trace_osc_min_f': 0.5,
+                   'trace_osc_max_f': 20.0,
+                   'trace_osc_peak_threshold': 0.5,
+                   'trace_osc_z_threshold': 2.0,
+                   'trace_osc_snr_min': 2.0,
+                   'trace_drift_min_slope_mv_over_s': 1.0,
+                   'trace_drift_min_r': 0.5,
+                   'trace_baseline_ms': 200.0,
+                   'trace_flat_max_abs': 0.5,
+                   'trace_flat_v_peak_to_peak_max': 1.0,
+                   'trace_flat_abs_mean': 0.2,
+                   'check': None,
+                   'baseline_ms_shown': None},
+ 'ANALYZE_COST_PART': {'part': None,
+                       'cost_norm': None,
+                       'stride': 1,
+                       'per_node': False,
+                       'csv': None,
+                       'print_parts': False}}
+==== end config ====
+config: {'run_name': '29589060-run-n_iter-300-tasks-spread,sbar-multi_bar-true', 'run_path': 'hp_lp/${run_name}', 'delta_ms': 2.0, 'delta_ms_pre': 2.0, 'cap': 40.0, 'g_leak': 1.0, 'e_exc': 10.0, 'e_inh': -70.0, 'e_h': 50.0, 'h_g_max': 100.0, 'gt_amp': 20.0, 'v_clamp': 1000000.0, 'a_syn_exc': 0.001, 'a_syn_inh': 0.001, 'euler': 'im', 'model': 'hp_lp', 'filter': 'none', 'syn_mode': 'per_cell', 'a_lo': 0.1, 'a_hi': 10.0, 'h_cells': 'L1,L2,L4,L5', 'params': {'a_gt': {'lo': 0.5, 'hi': 2.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'}, 'syn_strength_cell': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi', 'modes': {'indi': 'Mi4:T4a,Mi4:T4b,Mi4:T4c,Mi4:T4d,Mi9:T4a,Mi9:T4b,Mi9:T4c,Mi9:T4d'}}, 'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 1.0, 'jit': 0.1, 'mode': 'shared'}, 'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'e_leak': {'lo': -50.0, 'hi': 50.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'}, 'v_th': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'}, 'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 10.0, 'jit': 2.0, 'mode': 'indi'}, 'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'}, 'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'}, 'a_h': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'inits': {'L1': 0.5, 'L2': 0.5, 'L4': 0.5, 'L5': 0.5}, 'jit': 0.1, 'mode': 'indi'}, 'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'}, 'a_h_rev': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.1, 'mode': 'fixed', 'modes': {'indi': '${h_cells}'}}, 'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'v_mid_h_tau_rev': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'}, 'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'}, 'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'}, 'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'}, 'a_sti_mid': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'}}, 'pre_grad': True, 'network': 'right_min_neuron1_r10', 'i_sti': {'bright': 40.0, 'dark': 0.0}, 'contrasts': 'bright,dark', 'ms_pre': 20.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0, 'spread_gt_mode': 'pos', 'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0, 'spot_cost_radii': '0,1,2', 'a_sti_radii': '1,2', 'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}, 'multi_bar': False, 'bar_dist': 4, 'shift_mid': 0, 'a_sti_mids': '0.5,1,1.5,2', 'bar_ws_deg': '2.25,9.0', 'bar_directions': 'right,left,up,down', 'tasks': 'sbar', 'gt_by_task': {'spread': ['L1', 'L2', 'L3', 'L4', 'L5', 'Mi1', 'Tm3', 'Mi4', 'Mi9', 'Tm1', 'Tm2', 'Tm4', 'Tm9'], 'sbar': ['T4a', 'T4b', 'T4c', 'T4d', 'T5a', 'T5b', 'T5c', 'T5d']}, 'cost_radius': None, 'param_vals': {}, 'val_from': {'bias_gt': {'source': 'v_onset', 'enabled': True}, 'v_th_ca': {'source': 'v_th', 'enabled': False}, 'a_ca': {'source': 'a_out', 'enabled': False}, 'a_h_rev': {'source': 'a_h', 'enabled': False}, 'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False}, 'h_slope_rev': {'source': 'h_slope', 'enabled': False}, 'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}}, 'part_cost_scales': {}, 'cost_norm': 'a_gt2', 'cost_ms': None, 'pre_steady': 'solve', 'pre_steady_n_iter': 50, 'pre_steady_damp': 0.1, 'n_run': 1, 'n_iter': 300, 'lrs': '0.1', 'checkpoint_interval': 1000, 'init_from': None, 'fp': 32, 'sequential': False, 'spot_radii': '0.5,1.0,1.5,2.0', 'spot_plot_output': None, 'mbar_plot_output': None, 'mbar_plot_gif': False, 'mbar_plot_gif_output': None, 'mbar_plot_t_stride': 2, 'mbar_plot_t': None, 'mbar_plot_direction': 'left', 'html': False, 'plot_right_only': True, 'x': None, 'y': None, 'align_xy': None, 'ms_shown': None, 'analyze_runs': None, 'cells': None, 'spec': None, 'node': None, 'radius': 0, 't_rel_start': None, 't_rel_stop': None, 'analyze_figure': True, 'analyze_json': False, 'post': False, 'check': None, 'baseline_ms_shown': None, 'part': None, 'analyze_cost_norm': None, 'stride': 1, 'per_node': False, 'cost_part_csv': None, 'print_parts': False, 'bins': 20, 'after_train': False, 'trace_osc_min_f': 0.5, 'trace_osc_max_f': 20.0, 'trace_osc_peak_threshold': 0.5, 'trace_osc_z_threshold': 2.0, 'trace_osc_snr_min': 2.0, 'trace_drift_min_slope_mv_over_s': 1.0, 'trace_drift_min_r': 0.5, 'trace_baseline_ms': 200.0, 'trace_flat_max_abs': 0.5, 'trace_flat_v_peak_to_peak_max': 1.0, 'trace_flat_abs_mean': 0.2}
+param_modes:
+  a_gt               indi=56/shared=0/fixed=0/frozen=0 (56)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=56 (0)
+  syn_strength_cell  indi=1035/shared=0/fixed=0/frozen=0 (1035)
+  a_in               indi=0/shared=56/fixed=0/frozen=0 (1)
+  a_out              indi=56/shared=0/fixed=0/frozen=0 (56)
+  e_leak             indi=56/shared=0/fixed=0/frozen=0 (56)
+  v_th               indi=56/shared=0/fixed=0/frozen=0 (56)
+  tau_lp             indi=56/shared=0/fixed=0/frozen=0 (56)
+  tau_hp_rise        indi=56/shared=0/fixed=0/frozen=0 (56)
+  tau_hp_fall        indi=56/shared=0/fixed=0/frozen=0 (56)
+  a_h                indi=56/shared=0/fixed=0/frozen=0 (56)
+  a_sti_mid          indi=4/shared=0/fixed=0/frozen=0 (4)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, n_run=1, n_iter=300, lrs=[0.1], n_z=1488, fname=train_hp_lp.npy
+checkpoint_interval=1000
+
+round 0
+
+  0%|          | 0/300 [00:00<?, ?it/s] Cost: 93608.5312  [sbar_bright_T4a_mid+0=543299.6250  sbar_bright_T4b_mid+0=552162.2500  sbar_bright_T5a_mid+0=190983.5000  sbar_bright_T5b_mid+0=184970.1094  sbar_bright_T4c_mid+0=284789.6250  sbar_bright_T4d_mid+0=298033.4688  sbar_bright_T5c_mid+0=102197.9844  sbar_bright_T5d_mid+0=109554.3828  sbar_dark_T4a_mid+0=95650.9219  sbar_dark_T4b_mid+0=100681.1797  sbar_dark_T5a_mid+0=262723.1875  sbar_dark_T5b_mid+0=253423.6719  sbar_dark_T4c_mid+0=49467.9570  sbar_dark_T4d_mid+0=56974.7422  sbar_dark_T5c_mid+0=139994.5156  sbar_dark_T5d_mid+0=147928.2031]  3%|▎         | 10/300 [00:07<03:23,  1.42it/s] Cost: 90070.4297  [sbar_bright_T4a_mid+0=539401.4375  sbar_bright_T4b_mid+0=540809.5625  sbar_bright_T5a_mid+0=184573.3125  sbar_bright_T5b_mid+0=175488.2969  sbar_bright_T4c_mid+0=283210.3125  sbar_bright_T4d_mid+0=283831.4375  sbar_bright_T5c_mid+0=98268.0938  sbar_bright_T5d_mid+0=98050.5703  sbar_dark_T4a_mid+0=91447.7188  sbar_dark_T4b_mid+0=92220.5391  sbar_dark_T5a_mid+0=257025.2500  sbar_dark_T5b_mid+0=244390.3125  sbar_dark_T4c_mid+0=48304.1641  sbar_dark_T4d_mid+0=48609.2266  sbar_dark_T5c_mid+0=136324.9688  sbar_dark_T5d_mid+0=136104.0469]:   7%|▋         | 20/300 [00:13<03:15,  1.43it/s] Cost: 88965.2422  [sbar_bright_T4a_mid+0=538230.6250  sbar_bright_T4b_mid+0=538999.1250  sbar_bright_T5a_mid+0=179052.4844  sbar_bright_T5b_mid+0=172444.1562  sbar_bright_T4c_mid+0=281235.3750  sbar_bright_T4d_mid+0=283624.0000  sbar_bright_T5c_mid+0=98389.6094  sbar_bright_T5d_mid+0=97481.9062  sbar_dark_T4a_mid+0=90879.2031  sbar_dark_T4b_mid+0=91623.7734  sbar_dark_T5a_mid+0=250394.8594  sbar_dark_T5b_mid+0=237202.8750  sbar_dark_T4c_mid+0=47556.0664  sbar_dark_T4d_mid+0=48752.7734  sbar_dark_T5c_mid+0=136098.0625  sbar_dark_T5d_mid+0=135462.8750]:  10%|█         | 30/300 [00:21<03:09,  1.42it/s] Cost: 65677.2656  [sbar_bright_T4a_mid+0=442204.5312  sbar_bright_T4b_mid+0=367321.2812  sbar_bright_T5a_mid+0=140330.5000  sbar_bright_T5b_mid+0=119415.0391  sbar_bright_T4c_mid+0=148813.2969  sbar_bright_T4d_mid+0=208856.8594  sbar_bright_T5c_mid+0=64443.1641  sbar_bright_T5d_mid+0=68079.3359  sbar_dark_T4a_mid+0=83072.9531  sbar_dark_T4b_mid+0=85334.6328  sbar_dark_T5a_mid+0=165403.3594  sbar_dark_T5b_mid+0=162431.6719  sbar_dark_T4c_mid+0=41808.0508  sbar_dark_T4d_mid+0=44360.8359  sbar_dark_T5c_mid+0=62467.7031  sbar_dark_T5d_mid+0=67995.8672]:    13%|█▎        | 40/300 [00:27<03:01,  1.43it/s] Cost: 50208.6016  [sbar_bright_T4a_mid+0=138083.0312  sbar_bright_T4b_mid+0=172765.8438  sbar_bright_T5a_mid+0=115184.5469  sbar_bright_T5b_mid+0=76437.5312  sbar_bright_T4c_mid+0=189588.1562  sbar_bright_T4d_mid+0=140696.7344  sbar_bright_T5c_mid+0=39525.3125  sbar_bright_T5d_mid+0=42220.0547  sbar_dark_T4a_mid+0=42543.0352  sbar_dark_T4b_mid+0=43858.2656  sbar_dark_T5a_mid+0=132576.8594  sbar_dark_T5b_mid+0=82667.0938  sbar_dark_T4c_mid+0=34907.0625  sbar_dark_T4d_mid+0=35670.1445  sbar_dark_T5c_mid+0=49723.3125  sbar_dark_T5d_mid+0=74613.6406]:    17%|█▋        | 50/300 [00:34<02:54,  1.43it/s] Cost: 39765.1172  [sbar_bright_T4a_mid+0=159438.0312  sbar_bright_T4b_mid+0=149183.2344  sbar_bright_T5a_mid+0=68353.0156  sbar_bright_T5b_mid+0=52508.7422  sbar_bright_T4c_mid+0=111739.8359  sbar_bright_T4d_mid+0=124274.7812  sbar_bright_T5c_mid+0=31058.1523  sbar_bright_T5d_mid+0=31734.1875  sbar_dark_T4a_mid+0=27747.6895  sbar_dark_T4b_mid+0=28233.3555  sbar_dark_T5a_mid+0=76537.6328  sbar_dark_T5b_mid+0=58762.7109  sbar_dark_T4c_mid+0=25425.7695  sbar_dark_T4d_mid+0=23254.3066  sbar_dark_T5c_mid+0=40199.5820  sbar_dark_T5d_mid+0=45131.8750]:    20%|██        | 60/300 [00:41<02:47,  1.43it/s] Cost: 34723.5000  [sbar_bright_T4a_mid+0=131894.2812  sbar_bright_T4b_mid+0=137185.6406  sbar_bright_T5a_mid+0=44182.9883  sbar_bright_T5b_mid+0=41446.8320  sbar_bright_T4c_mid+0=106863.4844  sbar_bright_T4d_mid+0=105431.0078  sbar_bright_T5c_mid+0=25135.3516  sbar_bright_T5d_mid+0=23435.2734  sbar_dark_T4a_mid+0=21524.7441  sbar_dark_T4b_mid+0=20348.7480  sbar_dark_T5a_mid+0=47130.8750  sbar_dark_T5b_mid+0=46385.1602  sbar_dark_T4c_mid+0=20467.7402  sbar_dark_T4d_mid+0=19972.9883  sbar_dark_T5c_mid+0=29774.9492  sbar_dark_T5d_mid+0=34218.1016]:  23%|██▎       | 70/300 [00:48<02:40,  1.43it/s] Cost: 31837.4414  [sbar_bright_T4a_mid+0=118258.2188  sbar_bright_T4b_mid+0=119606.0625  sbar_bright_T5a_mid+0=32102.1660  sbar_bright_T5b_mid+0=33718.7930  sbar_bright_T4c_mid+0=92510.9922  sbar_bright_T4d_mid+0=98945.4922  sbar_bright_T5c_mid+0=21285.8848  sbar_bright_T5d_mid+0=21531.8457  sbar_dark_T4a_mid+0=15258.4385  sbar_dark_T4b_mid+0=13824.3047  sbar_dark_T5a_mid+0=39587.4453  sbar_dark_T5b_mid+0=42229.0938  sbar_dark_T4c_mid+0=15419.0098  sbar_dark_T4d_mid+0=15508.0098  sbar_dark_T5c_mid+0=28694.7930  sbar_dark_T5d_mid+0=33224.0977]:    27%|██▋       | 80/300 [00:55<02:33,  1.43it/s] Cost: 30280.4727  [sbar_bright_T4a_mid+0=111871.2734  sbar_bright_T4b_mid+0=113326.0625  sbar_bright_T5a_mid+0=26508.2188  sbar_bright_T5b_mid+0=26277.3594  sbar_bright_T4c_mid+0=86148.8828  sbar_bright_T4d_mid+0=91115.8047  sbar_bright_T5c_mid+0=18078.1680  sbar_bright_T5d_mid+0=21256.9473  sbar_dark_T4a_mid+0=12976.3867  sbar_dark_T4b_mid+0=10620.9189  sbar_dark_T5a_mid+0=36402.4062  sbar_dark_T5b_mid+0=37686.3750  sbar_dark_T4c_mid+0=12756.9678  sbar_dark_T4d_mid+0=13160.6211  sbar_dark_T5c_mid+0=25427.7812  sbar_dark_T5d_mid+0=33606.3555]:  30%|███       | 90/300 [01:02<02:26,  1.43it/s] Cost: 29469.2598  [sbar_bright_T4a_mid+0=119954.3359  sbar_bright_T4b_mid+0=119741.4062  sbar_bright_T5a_mid+0=25804.5918  sbar_bright_T5b_mid+0=24751.6152  sbar_bright_T4c_mid+0=82582.8516  sbar_bright_T4d_mid+0=86404.7734  sbar_bright_T5c_mid+0=17591.3164  sbar_bright_T5d_mid+0=19040.8438  sbar_dark_T4a_mid+0=10685.7373  sbar_dark_T4b_mid+0=8434.6631  sbar_dark_T5a_mid+0=35413.4023  sbar_dark_T5b_mid+0=36291.6641  sbar_dark_T4c_mid+0=9908.4033  sbar_dark_T4d_mid+0=11540.0225  sbar_dark_T5c_mid+0=23475.9199  sbar_dark_T5d_mid+0=30011.4824]:    33%|███▎      | 100/300 [01:09<02:19,  1.43it/s] Cost: 28953.0156  [sbar_bright_T4a_mid+0=117405.7812  sbar_bright_T4b_mid+0=113359.7969  sbar_bright_T5a_mid+0=24988.0801  sbar_bright_T5b_mid+0=23854.6934  sbar_bright_T4c_mid+0=79107.2344  sbar_bright_T4d_mid+0=80712.4453  sbar_bright_T5c_mid+0=16988.7754  sbar_bright_T5d_mid+0=18261.0801  sbar_dark_T4a_mid+0=11168.6602  sbar_dark_T4b_mid+0=8244.0293  sbar_dark_T5a_mid+0=33703.2812  sbar_dark_T5b_mid+0=35935.9766  sbar_dark_T4c_mid+0=10223.1113  sbar_dark_T4d_mid+0=10772.7627  sbar_dark_T5c_mid+0=21329.4941  sbar_dark_T5d_mid+0=26603.6094]:  37%|███▋      | 110/300 [01:16<02:12,  1.44it/s] Cost: 28626.0840  [sbar_bright_T4a_mid+0=115575.8828  sbar_bright_T4b_mid+0=112918.4062  sbar_bright_T5a_mid+0=25956.4941  sbar_bright_T5b_mid+0=24346.7988  sbar_bright_T4c_mid+0=76392.5000  sbar_bright_T4d_mid+0=80004.3828  sbar_bright_T5c_mid+0=18494.8984  sbar_bright_T5d_mid+0=19584.3867  sbar_dark_T4a_mid+0=10784.3418  sbar_dark_T4b_mid+0=8589.8135  sbar_dark_T5a_mid+0=33601.2227  sbar_dark_T5b_mid+0=35600.8359  sbar_dark_T4c_mid+0=10228.9775  sbar_dark_T4d_mid+0=10608.6768  sbar_dark_T5c_mid+0=21449.9570  sbar_dark_T5d_mid+0=26249.9219]:  40%|████      | 120/300 [01:23<02:05,  1.44it/s] Cost: 28118.4297  [sbar_bright_T4a_mid+0=107859.5234  sbar_bright_T4b_mid+0=106387.8906  sbar_bright_T5a_mid+0=23446.3223  sbar_bright_T5b_mid+0=22521.4238  sbar_bright_T4c_mid+0=71236.9766  sbar_bright_T4d_mid+0=75977.4141  sbar_bright_T5c_mid+0=15825.4902  sbar_bright_T5d_mid+0=17816.7871  sbar_dark_T4a_mid+0=9996.8857  sbar_dark_T4b_mid+0=8273.0273  sbar_dark_T5a_mid+0=32121.1055  sbar_dark_T5b_mid+0=34856.3984  sbar_dark_T4c_mid+0=9642.9053  sbar_dark_T4d_mid+0=9566.8691  sbar_dark_T5c_mid+0=20246.5742  sbar_dark_T5d_mid+0=25670.6543]:     43%|████▎     | 130/300 [01:30<01:59,  1.43it/s] Cost: 27657.4922  [sbar_bright_T4a_mid+0=105754.7891  sbar_bright_T4b_mid+0=106342.1406  sbar_bright_T5a_mid+0=23683.4805  sbar_bright_T5b_mid+0=22325.2305  sbar_bright_T4c_mid+0=69431.9062  sbar_bright_T4d_mid+0=73969.3828  sbar_bright_T5c_mid+0=16085.6006  sbar_bright_T5d_mid+0=18404.1211  sbar_dark_T4a_mid+0=9839.0371  sbar_dark_T4b_mid+0=9340.6162  sbar_dark_T5a_mid+0=31721.7422  sbar_dark_T5b_mid+0=34732.4492  sbar_dark_T4c_mid+0=9648.4619  sbar_dark_T4d_mid+0=8797.2988  sbar_dark_T5c_mid+0=20145.8496  sbar_dark_T5d_mid+0=24809.2461]:  47%|████▋     | 140/300 [01:37<01:52,  1.43it/s] Cost: 27142.4141  [sbar_bright_T4a_mid+0=99835.4141  sbar_bright_T4b_mid+0=100646.0938  sbar_bright_T5a_mid+0=23094.2969  sbar_bright_T5b_mid+0=22022.7891  sbar_bright_T4c_mid+0=69518.0703  sbar_bright_T4d_mid+0=71659.7344  sbar_bright_T5c_mid+0=13709.9238  sbar_bright_T5d_mid+0=17099.0059  sbar_dark_T4a_mid+0=8953.4648  sbar_dark_T4b_mid+0=10040.8486  sbar_dark_T5a_mid+0=31057.3711  sbar_dark_T5b_mid+0=34524.8047  sbar_dark_T4c_mid+0=9990.8477  sbar_dark_T4d_mid+0=8413.4082  sbar_dark_T5c_mid+0=18943.4824  sbar_dark_T5d_mid+0=24443.5898]:  50%|█████     | 150/300 [01:44<01:44,  1.43it/s] Cost: 26823.7715  [sbar_bright_T4a_mid+0=95180.0938  sbar_bright_T4b_mid+0=98060.3516  sbar_bright_T5a_mid+0=23138.0352  sbar_bright_T5b_mid+0=22096.2383  sbar_bright_T4c_mid+0=68796.2500  sbar_bright_T4d_mid+0=70827.4375  sbar_bright_T5c_mid+0=13153.4824  sbar_bright_T5d_mid+0=16952.2070  sbar_dark_T4a_mid+0=9106.6650  sbar_dark_T4b_mid+0=10167.4795  sbar_dark_T5a_mid+0=31532.9180  sbar_dark_T5b_mid+0=35643.8320  sbar_dark_T4c_mid+0=9652.4658  sbar_dark_T4d_mid+0=8071.6309  sbar_dark_T5c_mid+0=18829.7383  sbar_dark_T5d_mid+0=24286.3457]:   53%|█████▎    | 160/300 [01:51<01:37,  1.43it/s] Cost: 26579.3535  [sbar_bright_T4a_mid+0=89326.9297  sbar_bright_T4b_mid+0=94467.6562  sbar_bright_T5a_mid+0=22279.8223  sbar_bright_T5b_mid+0=21505.1387  sbar_bright_T4c_mid+0=67778.3906  sbar_bright_T4d_mid+0=69687.1953  sbar_bright_T5c_mid+0=12382.2275  sbar_bright_T5d_mid+0=16557.2168  sbar_dark_T4a_mid+0=9274.3105  sbar_dark_T4b_mid+0=10278.3760  sbar_dark_T5a_mid+0=31643.0469  sbar_dark_T5b_mid+0=35981.4609  sbar_dark_T4c_mid+0=9109.0957  sbar_dark_T4d_mid+0=7941.4546  sbar_dark_T5c_mid+0=18814.8438  sbar_dark_T5d_mid+0=24969.8555]:  57%|█████▋    | 170/300 [01:58<01:30,  1.43it/s] Cost: 26262.0820  [sbar_bright_T4a_mid+0=85349.7266  sbar_bright_T4b_mid+0=92649.3047  sbar_bright_T5a_mid+0=22716.6523  sbar_bright_T5b_mid+0=21673.7324  sbar_bright_T4c_mid+0=67120.2891  sbar_bright_T4d_mid+0=70085.0234  sbar_bright_T5c_mid+0=12795.3818  sbar_bright_T5d_mid+0=16688.3125  sbar_dark_T4a_mid+0=9326.1377  sbar_dark_T4b_mid+0=10585.1094  sbar_dark_T5a_mid+0=30446.3008  sbar_dark_T5b_mid+0=34695.8164  sbar_dark_T4c_mid+0=8757.8525  sbar_dark_T4d_mid+0=8249.7832  sbar_dark_T5c_mid+0=17565.3398  sbar_dark_T5d_mid+0=23959.3906]:  60%|██████    | 180/300 [02:05<01:23,  1.43it/s] Cost: 25857.5820  [sbar_bright_T4a_mid+0=79758.1875  sbar_bright_T4b_mid+0=89302.3984  sbar_bright_T5a_mid+0=24194.1055  sbar_bright_T5b_mid+0=22347.0215  sbar_bright_T4c_mid+0=63620.2188  sbar_bright_T4d_mid+0=67108.8906  sbar_bright_T5c_mid+0=13490.9932  sbar_bright_T5d_mid+0=17999.5098  sbar_dark_T4a_mid+0=9841.7969  sbar_dark_T4b_mid+0=10646.3350  sbar_dark_T5a_mid+0=29357.3613  sbar_dark_T5b_mid+0=33840.4141  sbar_dark_T4c_mid+0=8256.9502  sbar_dark_T4d_mid+0=8047.7480  sbar_dark_T5c_mid+0=16431.3711  sbar_dark_T5d_mid+0=22515.1387]:  63%|██████▎   | 190/300 [02:12<01:16,  1.43it/s] Cost: 25508.9883  [sbar_bright_T4a_mid+0=78597.5781  sbar_bright_T4b_mid+0=89629.4609  sbar_bright_T5a_mid+0=23046.7461  sbar_bright_T5b_mid+0=21217.6230  sbar_bright_T4c_mid+0=63426.0625  sbar_bright_T4d_mid+0=65919.0000  sbar_bright_T5c_mid+0=13175.2764  sbar_bright_T5d_mid+0=17732.2715  sbar_dark_T4a_mid+0=9884.3057  sbar_dark_T4b_mid+0=9988.1582  sbar_dark_T5a_mid+0=29268.0059  sbar_dark_T5b_mid+0=34028.6602  sbar_dark_T4c_mid+0=8409.3730  sbar_dark_T4d_mid+0=8149.8247  sbar_dark_T5c_mid+0=16523.2109  sbar_dark_T5d_mid+0=23328.3398]:   67%|██████▋   | 200/300 [02:19<01:10,  1.42it/s] Cost: 25319.4746  [sbar_bright_T4a_mid+0=77077.8438  sbar_bright_T4b_mid+0=90640.2578  sbar_bright_T5a_mid+0=23940.8145  sbar_bright_T5b_mid+0=21300.4512  sbar_bright_T4c_mid+0=60855.7109  sbar_bright_T4d_mid+0=63980.9766  sbar_bright_T5c_mid+0=14026.9727  sbar_bright_T5d_mid+0=19032.2051  sbar_dark_T4a_mid+0=10414.2852  sbar_dark_T4b_mid+0=10549.7881  sbar_dark_T5a_mid+0=29316.7793  sbar_dark_T5b_mid+0=33614.5625  sbar_dark_T4c_mid+0=7830.4106  sbar_dark_T4d_mid+0=7671.2793  sbar_dark_T5c_mid+0=16255.5811  sbar_dark_T5d_mid+0=23457.9551]:  70%|███████   | 210/300 [02:26<01:02,  1.43it/s] Cost: 25020.4316  [sbar_bright_T4a_mid+0=71371.0312  sbar_bright_T4b_mid+0=83434.4219  sbar_bright_T5a_mid+0=23928.3770  sbar_bright_T5b_mid+0=21312.7109  sbar_bright_T4c_mid+0=61623.6484  sbar_bright_T4d_mid+0=63542.9180  sbar_bright_T5c_mid+0=13327.5400  sbar_bright_T5d_mid+0=18218.9570  sbar_dark_T4a_mid+0=9973.4424  sbar_dark_T4b_mid+0=10284.4062  sbar_dark_T5a_mid+0=28283.1172  sbar_dark_T5b_mid+0=33176.6250  sbar_dark_T4c_mid+0=8123.1592  sbar_dark_T4d_mid+0=7965.3960  sbar_dark_T5c_mid+0=15800.3740  sbar_dark_T5d_mid+0=23648.4277]:   73%|███████▎  | 220/300 [02:33<00:55,  1.43it/s] Cost: 24779.8477  [sbar_bright_T4a_mid+0=70011.7188  sbar_bright_T4b_mid+0=83374.5078  sbar_bright_T5a_mid+0=22793.3770  sbar_bright_T5b_mid+0=20710.8730  sbar_bright_T4c_mid+0=59673.5391  sbar_bright_T4d_mid+0=60897.6211  sbar_bright_T5c_mid+0=12915.7803  sbar_bright_T5d_mid+0=17677.2539  sbar_dark_T4a_mid+0=10163.6631  sbar_dark_T4b_mid+0=10856.9541  sbar_dark_T5a_mid+0=28080.1309  sbar_dark_T5b_mid+0=32832.5234  sbar_dark_T4c_mid+0=7544.4648  sbar_dark_T4d_mid+0=7599.2173  sbar_dark_T5c_mid+0=15178.9531  sbar_dark_T5d_mid+0=22697.5879]:  77%|███████▋  | 230/300 [02:40<00:48,  1.44it/s] Cost: 24574.2637  [sbar_bright_T4a_mid+0=68699.8438  sbar_bright_T4b_mid+0=82479.0859  sbar_bright_T5a_mid+0=21428.2910  sbar_bright_T5b_mid+0=20204.0234  sbar_bright_T4c_mid+0=57311.2500  sbar_bright_T4d_mid+0=59286.6445  sbar_bright_T5c_mid+0=12331.0361  sbar_bright_T5d_mid+0=16715.9258  sbar_dark_T4a_mid+0=10406.2324  sbar_dark_T4b_mid+0=10626.9941  sbar_dark_T5a_mid+0=27861.5430  sbar_dark_T5b_mid+0=33293.4414  sbar_dark_T4c_mid+0=7199.5000  sbar_dark_T4d_mid+0=7521.3779  sbar_dark_T5c_mid+0=14681.5371  sbar_dark_T5d_mid+0=23128.4668]:  80%|████████  | 240/300 [02:47<00:41,  1.44it/s] Cost: 24376.8770  [sbar_bright_T4a_mid+0=66292.6875  sbar_bright_T4b_mid+0=78894.6328  sbar_bright_T5a_mid+0=20834.5273  sbar_bright_T5b_mid+0=20312.9160  sbar_bright_T4c_mid+0=55934.0820  sbar_bright_T4d_mid+0=57857.0859  sbar_bright_T5c_mid+0=11588.3301  sbar_bright_T5d_mid+0=16040.7598  sbar_dark_T4a_mid+0=10701.5566  sbar_dark_T4b_mid+0=10266.9434  sbar_dark_T5a_mid+0=28540.7910  sbar_dark_T5b_mid+0=34294.8438  sbar_dark_T4c_mid+0=6923.1143  sbar_dark_T4d_mid+0=7371.7090  sbar_dark_T5c_mid+0=15071.8340  sbar_dark_T5d_mid+0=23265.1797]:  83%|████████▎ | 250/300 [02:54<00:34,  1.44it/s] Cost: 24171.5078  [sbar_bright_T4a_mid+0=62525.3711  sbar_bright_T4b_mid+0=74413.9141  sbar_bright_T5a_mid+0=22147.7949  sbar_bright_T5b_mid+0=21320.7910  sbar_bright_T4c_mid+0=53303.9570  sbar_bright_T4d_mid+0=55086.1602  sbar_bright_T5c_mid+0=12395.3672  sbar_bright_T5d_mid+0=16409.4141  sbar_dark_T4a_mid+0=10632.3984  sbar_dark_T4b_mid+0=10214.2754  sbar_dark_T5a_mid+0=28045.1445  sbar_dark_T5b_mid+0=33540.5742  sbar_dark_T4c_mid+0=6829.2227  sbar_dark_T4d_mid+0=7268.4102  sbar_dark_T5c_mid+0=14440.1172  sbar_dark_T5d_mid+0=21564.3809]:  87%|████████▋ | 260/300 [03:01<00:28,  1.43it/s] Cost: 23969.9961  [sbar_bright_T4a_mid+0=62795.5430  sbar_bright_T4b_mid+0=71469.0469  sbar_bright_T5a_mid+0=20260.8789  sbar_bright_T5b_mid+0=19976.1934  sbar_bright_T4c_mid+0=54516.9453  sbar_bright_T4d_mid+0=56883.5234  sbar_bright_T5c_mid+0=11604.8086  sbar_bright_T5d_mid+0=15313.2275  sbar_dark_T4a_mid+0=9587.9219  sbar_dark_T4b_mid+0=9453.1191  sbar_dark_T5a_mid+0=28698.4062  sbar_dark_T5b_mid+0=33839.0000  sbar_dark_T4c_mid+0=7586.9639  sbar_dark_T4d_mid+0=8171.2637  sbar_dark_T5c_mid+0=15204.6074  sbar_dark_T5d_mid+0=23759.1484]:    90%|█████████ | 270/300 [03:08<00:20,  1.43it/s] Cost: 23800.4512  [sbar_bright_T4a_mid+0=56607.3789  sbar_bright_T4b_mid+0=64370.9609  sbar_bright_T5a_mid+0=21994.3457  sbar_bright_T5b_mid+0=21533.9766  sbar_bright_T4c_mid+0=48409.5195  sbar_bright_T4d_mid+0=50562.1875  sbar_bright_T5c_mid+0=12631.3896  sbar_bright_T5d_mid+0=15663.0488  sbar_dark_T4a_mid+0=10564.4980  sbar_dark_T4b_mid+0=9428.3838  sbar_dark_T5a_mid+0=28180.2090  sbar_dark_T5b_mid+0=33420.0664  sbar_dark_T4c_mid+0=6550.1113  sbar_dark_T4d_mid+0=7290.1431  sbar_dark_T5c_mid+0=14595.5293  sbar_dark_T5d_mid+0=21725.7520]:  93%|█████████▎| 280/300 [03:15<00:13,  1.43it/s] Cost: 23621.2852  [sbar_bright_T4a_mid+0=58921.6562  sbar_bright_T4b_mid+0=66483.8828  sbar_bright_T5a_mid+0=19470.4141  sbar_bright_T5b_mid+0=19661.9434  sbar_bright_T4c_mid+0=51450.9531  sbar_bright_T4d_mid+0=53665.8984  sbar_bright_T5c_mid+0=11350.7041  sbar_bright_T5d_mid+0=14527.4883  sbar_dark_T4a_mid+0=9361.0156  sbar_dark_T4b_mid+0=9309.1553  sbar_dark_T5a_mid+0=28648.1523  sbar_dark_T5b_mid+0=33476.5352  sbar_dark_T4c_mid+0=7565.0107  sbar_dark_T4d_mid+0=7913.0693  sbar_dark_T5c_mid+0=14856.7148  sbar_dark_T5d_mid+0=23746.8613]:   97%|█████████▋| 290/300 [03:22<00:06,  1.43it/s] Cost: 23519.3516  [sbar_bright_T4a_mid+0=56127.1055  sbar_bright_T4b_mid+0=62316.0430  sbar_bright_T5a_mid+0=21318.7871  sbar_bright_T5b_mid+0=21322.3789  sbar_bright_T4c_mid+0=47330.2031  sbar_bright_T4d_mid+0=48721.8477  sbar_bright_T5c_mid+0=12788.6484  sbar_bright_T5d_mid+0=15288.3467  sbar_dark_T4a_mid+0=10099.5186  sbar_dark_T4b_mid+0=9416.4209  sbar_dark_T5a_mid+0=28099.5840  sbar_dark_T5b_mid+0=32706.7656  sbar_dark_T4c_mid+0=7109.5215  sbar_dark_T4d_mid+0=7148.5522  sbar_dark_T5c_mid+0=13928.5654  sbar_dark_T5d_mid+0=21481.2168]: 100%|██████████| 300/300 [03:29<00:00,  1.43it/s] Cost: 23383.7207  [sbar_bright_T4a_mid+0=57033.0430  sbar_bright_T4b_mid+0=64133.4180  sbar_bright_T5a_mid+0=18855.7793  sbar_bright_T5b_mid+0=19388.2227  sbar_bright_T4c_mid+0=49822.6836  sbar_bright_T4d_mid+0=51971.8906  sbar_bright_T5c_mid+0=11195.9424  sbar_bright_T5d_mid+0=14060.6562  sbar_dark_T4a_mid+0=9229.3994  sbar_dark_T4b_mid+0=9081.9600  sbar_dark_T5a_mid+0=28687.3340  sbar_dark_T5b_mid+0=33072.7383  sbar_dark_T4c_mid+0=7741.5522  sbar_dark_T4d_mid+0=7736.4692  sbar_dark_T5c_mid+0=14480.9033  sbar_dark_T5d_mid+0=23454.2305]:  100%|██████████| 300/300 [03:29<00:00,  1.43it/s] Cost: 23383.7207  [sbar_bright_T4a_mid+0=57033.0430  sbar_bright_T4b_mid+0=64133.4180  sbar_bright_T5a_mid+0=18855.7793  sbar_bright_T5b_mid+0=19388.2227  sbar_bright_T4c_mid+0=49822.6836  sbar_bright_T4d_mid+0=51971.8906  sbar_bright_T5c_mid+0=11195.9424  sbar_bright_T5d_mid+0=14060.6562  sbar_dark_T4a_mid+0=9229.3994  sbar_dark_T4b_mid+0=9081.9600  sbar_dark_T5a_mid+0=28687.3340  sbar_dark_T5b_mid+0=33072.7383  sbar_dark_T4c_mid+0=7741.5522  sbar_dark_T4d_mid+0=7736.4692  sbar_dark_T5c_mid+0=14480.9033  sbar_dark_T5d_mid+0=23454.2305]: 
+
+Initl cost = 93608.5312  [sbar_bright_T4a_mid+0=543299.6250  sbar_bright_T4b_mid+0=552162.2500  sbar_bright_T5a_mid+0=190983.5000  sbar_bright_T5b_mid+0=184970.1094  sbar_bright_T4c_mid+0=284789.6250  sbar_bright_T4d_mid+0=298033.4688  sbar_bright_T5c_mid+0=102197.9844  sbar_bright_T5d_mid+0=109554.3828  sbar_dark_T4a_mid+0=95650.9219  sbar_dark_T4b_mid+0=100681.1797  sbar_dark_T5a_mid+0=262723.1875  sbar_dark_T5b_mid+0=253423.6719  sbar_dark_T4c_mid+0=49467.9570  sbar_dark_T4d_mid+0=56974.7422  sbar_dark_T5c_mid+0=139994.5156  sbar_dark_T5d_mid+0=147928.2031]
+Final cost = 23387.9258  [sbar_bright_T4a_mid+0=56041.1172  sbar_bright_T4b_mid+0=62121.4688  sbar_bright_T5a_mid+0=21031.5566  sbar_bright_T5b_mid+0=21200.3340  sbar_bright_T4c_mid+0=46486.8711  sbar_bright_T4d_mid+0=48205.5078  sbar_bright_T5c_mid+0=12608.2178  sbar_bright_T5d_mid+0=15049.8799  sbar_dark_T4a_mid+0=9935.5352  sbar_dark_T4b_mid+0=9143.3408  sbar_dark_T5a_mid+0=28074.4980  sbar_dark_T5b_mid+0=32463.3711  sbar_dark_T4c_mid+0=7178.5986  sbar_dark_T4d_mid+0=7146.5967  sbar_dark_T5c_mid+0=13675.5146  sbar_dark_T5d_mid+0=21235.4023]
+Best  cost = 23353.2422  [sbar_bright_T4a_mid+0=56876.1641  sbar_bright_T4b_mid+0=63330.5039  sbar_bright_T5a_mid+0=19552.7500  sbar_bright_T5b_mid+0=19993.0840  sbar_bright_T4c_mid+0=48304.5625  sbar_bright_T4d_mid+0=50414.1445  sbar_bright_T5c_mid+0=11668.0381  sbar_bright_T5d_mid+0=14540.4014  sbar_dark_T4a_mid+0=9442.6055  sbar_dark_T4b_mid+0=9237.0625  sbar_dark_T5a_mid+0=28346.0215  sbar_dark_T5b_mid+0=32648.9062  sbar_dark_T4c_mid+0=7374.6230  sbar_dark_T4d_mid+0=7492.2173  sbar_dark_T5c_mid+0=14111.0918  sbar_dark_T5d_mid+0=22333.7852]
+time needed  = 213.65  sec
+
+done in 0.06 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29589644-run-n_iter-300-tasks-sbar-shift_mid-0/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29589644-run-n_iter-300-tasks-sbar-shift_mid-0/param.csv (best run #0, cost=23353.2461)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29589644-run-n_iter-300-tasks-sbar-shift_mid-0/syn_strength_cell.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:834: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29589644-run-n_iter-300-tasks-sbar-shift_mid-0/cost.png: prep=0.0s  plot_s=0.2s  save=2.0s  elapsed_s=2.2s
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.10gb)
+1 trained set(s); costs min=23353.2461 max=23353.2461; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29589644-run-n_iter-300-tasks-sbar-shift_mid-0/sbar_gt_v.png: prep=0.4s  plot_s=2.9s  save=2.6s  elapsed_s=6.0s

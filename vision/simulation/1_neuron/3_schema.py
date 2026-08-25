@@ -39,15 +39,19 @@ def param_from_entry(param, param_key, params):
     return float(params[param][param_key])
 
 
-def _axis_names(param, n_node, *, cells=None, radii=None, pairs=None, edges=None):
-    if sum(x is not None for x in (cells, radii, pairs, edges)) > 1:
+def _axis_names(
+    param, n_node, *, cells=None, radii=None, mids=None, pairs=None, edges=None,
+):
+    if sum(x is not None for x in (cells, radii, mids, pairs, edges)) > 1:
         raise ValueError(
-            f"{param}: pass at most one of cells, radii, pairs, edges"
+            f"{param}: pass at most one of cells, radii, mids, pairs, edges"
         )
     if cells is not None:
         names = [str(cell) for cell in cells]
     elif radii is not None:
         names = [str(radius) for radius in radii]
+    elif mids is not None:
+        names = [str(mid) for mid in mids]
     elif pairs is not None:
         names = [str(pair) for pair in pairs]
     elif edges is not None:
@@ -73,7 +77,7 @@ def _node_vals_from_bag(bag, names, param, key):
 
 
 def build_param_spec(
-    param, n_node, entry, *, cells=None, radii=None, pairs=None, edges=None,
+    param, n_node, entry, *, cells=None, radii=None, mids=None, pairs=None, edges=None,
 ):
     """Build one schema ``spec`` dict (no self-id; caller keys the schema by ``param``).
 
@@ -90,7 +94,7 @@ def build_param_spec(
             f"{param}: unknown mode {mode!r}; expected one of {PARAM_MODES}"
         )
     names = _axis_names(
-        param, n_node, cells=cells, radii=radii, pairs=pairs, edges=edges,
+        param, n_node, cells=cells, radii=radii, mids=mids, pairs=pairs, edges=edges,
     )
     node_from = dict(zip(names, range(len(names))))
     spec = {
@@ -185,6 +189,18 @@ def _a_sti_radius_param(params: dict, a_sti_radii):
     return "a_sti_radius", spec
 
 
+def _a_sti_mid_param(params: dict, a_sti_mids):
+    """Per-absolute-mid ``a_sti_mid`` → ``(param, spec)``."""
+    mids = [str(float(mid)).removesuffix(".0") for mid in a_sti_mids]
+    if not mids:
+        raise ValueError("a_sti_mid requires non-empty a_sti_mids")
+    spec = build_param_spec(
+        "a_sti_mid", len(mids), params["a_sti_mid"], mids=mids,
+    )
+    spec["mids"] = mids
+    return "a_sti_mid", spec
+
+
 def _build_param_schema(
     params,
     *,
@@ -196,6 +212,7 @@ def _build_param_schema(
     n_edge,
     pairs,
     a_sti_radii,
+    a_sti_mids,
 ):
     """Build schema ``dict[param, spec]``; ``skip`` omits unused params."""
     schema = {}
@@ -216,6 +233,12 @@ def _build_param_schema(
             p, spec = _a_sti_radius_param(params, a_sti_radii)
             schema[p] = spec
             continue
+        if param == "a_sti_mid":
+            if not a_sti_mids:
+                continue
+            p, spec = _a_sti_mid_param(params, a_sti_mids)
+            schema[p] = spec
+            continue
         schema[param] = build_param_spec(
             param, n_cell, params[param], cells=[str(cell) for cell in cells],
         )
@@ -233,6 +256,7 @@ def build_borst_schema(
     filter: str = "none",
     n_edge=None,
     a_sti_radii=(),
+    a_sti_mids=(),
 ):
     """Borst schema in NEURON_SCHEMA['params'] order (rev i_h params always included)."""
     if cells is None:
@@ -251,6 +275,7 @@ def build_borst_schema(
         n_edge=n_edge,
         pairs=pairs,
         a_sti_radii=a_sti_radii,
+        a_sti_mids=a_sti_mids,
     )
 
 
@@ -265,6 +290,7 @@ def build_hp_lp_schema(
     filter: str = "none",
     n_edge=None,
     a_sti_radii=(),
+    a_sti_mids=(),
 ):
     """HP-then-LP schema in NEURON_SCHEMA['params'] order (borst-only keys skipped)."""
     if cells is None:
@@ -283,6 +309,7 @@ def build_hp_lp_schema(
         n_edge=n_edge,
         pairs=pairs,
         a_sti_radii=a_sti_radii,
+        a_sti_mids=a_sti_mids,
     )
 
 
@@ -294,6 +321,7 @@ def build_schema(
     params: dict,
     filter: str = "none",
     a_sti_radii=(),
+    a_sti_mids=(),
 ) -> dict:
     """Fresh parameter schema for ``model`` on the given connectome.
 
@@ -317,6 +345,7 @@ def build_schema(
         pairs=[f"{cells[s]}:{cells[t]}" for s, t in connectome.conn.pairs],
         filter=filter,
         a_sti_radii=a_sti_radii,
+        a_sti_mids=a_sti_mids,
     )
     if model == "hp_lp":
         return build_hp_lp_schema(n, cells=cells, **kwargs)

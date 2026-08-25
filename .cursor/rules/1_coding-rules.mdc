@@ -1,123 +1,73 @@
 ---
-description: Core scope and edit rules (vision); after 0_agent_gate.mdc
+description: Core scope and edit rules (vision)
 alwaysApply: true
 ---
 
 # Coding rules
 
-## No new files — check this first
+Scope: `vision/`.
 
----
+## HARD STOPS — violate = do not ship
 
-### Audit — “哪些 code 違反 coding-rules?” (read-only; no `vision/` edits)
 
-**Purpose:** Answer compliance questions across **all four** sections — not a lexicon grep report.
+4. No backward compatibility: 「改成 X」→ only X; old must not remain compatible. No old+new paths, shims, dual parsers, deprecated params, loaders for old runs/sidecars.
+5. When you change core (§B), you must leave `scratch/**` (logical `scratch`) broken — do not update scratch to match. Edit `scratch/**` only when the user names that script or file in the task or when you must need to run the script.
+6. Python/pip: Must use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
+7. Must not automatically add new `*.py` / `*.sh` / `*.ipynb` / `*.m`: must explain + propose path/duties + wait for user approval.
+8. Rename completeness: when the user renames a parameter / CLI flag / train_opts key / concept (e.g. `init_state` → `pre_steady`), you MUST in the same change also rename every corresponding **function**, **method**, **attribute**, **constant**, **CLI**, and **docstring / comment** that still uses the old name for that concept. Partial renames (opts only, or CLI only, leaving `def old_name` / call sites / docs) = do not ship.
+9. Minimal new code: every new function / method must use the fewest lines that correctly implement the behavior. Forbidden: dead branches, unused locals, re-computing values already in hand, defensive try/except that cannot fire, copy-paste "symmetry" APIs unused by callers, bytes/None guards for types that never appear, splitting one trivial helper into many without a second call site. Prefer extend/replace an existing function over adding a parallel one. Verbose first draft = do not ship; slim before done.
+10. Lexicon details stay in lexicon only: this file must not duplicate lexicon definitions, examples, or Forbidden lists — only refer to lexicon.
+11. Rule authorship: amending this file (or other project rules) = ban + situation list only. No example identifiers, no trap tables, no before/after. Token examples belong in lexicon Example/Forbidden only.
 
-**Procedure:**
-1. Report **① Plan / ② Sibling / ③ Names / ④ Write** each under its own heading.
-2. Each section: at least one concrete finding with **path + behavior**, or state **none found** and what you checked (which siblings Read, which patterns Grep’d). **③ Names** must include abbreviation / opaque-short / lexicon-headword-misuse findings when present — not only sibling-or-inline misses.
-3. **Forbidden:** delivering only a Forbidden-token / lexicon list and calling it a coding-rules audit.
+- **Python** (script location → interpreter):
+| Script location | Interpreter |
+|---|---|
+| `vision/**` | `vision/.venv/bin/python` |
+| `figure_digitization/**` | `figure_digitization/.venv/bin/python` |
 
-**Audit does not:** edit code, edit gate checkboxes, or skip ② sibling Read for shape violations.
+## A all script rules
 
-**Fix after audit:** If ① is driven by a prior audit, every naming finding listed for a file you will touch must appear in ① as **fix now** or **defer: `<token>`** (user-approved). Structural-only fixes while leaving audited glue/Forbidden in the edit surface are **Forbidden** unless deferred in ①.
+1. Canonical form first; diff replaces old — no second path.
+2. No backward compatibility (see HARD STOP 4). Exception: user-requested mutually exclusive CLI (e.g. `--at-uv` | `--at-xy`).
+3. Alias forbidden: same single name — e.g. `tile` and `tile_bright` both accepted. Exception: group shorthand in `TASK_ALIASES`, `PART_COST_SCALE_ALIASES`, `I_CLI_*_TASKS` only; new entries → those dicts.
+4. No duplicate functions or wrappers (see HARD STOP 9).
+5. CLI `list` values (lexicon ``list``): comma-separated in one token (`a,b,c`); not space-separated (`a b c`). Exception: (a) fixed-length pairs (e.g. `cell_syn.py` `--at-uv U V`, `nargs=2`); (b) top-level `KEY=VALUE` / bare-token bags (`nargs='+'`, space between tokens — e.g. `--gt mbar=T4 spot=L1,L2`, `--part-cost-scale DSI PD=0.2`, partition bags). Commas stay only inside a single token's value list. Use `parse_comma_list` in `import_bootstrap` only; do not add a second splitter.
+6. CLI alias expanders: `expand_<cli_name>` (`--kebab-case` → `snake_case`; e.g. `--mode` → `expand_mode`). Comma-list CLI values use `expand_<cli_name>_list` (lexicon ``list``; e.g. `--ih-group` → `expand_ih_group_list`). Do not suffix expanders with `_dict` — ``expand`` already yields the concrete bag. 
+7. Full names everywhere (HARD STOP 1). User-facing CLI may stay short only when the user requires that surface form.
+8. Compound names: two or more English words in an identifier must be joined with `_`; never glue words with no separator.
+9. `resolve_*` only for real defaults+CLI merge (HARD STOP 2).
 
----
+## B core script rules: `simulation/**`
 
-### ① Plan — lock scope before any evidence or code
+Disk tree under `simulation/` and `connectome/FAFBv783/` uses sorted `N_name` prefixes for **core only**. Core = numbered. Numbered = core. Non-core is unnumbered. Simulation core = `1_neuron_model/`, `2_network/`, `3_task/`, `4_train/`, `5_figure/`, `6_analyze/`. Non-core (`scratch/`) is unnumbered. Imports use the **logical** name only (`neuron_model`, `network.construction`, `map_column`). Renumber = rename on disk only; do not change logical import strings or `vision/import_bootstrap.py`. Enable via `import import_bootstrap` (and project `.venv` `simulation_sorted.pth`) before logical imports.
 
-**Purpose:** Fix what this task may change so later steps do not expand scope silently.
+Core numbering rules:
+1. Smaller `N` = imported earlier and completed / ready earlier.
+2. Number by both import order and use-completion order.
+3. If `A` must be imported or completed before `B`, then `N(A) <= N(B)`; normally `N(A) < N(B)`.
+4. Same `N` only for same-layer modules that do not import each other and have no earlier/later completion order between them.
 
-**Complete ① when you can state in prose (or to the user):**
-- **Done state** — one sentence: what exists when the task is finished.
-- **Files** — list every **existing** path you will touch (**No new files** above: Glob/Read each; no unapproved new paths).
-- **Layer** — task / train / figure / connectome / simulation entry script (default maintained core); **analyze** (`simulation/analyze/**`) only when the user names a file there in **Files** (same as **`scratch/**`**).
-- **K** — how many **functions** you will change (each function gets its own ②③④ cycle).
-- **Naming debt** — for each file in **Files**, list edit-surface bindings that fail §③ sibling-or-inline (no sibling cite → must inline or delete). Each: **fix now** or **defer: `<token>`** (user-approved).
+1. Parameters via schema only; new param = one schema param. No scattered `z[...]`.
+2. `run.py`: general driver only; `import train` must not parse argv or touch CUDA.
+3. Path constants in `path.py` / `train.implementation` (logical); disk file is under `4_train/`. 
+4. CSVs: rectangular; global scalars as constant columns.
+5. Core codes must stay flexible for `scratch/` to easily import, modify, and overwrite without touching core codes.
+6. No reverse plot dependency (HARD STOP 5). Scope: `simulation/2_network/**`, `connectome/**`, `1_neuron_model/**`, `3_task/**`, `4_train/**` (non-plot), `path.py`. Shared logic needed by both plot and core → move into core (e.g. `3_task/1_spot/`, `3_task/2_mbar/`); never import plot layers from core.
+7. Numeric defaults: sole source is ``simulation/conf/config.yaml``; loaded and exported by ``simulation/config.py`` (``from config import MODEL``, ``RUN_PATH``, …). YAML holds literals only; ``config.py`` holds load/bind and ``resolve_*`` glue only — no numeric literals in Python. Only `4_train` / `5_figure` / `6_analyze` / run scripts may import ``config``; ``run.py`` is driver only. `1_neuron` / `2_network` / `3_task` take numbers by injection only and must not import ``config`` (Gruntman mbar ms/geometry constants may live in ``task.mbar``). Constants follow original definition order across numbered cores `1.1` … `4.9` (empty cores omitted). ``config.py`` must not import ``train`` / ``figure`` at module load.
+10. No reverse plot dependency: core must not import or call plotting. Forbidden: `import figure.plot`, `from figure.plot import …`, and the alias `plot_trained`.
 
-**Policy (apply while planning):**
-- **「改成 X」= only X** — list what you remove or replace; do not plan backward compatibility, shims, dual loaders, or “keep old path working” unless the task explicitly asks.
-- **One canonical path** — one way to do the behavior; the diff removes the old way instead of leaving both.
-- **Concept rename** — one change must update every function, method, attribute, constant, CLI/opts key, docstring, and comment that uses the old name — **except** under **`scratch/**`** or **`simulation/analyze/**`** unless ① **Files** lists those paths.
-- **No partial rename** — do not change only CLI/opts keys while leaving old function names or docs.
-- **Numeric literals** — before adding numbers in Python, Read where that **task family** already keeps them (typically `simulation/conf/config.yaml` and/or gt/sti modules under `3_task/`). Do not invent new module-level constants without matching that family’s existing pattern.
-- **`scratch/**`**, **`simulation/analyze/**`** — treat as unmaintained; do not edit or update to match core unless the user names a file under that tree in this conversation (or you must run it to verify). When core changes, these trees stay as-is — no follow-up fixes to keep them working.
+## C non-core script rules
 
-**① does not:** Read siblings for shape, check lexicon, or write code — that is ②③④.
+1. `import train` (see HARD STOP 4). imports core.
+2. Train variants: `run_<id>` under `0_runs/<model>/`; full train artifact set and naming.
+3. Old directories and files in `run_<id>` must not be renamed or redirected when cores are modified and must remain broken.
 
----
+## D file/function naming rules
 
-### ② Sibling — same-layer code is the only shape evidence
-
-**Purpose:** Match control flow, API shape, and naming **role** already used beside your edit — not a generic ML repo.
-
-**Procedure:**
-1. **Grep** the concept, lexicon verb, or compound you are implementing (same **layer**: e.g. another `*_pack.py` in the same task folder, another `4_train` module, not a figure script if you edit task).
-2. **Read the chosen sibling’s full file body** (entire file, not a Grep snippet). If no sibling exists, say so in ① and pick the closest same-layer file; partial Read does not complete ②.
-3. **Cite** path and line range in your reasoning.
-4. Choose **extend** (add to existing function/block), **replace** (swap implementation), or **inline** (at call site) — default **extend** or **inline**; do not add a new function when the sibling would inline or extend instead.
-
-**② done only when** (see also `0_agent_gate.mdc` checkbox evidence): full-file sibling Read + cite + extend|replace|inline stated. **Grep hit without full-file Read = ② not done.**
-
-**② fails if:**
-- Shape or naming comes from training prior, another layer, or “typical PyTorch project” without a same-layer cite.
-- Grep-only or partial Read is treated as finished ②.
-- You add a **parallel helper** or duplicate function when extend, replace, or inline at the call site is enough.
-- You **Read a non-existent “sibling”** or plan a **new module** because no file exists yet — pick the closest **existing** same-layer file and **extend** it (**No new files** at top).
-
----
-
-### ③ Names — sibling-or-inline
-
-**Purpose:** No invented names. Every binding in the edit surface is either copied from ② sibling or not bound.
-
-**Edit surface:** Every parameter, local, attribute, constant, and **new function name** in the function or block you modify this cycle — including pre-existing bindings you leave in place.
-
-**Rule (two outcomes only):**
-1. **Sibling** — same spelling as ② sibling at the **same role** (cite `` `path:line` ``).
-2. **Inline** — no binding; write the expression at the use site.
-
-**Forbidden bindings (always — no sibling cite overrides):**
-1. **Abbreviation** — any project identifier that truncates a lexicon noun or English role word (`rec`, `vf`, `pkpk`, `wl`, `buf`, `tmp`, `obj`, `arr`, …). **Exception:** argparse `dest` / CLI flag only; library API spellings at the call site only.
-2. **Opaque short local** — a local or parameter whose name does not state **object + role** when the value is used for indexing, masking, lookup, slice bounds, or a gathered/scoped quantity. **Exception:** lexicon-listed axis integers only (`t`, `b`, `node`, `entry`, `col`, `row`, `u`, `v`, `du`, `dv`; bare `n` only as `sum_ / n`).
-3. **Lexicon-headword misuse** — binding a lexicon headword (`out`, `in`, `data`, `pack`, `readout`, …) for a **different role** than that headword defines (e.g. `out = {}` as an accumulator). **Fix:** delete + inline, or rename to the headword’s role compound / ② sibling — never another opaque short.
-4. **Non-lexicon glue local** — any new local whose sole token is not a lexicon headword, an established compound from ② sibling, or an allowed axis exception above. **Default fix:** inline at the sole use site; do not mint a substitute short.
-
-**Fixing a bad binding:** **delete + inline**, or **extend** ② sibling. **Rename-to-pass-grep is forbidden** — no new helper, local, or function that only renames or wraps the same expression.
-
-**Defer** — only if ① lists **defer: `<token>`** with user approval.
-
-**③ fails if:** any binding hits **Forbidden bindings** above; a binding lacks a sibling cite and is not inlined; a fix adds a name absent from ②; the diff is rename-only.
-
-Substitute-token lists live in `lexicon.mdc` (for audit / explicit coinage — not a ③ read-through checklist).
-
----
-
-### ④ Write — one function, then verify names
-
-**Purpose:** One auditable edit unit; concision and control flow follow ②; names were settled in ③ before typing.
-
-**Procedure:**
-- Edit **one function** (or one coherent method/block if the task is explicitly single-block) per ②③④ cycle.
-- Control flow and line count follow the ② sibling — fewest lines that preserve behavior; prefer extend/replace over new parallel code.
-- Before marking ④ done: confirm the diff adds **no new function** whose body only wraps/renames an existing expression (including `importlib.import_module` one-liners), and **no rename-only** fix hunk.
-
-**Concept rename** (one old name → one new name across the repo): declare file list in ①; one diff may touch all call sites; each **new** name must appear in ② sibling at same role.
-
-**④ fails if:**
-- One turn changes **multiple functions** without a fresh ②③ for each (except one declared concept-rename diff in ①).
-- You paste a whole function then rename, write before ③, or **park** failing names for later.
-- Dead branches, unused locals, try/except that cannot fire, or a **trivial helper** with only one call site (see ②: inline or extend instead).
-- **Rename sweep:** batch replace of identifiers across files without per-function ②③ (unless ① concept-rename with per-name ③ list).
-- **Preserved bad binding:** a binding that fails §③ sibling-or-inline remains while ③④ are marked done (unless ① **defer**).
-- The diff **creates any new file under `vision/`** without user-approved path (**No new files** at top).
-
-**Next function:** reset ②③④ checkboxes in `0_agent_gate.mdc` to `- [ ]`, redo ②→③→ `[x]`, then edit, then ④.
-
----
-
-### Ask mode (planning only, no `vision/` edits)
-
-Do ① and ② in prose; mark `[x]` in reply text only; do not edit gate checkboxes; skip ③④.
-
-**Audit requests:** all four sections ①–④ in prose (see §Audit); ③④ may describe would-be violations without editing code.
+1. Use singular for single entities and concepts; use plural for collections/sequences (e.g. `param` vs `params`, `key` vs `keys`).
+2. Script files must contain exactly one verb across the full path; the verb may appear in a parent directory name or in the basename, but it must not be duplicated.
+3. Output directories use plural nouns.
+4. Align with existing names (HARD STOP 1): do not invent a new token when a sibling pattern already names the same idea.
+5. Idx / mask / lookup / gathered-value locals must name both the object and the role; never use opaque names like `u` / `_u`.
+6. Never concatenate two English words in an identifier without `_` between them (Forbidden: `sumsq`; Required: `sum_sq`). Singular scalar `sum_sq`; collection/bag/dict of them `sum_sqs`.
+7. Short tokens are forbidden in identifiers except lexicon-listed short nouns and pattern tokens — see lexicon. Forbidden: opaque loop shorts and any short not listed as a lexicon headword.

@@ -46,6 +46,7 @@ from train.param import (
 )
 
 from task.spot.pack import spot_a_sti_radii
+from task.sbar.pack import sbar_a_sti_mids
 from task.implementation import (
     TASKS,
     _STI_TRAIN_OPT_KEYS,
@@ -73,6 +74,7 @@ def materialize_pack(pack, *, device, sim_dtype):
     for field in (
         "entry_bs", "entry_nodes", "cost_ts", "entry_radii", "cost_sti_us",
         "cost_sti_vs", "sti_bs", "sti_nodes", "a_sti_radius_idxs",
+        "a_sti_mid_idxs",
         "cost_t0s", "cost_pd_nds",
     ):
         if getattr(pack, field, None) is not None and not torch.is_tensor(getattr(pack, field)):
@@ -386,6 +388,9 @@ def resolve_schema(model, connectome, schema, train_opts):
         params=(train_opts or {}).get("params") or NEURON_SCHEMA["params"],
         filter=filter,
         a_sti_radii=spot_a_sti_radii() if "spot" in tasks else (),
+        a_sti_mids=sbar_a_sti_mids(
+            (train_opts or {}).get("sbar_sti_opts") or {},
+        ) if "sbar" in tasks else (),
     )
     val_from = (train_opts or {}).get("val_from") or {}
     schema = schema_copy(schema)

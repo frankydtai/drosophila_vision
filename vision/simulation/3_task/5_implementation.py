@@ -6,6 +6,7 @@ from config import (
     MBAR_INPUT_SPEC,
     MODEL,
     SBAR_INPUT_GEO,
+    SBAR_PACK,
     SPREAD_INPUT_SPEC,
     SPOT_INPUT_GEO,
 )
@@ -67,6 +68,8 @@ _STI_OPTS_BY_TASK = {
         "bar_dist": SBAR_INPUT_GEO["bar_dist"],
         "bar_directions": list(MBAR_INPUT_SPEC["bar_directions"]),
         "multi_bar": SBAR_INPUT_GEO["multi_bar"],
+        "shift_mid": SBAR_INPUT_GEO["shift_mid"],
+        "a_sti_mids": list(SBAR_PACK["a_sti_mids"]),
     },
 }
 

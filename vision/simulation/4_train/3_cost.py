@@ -245,8 +245,18 @@ def _parts_from_entries(
 
 
 def _part_scale(session: TrainSession, part_key: str) -> float:
-    """Exact ``part_cost_scales[part_key]``; missing key is 1.0."""
-    return float((session.part_cost_scales or {}).get(part_key, 1.0))
+    """Resolve an exact part scale, then its task scale; default to 1.0.
+
+    For example, ``spread_bright_L1`` first checks that full key, then
+    ``spread``.  This lets a task-wide scale coexist with finer overrides.
+    """
+    scales = session.part_cost_scales or {}
+    if part_key in scales:
+        return float(scales[part_key])
+    for task in sorted(session.tasks, key=len, reverse=True):
+        if part_key.startswith(f"{task}_") and task in scales:
+            return float(scales[task])
+    return 1.0
 
 
 def _entry_cost_scales(pack: TaskPack) -> torch.Tensor:
@@ -420,6 +430,27 @@ def _subset_pack_bs(pack: TaskPack, bs: Tuple[int, ...]) -> Optional[TaskPack]:
         )[pack.entry_bs[entry_mask]],
     )
     fields["i_sti"] = pack.i_sti.index_select(0, active_bs)
+    sti_bs = getattr(pack, "sti_bs", None)
+    if sti_bs is not None and sti_bs.numel():
+        sti_mask = torch.isin(sti_bs, active_bs)
+        sti_b_map = torch.full(
+            (int(max(max(bs), int(sti_bs.max()))) + 1,),
+            -1,
+            dtype=torch.long,
+            device=device,
+        ).scatter_(
+            0,
+            active_bs,
+            torch.arange(len(bs), dtype=torch.long, device=device),
+        )
+        fields["sti_bs"] = sti_b_map[sti_bs[sti_mask]]
+        fields["sti_nodes"] = pack.sti_nodes[sti_mask]
+        for field in ("a_sti_radius_idxs", "a_sti_mid_idxs"):
+            if getattr(pack, field, None) is not None:
+                fields[field] = getattr(pack, field)[sti_mask]
+        pulse = getattr(pack, "i_sti_pulse", None)
+        if pulse is not None and pulse.dim() == 2:
+            fields["i_sti_pulse"] = pulse.index_select(0, active_bs)
     return replace(pack, **fields)
 
 
@@ -487,6 +518,48 @@ def _build_fused_packs(
     return tuple(fused_packs)
 
 
+def _fused_forward_pack(fused: FusedPacks) -> TaskPack:
+    """Combine drive metadata, including contrast-specific indexed pulses."""
+    packs = fused.packs
+    first = packs[0]
+    if len(packs) == 1:
+        return first
+    fields = {"i_sti": torch.cat([pack.i_sti for pack in packs], dim=0)}
+    idx_field = next(
+        (
+            field for field in ("a_sti_radius_idxs", "a_sti_mid_idxs")
+            if any(getattr(pack, field, None) is not None for pack in packs)
+        ),
+        None,
+    )
+    if idx_field is None:
+        return replace(first, **fields)
+
+    sti_bs = []
+    sti_nodes = []
+    value_idxs = []
+    pulses = []
+    for pack, b_offset in zip(packs, fused.b_offsets):
+        n_b = int(pack.i_sti.shape[0])
+        pulse = pack.i_sti_pulse
+        pulses.append(
+            pulse[None, :].expand(n_b, -1) if pulse.dim() == 1 else pulse
+        )
+        idxs = getattr(pack, idx_field, None)
+        if idxs is None:
+            continue
+        sti_bs.append(pack.sti_bs + int(b_offset))
+        sti_nodes.append(pack.sti_nodes)
+        value_idxs.append(idxs)
+    fields.update({
+        "i_sti_pulse": torch.cat(pulses, dim=0),
+        "sti_bs": torch.cat(sti_bs, dim=0),
+        "sti_nodes": torch.cat(sti_nodes, dim=0),
+        idx_field: torch.cat(value_idxs, dim=0),
+    })
+    return replace(first, **fields)
+
+
 def _pack_cost_parts_from_v_readout(
     pack: TaskPack,
     session: TrainSession,
@@ -516,10 +589,12 @@ def _pack_cost_parts_from_v_readout(
 def _pack_cost_parts_from_params(params, pack: TaskPack, session: TrainSession, b=None):
     """Unscaled cost parts for one pack."""
     if b is not None:
-        entry_mask = pack.entry_bs == int(b)
-        if not bool(entry_mask.any()):
+        pack = _subset_pack_bs(pack, (int(b),))
+        if pack is None:
             return {}
-        trace = forward_pack(session, params, pack.i_sti[b:b + 1], pack)
+        b = 0
+        entry_mask = pack.entry_bs == b
+        trace = forward_pack(session, params, pack.i_sti, pack)
         t_onset = pack_t_onset(pack)
         n_t = int(pack.gts.shape[1])
         entry_nodes = pack.entry_nodes[entry_mask]
@@ -560,12 +635,12 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
         parts: Dict[str, torch.Tensor] = {}
         for fused in fused_packs:
             # Compatible packs share t_onset; pass one pack for prepare.
+            forward_task_pack = _fused_forward_pack(fused)
             trace = forward_pack(
                 session,
                 params,
-                fused.packs[0].i_sti if len(fused.packs) == 1 else
-                torch.cat([pack.i_sti for pack in fused.packs], dim=0),
-                fused.packs[0],
+                forward_task_pack.i_sti,
+                forward_task_pack,
             )
             for pack, b_offset in zip(fused.packs, fused.b_offsets):
                 for part_key, part in _pack_cost_parts_from_v_readout(

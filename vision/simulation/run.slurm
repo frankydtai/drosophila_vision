@@ -39,5 +39,5 @@ pprint(params, sort_dicts=False, width=120)
 PY
 echo "==== end config ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py n_iter=5000 "tasks='spread,sbar'"
+"${PYTHON}" -u run.py n_iter=300 "tasks='sbar'" shift_mid=1 model=borst
 

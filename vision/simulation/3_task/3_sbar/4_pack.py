@@ -20,8 +20,9 @@ from network.construction import (
     standardize_cost_radius,
 )
 from task.sbar.gt import GT_CELLS, load_gt
-from task.sbar.sti_geo import sbar_line_hex_mask, sti_hexes
+from task.sbar.sti_geo import sbar_line_mids, sti_hexes
 from task.sbar.sti_spec import (
+    build_sbar_a_sti_mid_drive,
     build_sbar_signals,
     gruntman_sbar_specs,
 )
@@ -65,12 +66,63 @@ class SbarPack:
     cost_t0s: Optional[torch.Tensor] = None
     cost_ts: Optional[torch.Tensor] = None
     cost_radius: Optional[int] = None
+    t_onset: Optional[int] = None
+    i_sti_pulse: Optional[torch.Tensor] = None
+    sti_bs: Optional[torch.Tensor] = None
+    sti_nodes: Optional[torch.Tensor] = None
+    a_sti_mid_idxs: Optional[torch.Tensor] = None
     entry_part_keys: Tuple[str, ...] = ()
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
 
 
+def sbar_a_sti_mids(sti_opts=None) -> tuple[float, ...]:
+    """Configured positive absolute distances controlled by ``a_sti_mid``."""
+    from config import SBAR_PACK
+
+    values = (sti_opts or {}).get("a_sti_mids", SBAR_PACK["a_sti_mids"])
+    mids = tuple(float(mid) for mid in values)
+    if any(not np.isfinite(mid) or mid <= 0.0 for mid in mids):
+        raise ValueError("a_sti_mids must contain finite positive distances; omit mid=0")
+    if len({round(mid, 9) for mid in mids}) != len(mids):
+        raise ValueError("a_sti_mids must contain unique absolute distances")
+    return mids
+
+
 def part_key(contrast: str, cell: str, mid) -> str:
     return f"sbar_{contrast}_{cell}_mid{(f'{int(mid):+d}' if float(mid).is_integer() else f'{float(mid):+.1f}')}"
+
+
+def sbar_direction_active(cell: str, direction: str) -> bool:
+    """Whether *direction* lies on the T4/T5 subtype's motion axis."""
+    subtype = str(cell)[-1:]
+    if subtype in ("a", "b"):
+        return str(direction) in ("right", "left")
+    if subtype in ("c", "d"):
+        return str(direction) in ("up", "down")
+    raise ValueError(f"unknown sbar gt cell subtype: {cell!r}")
+
+
+def sbar_pd_axis_sign(cell: str) -> int:
+    """Global x/y sign of increasing position along the subtype's PD axis."""
+    subtype = str(cell)[-1:]
+    if subtype in ("a", "c"):
+        return 1
+    if subtype in ("b", "d"):
+        return -1
+    raise ValueError(f"unknown sbar gt cell subtype: {cell!r}")
+
+
+def _sbar_gt_key(cell: str, contrast: str, position: float) -> str:
+    pathway = (
+        "PC" if (cell.startswith("T4") and contrast == "bright")
+        or (cell.startswith("T5") and contrast == "dark") else "NC"
+    )
+    position_label = (
+        f"{int(position):+d}"
+        if float(position).is_integer()
+        else f"{float(position):+.1f}"
+    )
+    return f"{cell[:2]}_{pathway}_pos{position_label}_w1"
 
 
 def _sbar_cost_part_plot_specs(
@@ -114,6 +166,7 @@ def build_sbar_gt(
     delta_ms_pre: float,
     bar_dist: int,
     bar_directions: Sequence[str],
+    shift_radius: int = 0,
     multi_bar: bool = True,
     cost_radius: Optional[int] = None,
     i_baseline: float,
@@ -131,21 +184,22 @@ def build_sbar_gt(
       different task variant and MUST be excluded by the ``load_gt`` call.
     - Trace ID format: ``{cell_prefix}_{PC|NC}_pos{SIGN}_w1``, e.g. ``T4_PC_pos+0.5_w1``.
       The float position in the trace_id (e.g. ``+0.5``) MUST match the CSV ``position`` field.
-    - ``mid`` = cost-node hex-step ``x`` (left/right) or ``y`` (up/down). Cost
-      entries cover every cost hex whose ``mid`` has a Gruntman GT key (exactly
-      -2..+2), including hexes not on a lit multi_bar line — same split as spot
-      ``spot_cost_radii`` vs ``a_sti_radii``. Lit lines (``sbar_line_hex_mask``)
-      only drive sti and the optional two-trace overlap below.
+    - Each simultaneous bar line is a separate spatial replicate, matching how
+      spot expands every simultaneous spot center. ``mid`` is the cost-node
+      position relative to that bar line, not the node's absolute axis value.
+      Thus multi-bar produces more ``(bar, node)`` cost entries than single-bar.
+    - Subtypes a/b use only the right/left axis; subtypes c/d use only the
+      up/down axis. In particular, a/b ``mid`` values are integer ``x`` values
+      and must never receive half-step ``y`` entries from up/down conditions.
 
-    Two-trace overlap logic:
-    When multi_bar=True, sti places bars on ``bar_dist`` multiples (e.g. d=4 →
-    …,-8,-4,0,4,8,…). If a cost ``mid`` lies between two lit anchors and CSV
-    has both ``pos{mid}`` and ``pos{b_off}``, GT is their sum; else single
-    ``pos{mid}``.
+    When a node lies within the GT position range of multiple simultaneous
+    bars, its target is the sum of those single-bar GT traces. It remains one
+    sample for each bar-relative position, as with overlapping spot centers.
     """
     specs = gruntman_sbar_specs(
         contrasts=tuple(contrasts),
         bar_directions=bar_directions,
+        shift_radius=int(shift_radius),
     )
     i_baseline = float(i_baseline)
     sti = build_sbar_signals(
@@ -183,57 +237,47 @@ def build_sbar_gt(
         [], [], [], [], [],
     )
     entry_part_keys: List[str] = []
+    cost_bar_hexes = set()
 
     for b, spec in enumerate(sti.specs):
-        hex_mask = sbar_line_hex_mask(
+        bar_mids = sbar_line_mids(
             hexes, spec.direction, bar_dist, multi_bar=bool(multi_bar),
+            shift_mid=spec.shift_mid,
         )
-        if spec.direction in ("right", "left"):
-            mids = sorted(
-                float(hexes[hex_idx].x)
-                for hex_idx in range(len(hexes))
-                if hex_mask[hex_idx] > 0.0
-            )
-        else:
-            mids = sorted(
-                float(hexes[hex_idx].y)
-                for hex_idx in range(len(hexes))
-                if hex_mask[hex_idx] > 0.0
-            )
-        mids_set = set(mids)
+        axis = "x" if spec.direction in ("right", "left") else "y"
         for hex in cost_hexes:
-            mid = float(hex.x if spec.direction in ("right", "left") else hex.y)
+            cell_mid = float(hex.x if axis == "x" else hex.y)
             for cell in active:
+                if not sbar_direction_active(cell, spec.direction):
+                    continue
+                bar_samples = []
+                for bar_mid in bar_mids:
+                    relative_mid = float(
+                        sbar_pd_axis_sign(cell) * (bar_mid - cell_mid)
+                    )
+                    gt_key = _sbar_gt_key(cell, spec.contrast, relative_mid)
+                    if gt_key in gts:
+                        bar_samples.append((float(bar_mid), relative_mid, gt_key))
+                if not bar_samples:
+                    continue
                 nodes = connectome.nodes_at_uv(hex.u, hex.v, cell, cells=cells)
                 if len(nodes) == 0:
                     continue
-                gt = None
-                for mid0 in mids:
-                    if not (0.0 < mid - mid0 < float(bar_dist)):
-                        continue
-                    if (mid0 + bar_dist) not in mids_set:
-                        continue
-                    b_off = mid - mid0 - bar_dist
-                    if (
-                        f"{cell[:2]}_{'PC' if (cell.startswith('T4') and spec.contrast == 'bright') or (cell.startswith('T5') and spec.contrast == 'dark') else 'NC'}_pos{(f'{int(mid):+d}' if float(mid).is_integer() else f'{float(mid):+.1f}')}_w1" in gts
-                        and f"{cell[:2]}_{'PC' if (cell.startswith('T4') and spec.contrast == 'bright') or (cell.startswith('T5') and spec.contrast == 'dark') else 'NC'}_pos{(f'{int(b_off):+d}' if float(b_off).is_integer() else f'{float(b_off):+.1f}')}_w1" in gts
-                    ):
-                        gt = (
-                            gts[f"{cell[:2]}_{'PC' if (cell.startswith('T4') and spec.contrast == 'bright') or (cell.startswith('T5') and spec.contrast == 'dark') else 'NC'}_pos{(f'{int(mid):+d}' if float(mid).is_integer() else f'{float(mid):+.1f}')}_w1"][t0:t0 + n_t_cost]
-                            + gts[f"{cell[:2]}_{'PC' if (cell.startswith('T4') and spec.contrast == 'bright') or (cell.startswith('T5') and spec.contrast == 'dark') else 'NC'}_pos{(f'{int(b_off):+d}' if float(b_off).is_integer() else f'{float(b_off):+.1f}')}_w1"][t0:t0 + n_t_cost]
+                gt = sum(
+                    (gts[gt_key][t0:t0 + n_t_cost] for _, _, gt_key in bar_samples),
+                    np.zeros(n_t_cost, dtype=np.float64),
+                )
+                for bar_mid, relative_mid, _ in bar_samples:
+                    cost_bar_hexes.add((axis, bar_mid, int(hex.u), int(hex.v)))
+                    for node in nodes:
+                        entry_bs.append(b)
+                        entry_nodes.append(int(node))
+                        entry_gts.append(gt)
+                        entry_cost_scales.append(1.0)
+                        entry_cost_t0s.append(t0)
+                        entry_part_keys.append(
+                            part_key(spec.contrast, cell, relative_mid)
                         )
-                        break
-                if gt is None:
-                    if f"{cell[:2]}_{'PC' if (cell.startswith('T4') and spec.contrast == 'bright') or (cell.startswith('T5') and spec.contrast == 'dark') else 'NC'}_pos{(f'{int(mid):+d}' if float(mid).is_integer() else f'{float(mid):+.1f}')}_w1" not in gts:
-                        continue
-                    gt = gts[f"{cell[:2]}_{'PC' if (cell.startswith('T4') and spec.contrast == 'bright') or (cell.startswith('T5') and spec.contrast == 'dark') else 'NC'}_pos{(f'{int(mid):+d}' if float(mid).is_integer() else f'{float(mid):+.1f}')}_w1"][t0:t0 + n_t_cost]
-                for node in nodes:
-                    entry_bs.append(b)
-                    entry_nodes.append(int(node))
-                    entry_gts.append(gt)
-                    entry_cost_scales.append(1.0)
-                    entry_cost_t0s.append(t0)
-                    entry_part_keys.append(part_key(spec.contrast, cell, mid))
 
     if not entry_bs:
         raise ValueError("no static-bar cost nodes (check subtypes and sti hexes)")
@@ -257,7 +301,7 @@ def build_sbar_gt(
         cost_t0s=cost_t0s,
         n_b=sti.n_b,
         n_t=int(sti.n_t),
-        n_cost_hex=len(cost_hexes),
+        n_cost_hex=len(cost_bar_hexes),
         active_gts=list(active),
         spec_tokens=[spec.token for spec in sti.specs],
         entry_part_keys=tuple(entry_part_keys),
@@ -275,8 +319,12 @@ def build_sbar_sti_opts(
     bar_dist: int,
     bar_directions: Sequence[str],
     multi_bar: bool,
+    shift_mid: int = 0,
+    a_sti_mids=None,
     gt_cells=None,
 ):
+    if a_sti_mids is None:
+        a_sti_mids = sbar_a_sti_mids()
     sti_opts = {
         "ms_pre": ms_pre,
         "ms_response": ms_response,
@@ -286,6 +334,8 @@ def build_sbar_sti_opts(
         "bar_dist": int(bar_dist),
         "bar_directions": list(bar_directions),
         "multi_bar": bool(multi_bar),
+        "shift_mid": int(shift_mid),
+        "a_sti_mids": [float(mid) for mid in a_sti_mids],
     }
     if ms_sti is not None:
         sti_opts["ms_sti"] = ms_sti
@@ -307,6 +357,8 @@ def resolve_sbar_sti_opts(opts, **_):
         bar_dist=opts["bar_dist"],
         bar_directions=opts["bar_directions"],
         multi_bar=opts["multi_bar"],
+        shift_mid=opts.get("shift_mid", opts.get("shift_radius", 0)),
+        a_sti_mids=opts.get("a_sti_mids", sbar_a_sti_mids()),
         gt_cells=opts.get("gt_cells"),
     )
 
@@ -323,6 +375,8 @@ def sbar_sti_opts(
     bar_dist: int,
     bar_directions: Sequence[str],
     multi_bar: bool,
+    shift_mid: int = 0,
+    a_sti_mids=None,
 ) -> dict:
     if sbar_sti_opts:
         return dict(sbar_sti_opts)
@@ -336,6 +390,10 @@ def sbar_sti_opts(
         bar_dist=bar_dist,
         bar_directions=bar_directions,
         multi_bar=multi_bar,
+        shift_mid=shift_mid,
+        a_sti_mids=(
+            sbar_a_sti_mids() if a_sti_mids is None else a_sti_mids
+        ),
     )
 
 
@@ -352,6 +410,8 @@ def build_sbar_pack(
     if not sti_opts:
         raise ValueError("sbar requires sti opts (from resolve_train_opts / CLI)")
     sti_opts = dict(sti_opts)
+    # ``shift_radius`` is accepted only for loading older saved run options.
+    shift_mid = int(sti_opts.get("shift_mid", sti_opts.get("shift_radius", 0)))
     cost_radius = standardize_cost_radius(sti_opts.get("cost_radius"))
     sbar_gt = build_sbar_gt(
         connectome=connectome,
@@ -368,7 +428,32 @@ def build_sbar_pack(
         gt_cells=gt_cells_from_opts(sti_opts),
         bar_dist=int(sti_opts["bar_dist"]),
         bar_directions=sti_opts["bar_directions"],
+        shift_radius=shift_mid,
         multi_bar=bool(sti_opts["multi_bar"]),
+    )
+    a_sti_mids = sbar_a_sti_mids(sti_opts)
+    t_onset = int(t_from_ms(
+        float(sti_opts["ms_pre"]), delta_ms=float(sti_opts["delta_ms_pre"]),
+    ))
+    specs = gruntman_sbar_specs(
+        contrasts=(contrast,), bar_directions=sti_opts["bar_directions"],
+        shift_radius=shift_mid,
+    )
+    pack_i_sti, i_sti_pulse, sti_bs, sti_nodes, a_sti_mid_idxs = (
+        build_sbar_a_sti_mid_drive(
+            connectome,
+            specs,
+            sbar_gt.i_sti,
+            a_sti_mids=a_sti_mids,
+            bar_dist=int(sti_opts["bar_dist"]),
+            multi_bar=bool(sti_opts["multi_bar"]),
+            t_onset=t_onset,
+            n_t=int(sbar_gt.n_t),
+            ms_sti=sti_opts.get("ms_sti"),
+            delta_ms=float(sti_opts["delta_ms"]),
+            i_baseline=i_baseline_from_i_sti(i_sti),
+            i_sti=float(i_sti[contrast]),
+        )
     )
     sti_opts["n_t"] = int(sbar_gt.n_t)
     sti_opts["spec_tokens"] = list(sbar_gt.spec_tokens)
@@ -378,7 +463,7 @@ def build_sbar_pack(
     pack = SbarPack(
         task="sbar",
         contrast=contrast,
-        i_sti=sbar_gt.i_sti,
+        i_sti=pack_i_sti,
         gts=sbar_gt.gts,
         cost_scales=sbar_gt.cost_scales,
         entry_bs=sbar_gt.entry_bs,
@@ -386,6 +471,11 @@ def build_sbar_pack(
         cost_t0s=sbar_gt.cost_t0s,
         cost_ts=build_cost_ts(sti_opts, cost_ms=opts.get("cost_ms")),
         cost_radius=cost_radius,
+        t_onset=t_onset,
+        i_sti_pulse=i_sti_pulse,
+        sti_bs=sti_bs,
+        sti_nodes=sti_nodes,
+        a_sti_mid_idxs=a_sti_mid_idxs,
         entry_part_keys=sbar_gt.entry_part_keys,
         cost_part_plot_specs=_sbar_cost_part_plot_specs(
             sbar_gt.entry_part_keys,

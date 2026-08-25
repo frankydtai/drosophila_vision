@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
-from build_hex import xy_from_uv
+from build_hex import radius_hexes, xy_from_uv
 
 
 @dataclass
@@ -104,35 +104,80 @@ def sbar_line_hex_mask(
     bar_dist: int,
     *,
     multi_bar: bool = True,
+    shift_mid: float = 0.0,
 ) -> np.ndarray:
     """Static-bar width-1 lines: binary ``hex_mask`` ``(n_hex,)`` on ``bar_dist`` steps."""
     n_hex = len(hexes)
     hex_mask = np.zeros(n_hex, dtype=np.float64)
     if n_hex == 0:
         return hex_mask
-    bar_dist = int(bar_dist)
+    lit = sbar_line_mids(
+        hexes, direction, bar_dist, multi_bar=multi_bar,
+        shift_mid=shift_mid,
+    )
     if direction in ("right", "left"):
-        lit = sorted({float(hex.x) for hex in hexes})
-        if direction == "left":
-            lit = lit[::-1]
-        if not multi_bar:
-            lit = lit[:1]
-        elif bar_dist > 0:
-            lit = [v for v in lit if abs(v - bar_dist * round(v / bar_dist)) < 1e-9]
         for hex_idx, hex in enumerate(hexes):
             if float(hex.x) in lit:
                 hex_mask[hex_idx] = 1.0
     elif direction in ("up", "down"):
-        lit = sorted({float(hex.y) for hex in hexes})
-        if direction == "down":
-            lit = lit[::-1]
-        if not multi_bar:
-            lit = lit[:1]
-        elif bar_dist > 0:
-            lit = [v for v in lit if abs(v - bar_dist * round(v / bar_dist)) < 1e-9]
         for hex_idx, hex in enumerate(hexes):
             if float(hex.y) in lit:
                 hex_mask[hex_idx] = 1.0
     else:
         raise ValueError(f"unknown direction {direction!r}")
     return hex_mask
+
+
+def sbar_line_mids(
+    hexes: Sequence,
+    direction: str,
+    bar_dist: int,
+    *,
+    multi_bar: bool = True,
+    shift_mid: float = 0.0,
+) -> List[float]:
+    """Axis coordinates of static bars; single-bar uses the central line."""
+    if direction in ("right", "left"):
+        lit = sorted({float(hex.x) for hex in hexes})
+        reverse = direction == "left"
+    elif direction in ("up", "down"):
+        lit = sorted({float(hex.y) for hex in hexes})
+        reverse = direction == "down"
+    else:
+        raise ValueError(f"unknown direction {direction!r}")
+    available = tuple(lit)
+    if not multi_bar:
+        base = [min(lit, key=lambda value: (abs(value), value))] if lit else []
+        shifted = [float(value + shift_mid) for value in base]
+        return [
+            value for value in shifted
+            if any(np.isclose(value, candidate, atol=1e-9) for candidate in available)
+        ]
+    if reverse:
+        lit = lit[::-1]
+    bar_dist = int(bar_dist)
+    if bar_dist > 0:
+        lit = [
+            value for value in lit
+            if abs(value - bar_dist * round(value / bar_dist)) < 1e-9
+        ]
+    shifted = [float(value + shift_mid) for value in lit]
+    return [
+        value for value in shifted
+        if any(np.isclose(value, candidate, atol=1e-9) for candidate in available)
+    ]
+
+
+def sbar_shift_mids(direction: str, shift_radius: int) -> List[float]:
+    """Unique bar-normal projections of axial shifts within ``shift_radius``."""
+    shift_radius = int(shift_radius)
+    if shift_radius < 0:
+        raise ValueError(f"sbar shift_radius must be >= 0, got {shift_radius}")
+    shifts = radius_hexes(shift_radius)
+    if direction in ("right", "left"):
+        values = {float(dv) for du, dv in shifts}
+    elif direction in ("up", "down"):
+        values = {float(du) + float(dv) / 2.0 for du, dv in shifts}
+    else:
+        raise ValueError(f"unknown direction {direction!r}")
+    return sorted(values)

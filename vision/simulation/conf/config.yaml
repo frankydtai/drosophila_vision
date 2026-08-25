@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 29562242-run-n_iter-300-tasks-spread,sbar
+ 29589060-run-n_iter-300-tasks-spread,sbar-multi_bar-true
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -34,7 +34,14 @@ h_cells: "L1,L2,L4,L5"
 params:
   a_gt: {lo: 0.5, hi: 2.0, init: 1.0, jit: 0.1, mode: "indi"}
   bias_gt: {lo: -200.0, hi: 200.0, init: 0.0, jit: 1.0, mode: "indi"}
-  syn_strength_cell: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "shared"}
+  syn_strength_cell:
+    lo: 0.1
+    hi: 10.0
+    init: 1.0
+    jit: 0.1
+    mode: "indi"
+    modes:
+      indi: "Mi4:T4a,Mi4:T4b,Mi4:T4c,Mi4:T4d,Mi9:T4a,Mi9:T4b,Mi9:T4c,Mi9:T4d"
   syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   a_in: {lo: 0.01, hi: 100.0, init: 1.0, jit: 0.1, mode: "shared"}
   a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
@@ -68,6 +75,7 @@ params:
   a_ca: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   tau_ca: {lo: 100.0, hi: 1000.0, init: 350.0, jit: 10.0, mode: "indi"}
   a_sti_radius: {lo: 0.0, hi: 1.0, init: 0.0, jit: 0.05, mode: "indi"}
+  a_sti_mid: {lo: 0.0, hi: 1.0, init: 0.0, jit: 0.05, mode: "fixed"}
 
 # ---------------------------------------------------------------------------
 # 1.4   neuron.forward (model booleans; not packed into z)
@@ -88,7 +96,7 @@ i_sti:
 contrasts: "bright,dark"
 ms_pre: 20.0
 ms_sti: 160.0
-ms_response: 300.0
+ms_response: 600.0
 ms_post: 0.0
 
 # ---------------------------------------------------------------------------
@@ -117,8 +125,11 @@ spot_cost_radius_scale:
 # ---------------------------------------------------------------------------
 # 3.3.1   task.sbar.sti_geo (hex map only; bar math → task.mbar.sti_geo)
 # ---------------------------------------------------------------------------
-multi_bar: true
+multi_bar: false
 bar_dist: 4
+# S-bar hex-shift radius projected onto the bar-normal mid axis (0 disables).
+shift_mid: 2
+a_sti_mids: "0.5,1,1.5,2"
 bar_ws_deg: "2.25,9.0"
 bar_directions: "right,left,up,down"
 
@@ -128,7 +139,7 @@ bar_directions: "right,left,up,down"
 tasks: "sbar"
 gt_by_task:
   spread: [L1, L2, L3, L4, L5, Mi1, Tm3, Mi4, Mi9, Tm1, Tm2, Tm4, Tm9]
-  sbar: [T4a, T4b, T4c, T4d, T5a, T5b, T5c, T5d]
+  sbar: [T4a]
 cost_radius: null
 
 # ---------------------------------------------------------------------------
@@ -151,7 +162,8 @@ val_from:
 # ---------------------------------------------------------------------------
 # 4.3   train.cost
 # ---------------------------------------------------------------------------
-part_cost_scales: {}
+# Task keys apply to every fine part in that task; a full part key overrides it.
+part_cost_scales: {spread: 0.0001}
 cost_norm: "a_gt2"
 # cost_ms: post-onset cost sample times (spread + spot; same for every radius).
 #   null — full post-onset window (no sparse cost_ts)

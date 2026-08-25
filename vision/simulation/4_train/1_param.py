@@ -162,6 +162,8 @@ def _param_names(param, spec, connectome):
     """``(names, node_from)`` for this param — cell / radius / pair / edge."""
     if spec.get("radii") is not None:
         names = [str(radius) for radius in spec["radii"]]
+    elif spec.get("mids") is not None:
+        names = [str(mid) for mid in spec["mids"]]
     elif param == "syn_strength_cell":
         names = pairs_from_connectome(connectome)
     elif param == "syn_strength_edge":
@@ -347,7 +349,7 @@ def _remap_node_vals(node_vals, cells, pairs, schema, connectome, *, fill):
                 node_vals_remapped[param][:] = np.asarray(
                     node_vals[param], dtype=np.float64,
                 ).reshape(-1)
-        elif spec.get("radii") is not None:
+        elif spec.get("radii") is not None or spec.get("mids") is not None:
             n_copy = min(
                 n_node,
                 len(np.asarray(node_vals[param], dtype=np.float64).reshape(-1)),
@@ -403,12 +405,13 @@ def _expand_param(param, spec, node_vals, connectome):
     """Map packed vals to the tensor consumed by dynamics.
 
     Per-cell neuron params: ``(n_cell,)`` → ``(n_node,)`` via ``conn.node_cells``.
-    ``a_gt`` / ``bias_gt`` stay ``(n_cell,)``; syn / ``a_sti_radius`` stay full-w.
+    ``a_gt`` / ``bias_gt`` stay ``(n_cell,)``; syn / indexed sti params stay full-w.
     """
     device = connectome.conn.node_cells.device
     if (
         param in ("a_gt", "bias_gt", "syn_strength_cell", "syn_strength_edge")
         or spec.get("radii") is not None
+        or spec.get("mids") is not None
     ):
         return node_vals.to(device)
     return node_vals[connectome.conn.node_cells].to(device)

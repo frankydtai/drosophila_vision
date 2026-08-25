@@ -34,31 +34,106 @@ def a_sti_radius_effective(params, pack):
     return a_sti_radius * mask.to(device=a_sti_radius.device, dtype=a_sti_radius.dtype)
 
 
+def _indexed_stimulus_delta(
+    values, value_idxs, pack, *, n_b: int, n_node: int,
+):
+    """Aggregate indexed amplitudes once into a dense ``(B, N)`` delta.
+
+    The old path scattered an ``(n_entry, T)`` tensor.  Scattering scalars here
+    preserves duplicate multi-spot/multi-bar sums while leaving time expansion
+    to the individual simulation step.
+    """
+    sti_bs = pack.sti_bs
+    sti_nodes = pack.sti_nodes
+    if pack.i_sti_pulse is None or sti_bs is None or sti_nodes is None:
+        raise ValueError(
+            "indexed stimulus set but i_sti_pulse/sti_bs/sti_nodes missing"
+        )
+    delta = values.new_zeros(int(n_b) * int(n_node))
+    if sti_bs.numel():
+        delta.index_add_(
+            0,
+            sti_bs * int(n_node) + sti_nodes,
+            values[value_idxs],
+        )
+    return delta.reshape(int(n_b), int(n_node))
+
+
+def pack_stimulus_delta(i_sti, params, pack):
+    """Return ``(node_delta[B,N], pulse[T])`` for indexed spot/sbar drive."""
+    if i_sti.dim() == 2:
+        i_sti = i_sti.unsqueeze(0)
+    n_b, _n_t, n_node = map(int, i_sti.shape)
+    delta = None
+    pulse = None
+
+    radius_idxs = (
+        getattr(pack, "a_sti_radius_idxs", None) if pack is not None else None
+    )
+    if radius_idxs is not None and "a_sti_radius" in params:
+        delta = _indexed_stimulus_delta(
+            a_sti_radius_effective(params, pack), radius_idxs, pack,
+            n_b=n_b, n_node=n_node,
+        )
+        pulse = pack.i_sti_pulse
+
+    mid_idxs = (
+        getattr(pack, "a_sti_mid_idxs", None) if pack is not None else None
+    )
+    if mid_idxs is not None and "a_sti_mid" in params:
+        mid_delta = _indexed_stimulus_delta(
+            params["a_sti_mid"], mid_idxs, pack,
+            n_b=n_b, n_node=n_node,
+        )
+        delta = mid_delta if delta is None else delta + mid_delta
+        pulse = pack.i_sti_pulse
+    return delta, pulse
+
+
+def _materialize_stimulus_delta(delta, pulse):
+    """Expand ``delta[B,N]`` with shared ``pulse[T]`` or per-b ``pulse[B,T]``."""
+    if pulse.dim() == 1:
+        return delta[:, None, :] * pulse[None, :, None]
+    if pulse.dim() == 2 and int(pulse.shape[0]) == int(delta.shape[0]):
+        return delta[:, None, :] * pulse[:, :, None]
+    raise ValueError(
+        f"indexed stimulus pulse must be (T,) or (B,T); got {tuple(pulse.shape)}"
+    )
+
+
 def inject_a_sti_radius(i_sti, params, pack):
-    """``i += a_sti_radius[r] * i_sti_pulse`` on spot radius sti contribs; else pass-through.
+    """Materialize spot indexed drive; simulation uses the step-wise fast path.
 
     Uses :func:`a_sti_radius_effective` so masked radii are 0 whether indi or fixed.
     """
     a_sti_radius_idxs = getattr(pack, "a_sti_radius_idxs", None) if pack is not None else None
     if a_sti_radius_idxs is None or "a_sti_radius" not in params:
         return i_sti
-    i_sti_pulse = pack.i_sti_pulse
-    sti_bs = pack.sti_bs
-    node = pack.sti_nodes
-    if i_sti_pulse is None or sti_bs is None or node is None:
-        raise ValueError(
-            "spot pack a_sti_radius_idxs set but i_sti_pulse/sti_bs/sti_nodes missing"
-        )
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
-    a_sti_radius = a_sti_radius_effective(params, pack)
-    i_sti = i_sti.clone()
-    if sti_bs.numel() == 0:
+    n_b, _n_t, n_node = i_sti.shape
+    delta = _indexed_stimulus_delta(
+        a_sti_radius_effective(params, pack), a_sti_radius_idxs, pack,
+        n_b=int(n_b), n_node=int(n_node),
+    )
+    return i_sti + _materialize_stimulus_delta(delta, pack.i_sti_pulse)
+
+
+def inject_a_sti_mid(i_sti, params, pack):
+    """Materialize sbar indexed drive; simulation uses the step-wise fast path."""
+    a_sti_mid_idxs = (
+        getattr(pack, "a_sti_mid_idxs", None) if pack is not None else None
+    )
+    if a_sti_mid_idxs is None or "a_sti_mid" not in params:
         return i_sti
-    n_b, n_t, n_node = i_sti.shape
-    flat = i_sti.permute(0, 2, 1).reshape(n_b * n_node, n_t)
-    flat.index_add_(0, sti_bs * n_node + node, a_sti_radius[a_sti_radius_idxs][:, None] * i_sti_pulse[None, :])
-    return flat.reshape(n_b, n_node, n_t).permute(0, 2, 1).contiguous()
+    if i_sti.dim() == 2:
+        i_sti = i_sti.unsqueeze(0)
+    n_b, _n_t, n_node = i_sti.shape
+    delta = _indexed_stimulus_delta(
+        params["a_sti_mid"], a_sti_mid_idxs, pack,
+        n_b=int(n_b), n_node=int(n_node),
+    )
+    return i_sti + _materialize_stimulus_delta(delta, pack.i_sti_pulse)
 
 
 def pack_t_onset(pack) -> int:
@@ -136,15 +211,27 @@ def forward_v(session, params, i_sti, *, pack=None):
     pack = pack or session.primary_pack
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
-    i_sti = inject_a_sti_radius(i_sti, params, pack)
     n_b = int(i_sti.shape[0])
     t_end = int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
+    sti_delta, sti_pulse = pack_stimulus_delta(i_sti, params, pack)
+
+    def drive_at(t):
+        drive = i_sti[:, int(t)]
+        if sti_delta is not None:
+            pulse_t = (
+                sti_pulse[int(t)]
+                if sti_pulse.dim() == 1 else sti_pulse[:, int(t), None]
+            )
+            drive = drive + sti_delta * pulse_t
+        return drive
+
+    pre_i_sti = drive_at(0).unsqueeze(1)
     if session.model == "hp_lp":
-        v_slow, v = drv.pre_steady(session, params, n_b, i_sti=i_sti)
+        v_slow, v = drv.pre_steady(session, params, n_b, i_sti=pre_i_sti)
         u = u_rev = None
     else:
-        u, u_rev, v = drv.pre_steady(session, params, n_b, i_sti=i_sti)
+        u, u_rev, v = drv.pre_steady(session, params, n_b, i_sti=pre_i_sti)
         v_slow = None
     trace = v.new_empty(n_b, t_end, v.shape[-1])
     trace[:, 0] = v
@@ -152,9 +239,9 @@ def forward_v(session, params, i_sti, *, pack=None):
     def take(t):
         nonlocal v_slow, u, u_rev, v
         if session.model == "hp_lp":
-            v_slow, v = drv.step(v_slow, v, params, i_sti[:, t - 1], session, delta_ms=step_delta_ms(session, t, t_onset))
+            v_slow, v = drv.step(v_slow, v, params, drive_at(t - 1), session, delta_ms=step_delta_ms(session, t, t_onset))
         else:
-            u, u_rev, v = drv.step(u, u_rev, v, params, i_sti[:, t - 1], session, delta_ms=step_delta_ms(session, t, t_onset))
+            u, u_rev, v = drv.step(u, u_rev, v, params, drive_at(t - 1), session, delta_ms=step_delta_ms(session, t, t_onset))
         trace[:, t] = v
 
     if bool((session.train_opts or {})["pre_grad"]) or t_onset <= 0:

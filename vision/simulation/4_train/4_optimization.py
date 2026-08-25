@@ -57,9 +57,11 @@ def _float_parts(parts: Optional[Dict[str, torch.Tensor]], task_order=None):
     return parts
 
 
-def _fmt_cost_parts(parts):
+def _fmt_cost_parts(parts, *, mid0_only=False):
     if not parts:
         return ""
+    if mid0_only:
+        parts = {k: v for k, v in parts.items() if k.endswith("mid+0")}
     return "  [" + "  ".join(f"{k}={v:.4f}" for k, v in parts.items()) + "]"
 
 
@@ -125,7 +127,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
 
     progress_bar = tqdm(
         range(n_iter),
-        desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(initial_parts),
+        desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(initial_parts, mid0_only=True),
         bar_format=(
             '{percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} '
             '[{elapsed}<{remaining}, {rate_fmt}] {desc}'
@@ -190,7 +192,8 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
         if (iter + 1) % _TQDM_REFRESH_INTERVAL == 0 or iter == n_iter - 1:
             progress_bar.set_description(
                 f'Cost: {cost:.4f}' + _fmt_cost_parts(
-                    float_last_parts(task_order) if float_last_parts else None
+                    float_last_parts(task_order) if float_last_parts else None,
+                    mid0_only=True,
                 ),
                 refresh=False,
             )
@@ -216,9 +219,9 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
     print()
     if aborted is not None:
         print('ABORT:', aborted)
-    print('Initl cost =', format(initial_cost, '.4f') + _fmt_cost_parts(initial_parts))
-    print('Final cost =', format(cost, '.4f') + _fmt_cost_parts(final_parts))
-    print('Best  cost =', format(best_cost, '.4f') + _fmt_cost_parts(best_parts))
+    print('Initl cost =', format(initial_cost, '.4f') + _fmt_cost_parts(initial_parts, mid0_only=True))
+    print('Final cost =', format(cost, '.4f') + _fmt_cost_parts(final_parts, mid0_only=True))
+    print('Best  cost =', format(best_cost, '.4f') + _fmt_cost_parts(best_parts, mid0_only=True))
 
     print('time needed  =', format(time.time() - a, '.2f'), ' sec')
     print()

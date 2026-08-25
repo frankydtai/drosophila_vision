@@ -85,8 +85,12 @@ def decompose_params(z, session):
     decoded = train.node_vals_from_z(z, schema)
     node_vals = {}
     for param, spec in schema.items():
-        if param in ("syn_strength_cell", "syn_strength_edge") or spec.get("radii") is not None:
-            continue  # e.g. a_sti_radius (per-radius, not per-cell)
+        if (
+            param in ("syn_strength_cell", "syn_strength_edge")
+            or spec.get("radii") is not None
+            or spec.get("mids") is not None
+        ):
+            continue  # indexed stimulus params are not per-cell
         cell_vals = np.asarray(decoded[param], dtype=np.float64).reshape(-1)
         if cell_vals.shape[0] != n:
             raise ValueError(f"{param}: node w {cell_vals.shape[0]} != n_cell {n}")
@@ -775,5 +779,4 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
 
     save_train_data(fname, run_dir, session, result)
     return fname, run_dir, session, result
-
 

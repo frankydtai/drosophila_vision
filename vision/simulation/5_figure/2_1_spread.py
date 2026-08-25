@@ -464,6 +464,9 @@ def _plot_figure(
                 ax.axis("off")
                 continue
             time_title = cell
+            n_cell = primary.n_by_cell.get(cell)
+            if n_cell is not None:
+                time_title = f'{time_title} (n={int(n_cell)})'
             if cost_parts and order:
                 for contrast in order:
                     key = spread_part_key(contrast, cell)
@@ -579,4 +582,3 @@ def figure_titles(session, suffix, token, *, contrast=None):
         f'spread {contrast} {token}-gt ({suffix})',
         f'spread {contrast} {token}-all ({suffix})',
     )
-

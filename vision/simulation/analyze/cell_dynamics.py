@@ -618,13 +618,14 @@ def _model_driver(session):
 
 
 def _drive_from_i_sti(session, params, i_sti: torch.Tensor) -> torch.Tensor:
-    """Spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
-    from neuron.forward import inject_a_sti_radius
+    """Apply indexed spot/sbar stimulus amplitudes to pack ``i_sti``."""
+    from neuron.forward import inject_a_sti_mid, inject_a_sti_radius
 
     pack = session.primary_pack
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
-    return inject_a_sti_radius(i_sti, params, pack)
+    i_sti = inject_a_sti_radius(i_sti, params, pack)
+    return inject_a_sti_mid(i_sti, params, pack)
 
 
 def _equilibrate(session, params, i_sti_b: torch.Tensor, t_onset: int):
