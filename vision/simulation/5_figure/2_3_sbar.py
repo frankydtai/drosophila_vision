@@ -1,7 +1,8 @@
 """Static-bar plotting (network static-bar task).
 
 Each panel: one cell at one bar-position on the motion axis.
-Layout: 8 rows (T4a,b,c,d + T5a,b,c,d) × 5 columns (bar positions from cost pack).
+Columns are bar ``mid`` positions from the cost pack; rows are cells
+(``plot_gt``: sbar ``gt_cells``; ``plot_all``: config ``sbar_figure_cells``).
 
 GT traces are Gruntman Fig.2 digitized width-1 flash responses, loaded from
 ``task.sbar.gt`` using the same timing as the pack.
@@ -17,8 +18,10 @@ import numpy as np
 import torch
 
 import train
+from config import FIGURE_PLOT
 from task.sbar.gt import load_gt as load_sbar_gt
 from task.sbar.pack import SbarPack
+from task.sbar.sti_geo import node_us_vs
 from figure.spread import (
     _session_task_timing,
     contrast_linestyle,
@@ -47,6 +50,14 @@ from task.spread.sti_spec import t_sti_end
 
 
 SBAR_DPI = 100
+
+
+def sbar_figure_cells() -> tuple[str, ...]:
+    """``sbar_figure_cells`` from config (rows for ``plot_all``)."""
+    cells = FIGURE_PLOT.get("sbar_figure_cells")
+    if not cells:
+        raise ValueError("config sbar_figure_cells must be a non-empty list")
+    return tuple(str(cell) for cell in cells)
 
 
 def active_sbar_gt_cells(session, task=None, contrast=None):
@@ -207,15 +218,54 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
             )
             n_by_cell_mid[cell][mid] = int(entry_traces.shape[0])
 
+    # Plot-only: sample ``sbar_figure_cells`` at the same (b, hex) as pack entries.
+    us, vs = node_us_vs(connectome)
+    for cell in sbar_figure_cells():
+        if cell in v_readout or cell not in connectome.cells:
+            continue
+        cell_v: dict = {}
+        cell_std: dict = {}
+        cell_n: dict = {}
+        for mid in mids:
+            mid_traces = []
+            seen_b_uv: set[tuple[int, int, int]] = set()
+            for entry_idx, key in enumerate(entry_part_keys):
+                mid_str = key.rsplit("_mid", 1)[1]
+                if float(mid_str) != mid:
+                    continue
+                entry_node = int(entry_nodes[entry_idx])
+                b = int(entry_bs[entry_idx])
+                u, v = int(us[entry_node]), int(vs[entry_node])
+                b_uv = (b, u, v)
+                if b_uv in seen_b_uv:
+                    continue
+                seen_b_uv.add(b_uv)
+                for cell_node in connectome.nodes_at_uv(u, v, cell):
+                    mid_traces.append(trace[b, :, int(cell_node)])
+            if not mid_traces:
+                continue
+            entry_traces = np.stack(mid_traces, axis=0)
+            cell_v[mid] = entry_traces.mean(axis=0)
+            cell_std[mid] = std_from_traces(
+                entry_traces, single_hex=(entry_traces.shape[0] == 1),
+            )
+            cell_n[mid] = int(entry_traces.shape[0])
+        if not cell_v:
+            continue
+        v_readout[cell] = cell_v
+        std_out[cell] = cell_std
+        n_by_cell_mid[cell] = cell_n
+
+    readout_cells = cells_in_order(list(v_readout))
     v_th = v_th_from_z(z, session)
     e_leak = e_leak_from_z(z, session)
-    v_th_by_cell = {cell: v_th.get(cell, np.nan) for cell in all_cells}
-    e_leak_by_cell = {cell: e_leak.get(cell, np.nan) for cell in all_cells}
+    v_th_by_cell = {cell: v_th.get(cell, np.nan) for cell in readout_cells}
+    e_leak_by_cell = {cell: e_leak.get(cell, np.nan) for cell in readout_cells}
     gt_affine_by_cell = {
         str(cell): train.gt_affine_from_cell(
             params, cell, session.connectome, session=session,
         )
-        for cell in all_cells
+        for cell in readout_cells
     }
 
     opts = dict((session.train_opts or {}).get(f"{task}_sti_opts") or {})
@@ -226,7 +276,7 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
     return SbarTraceReadout(
         task=task,
         contrast=contrast,
-        cells=all_cells,
+        cells=readout_cells,
         mids=mids,
         n_t=n_t,
         t_onset=t_onset,
@@ -244,53 +294,58 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
     )
 
 
-def _sbar_gt_readout(readout):
-    """Gt figure rows: configured active gt cells (not cost-pack-only)."""
-    session = readout.session
-    active = active_sbar_gt_cells(
-        session,
-        session.primary_pack.task,
-        session.primary_pack.contrast,
-    )
-    readout_cells = set(readout.cells)
-    cells = [cell for cell in cells_in_order(active) if cell in readout_cells]
+def _sbar_filter_readout(readout, cells):
+    """Keep only ``cells`` that have traces in ``readout``."""
+    keep = [cell for cell in cells_in_order(cells) if cell in readout.v_readout]
     return SbarTraceReadout(
-        task=session.primary_pack.task,
-        contrast=session.primary_pack.contrast,
-        cells=cells,
+        task=readout.task,
+        contrast=readout.contrast,
+        cells=keep,
         mids=readout.mids,
         n_t=readout.n_t,
         t_onset=readout.t_onset,
         t_sti_end=readout.t_sti_end,
         ms_shown=readout.ms_shown,
-        v_readout={
-            cell: readout.v_readout[cell]
-            for cell in cells if cell in readout.v_readout
-        },
-        std={
-            cell: readout.std[cell]
-            for cell in cells if cell in readout.std
-        },
+        v_readout={cell: readout.v_readout[cell] for cell in keep},
+        std={cell: readout.std[cell] for cell in keep if cell in readout.std},
         n_by_cell_mid={
             cell: readout.n_by_cell_mid[cell]
-            for cell in cells if cell in readout.n_by_cell_mid
+            for cell in keep if cell in readout.n_by_cell_mid
         },
         v_th_by_cell={
             cell: readout.v_th_by_cell[cell]
-            for cell in cells if cell in readout.v_th_by_cell
+            for cell in keep if cell in readout.v_th_by_cell
         },
         e_leak_by_cell={
             cell: readout.e_leak_by_cell[cell]
-            for cell in cells if cell in readout.e_leak_by_cell
+            for cell in keep if cell in readout.e_leak_by_cell
         },
         gt_affine_by_cell={
             cell: readout.gt_affine_by_cell[cell]
-            for cell in cells if cell in readout.gt_affine_by_cell
+            for cell in keep if cell in readout.gt_affine_by_cell
         },
         a_sti_mid=dict(readout.a_sti_mid),
-        session=session,
+        session=readout.session,
         prep_s=readout.prep_s,
     )
+
+
+def _sbar_gt_readout(readout):
+    """Gt figure rows: configured active gt cells (not cost-pack-only)."""
+    session = readout.session
+    return _sbar_filter_readout(
+        readout,
+        active_sbar_gt_cells(
+            session,
+            session.primary_pack.task,
+            session.primary_pack.contrast,
+        ),
+    )
+
+
+def _sbar_all_readout(readout):
+    """All figure rows: config ``sbar_figure_cells``."""
+    return _sbar_filter_readout(readout, sbar_figure_cells())
 
 
 def _sbar_mid_label(mid: float) -> str:
@@ -312,7 +367,7 @@ def _sbar_figure(n_row, n_col):
         n_row, n_col,
         figsize=(2.0 * n_col, 1.8 * n_row),
         sharex=True,
-        sharey=True,
+        sharey="row",
     )
     if n_row == 1:
         axes = np.asarray([axes])
@@ -433,6 +488,22 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None):
         path,
         timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
         readouts=gt_readouts,
+        title=title,
+        gts=gts,
+        cost_parts=cost_parts,
+    )
+
+
+@torch.no_grad()
+def plot_all(path, *, readouts, title, gts=None, cost_parts=None):
+    """Plot sbar all figure: config ``sbar_figure_cells`` rows."""
+    all_readouts = {
+        contrast: _sbar_all_readout(readout) for contrast, readout in readouts.items()
+    }
+    _plot_figure(
+        path,
+        timer=ElapsedTimer(prior_prep=readout_prep_s(*readouts.values())),
+        readouts=all_readouts,
         title=title,
         gts=gts,
         cost_parts=cost_parts,

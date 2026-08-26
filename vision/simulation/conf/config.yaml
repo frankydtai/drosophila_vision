@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 29627139-run-n_iter-200-tasks-spread,sbar
+ 29637642-run-n_iter-200-tasks-spread,sbar
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -17,7 +17,7 @@ e_inh: -70.0
 e_h: 50.0
 h_g_max: 100.0
 gt_amp: 20.0
-v_clamp: 1000000.0
+v_clamp: 100.0
 a_syn_exc: 0.001
 a_syn_inh: 0.001
 euler: "im"
@@ -38,16 +38,18 @@ params:
     lo: 0.1
     hi: 10.0
     init: 1.0
+    inits: {"Mi9:T4a": 0.0, "TmY15:T4a": 0.0}
     jit: 0.1
     mode: "indi"
     modes:
-      indi: ["Mi4:T4a", "Mi4:T4b", "Mi4:T4c", "Mi4:T4d", "Mi9:T4a", "Mi9:T4b", "Mi9:T4c", "Mi9:T4d"]
+      indi: ["Mi4:T4a", "Mi4:T4b", "Mi4:T4c", "Mi4:T4d", "Mi9:T4b", "Mi9:T4c", "Mi9:T4d"]
+      fixed: ["Mi9:T4a", "TmY15:T4a"]
   syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   a_in: {lo: 0.01, hi: 100.0, init: 1.0, jit: 0.1, mode: "shared"}
   a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   e_leak: {lo: -50.0, hi: 50.0, init: 0.0, jit: 1.0, mode: "indi"}
   v_th: {lo: -100.0, hi: 100.0, init: -50.0, jit: 0.0, mode: "indi"}
-  tau_lp: {lo: 10.0, hi: 100.0, init: 10.0, jit: 2.0, mode: "indi"}
+  tau_lp: {lo: 10.0, hi: 100.0, init: 10.0, inits: {Mi4: 200}, jit: 2.0, mode: "indi"}
   tau_hp_rise: {lo: 100.0, hi: 500.0, init: 200.0, jit: 20.0, mode: "indi"}
   tau_hp_fall: {lo: 100.0, hi: 500.0, init: 200.0, jit: 20.0, mode: "indi"}
   a_h:
@@ -76,7 +78,7 @@ params:
   tau_ca: {lo: 100.0, hi: 1000.0, init: 350.0, jit: 10.0, mode: "indi"}
   a_sti_radius: {lo: 0.0, hi: 1.0, init: 0.0, jit: 0.05, mode: "indi"}
   a_sti_mid:
-    {lo: 0.0, hi: 1.0, init: 0.0, inits: {"0.5": 0.9, "1": 0.66, "1.5": 0.4, "2": 0.2}, jit: 0.05, mode: "fixed"}
+    {lo: 0.0, hi: 1.0, init: 0.0, inits: {0.5: 0.9, 1: 0.5, 1.5: 0.4, 2: 0.2}, jit: 0.05, mode: "fixed"}
 
 # ---------------------------------------------------------------------------
 # 1.4   neuron.forward (model booleans; not packed into z)
@@ -139,7 +141,7 @@ bar_directions: [right, left, up, down]
 # ---------------------------------------------------------------------------
 tasks: [spread,sbar]
 gt_by_task:
-  spread: [Mi1, Mi4]
+  spread: [L1, L2, L3, L4, L5, Mi1, Mi4]
   sbar: [T4a]
 cost_radius: null
 
@@ -215,6 +217,8 @@ mbar_plot_direction: left
 # ---------------------------------------------------------------------------
 # Tasks to plot after training or when re-plotting; independent of train `tasks`.
 figure_tasks: [spread, sbar]
+# Rows for sbar ``plot_all`` / ``*_all_v.png``.
+sbar_figure_cells: [R1-6, L1, L2, L3, L4, L5, Mi1, Mi4, T4a]
 html: false
 plot_right_only: true
 x: null

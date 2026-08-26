@@ -31,6 +31,8 @@ from scipy.optimize import differential_evolution, least_squares, minimize_scala
 HERE = Path(__file__).resolve().parent
 INPUT_CSV = HERE.parent / "gruntman21" / "2ax2bc_digitized.csv"
 GAUSSIAN_OUTPUT_PNG = HERE / "gruntman21_decomp.png"
+GAUSSIAN_COMPARISON_CSV = HERE / "gruntman21_gaussian_comparison.csv"
+MI9_CSV = HERE / "gruntman21_mi9.csv"
 MI1_CSV = HERE / "gruntman21_mi1.csv"
 MI4_CSV = HERE / "gruntman21_mi4.csv"
 LP_OUTPUT_CSV = HERE / "gruntman21_mi1_mi4_fit_lp.csv"
@@ -43,6 +45,9 @@ WIDTH_LED = 1
 SPATIAL_POSITIONS = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 SOURCE_NAMES = ("Mi9", "Mi1", "Mi4")
 SOURCE_CENTERS = (-1.0, 0.0, 1.0)
+# Intrinsic source widths, in the same position units as SOURCE_CENTERS.
+# Mi4 remains a point input, represented by None rather than a Gaussian.
+SOURCE_SPATIAL_SIGMAS = (1.0, 0.5, None)
 EXTENDED_ATTENUATION_DISTANCES = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
 STIMULUS_DURATION_MS = 160.0
 TAU_STARTS_MS = (5.0, 15.0, 30.0, 60.0, 120.0, 250.0)
@@ -116,13 +121,53 @@ def spatial_weight_matrix(
     return weights
 
 
+def layered_spatial_weight_matrix(
+    light_attenuations: np.ndarray,
+    attenuation_distances: tuple[float, ...],
+) -> np.ndarray:
+    """Return source/light overlap gains after summing over internal mids.
+
+    At each stimulus position, the source profile and shifted light Gaussian
+    are multiplied over the internal spatial coordinate and then summed.  For
+    Gaussians this cross-correlation has variance equal to the sum of their
+    variances.  Each source curve is peak-normalized to one at its center.
+    """
+    if not np.isclose(attenuation_distances[0], 0.5):
+        raise ValueError("the first attenuation distance must be 0.5")
+    a_half = float(light_attenuations[0])
+    if not 0.0 < a_half < 1.0:
+        raise ValueError("cannot infer light sigma from A0.5")
+    light_sigma = 0.5 / np.sqrt(-2.0 * np.log(a_half))
+
+    weights = np.zeros((len(SPATIAL_POSITIONS), len(SOURCE_CENTERS)))
+    for row, position in enumerate(SPATIAL_POSITIONS):
+        for column, (center, source_sigma) in enumerate(
+            zip(SOURCE_CENTERS, SOURCE_SPATIAL_SIGMAS)
+        ):
+            effective_sigma = (
+                light_sigma
+                if source_sigma is None
+                else np.sqrt(light_sigma**2 + source_sigma**2)
+            )
+            distance = position - center
+            weights[row, column] = np.exp(
+                -0.5 * (distance / effective_sigma) ** 2
+            )
+    return weights
+
+
 def solve_spatial_sources(
     attenuations: np.ndarray,
     observed: np.ndarray,
     attenuation_distances: tuple[float, ...],
+    *,
+    layered: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve optimal Mi9/Mi1/Mi4 time series and return their fitted traces."""
-    weights = spatial_weight_matrix(attenuations, attenuation_distances)
+    weight_function = (
+        layered_spatial_weight_matrix if layered else spatial_weight_matrix
+    )
+    weights = weight_function(attenuations, attenuation_distances)
     sources = np.linalg.lstsq(weights, observed, rcond=None)[0]
     return sources, weights @ sources
 
@@ -192,8 +237,10 @@ def gaussian_attenuations(sigma: float) -> np.ndarray:
 
 def fit_gaussian_spatial_model(
     observed_by_contrast: dict[str, np.ndarray],
+    *,
+    layered: bool = False,
 ) -> tuple[float, np.ndarray]:
-    """Fit one Gaussian sigma to the same nine PC and NC panels."""
+    """Fit the light Gaussian sigma to the same nine PC and NC panels."""
     def objective(log_sigma: float) -> float:
         attenuations = gaussian_attenuations(float(np.exp(log_sigma)))
         squared_error = 0.0
@@ -202,6 +249,7 @@ def fit_gaussian_spatial_model(
                 attenuations,
                 observed,
                 EXTENDED_ATTENUATION_DISTANCES,
+                layered=layered,
             )
             error = fitted - observed
             squared_error += float(np.sum(error**2))
@@ -224,6 +272,8 @@ def spatial_output_tables(
     attenuation_distances: tuple[float, ...],
     aligned_by_contrast: dict[str, pd.DataFrame],
     observed_by_contrast: dict[str, np.ndarray],
+    *,
+    layered: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Build tidy observed/fit and inferred-source output tables."""
     fit_frames = []
@@ -235,6 +285,7 @@ def spatial_output_tables(
             attenuations,
             observed,
             attenuation_distances,
+            layered=layered,
         )
         time_ms = aligned["time_ms"].to_numpy()
         for row, position in enumerate(SPATIAL_POSITIONS):
@@ -268,88 +319,156 @@ def spatial_output_tables(
     )
 
 
-def plot_spatial_fit(
-    attenuations: np.ndarray,
-    attenuation_distances: tuple[float, ...],
-    output: pd.DataFrame,
-    sources: pd.DataFrame,
-    output_path: Path,
-    model_label: str = "three-source spatial fit",
-) -> None:
-    """Plot three source panels above nine observed/fit position panels."""
-    fig = plt.figure(figsize=(22.5, 7.5))
-    grid = fig.add_gridspec(2, 9, height_ratios=(1.0, 1.0))
-    source_axes = [
-        fig.add_subplot(grid[0, 0:3]),
-        fig.add_subplot(grid[0, 3:6]),
-        fig.add_subplot(grid[0, 6:9]),
-    ]
-    position_axes = [fig.add_subplot(grid[1, column]) for column in range(9)]
-
-    for ax, source_name in zip(source_axes, SOURCE_NAMES):
-        for contrast in CONTRASTS:
-            trace = sources[
-                (sources["contrast"] == contrast)
-                & (sources["source"] == source_name)
-            ]
-            ax.plot(
-                trace["time_ms"],
-                trace["source_vm_mv"],
-                color=COLORS[contrast],
-                linewidth=1.8,
-                label=contrast,
-            )
-        ax.axvspan(0.0, 160.0, color="0.92", zorder=-2)
-        ax.axhline(0.0, color="0.75", linewidth=0.7, zorder=-1)
-        ax.axvline(0.0, color="0.75", linewidth=0.7, zorder=-1)
-        center = SOURCE_CENTERS[SOURCE_NAMES.index(source_name)]
-        ax.set_title(f"input {source_name}, center {center:+g}")
-        ax.set_xlabel("time (ms)")
-    source_axes[0].set_ylabel("source Vm (mV)")
-    source_axes[-1].legend(frameon=False, fontsize=8)
-
-    for ax, position in zip(position_axes, SPATIAL_POSITIONS):
-        for contrast in CONTRASTS:
-            trace = output[
-                (output["contrast"] == contrast)
-                & np.isclose(output["position"], position)
-            ]
-            ax.plot(
-                trace["time_ms"],
-                trace["observed_vm_mv"],
-                color=COLORS[contrast],
-                linestyle="-",
-                linewidth=1.7,
-                label=f"{contrast} original",
-            )
-            ax.plot(
-                trace["time_ms"],
-                trace["fitted_vm_mv"],
-                color=COLORS[contrast],
-                linestyle="--",
-                linewidth=1.7,
-                label=f"{contrast} fit",
-            )
-        ax.axvspan(0.0, 160.0, color="0.92", zorder=-2)
-        ax.axhline(0.0, color="0.75", linewidth=0.7, zorder=-1)
-        ax.axvline(0.0, color="0.75", linewidth=0.7, zorder=-1)
-        ax.set_title(f"position {position:+g}")
-        ax.set_xlabel("time (ms)")
-        ax.tick_params(labelsize=7)
-    position_axes[0].set_ylabel("Vm (mV)")
-    position_axes[-1].legend(frameon=False, fontsize=7)
-
-    for row_axes in (source_axes, position_axes):
-        y_min = min(ax.get_ylim()[0] for ax in row_axes)
-        y_max = max(ax.get_ylim()[1] for ax in row_axes)
-        for ax in row_axes:
-            ax.set_ylim(y_min, y_max)
-    values = ", ".join(
-        f"A{distance:g}={value:.6f}"
-        for distance, value in zip(attenuation_distances, attenuations)
+def build_gaussian_comparison(
+    old_sigma: float,
+    new_sigma: float,
+) -> pd.DataFrame:
+    """Return old/new common-Gaussian values at requested neighbour distances."""
+    distances = np.asarray((0.5, 1.0, 1.5, 2.0))
+    old_gain = np.exp(-0.5 * (distances / old_sigma) ** 2)
+    new_gain = np.exp(-0.5 * (distances / new_sigma) ** 2)
+    return pd.DataFrame(
+        {
+            "neighbor_distance": distances,
+            "old_sigma": old_sigma,
+            "old_gaussian_gain": old_gain,
+            "new_sigma": new_sigma,
+            "new_gaussian_gain": new_gain,
+            "new_minus_old": new_gain - old_gain,
+        }
     )
-    fig.suptitle(f"T4 width 1/4 {model_label}\n{values}")
-    fig.tight_layout()
+
+
+def plot_spatial_fit(
+    old_output: pd.DataFrame,
+    old_sources: pd.DataFrame,
+    new_output: pd.DataFrame,
+    new_sources: pd.DataFrame,
+    output_path: Path,
+    gaussian_comparison: pd.DataFrame,
+) -> None:
+    """Plot the complete 12-panel old and 12-panel new decompositions."""
+    fig = plt.figure(figsize=(22.5, 15.0))
+    grid = fig.add_gridspec(4, 9, height_ratios=(1.0, 1.0, 1.0, 1.0))
+
+    def source_row(row: int) -> list[plt.Axes]:
+        return [
+            fig.add_subplot(grid[row, 0:3]),
+            fig.add_subplot(grid[row, 3:6]),
+            fig.add_subplot(grid[row, 6:9]),
+        ]
+
+    def position_row(row: int) -> list[plt.Axes]:
+        return [fig.add_subplot(grid[row, column]) for column in range(9)]
+
+    old_source_axes = source_row(0)
+    old_position_axes = position_row(1)
+    new_source_axes = source_row(2)
+    new_position_axes = position_row(3)
+
+    def draw_model(
+        model_name: str,
+        output: pd.DataFrame,
+        sources: pd.DataFrame,
+        source_axes: list[plt.Axes],
+        position_axes: list[plt.Axes],
+    ) -> None:
+        for ax, source_name in zip(source_axes, SOURCE_NAMES):
+            for contrast in CONTRASTS:
+                trace = sources[
+                    (sources["contrast"] == contrast)
+                    & (sources["source"] == source_name)
+                ]
+                ax.plot(
+                    trace["time_ms"],
+                    trace["source_vm_mv"],
+                    color=COLORS[contrast],
+                    linewidth=1.8,
+                    label=contrast,
+                )
+            ax.axvspan(0.0, 160.0, color="0.92", zorder=-2)
+            ax.axhline(0.0, color="0.75", linewidth=0.7, zorder=-1)
+            ax.axvline(0.0, color="0.75", linewidth=0.7, zorder=-1)
+            center = SOURCE_CENTERS[SOURCE_NAMES.index(source_name)]
+            ax.set_title(f"{model_name} input {source_name}, center {center:+g}")
+            ax.set_xlabel("time (ms)")
+        source_axes[0].set_ylabel(f"{model_name} source Vm (mV)")
+        source_axes[-1].legend(frameon=False, fontsize=8)
+
+        for ax, position in zip(position_axes, SPATIAL_POSITIONS):
+            for contrast in CONTRASTS:
+                trace = output[
+                    (output["contrast"] == contrast)
+                    & np.isclose(output["position"], position)
+                ]
+                ax.plot(
+                    trace["time_ms"],
+                    trace["observed_vm_mv"],
+                    color=COLORS[contrast],
+                    linestyle="-",
+                    linewidth=1.7,
+                    label=f"{contrast} original",
+                )
+                ax.plot(
+                    trace["time_ms"],
+                    trace["fitted_vm_mv"],
+                    color=COLORS[contrast],
+                    linestyle="--",
+                    linewidth=1.7,
+                    label=f"{contrast} {model_name} fit",
+                )
+            ax.axvspan(0.0, 160.0, color="0.92", zorder=-2)
+            ax.axhline(0.0, color="0.75", linewidth=0.7, zorder=-1)
+            ax.axvline(0.0, color="0.75", linewidth=0.7, zorder=-1)
+            ax.set_title(f"{model_name} position {position:+g}")
+            ax.set_xlabel("time (ms)")
+            ax.tick_params(labelsize=7)
+        position_axes[0].set_ylabel(f"{model_name} Vm (mV)")
+        position_axes[-1].legend(frameon=False, fontsize=7)
+
+    draw_model(
+        "OLD",
+        old_output,
+        old_sources,
+        old_source_axes,
+        old_position_axes,
+    )
+    draw_model(
+        "NEW",
+        new_output,
+        new_sources,
+        new_source_axes,
+        new_position_axes,
+    )
+
+    all_source_axes = old_source_axes + new_source_axes
+    source_y_min = min(ax.get_ylim()[0] for ax in all_source_axes)
+    source_y_max = max(ax.get_ylim()[1] for ax in all_source_axes)
+    for ax in all_source_axes:
+        ax.set_ylim(source_y_min, source_y_max)
+
+    all_position_axes = old_position_axes + new_position_axes
+    position_y_min = min(ax.get_ylim()[0] for ax in all_position_axes)
+    position_y_max = max(ax.get_ylim()[1] for ax in all_position_axes)
+    for ax in all_position_axes:
+        ax.set_ylim(position_y_min, position_y_max)
+    old_values = ", ".join(
+        f"A{row.neighbor_distance:g}={row.old_gaussian_gain:.6f}"
+        for row in gaussian_comparison.itertuples(index=False)
+    )
+    new_values = ", ".join(
+        f"A{row.neighbor_distance:g}={row.new_gaussian_gain:.6f}"
+        for row in gaussian_comparison.itertuples(index=False)
+    )
+    old_sigma = gaussian_comparison["old_sigma"].iloc[0]
+    new_sigma = gaussian_comparison["new_sigma"].iloc[0]
+    fig.suptitle(
+        "T4 width 1/4 — complete OLD (12 panels) and NEW (12 panels) decomposition\n"
+        f"OLD common Gaussian $\\sigma={old_sigma:.6f}$: {old_values}\n"
+        f"NEW common Gaussian $\\sigma={new_sigma:.6f}$: {new_values}; "
+        "Mi9 source $\\sigma=1$, Mi1 source $\\sigma=0.5$, Mi4 point"
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
     fig.savefig(output_path, dpi=180)
     plt.close(fig)
 
@@ -542,49 +661,84 @@ def main() -> int:
         EXTENDED_ATTENUATION_DISTANCES,
     )
 
-    gaussian_sigma, gaussian = fit_gaussian_spatial_model(extended_observed)
+    old_gaussian_sigma, old_gaussian = fit_gaussian_spatial_model(
+        extended_observed,
+        layered=False,
+    )
+    # With the intrinsic source widths fixed, jointly refit one common light
+    # Gaussian.  Source/light overlap gives each source an effective variance
+    # equal to the sum of the common-light and intrinsic-source variances.
+    new_light_sigma, new_light_gaussian = fit_gaussian_spatial_model(
+        extended_observed,
+        layered=True,
+    )
 
-    gaussian_output, gaussian_sources = spatial_output_tables(
-        gaussian,
+    gaussian_comparison = build_gaussian_comparison(
+        old_gaussian_sigma,
+        new_light_sigma,
+    )
+    gaussian_comparison.to_csv(GAUSSIAN_COMPARISON_CSV, index=False)
+
+    old_output, old_sources = spatial_output_tables(
+        old_gaussian,
         EXTENDED_ATTENUATION_DISTANCES,
         extended_aligned,
         extended_observed,
+        layered=False,
+    )
+    gaussian_output, gaussian_sources = spatial_output_tables(
+        new_light_gaussian,
+        EXTENDED_ATTENUATION_DISTANCES,
+        extended_aligned,
+        extended_observed,
+        layered=True,
     )
 
     plot_spatial_fit(
-        gaussian,
-        EXTENDED_ATTENUATION_DISTANCES,
+        old_output,
+        old_sources,
         gaussian_output,
         gaussian_sources,
         GAUSSIAN_OUTPUT_PNG,
-        model_label=rf"Gaussian spatial fit ($\sigma={gaussian_sigma:.6f}$)",
+        gaussian_comparison,
     )
 
-    for contrast in CONTRASTS:
-        contrast_mask = gaussian_sources["contrast"] == contrast
-        mi1_mask = contrast_mask & (gaussian_sources["source"] == "Mi1")
-        mi4_mask = contrast_mask & (gaussian_sources["source"] == "Mi4")
+    source_outputs = {}
+    for source_name in SOURCE_NAMES:
+        source_output = None
+        for contrast in CONTRASTS:
+            mask = (
+                (gaussian_sources["contrast"] == contrast)
+                & (gaussian_sources["source"] == source_name)
+            )
+            contrast_output = gaussian_sources[mask][
+                ["time_ms", "source_vm_mv"]
+            ].rename(columns={"source_vm_mv": f"vm_{contrast}"})
+            if source_output is None:
+                source_output = contrast_output.copy()
+            else:
+                source_output = source_output.merge(
+                    contrast_output,
+                    on="time_ms",
+                    how="inner",
+                )
+        assert source_output is not None
+        source_outputs[source_name] = source_output.sort_values("time_ms")
 
-        mi1_df = gaussian_sources[mi1_mask][["time_ms", "source_vm_mv"]].rename(
-            columns={"source_vm_mv": f"vm_{contrast}"}
-        )
-        mi4_df = gaussian_sources[mi4_mask][["time_ms", "source_vm_mv"]].rename(
-            columns={"source_vm_mv": f"vm_{contrast}"}
-        )
-
-        if contrast == "PC":
-            mi1_out = mi1_df.copy()
-            mi4_out = mi4_df.copy()
-        else:
-            mi1_out = mi1_out.merge(mi1_df, on="time_ms", how="inner")
-            mi4_out = mi4_out.merge(mi4_df, on="time_ms", how="inner")
-
-    mi1_out.sort_values("time_ms").to_csv(MI1_CSV, index=False)
-    mi4_out.sort_values("time_ms").to_csv(MI4_CSV, index=False)
-    lp_results = fit_and_plot_sources({"Mi1": mi1_out, "Mi4": mi4_out})
+    source_outputs["Mi9"].to_csv(MI9_CSV, index=False)
+    source_outputs["Mi1"].to_csv(MI1_CSV, index=False)
+    source_outputs["Mi4"].to_csv(MI4_CSV, index=False)
+    lp_results = fit_and_plot_sources(
+        {"Mi1": source_outputs["Mi1"], "Mi4": source_outputs["Mi4"]}
+    )
     lp_results.to_csv(LP_OUTPUT_CSV, index=False)
 
+    print(f"old shared Gaussian sigma: {old_gaussian_sigma:.9g}")
+    print(f"new fitted common light Gaussian sigma: {new_light_sigma:.9g}")
+    print(gaussian_comparison.to_string(index=False, float_format=lambda x: f"{x:.6g}"))
+    print(f"wrote {GAUSSIAN_COMPARISON_CSV}")
     print(f"wrote {GAUSSIAN_OUTPUT_PNG}")
+    print(f"wrote {MI9_CSV}")
     print(f"wrote {MI1_CSV}")
     print(f"wrote {MI4_CSV}")
     print(lp_results.to_string(index=False, float_format=lambda x: f"{x:.6g}"))

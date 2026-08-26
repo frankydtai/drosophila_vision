@@ -185,6 +185,11 @@ def _bind_config(config: dict) -> None:
             if config.get("figure_tasks") is not None
             else None
         ),
+        "sbar_figure_cells": (
+            _list_tokens(config["sbar_figure_cells"], key="sbar_figure_cells")
+            if config.get("sbar_figure_cells") is not None
+            else None
+        ),
         "html": config.get("html", False),
         "plot_right_only": config.get("plot_right_only", True),
         "x": config.get("x"),
@@ -487,6 +492,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
 
     train_kwargs = dict(
         model=model,
+        params=config["params"],
         n_run=int(TRAIN_OPTIMIZATION["n_run"]),
         n_iter=int(n_iter),
         lrs=lrs,

@@ -629,6 +629,7 @@ def print_param_modes(session):
 def build_session(
     model,
     *,
+    params=None,
     network=NETWORK_PATH['network'],
     sequential=TRAIN_SESSION['sequential'],
     tasks=None,
@@ -663,6 +664,7 @@ def build_session(
         raise ValueError("build_session requires network")
     return train.open_session(
         train.resolve_train_opts(
+            params=params,
             network_json=str(resolve_network_json(network)),
             device=train.active_device(),
             euler=euler,
@@ -692,6 +694,7 @@ def build_session(
 
 
 def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
+                 params=None,
                  syn_mode=NEURON_SCHEMA['syn_mode'],
                  euler=MODEL['euler'],
                  pre_steady=None,
@@ -723,6 +726,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
     """
     session = build_session(
         model,
+        params=params,
         network=network,
         sequential=sequential,
         tasks=tasks,

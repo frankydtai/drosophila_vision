@@ -203,6 +203,7 @@ def resolve_i_sti(i_sti=None) -> Dict[str, float]:
 def resolve_train_opts(
     tasks=None,
     contrasts=None,
+    params=None,
     part_cost_scales=None,
     sequential=None,
     cost_radius=None,
@@ -296,7 +297,9 @@ def resolve_train_opts(
         "spread_gt_mode": str(SPREAD_GT["spread_gt_mode"]),
         "fp": fp,
         "packs": None,
-        "params": copy.deepcopy(NEURON_SCHEMA["params"]),
+        "params": copy.deepcopy(
+            params if params is not None else NEURON_SCHEMA["params"]
+        ),
         "network": network,
         "network_json": str(network_json) if network_json is not None else None,
         "device": device,

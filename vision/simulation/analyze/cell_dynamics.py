@@ -1575,6 +1575,7 @@ def _analyze_component_forward(
     merge_bs: bool = False,
     extra: dict[str, Any] | None = None,
     extra_from_cell=None,
+    extra_from_report=None,
     n_node_from_cell=None,
     stimulus_pack=None,
     stimulus_bs: list[int] | None = None,
@@ -1622,6 +1623,17 @@ def _analyze_component_forward(
         cell_extra = dict(extra) if extra else {}
         if extra_from_cell is not None:
             cell_extra.update(extra_from_cell(cell, v_post, v_post_d) or {})
+        if extra_from_report is not None:
+            cell_extra.update(
+                extra_from_report(
+                    cell=cell,
+                    spec=spec,
+                    before=before,
+                    nodes=nodes,
+                    v_post=v_post,
+                    v_post_d=v_post_d,
+                ) or {}
+            )
         report = _finalize_component_report(
             cell=cell,
             task=task,
@@ -1718,6 +1730,8 @@ def _analyze_bar_forward(
     specs=None,
     grids=None,
     extra: dict[str, Any] | None = None,
+    train_filter="none",
+    gt_entry_mask: np.ndarray | None = None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """Bar: resolve i_sti/specs → ``_analyze_component_forward`` (no merge)."""
     pack, specs, grids, spec_bs, i_sti, t0_bn = _resolve_bar_spec_i_sti(
@@ -1757,6 +1771,17 @@ def _analyze_bar_forward(
         ti_mode="t_rel" if task == "mbar" else "abs_minus_before",
         merge_bs=False,
         extra=extra,
+        extra_from_report=(
+            _sbar_extra_from_report(
+                session,
+                params,
+                pack,
+                spec_b_from_token=dict(zip(spec_tokens, spec_bs)),
+                train_filter=train_filter,
+                entry_filter=gt_entry_mask,
+            )
+            if task == "sbar" else None
+        ),
         stimulus_pack=pack,
         stimulus_bs=spec_bs,
     )
@@ -1774,12 +1799,14 @@ def analyze_bar_average(
     specs=None,
     grids=None,
     mids_req: list[float] | None = None,
+    train_filter="none",
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """One v forward over bs over all requested specs; mean component per cell.
 
     Returns ``reports[spec][cell]``. v_post + component share ``_forward_component``.
     """
     pack = session.packs[task][contrast]
+    gt_entry_mask: np.ndarray | None = None
     if task == "mbar":
         cols_holder: list = []
 
@@ -1828,6 +1855,13 @@ def analyze_bar_average(
                     raise SystemExit(
                         f"mid={mid} not available; choose from {available_mids}"
                     )
+            gt_entry_mask = np.any(
+                np.isclose(
+                    entry_mids[:, None], np.asarray(mids_req)[None, :],
+                    atol=1e-9, rtol=0.0,
+                ),
+                axis=1,
+            )
 
         def nodes_from_b(b, spec, *, pack, t0_bn):
             mask = entry_bs == b
@@ -1874,6 +1908,8 @@ def analyze_bar_average(
             if mids_req is not None and len(mids_req) == 1
             else None
         ),
+        train_filter=train_filter,
+        gt_entry_mask=gt_entry_mask,
     )
 
 
@@ -1904,6 +1940,36 @@ def _spot_session_readout(session_one, cells: list[str]):
     return pack, bs, nodes, radii, type_idx, cell_idx
 
 
+def _gt_trace_extra(
+    *,
+    gt_row,
+    v_post: np.ndarray,
+    v_post_d: np.ndarray,
+    t_onset: int,
+    a_gt: float,
+    bias_gt: float,
+    gt_report_key: str,
+) -> dict[str, Any]:
+    """Affine GT on readout axis: ``a_gt * gt + bias``; ``gt_report_key`` is ``gt_v`` or ``gt_ca``."""
+    if gt_report_key not in _GT_PLOT_PANEL:
+        raise SystemExit(f"unknown gt_report_key {gt_report_key!r}; expected gt_v|gt_ca")
+    extra: dict[str, Any] = {"gt_peak": None, gt_report_key: None}
+    if gt_row is None:
+        return extra
+    gt_row = np.asarray(gt_row, dtype=float)
+    if gt_row.ndim != 1:
+        raise SystemExit(f"GT trace must be 1-D; got shape={gt_row.shape}")
+    gt_aff = float(a_gt) * gt_row + float(bias_gt)
+    peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
+    if 0 <= peak_probe < gt_aff.shape[0]:
+        extra["gt_peak"] = float(gt_aff[peak_probe])
+    mask = np.isfinite(v_post) & np.isfinite(v_post_d)
+    if not np.any(mask):
+        return extra
+    extra[gt_report_key] = gt_aff.tolist()
+    return extra
+
+
 def _spot_gt_extra(
     *,
     cell: str,
@@ -1916,25 +1982,97 @@ def _spot_gt_extra(
     bias_gt: float,
     gt_report_key: str,
 ) -> dict[str, Any]:
-    """Affine GT on readout axis: ``a_gt * gt + bias``; ``gt_report_key`` is ``gt_v`` or ``gt_ca``."""
-    if gt_report_key not in _GT_PLOT_PANEL:
-        raise SystemExit(f"unknown gt_report_key {gt_report_key!r}; expected gt_v|gt_ca")
-    extra: dict[str, Any] = {"gt_peak": None, gt_report_key: None, "radius": radius}
-    if cell not in gt_on:
-        return extra
-    gt = np.asarray(gt_on[cell], dtype=float)
-    if radius < 0 or radius >= gt.shape[0]:
-        return extra
-    gt_row = gt[radius]
-    gt_aff = float(a_gt) * gt_row + float(bias_gt)
-    peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
-    if 0 <= peak_probe < gt_aff.shape[0]:
-        extra["gt_peak"] = float(gt_aff[peak_probe])
-    mask = np.isfinite(v_post) & np.isfinite(v_post_d)
-    if not np.any(mask):
-        return extra
-    extra[gt_report_key] = gt_aff.tolist()
+    """Select one spot-radius GT row and put it on the report readout axis."""
+    gt_row = None
+    if cell in gt_on:
+        gt = np.asarray(gt_on[cell], dtype=float)
+        if 0 <= radius < gt.shape[0]:
+            gt_row = gt[radius]
+    extra = _gt_trace_extra(
+        gt_row=gt_row,
+        v_post=v_post,
+        v_post_d=v_post_d,
+        t_onset=t_onset,
+        a_gt=a_gt,
+        bias_gt=bias_gt,
+        gt_report_key=gt_report_key,
+    )
+    extra["radius"] = radius
     return extra
+
+
+def _sbar_extra_from_report(
+    session, params, pack, *, spec_b_from_token: dict[str, int], train_filter,
+    entry_filter: np.ndarray | None = None,
+):
+    """Attach the trained sbar GT for each spec and selected node set."""
+    train_filter = str(train_filter)
+    gt_report_key = f"gt_{filter_figure_token(train_filter)}"
+    entry_bs = (
+        pack.entry_bs.detach().cpu().numpy()
+        if torch.is_tensor(pack.entry_bs) else np.asarray(pack.entry_bs)
+    )
+    entry_nodes = (
+        pack.entry_nodes.detach().cpu().numpy()
+        if torch.is_tensor(pack.entry_nodes) else np.asarray(pack.entry_nodes)
+    )
+    pack_gts = (
+        pack.gts.detach().cpu().numpy()
+        if torch.is_tensor(pack.gts) else np.asarray(pack.gts)
+    )
+    opts = session.train_opts or {}
+    from_onset = train.val_from_enabled(opts, "bias_gt")
+    lo = param_from_entry("bias_gt", "lo", _config.NEURON_SCHEMA["params"])
+    hi = param_from_entry("bias_gt", "hi", _config.NEURON_SCHEMA["params"])
+    cells = [str(cell) for cell in session.connectome.cells]
+    if entry_filter is not None:
+        entry_filter = np.asarray(entry_filter, dtype=bool)
+        if entry_filter.shape != entry_bs.shape:
+            raise SystemExit(
+                "sbar GT entry filter shape mismatch: "
+                f"{entry_filter.shape} != {entry_bs.shape}"
+            )
+
+    def extra_from_report(
+        *, cell: str, spec: str | None, before: int, nodes: np.ndarray,
+        v_post: np.ndarray, v_post_d: np.ndarray,
+    ) -> dict[str, Any]:
+        gt_row = None
+        spec_b = spec_b_from_token.get(str(spec)) if spec is not None else None
+        if spec_b is not None:
+            entry_mask = (entry_bs == int(spec_b)) & np.isin(entry_nodes, nodes)
+            if entry_filter is not None:
+                entry_mask &= entry_filter
+            if np.any(entry_mask):
+                gt_row = np.mean(pack_gts[entry_mask], axis=0)
+
+        if from_onset and 0 <= int(before) < len(v_post):
+            cell_idx = cells.index(str(cell))
+            val = float(np.clip(float(v_post[int(before)]), lo, hi))
+            bg = params["bias_gt"]
+            if torch.is_tensor(bg):
+                if bg.dim() == 0:
+                    params["bias_gt"] = bg.new_tensor(val)
+                else:
+                    params["bias_gt"] = bg.clone()
+                    params["bias_gt"][cell_idx] = val
+            else:
+                params["bias_gt"] = val
+
+        a_gt, bias_gt = train.gt_affine_from_cell(
+            params, cell, session.connectome, session=session,
+        )
+        return _gt_trace_extra(
+            gt_row=gt_row,
+            v_post=v_post,
+            v_post_d=v_post_d,
+            t_onset=before,
+            a_gt=a_gt,
+            bias_gt=bias_gt,
+            gt_report_key=gt_report_key,
+        )
+
+    return extra_from_report
 
 
 def _spot_extra_from_cell(
@@ -2339,6 +2477,7 @@ def analyze_bar_hex(
     time_window: TimeWindow,
     specs=None,
     grids=None,
+    train_filter="none",
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """One v forward over bs over specs at one hex; returns ``reports[spec][cell]``."""
     pack = session.packs[task][contrast]
@@ -2365,6 +2504,7 @@ def analyze_bar_hex(
         mode="hex",
         specs=specs,
         grids=grids,
+        train_filter=train_filter,
         extra={
             "node": node,
             "hex": {"x": at_x, "y": at_y},
@@ -2386,6 +2526,7 @@ def analyze_bar_slice(
     time_window: TimeWindow,
     specs=None,
     grids=None,
+    train_filter="none",
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """Average static-bar components over one x- or y-coordinate slice."""
     if task != "sbar":
@@ -2430,6 +2571,7 @@ def analyze_bar_slice(
         mode="slice",
         specs=specs,
         grids=grids,
+        train_filter=train_filter,
         extra={"slice": {"x": at_x, "y": at_y}},
     )
 
@@ -3226,6 +3368,7 @@ def main(hydra_config) -> None:
                             time_window=time_window,
                             specs=specs,
                             grids=grids,
+                            train_filter=train_filter,
                         )
                     elif slice_mode:
                         axis = "x" if cli.xs is not None else "y"
@@ -3255,6 +3398,7 @@ def main(hydra_config) -> None:
                                 time_window=time_window,
                                 specs=specs,
                                 grids=grids,
+                                train_filter=train_filter,
                             )
                             for spec in specs_ordered:
                                 for cell, rep in one_coordinate[spec].items():
@@ -3304,6 +3448,7 @@ def main(hydra_config) -> None:
                                 specs=specs,
                                 grids=grids,
                                 mids_req=[mid],
+                                train_filter=train_filter,
                             )
                             for spec in specs_ordered:
                                 for cell, rep in one_mid[spec].items():
@@ -3346,6 +3491,7 @@ def main(hydra_config) -> None:
                             time_window=time_window,
                             specs=specs,
                             grids=grids,
+                            train_filter=train_filter,
                         )
                     reports_by_cell: dict[str, list[dict[str, Any]]] = {
                         cell: [] for cell in cells_bar
