@@ -6,8 +6,8 @@ Input:
 
 Output:
   gruntman21_decomp.png
-  gruntman21_mi1.csv
-  gruntman21_mi4.csv
+  gruntman21_mi1_position_traces.csv/.png
+  gruntman21_mi4_position_traces.csv/.png
   gruntman21_mi1_mi4_fit_lp.csv
   gruntman21_mi1_mi4_fit_lp.png
 
@@ -32,9 +32,10 @@ HERE = Path(__file__).resolve().parent
 INPUT_CSV = HERE.parent / "gruntman21" / "2ax2bc_digitized.csv"
 GAUSSIAN_OUTPUT_PNG = HERE / "gruntman21_decomp.png"
 GAUSSIAN_COMPARISON_CSV = HERE / "gruntman21_gaussian_comparison.csv"
-MI9_CSV = HERE / "gruntman21_mi9.csv"
-MI1_CSV = HERE / "gruntman21_mi1.csv"
-MI4_CSV = HERE / "gruntman21_mi4.csv"
+MI1_POSITION_CSV = HERE / "gruntman21_mi1_position_traces.csv"
+MI1_POSITION_PNG = HERE / "gruntman21_mi1_position_traces.png"
+MI4_POSITION_CSV = HERE / "gruntman21_mi4_position_traces.csv"
+MI4_POSITION_PNG = HERE / "gruntman21_mi4_position_traces.png"
 LP_OUTPUT_CSV = HERE / "gruntman21_mi1_mi4_fit_lp.csv"
 LP_OUTPUT_PNG = HERE / "gruntman21_mi1_mi4_fit_lp.png"
 
@@ -124,6 +125,8 @@ def spatial_weight_matrix(
 def layered_spatial_weight_matrix(
     light_attenuations: np.ndarray,
     attenuation_distances: tuple[float, ...],
+    *,
+    centers: tuple[float, ...] | None = None,
 ) -> np.ndarray:
     """Return source/light overlap gains after summing over internal mids.
 
@@ -138,11 +141,14 @@ def layered_spatial_weight_matrix(
     if not 0.0 < a_half < 1.0:
         raise ValueError("cannot infer light sigma from A0.5")
     light_sigma = 0.5 / np.sqrt(-2.0 * np.log(a_half))
+    source_centers = SOURCE_CENTERS if centers is None else centers
+    if len(source_centers) != len(SOURCE_SPATIAL_SIGMAS):
+        raise ValueError("centers length must match SOURCE_SPATIAL_SIGMAS")
 
-    weights = np.zeros((len(SPATIAL_POSITIONS), len(SOURCE_CENTERS)))
+    weights = np.zeros((len(SPATIAL_POSITIONS), len(source_centers)))
     for row, position in enumerate(SPATIAL_POSITIONS):
         for column, (center, source_sigma) in enumerate(
-            zip(SOURCE_CENTERS, SOURCE_SPATIAL_SIGMAS)
+            zip(source_centers, SOURCE_SPATIAL_SIGMAS)
         ):
             effective_sigma = (
                 light_sigma
@@ -473,6 +479,94 @@ def plot_spatial_fit(
     plt.close(fig)
 
 
+def build_source_position_traces(
+    attenuations: np.ndarray,
+    sources: pd.DataFrame,
+    source_name: str,
+    *,
+    center_position: float | None = None,
+) -> pd.DataFrame:
+    """Scale one fitted NEW source trace at all nine positions."""
+    source_column = SOURCE_NAMES.index(source_name)
+    centers = list(SOURCE_CENTERS)
+    if center_position is not None:
+        centers[source_column] = center_position
+    weights = layered_spatial_weight_matrix(
+        attenuations,
+        EXTENDED_ATTENUATION_DISTANCES,
+        centers=tuple(centers),
+    )
+    center = centers[source_column]
+    frames = []
+    for contrast in CONTRASTS:
+        source = sources[
+            (sources["contrast"] == contrast)
+            & (sources["source"] == source_name)
+        ][["time_ms", "source_vm_mv"]]
+        for row, position in enumerate(SPATIAL_POSITIONS):
+            weight = weights[row, source_column]
+            frames.append(
+                pd.DataFrame(
+                    {
+                        "source": source_name,
+                        "contrast": contrast,
+                        "center_position": center,
+                        "position": position,
+                        "spatial_gain": weight,
+                        "time_ms": source["time_ms"].to_numpy(),
+                        "contribution_vm_mv": (
+                            weight * source["source_vm_mv"].to_numpy()
+                        ),
+                    }
+                )
+            )
+    return pd.concat(frames, ignore_index=True)
+
+
+def plot_source_position_traces(
+    traces: pd.DataFrame,
+    common_sigma: float,
+    source_name: str,
+    output_png: Path,
+) -> None:
+    """Plot NEW source PC/NC contribution traces from position -2 through +2."""
+    source_sigma = SOURCE_SPATIAL_SIGMAS[SOURCE_NAMES.index(source_name)]
+    source_width = (
+        "point"
+        if source_sigma is None
+        else rf"source $\sigma={source_sigma:g}$"
+    )
+    center = float(traces["center_position"].iloc[0])
+    fig, axes = plt.subplots(3, 3, figsize=(14.0, 10.0), sharex=True, sharey=True)
+    for ax, position in zip(axes.flat, SPATIAL_POSITIONS):
+        position_data = traces[np.isclose(traces["position"], position)]
+        for contrast in CONTRASTS:
+            trace = position_data[position_data["contrast"] == contrast]
+            gain = trace["spatial_gain"].iloc[0]
+            ax.plot(
+                trace["time_ms"],
+                trace["contribution_vm_mv"],
+                color=COLORS[contrast],
+                linewidth=1.8,
+                label=f"{contrast} (gain={gain:.6f})",
+            )
+        ax.axvspan(0.0, STIMULUS_DURATION_MS, color="0.92", zorder=-2)
+        ax.axhline(0.0, color="0.75", linewidth=0.7, zorder=-1)
+        ax.axvline(0.0, color="0.75", linewidth=0.7, zorder=-1)
+        ax.set_title(f"{source_name} position {position:+g}")
+        ax.set_xlabel("time (ms)")
+        ax.set_ylabel(f"{source_name} contribution (mV)")
+        ax.legend(frameon=False, fontsize=8)
+    fig.suptitle(
+        rf"NEW model {source_name} contribution traces, position -2 to +2 "
+        rf"(center={center:+g}; common Gaussian $\sigma={common_sigma:.6f}$; "
+        rf"{source_name} {source_width})"
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+    fig.savefig(output_png, dpi=180)
+    plt.close(fig)
+
+
 def delayed_lp_pulse(
     time_ms: np.ndarray,
     duration_ms: float,
@@ -703,8 +797,26 @@ def main() -> int:
         gaussian_comparison,
     )
 
+    for source_name, position_csv, position_png, center_position in (
+        ("Mi1", MI1_POSITION_CSV, MI1_POSITION_PNG, None),
+        ("Mi4", MI4_POSITION_CSV, MI4_POSITION_PNG, 0.0),
+    ):
+        position_traces = build_source_position_traces(
+            new_light_gaussian,
+            gaussian_sources,
+            source_name,
+            center_position=center_position,
+        )
+        position_traces.to_csv(position_csv, index=False)
+        plot_source_position_traces(
+            position_traces,
+            new_light_sigma,
+            source_name,
+            position_png,
+        )
+
     source_outputs = {}
-    for source_name in SOURCE_NAMES:
+    for source_name in ("Mi1", "Mi4"):
         source_output = None
         for contrast in CONTRASTS:
             mask = (
@@ -725,12 +837,7 @@ def main() -> int:
         assert source_output is not None
         source_outputs[source_name] = source_output.sort_values("time_ms")
 
-    source_outputs["Mi9"].to_csv(MI9_CSV, index=False)
-    source_outputs["Mi1"].to_csv(MI1_CSV, index=False)
-    source_outputs["Mi4"].to_csv(MI4_CSV, index=False)
-    lp_results = fit_and_plot_sources(
-        {"Mi1": source_outputs["Mi1"], "Mi4": source_outputs["Mi4"]}
-    )
+    lp_results = fit_and_plot_sources(source_outputs)
     lp_results.to_csv(LP_OUTPUT_CSV, index=False)
 
     print(f"old shared Gaussian sigma: {old_gaussian_sigma:.9g}")
@@ -738,9 +845,10 @@ def main() -> int:
     print(gaussian_comparison.to_string(index=False, float_format=lambda x: f"{x:.6g}"))
     print(f"wrote {GAUSSIAN_COMPARISON_CSV}")
     print(f"wrote {GAUSSIAN_OUTPUT_PNG}")
-    print(f"wrote {MI9_CSV}")
-    print(f"wrote {MI1_CSV}")
-    print(f"wrote {MI4_CSV}")
+    print(f"wrote {MI1_POSITION_CSV}")
+    print(f"wrote {MI1_POSITION_PNG}")
+    print(f"wrote {MI4_POSITION_CSV}")
+    print(f"wrote {MI4_POSITION_PNG}")
     print(lp_results.to_string(index=False, float_format=lambda x: f"{x:.6g}"))
     print(f"wrote {LP_OUTPUT_CSV}")
     print(f"wrote {LP_OUTPUT_PNG}")

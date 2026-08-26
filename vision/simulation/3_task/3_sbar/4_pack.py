@@ -19,7 +19,7 @@ from network.construction import (
     node_cells,
     standardize_cost_radius,
 )
-from task.sbar.gt import GT_CELLS, load_gt
+from task.sbar.gt import GT_CELLS, gt_trace_key, load_gt
 from task.sbar.sti_geo import sbar_line_mids, sti_hexes
 from task.sbar.sti_spec import (
     build_sbar_a_sti_mid_drive,
@@ -93,7 +93,9 @@ def part_key(contrast: str, cell: str, mid) -> str:
 
 
 def sbar_direction_active(cell: str, direction: str) -> bool:
-    """Whether *direction* lies on the T4/T5 subtype's motion axis."""
+    """Whether *direction* lies on the cell's motion axis."""
+    if cell in ("Mi1", "Mi4"):
+        return str(direction) in ("right", "left", "up", "down")
     subtype = str(cell)[-1:]
     if subtype in ("a", "b"):
         return str(direction) in ("right", "left")
@@ -103,26 +105,18 @@ def sbar_direction_active(cell: str, direction: str) -> bool:
 
 
 def sbar_pd_axis_sign(cell: str) -> int:
-    """Global x/y sign of increasing position along the subtype's PD axis."""
+    """Sign mapping bar−cell mid onto the GT position axis.
+
+    T4/T5: PD-axis sign for the subtype. Mi1/Mi4: no PD/ND; mid increases as +1.
+    """
+    if cell in ("Mi1", "Mi4"):
+        return 1
     subtype = str(cell)[-1:]
     if subtype in ("a", "c"):
         return 1
     if subtype in ("b", "d"):
         return -1
     raise ValueError(f"unknown sbar gt cell subtype: {cell!r}")
-
-
-def _sbar_gt_key(cell: str, contrast: str, position: float) -> str:
-    pathway = (
-        "PC" if (cell.startswith("T4") and contrast == "bright")
-        or (cell.startswith("T5") and contrast == "dark") else "NC"
-    )
-    position_label = (
-        f"{int(position):+d}"
-        if float(position).is_integer()
-        else f"{float(position):+.1f}"
-    )
-    return f"{cell[:2]}_{pathway}_pos{position_label}_w1"
 
 
 def _sbar_cost_part_plot_specs(
@@ -255,7 +249,7 @@ def build_sbar_gt(
                     relative_mid = float(
                         sbar_pd_axis_sign(cell) * (bar_mid - cell_mid)
                     )
-                    gt_key = _sbar_gt_key(cell, spec.contrast, relative_mid)
+                    gt_key = gt_trace_key(cell, spec.contrast, relative_mid)
                     if gt_key in gts:
                         bar_samples.append((float(bar_mid), relative_mid, gt_key))
                 if not bar_samples:

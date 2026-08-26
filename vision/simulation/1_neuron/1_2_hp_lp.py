@@ -27,8 +27,9 @@ forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
 t=0 uses ``session.pre_steady`` (``--pre-steady …``):
 
-* ``solve`` (default): fixed-iter DC map with ``session.pre_steady_n_iter`` /
-  ``session.pre_steady_damp`` (under-relaxation; not part of dynamics)
+* ``solve`` (default): fixed-iter, voltage-clamped DC map with
+  ``session.pre_steady_n_iter`` / ``session.pre_steady_damp``
+  (under-relaxation; not part of dynamics)
 * ``probe``: one ``v_syn`` from ``e_leak`` (legacy)
 """
 from __future__ import annotations
@@ -128,9 +129,14 @@ def pre_steady(session, params, n_b, i_sti=None):
     if pre_steady_mode == "probe":
         v_dc, v_in = v_dc_from_v(v, params, v_sti, connectome)
         return v_in, v_dc
+    damp = float(session.pre_steady_damp)
+    clamp = float(session.v_clamp)
     for _ in range(int(session.pre_steady_n_iter)):
         v_dc, _ = v_dc_from_v(v, params, v_sti, connectome)
-        v = v + float(session.pre_steady_damp) * (v_dc - v)
+        # Solve the same bounded system used by ``step``.  Without this
+        # projection, a recurrent DC map can diverge to an enormous t=0
+        # voltage even though the first dynamic step immediately clamps it.
+        v = torch.clamp(v + damp * (v_dc - v), -clamp, clamp)
     _, v_in = v_dc_from_v(v, params, v_sti, connectome)
     return v_in, v
 

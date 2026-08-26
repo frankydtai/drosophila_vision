@@ -4,8 +4,8 @@ Each panel: one cell at one bar-position on the motion axis.
 Columns are bar ``mid`` positions from the cost pack; rows are cells
 (``plot_gt``: sbar ``gt_cells``; ``plot_all``: config ``sbar_figure_cells``).
 
-GT traces are Gruntman Fig.2 digitized width-1 flash responses, loaded from
-``task.sbar.gt`` using the same timing as the pack.
+GT traces are Gruntman Fig.2 width-1 flash responses (T4/T5) plus Mi1/Mi4
+position contributions from ``task.sbar.gt``, using the same timing as the pack.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import torch
 
 import train
 from config import FIGURE_PLOT
-from task.sbar.gt import load_gt as load_sbar_gt
+from task.sbar.gt import GT_CELLS, gt_trace_key, load_gt as load_sbar_gt
 from task.sbar.pack import SbarPack
 from task.sbar.sti_geo import node_us_vs
 from figure.spread import (
@@ -73,24 +73,11 @@ def active_sbar_gt_cells(session, task=None, contrast=None):
     return tuple(
         active_gt_cells(
             gt_cells_from_opts(opts),
-            ("T4a", "T4b", "T4c", "T4d", "T5a", "T5b", "T5c", "T5d"),
+            GT_CELLS,
             connectome.cells,
             context="sbar plot",
         )
     )
-
-
-def sbar_gt_trace_key(cell: str, contrast: str, mid: float) -> str:
-    """Build Gruntman GT trace_id: ``{cell_prefix}_{PC|NC}_{pos}_w1``."""
-    prefix = cell[:2]
-    if (cell.startswith("T4") and contrast == "bright") or (
-        cell.startswith("T5") and contrast == "dark"
-    ):
-        pathway = "PC"
-    else:
-        pathway = "NC"
-    pos_str = f"{int(mid):+d}" if float(mid).is_integer() else f"{float(mid):+.1f}"
-    return f"{prefix}_{pathway}_pos{pos_str}_w1"
 
 
 @dataclass
@@ -144,9 +131,11 @@ def resolve_sbar_gts(sessions, gts=None):
             ms_post=float(opts.get("ms_post", 0.0)),
         )
         by_cell_mid = {}
-        for cell in cells_in_order(session.connectome.cells):
+        for cell in cells_in_order(GT_CELLS):
+            if cell not in session.connectome.cells:
+                continue
             for mid in _sbar_mids_from_pack(pack):
-                key = sbar_gt_trace_key(cell, contrast, mid)
+                key = gt_trace_key(cell, contrast, mid)
                 if key not in raw_gts:
                     continue
                 gt = np.full(n_t, np.nan, dtype=np.float64)

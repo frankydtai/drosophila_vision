@@ -78,7 +78,7 @@ params:
   tau_ca: {lo: 100.0, hi: 1000.0, init: 350.0, jit: 10.0, mode: "indi"}
   a_sti_radius: {lo: 0.0, hi: 1.0, init: 0.0, jit: 0.05, mode: "indi"}
   a_sti_mid:
-    {lo: 0.0, hi: 1.0, init: 0.0, inits: {0.5: 0.9, 1: 0.5, 1.5: 0.4, 2: 0.2}, jit: 0.05, mode: "fixed"}
+    {lo: 0.0, hi: 1.0, init: 0.0, inits: {0.5: 0.1, 1: 0, 1.5: 0, 2: 0}, jit: 0.05, mode: "fixed"}
 
 # ---------------------------------------------------------------------------
 # 1.4   neuron.forward (model booleans; not packed into z)
@@ -141,8 +141,8 @@ bar_directions: [right, left, up, down]
 # ---------------------------------------------------------------------------
 tasks: [spread,sbar]
 gt_by_task:
-  spread: [L1, L2, L3, L4, L5, Mi1, Mi4]
-  sbar: [T4a]
+  spread: [L1, L2, L3, L4, L5, Mi9]
+  sbar: [Mi1,Mi4,T4a]
 cost_radius: null
 
 # ---------------------------------------------------------------------------
@@ -166,7 +166,16 @@ val_from:
 # 4.3   train.cost
 # ---------------------------------------------------------------------------
 # Task keys apply to every fine part in that task; a full part key overrides it.
-part_cost_scales: {spread: 1}
+# sbar: only mid=0; |mid| 0.5–2 scale 0 via task default.
+part_cost_scales:
+  spread: 1
+  sbar: 0
+  sbar_bright_Mi1_mid+0: 1
+  sbar_dark_Mi1_mid+0: 0
+  sbar_bright_Mi4_mid+0: 1
+  sbar_dark_Mi4_mid+0: 0
+  sbar_bright_T4a_mid+0: 1
+  sbar_dark_T4a_mid+0: 0
 cost_norm: "a_gt2"
 # cost_ms: post-onset cost sample times (spread + spot; same for every radius).
 #   null — full post-onset window (no sparse cost_ts)
@@ -218,7 +227,7 @@ mbar_plot_direction: left
 # Tasks to plot after training or when re-plotting; independent of train `tasks`.
 figure_tasks: [spread, sbar]
 # Rows for sbar ``plot_all`` / ``*_all_v.png``.
-sbar_figure_cells: [R1-6, L1, L2, L3, L4, L5, Mi1, Mi4, T4a]
+sbar_figure_cells: [R1-6, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, T4a]
 html: false
 plot_right_only: true
 x: null

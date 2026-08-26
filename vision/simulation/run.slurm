@@ -38,5 +38,5 @@ params = {
 pprint(params, sort_dicts=False, width=120)
 PY
 echo "==== end config ===="
-# Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py n_iter=200 tasks=[spread,sbar] 
+# Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).'params.a_sti_mid.inits={0.5:0,1:0,1.5:0,2:0}'
+"${PYTHON}" -u run.py n_iter=100 tasks=[spread,sbar] 

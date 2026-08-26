@@ -23,8 +23,6 @@ from task.mbar.sti_spec import (
     COST_WINDOW_MS,
     MbarSpec,
 )
-from task.sbar.gt import GT_CELLS, expand_gt_cells
-
 # Gruntman Fig. 1 Ci/Cii digitized population Vm (figure_digitization/gruntman21/1ci.py).
 # gt.py → mbar → task → simulation → vision → repo root.
 FIG1_CI_NPZ = (
@@ -33,6 +31,16 @@ FIG1_CI_NPZ = (
     / "gruntman21"
     / "1ci_digitized.npz"
 )
+
+# mbar cost cells are T4/T5 subtypes only (PD/ND). Not shared with sbar Mi1/Mi4.
+GT_CELLS: Tuple[str, ...] = (
+    "T4a", "T4b", "T4c", "T4d",
+    "T5a", "T5b", "T5c", "T5d",
+)
+GT_CELL_ALIASES: dict = {
+    "T4": tuple(cell for cell in GT_CELLS if cell.startswith("T4")),
+    "T5": tuple(cell for cell in GT_CELLS if cell.startswith("T5")),
+}
 
 _HORIZONTAL = frozenset({"right", "left"})
 _OPPOSITE = {"right": "left", "left": "right", "up": "down", "down": "up"}
@@ -43,6 +51,29 @@ AXIS_DIRECTION_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("up", "down"),
 )
 _CARDINAL = frozenset(_OPPOSITE)
+
+
+def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
+    """Expand moving-bar cell tokens via ``GT_CELL_ALIASES`` (e.g. T4, T5)."""
+    if not cells:
+        raise ValueError("gt_cells must not be empty")
+    gt_cells: list = []
+    seen: set = set()
+    for token in cells:
+        token = str(token).strip()
+        if token in GT_CELL_ALIASES:
+            pool = GT_CELL_ALIASES[token]
+        elif token in GT_CELLS:
+            pool = (token,)
+        else:
+            raise ValueError(
+                f"unknown gt cell {token!r} (expected {', '.join((*GT_CELL_ALIASES, *GT_CELLS))})"
+            )
+        for cell in pool:
+            if cell not in seen:
+                seen.add(cell)
+                gt_cells.append(cell)
+    return tuple(gt_cells)
 
 @dataclass(frozen=True)
 class MotionPreference:
