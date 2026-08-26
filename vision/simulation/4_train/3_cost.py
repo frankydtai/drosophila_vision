@@ -1,8 +1,8 @@
 """Cost assembly: per-part MSE and the scaled total.
 
 Consumes a :class:`~train.session.TrainSession` and the model forward
-(``neuron.forward`` + ``neuron.readout``); produces per-part local-% costs and
-the mean scaled total (``Σ W·cost / Σ W``). The staged-lr loop lives in
+(``neuron.forward`` + ``neuron.readout``); produces each part's weighted-mean
+contribution (``W·cost / Σ W``) and their summed total. The staged-lr loop lives in
 :mod:`train.optimization`.
 
 Owns cost-time execution plans (active packs / fused packs) built at
@@ -271,6 +271,14 @@ def entries_by_part(pack: TaskPack) -> Tuple[torch.Tensor, List[str]]:
     """``(part_idxs, part_keys)`` from ``pack.entry_part_keys``; one CPU sync."""
     n = int(pack.entry_nodes.shape[0])
     keys = pack.entry_part_keys
+    if n == 0:
+        if keys:
+            raise ValueError(
+                f"pack {pack.task!r} has entry_part_keys but no cost entries"
+            )
+        return torch.empty(
+            0, dtype=torch.long, device=pack.entry_nodes.device,
+        ), []
     if not keys or len(keys) != n:
         raise ValueError(f"pack {pack.task!r} missing entry_part_keys (n_cost={n})")
     entry_cost_scales = _entry_cost_scales(pack).detach().cpu().numpy()
@@ -626,8 +634,8 @@ def _pack_cost_parts_from_params(params, pack: TaskPack, session: TrainSession, 
     )
 
 
-def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
-    """Per-part unscaled cost (before ``part_cost_scales``)."""
+def _calc_unscaled_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
+    """Internal per-part cost before ``part_cost_scales`` and mean normalization."""
     params = params_from_z(z, session)
     active_packs = _build_active_packs(session)
     fused_packs = _build_fused_packs(session, active_packs)
@@ -703,19 +711,37 @@ def _session_part_scale_sum(session: TrainSession) -> float:
     ))
 
 
-def _scaled_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSession):
-    """Mean of local-% parts: ``Σ W·cost / Σ W``."""
-    total = torch.zeros((), dtype=session.sim_dtype, device=session.device)
-    scale_sum = 0.0
-    for part_key, part in parts.items():
-        scale = _part_scale(session, part_key)
-        if scale == 0.0:
-            continue
-        total = total + scale * part
-        scale_sum += scale
+def _weighted_mean_cost_parts(
+    parts: Dict[str, torch.Tensor], session: TrainSession,
+) -> Dict[str, torch.Tensor]:
+    """Convert raw parts to objective contributions ``W·part / Σ W``.
+
+    The returned values are directly comparable across parts and sum to the
+    scalar training objective.
+    """
+    scale_sum = _session_part_scale_sum(session)
     if scale_sum == 0.0:
-        return total
-    return total / scale_sum
+        return {}
+    return {
+        part_key: (_part_scale(session, part_key) / scale_sum) * part
+        for part_key, part in parts.items()
+        if _part_scale(session, part_key) != 0.0
+    }
+
+
+def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
+    """Per-part weighted-mean contributions; their sum equals ``calc_cost``."""
+    return _weighted_mean_cost_parts(
+        _calc_unscaled_cost_parts(z, session), session,
+    )
+
+
+def _scaled_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSession):
+    """Sum weighted-mean part contributions returned by ``calc_cost_parts``."""
+    total = torch.zeros((), dtype=session.sim_dtype, device=session.device)
+    for part in parts.values():
+        total = total + part
+    return total
 
 
 def calc_cost(z, session: TrainSession, parts=None):
@@ -749,7 +775,8 @@ def backward_part_sums(z, session: TrainSession):
     """Backward mean local-% cost one ``b`` at a time.
 
     Each ``b`` contributes ``Σ (W·cost) / W_norm`` so gradients match
-    ``calc_cost`` (``Σ W·cost / Σ W``). Returns ``(total, part_sums)``.
+    ``calc_cost`` (``Σ W·cost / Σ W``). Returned ``part_sums`` are weighted
+    mean contributions and therefore sum to ``total``.
     """
     part_sums: Dict[str, float] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
@@ -768,10 +795,10 @@ def backward_part_sums(z, session: TrainSession):
                 continue
             scaled_cost = scaled_cost + (scale / scale_norm) * part
             has_cost = True
-            part_sums[part_key] = part_sums.get(part_key, 0.0) + float(part.item())
+            contribution = (scale / scale_norm) * float(part.item())
+            part_sums[part_key] = part_sums.get(part_key, 0.0) + contribution
         if has_cost:
             scaled_cost.backward()
     return (
-        sum(_part_scale(session, part_key) * part_sum for part_key, part_sum in part_sums.items())
-        / scale_norm
+        sum(part_sums.values())
     ), part_sums

@@ -37,7 +37,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from figure.panel import TRACE_LW, save_figure
-from import_bootstrap import parse_comma_list
 from network.construction import cell_order_rows
 from neuron.filter_ca import filter_ca
 from config import MODEL, NEURON_SCHEMA, SPOT_INPUT_SPEC
@@ -221,9 +220,10 @@ def main():
     ap.add_argument("--tau-ca", type=float, default=TAU_CA)
     ap.add_argument(
         "--tau-ca-sweep",
-        default=",".join(f"{t:g}" for t in TAU_CA_SWEEP),
-        help="comma-separated τ_ca ms for second PNG "
-             f"(default: {','.join(f'{t:g}' for t in TAU_CA_SWEEP)})",
+        type=float,
+        nargs="+",
+        default=list(TAU_CA_SWEEP),
+        help=f"τ_ca values in ms for second PNG (default: {list(TAU_CA_SWEEP)})",
     )
     ap.add_argument("--a-ca", type=float, default=A_CA)
     ap.add_argument("--v-th-ca", type=float, default=V_TH_CA)
@@ -239,7 +239,7 @@ def main():
     a_ca = float(args.a_ca)
     v_th_ca = float(args.v_th_ca)
     impr_offset = float(args.impr_offset)
-    tau_sweep = tuple(float(x) for x in parse_comma_list(args.tau_ca_sweep))
+    tau_sweep = tuple(args.tau_ca_sweep)
     if not tau_sweep:
         raise SystemExit("--tau-ca-sweep must not be empty")
     t_onset, n_t = spot_timing_t(

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Plot V(+0) - V(+2) - V(-2) for Gruntman21 T4 width 1/4.
+"""Plot Gaussian three-source spatial fit for Gruntman21 T4 width 1/4.
 
 Input:
   ../gruntman21/2ax2bc_digitized.csv
 
 Output:
   gruntman21_decomp.png
-  gruntman21_pm1_fit.png
-  gruntman21_spatial_fit.png
+  gruntman21_mi1.csv
+  gruntman21_mi4.csv
+  gruntman21_mi1_mi4_fit_lp.csv
+  gruntman21_mi1_mi4_fit_lp.png
 
 Run:
   ../.venv/bin/python gruntman21_decomp.py
@@ -28,25 +30,25 @@ from scipy.optimize import differential_evolution, least_squares, minimize_scala
 
 HERE = Path(__file__).resolve().parent
 INPUT_CSV = HERE.parent / "gruntman21" / "2ax2bc_digitized.csv"
-OUTPUT_PNG = HERE / "gruntman21_decomp.png"
-FIT_OUTPUT_PNG = HERE / "gruntman21_pm1_fit.png"
-SPATIAL_OUTPUT_PNG = HERE / "gruntman21_spatial_fit.png"
-EXTENDED_OUTPUT_PNG = HERE / "gruntman21_spatial_fit_a3.png"
-ATTENUATION_OUTPUT_PNG = HERE / "gruntman21_attenuation_a0_a3.png"
-GAUSSIAN_OUTPUT_PNG = HERE / "gruntman21_spatial_fit_gaussian.png"
-GAUSSIAN_COMPARE_PNG = HERE / "gruntman21_attenuation_gaussian_compare.png"
+GAUSSIAN_OUTPUT_PNG = HERE / "gruntman21_decomp.png"
+MI1_CSV = HERE / "gruntman21_mi1.csv"
+MI4_CSV = HERE / "gruntman21_mi4.csv"
+LP_OUTPUT_CSV = HERE / "gruntman21_mi1_mi4_fit_lp.csv"
+LP_OUTPUT_PNG = HERE / "gruntman21_mi1_mi4_fit_lp.png"
 
 CELL_TYPE = "T4"
 CONTRASTS = ("PC", "NC")
 COLORS = {"PC": "#549f5c", "NC": "#303030"}
 WIDTH_LED = 1
-POSITIONS = (0.0, 2.0, -2.0)
-FIT_SIDES = (-1.0, 1.0)
 SPATIAL_POSITIONS = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
-SOURCE_NAMES = ("M9", "M1", "M4")
+SOURCE_NAMES = ("Mi9", "Mi1", "Mi4")
 SOURCE_CENTERS = (-1.0, 0.0, 1.0)
-ATTENUATION_DISTANCES = (0.5, 1.0, 1.5, 2.0)
 EXTENDED_ATTENUATION_DISTANCES = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
+STIMULUS_DURATION_MS = 160.0
+TAU_STARTS_MS = (5.0, 15.0, 30.0, 60.0, 120.0, 250.0)
+DELAY_STARTS_MS = (0.0, 10.0, 20.0, 30.0, 45.0, 65.0, 90.0)
+LP_LOWER_BOUNDS = np.array([0.5, 0.0, -500.0])
+LP_UPPER_BOUNDS = np.array([500.0, 120.0, 500.0])
 
 
 def load_trace(
@@ -93,89 +95,6 @@ def align_traces(
     return aligned
 
 
-def fit_shared_a(data: pd.DataFrame) -> tuple[float, dict[str, pd.DataFrame]]:
-    """Fit one positive a jointly to PC/NC traces at positions +1 and -1."""
-    fit_data = {
-        contrast: align_traces(data, contrast, (0.0, 2.0, -2.0, 1.0, -1.0))
-        for contrast in CONTRASTS
-    }
-
-    def residual(log_a: np.ndarray) -> np.ndarray:
-        a = float(np.exp(log_a[0]))
-        errors = []
-        for aligned in fit_data.values():
-            errors.append(
-                aligned["vm_+0"].to_numpy() * a
-                + aligned["vm_+2"].to_numpy() / a
-                - aligned["vm_+1"].to_numpy()
-            )
-            errors.append(
-                aligned["vm_+0"].to_numpy() * a
-                + aligned["vm_-2"].to_numpy() / a
-                - aligned["vm_-1"].to_numpy()
-            )
-        return np.concatenate(errors)
-
-    result = least_squares(residual, x0=np.array([0.0]), max_nfev=10_000)
-    if not result.success:
-        raise RuntimeError(f"a fit failed: {result.message}")
-    return float(np.exp(result.x[0])), fit_data
-
-
-def plot_pm1_fit(
-    a: float,
-    fit_data: dict[str, pd.DataFrame],
-) -> None:
-    """Plot measured ±1 traces solid and fitted traces dashed."""
-    fig, axes = plt.subplots(
-        1,
-        len(FIT_SIDES),
-        figsize=(12.0, 4.5),
-        sharex=True,
-        sharey=True,
-        squeeze=False,
-    )
-    for column, side in enumerate(FIT_SIDES):
-        ax = axes[0, column]
-        for contrast in CONTRASTS:
-            aligned = fit_data[contrast]
-            source_position = 2.0 * side
-            measured = aligned[f"vm_{side:+g}"]
-            fitted = aligned["vm_+0"] * a + aligned[
-                f"vm_{source_position:+g}"
-            ] / a
-            ax.plot(
-                aligned["time_ms"],
-                measured,
-                color=COLORS[contrast],
-                linestyle="-",
-                linewidth=2.0,
-                label=f"{contrast} original",
-            )
-            ax.plot(
-                aligned["time_ms"],
-                fitted,
-                color=COLORS[contrast],
-                linestyle="--",
-                linewidth=2.0,
-                label=f"{contrast} fit",
-            )
-        ax.axvspan(0.0, 160.0, color="0.92", zorder=-2)
-        ax.axhline(0.0, color="0.75", linewidth=0.7, zorder=-1)
-        ax.axvline(0.0, color="0.75", linewidth=0.7, zorder=-1)
-        ax.set_title(f"position {side:+g}")
-        ax.set_xlabel("time (ms)")
-        ax.legend(frameon=False, fontsize=9)
-    axes[0, 0].set_ylabel("Vm (mV)")
-    fig.suptitle(
-        "T4 width 1/4: "
-        rf"$V_{{\pm1}}=aV_0+V_{{\pm2}}/a$, shared $a={a:.6f}$"
-    )
-    fig.tight_layout()
-    fig.savefig(FIT_OUTPUT_PNG, dpi=180)
-    plt.close(fig)
-
-
 def spatial_weight_matrix(
     attenuations: np.ndarray,
     attenuation_distances: tuple[float, ...],
@@ -202,7 +121,7 @@ def solve_spatial_sources(
     observed: np.ndarray,
     attenuation_distances: tuple[float, ...],
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Solve optimal M9/M1/M4 time series and return their fitted traces."""
+    """Solve optimal Mi9/Mi1/Mi4 time series and return their fitted traces."""
     weights = spatial_weight_matrix(attenuations, attenuation_distances)
     sources = np.linalg.lstsq(weights, observed, rcond=None)[0]
     return sources, weights @ sources
@@ -435,168 +354,203 @@ def plot_spatial_fit(
     plt.close(fig)
 
 
-def plot_attenuation_a0_a3(attenuations: np.ndarray) -> None:
-    """Plot the extended spatial attenuation profile from A0=1 to A3."""
-    distances = np.asarray((0.0, *EXTENDED_ATTENUATION_DISTANCES))
-    values = np.asarray((1.0, *attenuations))
-    fig, ax = plt.subplots(figsize=(7.0, 4.5))
-    ax.plot(
-        distances,
-        values,
-        color="#4c72b0",
-        marker="o",
-        linewidth=2.0,
+def delayed_lp_pulse(
+    time_ms: np.ndarray,
+    duration_ms: float,
+    tau_ms: float,
+    delay_ms: float,
+    gain_mv: float,
+) -> np.ndarray:
+    """Analytic first-order LP response to a delayed unit pulse."""
+    elapsed = np.asarray(time_ms, dtype=float) - delay_ms
+    response = np.zeros_like(elapsed)
+    during = (elapsed >= 0.0) & (elapsed < duration_ms)
+    response[during] = gain_mv * (1.0 - np.exp(-elapsed[during] / tau_ms))
+    after = elapsed >= duration_ms
+    response[after] = (
+        gain_mv
+        * (1.0 - np.exp(-duration_ms / tau_ms))
+        * np.exp(-(elapsed[after] - duration_ms) / tau_ms)
     )
-    for distance, value in zip(distances, values):
-        ax.annotate(
-            f"{value:.3f}",
-            (distance, value),
-            xytext=(0, 8),
-            textcoords="offset points",
-            ha="center",
-            fontsize=9,
+    return response
+
+
+def fit_lp_trace(
+    time_ms: np.ndarray,
+    vm_mv: np.ndarray,
+) -> dict[str, float | np.ndarray]:
+    """Fit one decomposed trace using the Gruntman18 delayed-LP method."""
+    finite = np.isfinite(time_ms) & np.isfinite(vm_mv)
+    time_ms = np.asarray(time_ms, dtype=float)[finite]
+    vm_mv = np.asarray(vm_mv, dtype=float)[finite]
+    if len(time_ms) == 0:
+        raise ValueError("cannot fit an empty LP trace")
+
+    extreme = int(np.argmax(np.abs(vm_mv)))
+    gain0 = float(vm_mv[extreme])
+    if np.isclose(gain0, 0.0):
+        gain0 = 0.1
+
+    def residual(parameters: np.ndarray) -> np.ndarray:
+        tau_ms, delay_ms, gain_mv = parameters
+        return delayed_lp_pulse(
+            time_ms,
+            STIMULUS_DURATION_MS,
+            tau_ms,
+            delay_ms,
+            gain_mv,
+        ) - vm_mv
+
+    best = None
+    for tau0 in TAU_STARTS_MS:
+        for delay0 in DELAY_STARTS_MS:
+            result = least_squares(
+                residual,
+                x0=np.array([tau0, delay0, gain0]),
+                bounds=(LP_LOWER_BOUNDS, LP_UPPER_BOUNDS),
+                loss="linear",
+                max_nfev=20_000,
+            )
+            sse = float(result.fun @ result.fun)
+            if best is None or sse < best[0]:
+                best = (sse, result)
+
+    assert best is not None
+    sse, result = best
+    if not result.success:
+        raise RuntimeError(f"LP fit failed: {result.message}")
+    tau_ms, delay_ms, gain_mv = map(float, result.x)
+    prediction = delayed_lp_pulse(
+        time_ms,
+        STIMULUS_DURATION_MS,
+        tau_ms,
+        delay_ms,
+        gain_mv,
+    )
+    ss_total = float(np.sum((vm_mv - np.mean(vm_mv)) ** 2))
+    r_squared = 1.0 - sse / ss_total if ss_total > 0.0 else np.nan
+    return {
+        "tau_ms": tau_ms,
+        "delay_ms": delay_ms,
+        "gain_mv": gain_mv,
+        "effective_offset_ms": delay_ms + STIMULUS_DURATION_MS,
+        "r_squared": r_squared,
+        "sse": sse,
+        "n_points": len(time_ms),
+        "time_ms": time_ms,
+        "vm_mv": vm_mv,
+        "prediction_mv": prediction,
+    }
+
+
+def fit_and_plot_sources(
+    source_tables: dict[str, pd.DataFrame],
+) -> pd.DataFrame:
+    """Fit Mi1/Mi4 traces and plot one overlaid PC/NC panel per source."""
+    rows = []
+    fits = {}
+    for source_name, source_data in source_tables.items():
+        for contrast in CONTRASTS:
+            fit = fit_lp_trace(
+                source_data["time_ms"].to_numpy(),
+                source_data[f"vm_{contrast}"].to_numpy(),
+            )
+            trace_id = f"{source_name}_{contrast}"
+            fits[trace_id] = fit
+            rows.append(
+                {
+                    "trace_id": trace_id,
+                    "source": source_name,
+                    "contrast": contrast,
+                    "flash_duration_ms": STIMULUS_DURATION_MS,
+                    "gain_mv": fit["gain_mv"],
+                    "delay_ms": fit["delay_ms"],
+                    "tau_ms": fit["tau_ms"],
+                    "effective_offset_ms": fit["effective_offset_ms"],
+                    "r_squared": fit["r_squared"],
+                    "sse": fit["sse"],
+                    "n_points": fit["n_points"],
+                }
+            )
+
+    results = pd.DataFrame(rows)
+    fig, axes = plt.subplots(1, 2, figsize=(13.0, 4.8), sharex=True, squeeze=False)
+    for column_index, source_name in enumerate(source_tables):
+        ax = axes[0, column_index]
+        for contrast in CONTRASTS:
+            trace_id = f"{source_name}_{contrast}"
+            fit = fits[trace_id]
+            ax.plot(
+                fit["time_ms"],
+                fit["vm_mv"],
+                color=COLORS[contrast],
+                linewidth=1.5,
+                label=f"{contrast} data",
+            )
+            ax.plot(
+                fit["time_ms"],
+                fit["prediction_mv"],
+                color=COLORS[contrast],
+                linestyle="--",
+                linewidth=2.0,
+                label=f"{contrast} LP fit",
+            )
+        source_results = results[results["source"] == source_name].set_index("contrast")
+        annotation_lines = []
+        for contrast in CONTRASTS:
+            row = source_results.loc[contrast]
+            annotation_lines.append(
+                f"{contrast}: tau={row['tau_ms']:.2f} ms, delay={row['delay_ms']:.2f} ms"
+            )
+            annotation_lines.append(
+                f"    gain={row['gain_mv']:.2f} mV, R2={row['r_squared']:.4f}"
+            )
+        ax.text(
+            0.02,
+            0.98,
+            "\n".join(annotation_lines),
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=8,
+            bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "0.7"},
         )
-    ax.set_xticks(distances)
-    ax.set_xlim(-0.1, 3.1)
-    ax.set_ylim(-0.04, 1.08)
-    ax.set_xlabel("distance")
-    ax.set_ylabel("attenuation A")
-    ax.set_title("T4 width 1/4 spatial attenuation: A0 to A3")
-    ax.grid(alpha=0.25)
+        ax.axhline(0.0, color="0.75", linewidth=0.7)
+        ax.axvline(0.0, color="0.6", linewidth=0.7, linestyle=":")
+        ax.axvline(
+            STIMULUS_DURATION_MS,
+            color="0.6",
+            linewidth=0.7,
+            linestyle=":",
+        )
+        ax.set_title(source_name)
+        ax.set_xlabel("time (ms)")
+        ax.set_ylabel("source Vm (mV)")
+        ax.legend(frameon=False, fontsize=8)
+    fig.suptitle("Gruntman 2021 decomposed Mi1/Mi4 — delayed single-τ LP fits")
     fig.tight_layout()
-    fig.savefig(ATTENUATION_OUTPUT_PNG, dpi=180)
+    fig.savefig(LP_OUTPUT_PNG, dpi=180)
     plt.close(fig)
-
-
-def plot_gaussian_attenuation_comparison(
-    unconstrained: np.ndarray,
-    gaussian: np.ndarray,
-    sigma: float,
-) -> None:
-    """Compare unconstrained and Gaussian-constrained A0..A3 curves."""
-    distances = np.asarray((0.0, *EXTENDED_ATTENUATION_DISTANCES))
-    unconstrained_values = np.asarray((1.0, *unconstrained))
-    gaussian_values = np.asarray((1.0, *gaussian))
-    fig, ax = plt.subplots(figsize=(7.0, 4.5))
-    ax.plot(
-        distances,
-        unconstrained_values,
-        color="#4c72b0",
-        marker="o",
-        linewidth=2.0,
-        label="unconstrained",
-    )
-    dense_distance = np.linspace(0.0, 3.0, 500)
-    ax.plot(
-        dense_distance,
-        np.exp(-0.5 * (dense_distance / sigma) ** 2),
-        color="#dd8452",
-        linewidth=2.0,
-        label=rf"Gaussian ($\sigma={sigma:.6f}$)",
-    )
-    ax.plot(
-        distances,
-        gaussian_values,
-        color="#dd8452",
-        marker="o",
-        linewidth=0,
-    )
-    ax.set_xticks(distances)
-    ax.set_xlim(-0.1, 3.1)
-    ax.set_ylim(-0.04, 1.08)
-    ax.set_xlabel("distance")
-    ax.set_ylabel("attenuation A")
-    ax.set_title("T4 width 1/4: unconstrained vs Gaussian attenuation")
-    ax.grid(alpha=0.25)
-    ax.legend(frameon=False)
-    fig.tight_layout()
-    fig.savefig(GAUSSIAN_COMPARE_PNG, dpi=180)
-    plt.close(fig)
+    return results
 
 
 def main() -> int:
     data = pd.read_csv(INPUT_CSV)
-    fig, ax = plt.subplots(figsize=(7.0, 4.5))
-    summaries = []
-    for contrast in CONTRASTS:
-        aligned = align_traces(data, contrast, POSITIONS)
 
-        result_mv = aligned["vm_+0"] - aligned["vm_+2"] - aligned["vm_-2"]
-        if not np.isfinite(result_mv.to_numpy()).all():
-            raise ValueError(f"non-finite value in decomposed {contrast} trace")
-
-        ax.plot(
-            aligned["time_ms"],
-            result_mv,
-            color=COLORS[contrast],
-            linewidth=2.0,
-            label=contrast,
-        )
-        summaries.append(
-            f"{contrast}: n={len(aligned)}, "
-            f"time={aligned.time_ms.min():.1f}..{aligned.time_ms.max():.1f} ms, "
-            f"Vm={result_mv.min():.3f}..{result_mv.max():.3f} mV"
-        )
-
-    ax.axvspan(0.0, 160.0, color="0.92", zorder=-2)
-    ax.axhline(0.0, color="0.75", linewidth=0.7, zorder=-1)
-    ax.axvline(0.0, color="0.75", linewidth=0.7, zorder=-1)
-    ax.set_xlabel("time (ms)")
-    ax.set_ylabel("Vm (mV)")
-    ax.set_title("T4 width 1/4: V(+0) - V(+2) - V(-2)")
-    ax.legend(frameon=False)
-    fig.tight_layout()
-    fig.savefig(OUTPUT_PNG, dpi=180)
-    plt.close(fig)
-
-    a, fit_data = fit_shared_a(data)
-    plot_pm1_fit(a, fit_data)
-    attenuations, spatial_aligned, spatial_observed = fit_spatial_model(
-        data,
-        ATTENUATION_DISTANCES,
-    )
-    spatial_output, spatial_sources = spatial_output_tables(
-        attenuations,
-        ATTENUATION_DISTANCES,
-        spatial_aligned,
-        spatial_observed,
-    )
-    plot_spatial_fit(
-        attenuations,
-        ATTENUATION_DISTANCES,
-        spatial_output,
-        spatial_sources,
-        SPATIAL_OUTPUT_PNG,
-    )
-
-    extended, extended_aligned, extended_observed = fit_spatial_model(
+    _, extended_aligned, extended_observed = fit_spatial_model(
         data,
         EXTENDED_ATTENUATION_DISTANCES,
     )
-    extended_output, extended_sources = spatial_output_tables(
-        extended,
-        EXTENDED_ATTENUATION_DISTANCES,
-        extended_aligned,
-        extended_observed,
-    )
-    plot_spatial_fit(
-        extended,
-        EXTENDED_ATTENUATION_DISTANCES,
-        extended_output,
-        extended_sources,
-        EXTENDED_OUTPUT_PNG,
-    )
-    plot_attenuation_a0_a3(extended)
 
-    gaussian_sigma, gaussian = fit_gaussian_spatial_model(
-        extended_observed,
-    )
+    gaussian_sigma, gaussian = fit_gaussian_spatial_model(extended_observed)
+
     gaussian_output, gaussian_sources = spatial_output_tables(
         gaussian,
         EXTENDED_ATTENUATION_DISTANCES,
         extended_aligned,
         extended_observed,
     )
+
     plot_spatial_fit(
         gaussian,
         EXTENDED_ATTENUATION_DISTANCES,
@@ -605,88 +559,37 @@ def main() -> int:
         GAUSSIAN_OUTPUT_PNG,
         model_label=rf"Gaussian spatial fit ($\sigma={gaussian_sigma:.6f}$)",
     )
-    plot_gaussian_attenuation_comparison(
-        extended,
-        gaussian,
-        gaussian_sigma,
-    )
-    print("\n".join(summaries))
-    print(f"best shared a={a:.9f}")
-    print(
-        "best spatial attenuations: "
-        + ", ".join(
-            f"A{distance:g}={value:.9f}"
-            for distance, value in zip(ATTENUATION_DISTANCES, attenuations)
-        )
-    )
-    print(
-        "best extended spatial attenuations: "
-        + ", ".join(
-            f"A{distance:g}={value:.9f}"
-            for distance, value in zip(
-                EXTENDED_ATTENUATION_DISTANCES,
-                extended,
-            )
-        )
-    )
-    print(f"best Gaussian sigma={gaussian_sigma:.9f}")
-    print(
-        "Gaussian spatial attenuations: "
-        + ", ".join(
-            f"A{distance:g}={value:.9f}"
-            for distance, value in zip(
-                EXTENDED_ATTENUATION_DISTANCES,
-                gaussian,
-            )
-        )
-    )
-    print("attenuation differences (Gaussian - unconstrained):")
-    for distance, free_value, gaussian_value in zip(
-        EXTENDED_ATTENUATION_DISTANCES,
-        extended,
-        gaussian,
-    ):
-        print(
-            f"  A{distance:g}: {gaussian_value - free_value:+.9f} "
-            f"({free_value:.9f} -> {gaussian_value:.9f})"
-        )
+
     for contrast in CONTRASTS:
-        residual = spatial_output.loc[
-            spatial_output["contrast"] == contrast,
-            "residual_mv",
-        ].to_numpy()
-        print(f"{contrast} spatial RMSE={np.sqrt(np.mean(residual**2)):.6f} mV")
-        free_trace = extended_output[
-            extended_output["contrast"] == contrast
-        ].reset_index(drop=True)
-        gaussian_trace = gaussian_output[
-            gaussian_output["contrast"] == contrast
-        ].reset_index(drop=True)
-        if not free_trace[["position", "time_ms"]].equals(
-            gaussian_trace[["position", "time_ms"]]
-        ):
-            raise RuntimeError("Gaussian and unconstrained output grids differ")
-        free_rmse = float(np.sqrt(np.mean(free_trace["residual_mv"] ** 2)))
-        gaussian_rmse = float(
-            np.sqrt(np.mean(gaussian_trace["residual_mv"] ** 2))
+        contrast_mask = gaussian_sources["contrast"] == contrast
+        mi1_mask = contrast_mask & (gaussian_sources["source"] == "Mi1")
+        mi4_mask = contrast_mask & (gaussian_sources["source"] == "Mi4")
+
+        mi1_df = gaussian_sources[mi1_mask][["time_ms", "source_vm_mv"]].rename(
+            columns={"source_vm_mv": f"vm_{contrast}"}
         )
-        fitted_difference = (
-            gaussian_trace["fitted_vm_mv"] - free_trace["fitted_vm_mv"]
-        ).to_numpy()
-        print(
-            f"{contrast} Gaussian comparison: "
-            f"RMSE {free_rmse:.9f} -> {gaussian_rmse:.9f} mV "
-            f"(delta {gaussian_rmse - free_rmse:+.9f}); "
-            f"fit-difference RMS={np.sqrt(np.mean(fitted_difference**2)):.9f} mV, "
-            f"max_abs={np.max(np.abs(fitted_difference)):.9f} mV"
+        mi4_df = gaussian_sources[mi4_mask][["time_ms", "source_vm_mv"]].rename(
+            columns={"source_vm_mv": f"vm_{contrast}"}
         )
-    print(f"wrote {OUTPUT_PNG}")
-    print(f"wrote {FIT_OUTPUT_PNG}")
-    print(f"wrote {SPATIAL_OUTPUT_PNG}")
-    print(f"wrote {EXTENDED_OUTPUT_PNG}")
-    print(f"wrote {ATTENUATION_OUTPUT_PNG}")
+
+        if contrast == "PC":
+            mi1_out = mi1_df.copy()
+            mi4_out = mi4_df.copy()
+        else:
+            mi1_out = mi1_out.merge(mi1_df, on="time_ms", how="inner")
+            mi4_out = mi4_out.merge(mi4_df, on="time_ms", how="inner")
+
+    mi1_out.sort_values("time_ms").to_csv(MI1_CSV, index=False)
+    mi4_out.sort_values("time_ms").to_csv(MI4_CSV, index=False)
+    lp_results = fit_and_plot_sources({"Mi1": mi1_out, "Mi4": mi4_out})
+    lp_results.to_csv(LP_OUTPUT_CSV, index=False)
+
     print(f"wrote {GAUSSIAN_OUTPUT_PNG}")
-    print(f"wrote {GAUSSIAN_COMPARE_PNG}")
+    print(f"wrote {MI1_CSV}")
+    print(f"wrote {MI4_CSV}")
+    print(lp_results.to_string(index=False, float_format=lambda x: f"{x:.6g}"))
+    print(f"wrote {LP_OUTPUT_CSV}")
+    print(f"wrote {LP_OUTPUT_PNG}")
     return 0
 
 

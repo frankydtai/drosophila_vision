@@ -6,7 +6,7 @@ radius <= N, and edges between them). Run after ``4_build_network.py``.
 
     .venv/bin/python "connectome/FAFBv783/5_apply_radius.py" 2
     .venv/bin/python "connectome/FAFBv783/5_apply_radius.py" 1,3,5,10
-    .venv/bin/python "connectome/FAFBv783/5_apply_radius.py" 1,3,5,10 --run right_min_neuron1
+    .venv/bin/python "connectome/FAFBv783/5_apply_radius.py" 1 3 5 10 --run right_min_neuron1
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Dict, Set
 
 import path
-from import_bootstrap import parse_comma_list
 from path import DEFAULT_NETWORK_RUN
 from build_hex import radius_mask
 from build_network import _write_summary
@@ -105,8 +104,10 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "radii",
-        metavar="RADIUS[,RADIUS...]",
-        help="Comma-separated hex-disc radii (e.g. 1,3,5,10). Each must be >= 0.",
+        type=int,
+        nargs="+",
+        metavar="RADIUS",
+        help="Hex-disc radii (e.g. 1 3 5 10). Each must be >= 0.",
     )
     parser.add_argument(
         "--run", default=DEFAULT_NETWORK_RUN,
@@ -118,13 +119,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
-    tokens = parse_comma_list(args.radii)
-    if not tokens:
-        raise SystemExit("radii must not be empty")
-    try:
-        radii = [int(t) for t in tokens]
-    except ValueError as e:
-        raise SystemExit(f"invalid radius in {args.radii!r}") from e
+    radii = list(args.radii)
     if any(radius < 0 for radius in radii):
         raise SystemExit(f"each radius must be >= 0, got {radii}")
 

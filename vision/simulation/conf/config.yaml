@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 29589060-run-n_iter-300-tasks-spread,sbar-multi_bar-true
+ 29627139-run-n_iter-200-tasks-spread,sbar
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -30,7 +30,7 @@ filter: "none"
 syn_mode: "per_cell"
 a_lo: 0.1
 a_hi: 10.0
-h_cells: "L1,L2,L4,L5"
+h_cells: [L1, L2, L4, L5]
 params:
   a_gt: {lo: 0.5, hi: 2.0, init: 1.0, jit: 0.1, mode: "indi"}
   bias_gt: {lo: -200.0, hi: 200.0, init: 0.0, jit: 1.0, mode: "indi"}
@@ -41,7 +41,7 @@ params:
     jit: 0.1
     mode: "indi"
     modes:
-      indi: "Mi4:T4a,Mi4:T4b,Mi4:T4c,Mi4:T4d,Mi9:T4a,Mi9:T4b,Mi9:T4c,Mi9:T4d"
+      indi: ["Mi4:T4a", "Mi4:T4b", "Mi4:T4c", "Mi4:T4d", "Mi9:T4a", "Mi9:T4b", "Mi9:T4c", "Mi9:T4d"]
   syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   a_in: {lo: 0.01, hi: 100.0, init: 1.0, jit: 0.1, mode: "shared"}
   a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
@@ -75,7 +75,8 @@ params:
   a_ca: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   tau_ca: {lo: 100.0, hi: 1000.0, init: 350.0, jit: 10.0, mode: "indi"}
   a_sti_radius: {lo: 0.0, hi: 1.0, init: 0.0, jit: 0.05, mode: "indi"}
-  a_sti_mid: {lo: 0.0, hi: 1.0, init: 0.0, jit: 0.05, mode: "fixed"}
+  a_sti_mid:
+    {lo: 0.0, hi: 1.0, init: 0.0, inits: {"0.5": 0.9, "1": 0.66, "1.5": 0.4, "2": 0.2}, jit: 0.05, mode: "fixed"}
 
 # ---------------------------------------------------------------------------
 # 1.4   neuron.forward (model booleans; not packed into z)
@@ -93,7 +94,7 @@ network: "right_min_neuron1_r10"
 i_sti:
   bright: 40.0
   dark: 0.0
-contrasts: "bright,dark"
+contrasts: [bright, dark]
 ms_pre: 20.0
 ms_sti: 160.0
 ms_response: 600.0
@@ -115,8 +116,8 @@ shift_radius: 1.0
 # ---------------------------------------------------------------------------
 # 3.2.4   task.spot.pack (only scales here; literals live in task.spot.gt)
 # ---------------------------------------------------------------------------
-spot_cost_radii: "0,1,2"
-a_sti_radii: "1,2"
+spot_cost_radii: [0, 1, 2]
+a_sti_radii: [1, 2]
 spot_cost_radius_scale:
   0: 1.0
   1: 0.3333333333333333
@@ -128,17 +129,17 @@ spot_cost_radius_scale:
 multi_bar: false
 bar_dist: 4
 # S-bar hex-shift radius projected onto the bar-normal mid axis (0 disables).
-shift_mid: 2
-a_sti_mids: "0.5,1,1.5,2"
-bar_ws_deg: "2.25,9.0"
-bar_directions: "right,left,up,down"
+shift_mid: 0
+a_sti_mids: [0.5, 1, 1.5, 2]
+bar_ws_deg: [2.25, 9.0]
+bar_directions: [right, left, up, down]
 
 # ---------------------------------------------------------------------------
 # 4.2   train.session
 # ---------------------------------------------------------------------------
-tasks: "sbar"
+tasks: [spread,sbar]
 gt_by_task:
-  spread: [L1, L2, L3, L4, L5, Mi1, Tm3, Mi4, Mi9, Tm1, Tm2, Tm4, Tm9]
+  spread: [Mi1, Mi4]
   sbar: [T4a]
 cost_radius: null
 
@@ -163,12 +164,12 @@ val_from:
 # 4.3   train.cost
 # ---------------------------------------------------------------------------
 # Task keys apply to every fine part in that task; a full part key overrides it.
-part_cost_scales: {spread: 0.0001}
+part_cost_scales: {spread: 1}
 cost_norm: "a_gt2"
 # cost_ms: post-onset cost sample times (spread + spot; same for every radius).
 #   null — full post-onset window (no sparse cost_ts)
 #   interval — scalar ms step: cost_ms: 10.0  → 0, 10, 20, … ms until ms_response
-#   explicit — comma-separated ms: cost_ms: "0,160"
+#   explicit — list of ms: cost_ms: [0, 160]
 cost_ms: null
 pre_steady: "solve"
 pre_steady_n_iter: 50
@@ -179,7 +180,7 @@ pre_steady_damp: 0.1
 # ---------------------------------------------------------------------------
 n_run: 1
 n_iter: 0
-lrs: "0.1"
+lrs: [0.1]
 checkpoint_interval: 1000
 
 # ---------------------------------------------------------------------------
@@ -196,7 +197,7 @@ sequential: false
 # ---------------------------------------------------------------------------
 # 5.3   figure.plot_sti.spot
 # ---------------------------------------------------------------------------
-spot_radii: "0.5,1.0,1.5,2.0"
+spot_radii: [0.5, 1.0, 1.5, 2.0]
 spot_plot_output: null
 
 # ---------------------------------------------------------------------------
@@ -212,6 +213,8 @@ mbar_plot_direction: left
 # ---------------------------------------------------------------------------
 # 5.4   figure.plot
 # ---------------------------------------------------------------------------
+# Tasks to plot after training or when re-plotting; independent of train `tasks`.
+figure_tasks: [spread, sbar]
 html: false
 plot_right_only: true
 x: null
@@ -225,6 +228,7 @@ ms_shown: null
 analyze_runs: null
 cells: null
 spec: null
+mid: null
 node: null
 radius: 0
 t_rel_start: null

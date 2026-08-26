@@ -585,7 +585,7 @@ def load_init_z(init_from, session):
 
 
 def save_train_data(fname, run_dir, session, result):
-    """Write the full run data set (convention §5)."""
+    """Write the full run data set; ``*_by_part`` stores objective contributions."""
     os.makedirs(run_dir, exist_ok=True)
     os.makedirs(run_data_dir(run_dir), exist_ok=True)
     if session.train_opts is not None:
@@ -657,10 +657,8 @@ def build_session(
     """Create a :class:`TrainSession` from run options."""
     tasks = TRAIN_CONFIG['tasks'] if tasks is None else tasks
     if isinstance(tasks, str):
-        from import_bootstrap import parse_comma_list
-        tasks = parse_comma_list(tasks)
-    else:
-        tasks = list(tasks)
+        raise ValueError("tasks must be a list")
+    tasks = list(tasks)
     if not network:
         raise ValueError("build_session requires network")
     return train.open_session(
@@ -779,4 +777,3 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
 
     save_train_data(fname, run_dir, session, result)
     return fname, run_dir, session, result
-

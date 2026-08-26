@@ -41,7 +41,9 @@ class TrainResult:
     run_params: np.ndarray   # (n_run, n_z)
     final_costs: np.ndarray  # (n_run,) scaled total
     costs: np.ndarray   # per-step scaled total for ``argmin(final_costs)``
+    # Weighted-mean contributions; summing all keys reproduces ``costs``.
     costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
+    # Per-run weighted-mean contributions; summing keys reproduces ``final_costs``.
     final_costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     # Per-run adams at best_z: exp_avg, exp_avg_sq (n_z,), iter (int).
     run_adams: tuple = ()
@@ -57,11 +59,14 @@ def _float_parts(parts: Optional[Dict[str, torch.Tensor]], task_order=None):
     return parts
 
 
-def _fmt_cost_parts(parts, *, mid0_only=False):
+def _fmt_cost_parts(parts, *, summary_only=False):
     if not parts:
         return ""
-    if mid0_only:
-        parts = {k: v for k, v in parts.items() if k.endswith("mid+0")}
+    if summary_only:
+        parts = {
+            k: v for k, v in parts.items()
+            if k.startswith("spread_") or k.endswith("mid+0")
+        }
     return "  [" + "  ".join(f"{k}={v:.4f}" for k, v in parts.items()) + "]"
 
 
@@ -127,7 +132,9 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
 
     progress_bar = tqdm(
         range(n_iter),
-        desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(initial_parts, mid0_only=True),
+        desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(
+            initial_parts, summary_only=True,
+        ),
         bar_format=(
             '{percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} '
             '[{elapsed}<{remaining}, {rate_fmt}] {desc}'
@@ -193,7 +200,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
             progress_bar.set_description(
                 f'Cost: {cost:.4f}' + _fmt_cost_parts(
                     float_last_parts(task_order) if float_last_parts else None,
-                    mid0_only=True,
+                    summary_only=True,
                 ),
                 refresh=False,
             )
@@ -219,9 +226,15 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
     print()
     if aborted is not None:
         print('ABORT:', aborted)
-    print('Initl cost =', format(initial_cost, '.4f') + _fmt_cost_parts(initial_parts, mid0_only=True))
-    print('Final cost =', format(cost, '.4f') + _fmt_cost_parts(final_parts, mid0_only=True))
-    print('Best  cost =', format(best_cost, '.4f') + _fmt_cost_parts(best_parts, mid0_only=True))
+    print('Initl cost =', format(initial_cost, '.4f') + _fmt_cost_parts(
+        initial_parts, summary_only=True,
+    ))
+    print('Final cost =', format(cost, '.4f') + _fmt_cost_parts(
+        final_parts, summary_only=True,
+    ))
+    print('Best  cost =', format(best_cost, '.4f') + _fmt_cost_parts(
+        best_parts, summary_only=True,
+    ))
 
     print('time needed  =', format(time.time() - a, '.2f'), ' sec')
     print()

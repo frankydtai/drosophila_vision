@@ -12,7 +12,7 @@ Usage (from ``vision/simulation/``):
 
     ../.venv/bin/python scratch/plot_ca_vt_vs_vt1.py
     ../.venv/bin/python scratch/plot_ca_vt_vs_vt1.py --show
-    ../.venv/bin/python scratch/plot_ca_vt_vs_vt1.py --pulse-list 50,100,500
+    ../.venv/bin/python scratch/plot_ca_vt_vs_vt1.py --pulse-list 50 100 500
 """
 from __future__ import annotations
 
@@ -29,13 +29,12 @@ import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 
-from import_bootstrap import parse_comma_list
 from figure.panel import TRACE_LW, save_figure
 from neuron.filter_ca import filter_ca
 from config import MODEL, NEURON_SCHEMA
 
 DEFAULT_SAVE = os.path.join(HERE, "ca_vt_vs_vt1.png")
-DEFAULT_PULSE_LIST = "50,100,500"
+DEFAULT_PULSE_LIST = [50.0, 100.0, 500.0]
 DEFAULT_DELTA_MS = float(MODEL["delta_ms"])
 DEFAULT_TAU_CA = float(NEURON_SCHEMA["params"]["tau_ca"]["init"])
 V_AMP = 20.0
@@ -138,12 +137,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--save", default=DEFAULT_SAVE)
     ap.add_argument("--show", action="store_true")
-    ap.add_argument("--pulse-list", default=DEFAULT_PULSE_LIST)
+    ap.add_argument("--pulse-list", type=float, nargs="+", default=DEFAULT_PULSE_LIST)
     ap.add_argument("--delta-ms", type=float, default=DEFAULT_DELTA_MS)
     ap.add_argument("--tau-ca", type=float, default=DEFAULT_TAU_CA)
     args = ap.parse_args()
 
-    pulse_mss = [float(x) for x in parse_comma_list(args.pulse_list)]
+    pulse_mss = list(args.pulse_list)
     if not pulse_mss:
         raise SystemExit("empty --pulse-list")
     if args.delta_ms <= 0:

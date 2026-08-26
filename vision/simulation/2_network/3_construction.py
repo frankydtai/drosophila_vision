@@ -163,6 +163,8 @@ def gt_cells_from_opts(opts) -> tuple[str, ...] | None:
     gt_cells = (opts or {}).get("gt_cells")
     if gt_cells is None:
         return None
+    if isinstance(gt_cells, str):
+        raise ValueError(f"gt_cells must be a list, got {gt_cells!r}")
     return tuple(str(cell) for cell in gt_cells)
 
 

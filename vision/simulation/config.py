@@ -12,7 +12,6 @@ import torch
 from omegaconf import OmegaConf
 
 import import_bootstrap  # noqa: F401
-from import_bootstrap import parse_comma_list
 
 _ACTIVE: dict | None = None
 
@@ -73,26 +72,27 @@ def load_config() -> dict:
     return data
 
 
-def _comma_tokens(value, *, key: str) -> List[str]:
-    if isinstance(value, str):
-        tokens = parse_comma_list(value)
-    elif isinstance(value, (list, tuple)):
+def _list_tokens(value, *, key: str) -> List[str]:
+    # Hydra `tasks=spread` overrides a YAML list with a str; treat as one token.
+    # Multi-value: Hydra list syntax `tasks=[spread,sbar]` (not comma-split str).
+    if isinstance(value, (list, tuple)) or OmegaConf.is_list(value):
         tokens = [str(token).strip() for token in value if str(token).strip()]
+    elif isinstance(value, str):
+        token = value.strip()
+        tokens = [token] if token else []
     else:
-        raise ValueError(
-            f"{key} must be a comma-separated string or list, got {value!r}"
-        )
+        raise ValueError(f"{key} must be a list, got {value!r}")
     if not tokens:
         raise ValueError(f"{key} must list at least one token")
     return tokens
 
 
-def _comma_int_list(value, *, key: str) -> List[int]:
-    return [int(token) for token in _comma_tokens(value, key=key)]
+def _int_list(value, *, key: str) -> List[int]:
+    return [int(token) for token in _list_tokens(value, key=key)]
 
 
-def _comma_float_list(value, *, key: str) -> List[float]:
-    return [float(token) for token in _comma_tokens(value, key=key)]
+def _float_list(value, *, key: str) -> List[float]:
+    return [float(token) for token in _list_tokens(value, key=key)]
 
 
 def _bind_config(config: dict) -> None:
@@ -116,7 +116,7 @@ def _bind_config(config: dict) -> None:
         "syn_mode": config["syn_mode"],
         "a_lo": config["a_lo"],
         "a_hi": config["a_hi"],
-        "h_cells": _comma_tokens(config["h_cells"], key="h_cells"),
+        "h_cells": _list_tokens(config["h_cells"], key="h_cells"),
         "params": config["params"],
     }
     NEURON_FORWARD = {"pre_grad": config["pre_grad"]}
@@ -137,10 +137,10 @@ def _bind_config(config: dict) -> None:
         "shift_radius": config["shift_radius"],
     }
     SPOT_PACK = {
-        "spot_cost_radii": _comma_int_list(
+        "spot_cost_radii": _int_list(
             config["spot_cost_radii"], key="spot_cost_radii",
         ),
-        "a_sti_radii": _comma_int_list(config["a_sti_radii"], key="a_sti_radii"),
+        "a_sti_radii": _int_list(config["a_sti_radii"], key="a_sti_radii"),
         "spot_cost_radius_scale": config["spot_cost_radius_scale"],
     }
     SBAR_INPUT_GEO = {
@@ -149,19 +149,19 @@ def _bind_config(config: dict) -> None:
         "shift_mid": config["shift_mid"],
     }
     SBAR_PACK = {
-        "a_sti_mids": _comma_float_list(
+        "a_sti_mids": _float_list(
             config["a_sti_mids"], key="a_sti_mids",
         ),
     }
     MBAR_INPUT_SPEC = {
         "ms_pre": config["ms_pre"],
-        "bar_ws_deg": _comma_float_list(config["bar_ws_deg"], key="bar_ws_deg"),
-        "bar_directions": _comma_tokens(config["bar_directions"], key="bar_directions"),
+        "bar_ws_deg": _float_list(config["bar_ws_deg"], key="bar_ws_deg"),
+        "bar_directions": _list_tokens(config["bar_directions"], key="bar_directions"),
     }
-    tasks = _comma_tokens(config["tasks"], key="tasks")
+    tasks = _list_tokens(config["tasks"], key="tasks")
     TRAIN_CONFIG = {
         "tasks": tasks,
-        "contrasts": _comma_tokens(config["contrasts"], key="contrasts"),
+        "contrasts": _list_tokens(config["contrasts"], key="contrasts"),
         "i_sti": {
             str(contrast): float(val)
             for contrast, val in config["i_sti"].items()
@@ -172,7 +172,7 @@ def _bind_config(config: dict) -> None:
     VAL_FROM = dict(config.get("val_from") or {})
     TRAIN_OPTIMIZATION = {
         key: (
-            _comma_float_list(config[key], key=key)
+            _float_list(config[key], key=key)
             if key == "lrs"
             else config[key]
         )
@@ -180,6 +180,11 @@ def _bind_config(config: dict) -> None:
     }
     TRAIN_SESSION = {"fp": config["fp"], "sequential": config["sequential"]}
     FIGURE_PLOT = {
+        "tasks": (
+            _list_tokens(config["figure_tasks"], key="figure_tasks")
+            if config.get("figure_tasks") is not None
+            else None
+        ),
         "html": config.get("html", False),
         "plot_right_only": config.get("plot_right_only", True),
         "x": config.get("x"),
@@ -189,7 +194,7 @@ def _bind_config(config: dict) -> None:
     }
     FIGURE_PLOT_STI_SPOT = {
         "spot_radii": (
-            _comma_float_list(config["spot_radii"], key="spot_radii")
+            _float_list(config["spot_radii"], key="spot_radii")
             if config.get("spot_radii") is not None
             else None
         ),
@@ -202,7 +207,7 @@ def _bind_config(config: dict) -> None:
         "gif_output": config.get("mbar_plot_gif_output"),
         "t_stride": int(config.get("mbar_plot_t_stride") or 2),
         "t": (
-            _comma_int_list(plot_t, key="mbar_plot_t")
+            _int_list(plot_t, key="mbar_plot_t")
             if plot_t not in (None, "")
             else None
         ),
@@ -211,21 +216,23 @@ def _bind_config(config: dict) -> None:
     analyze_runs = config.get("analyze_runs")
     if not analyze_runs:
         ANALYZE_RUNS = [RUN_PATH]
-    elif isinstance(analyze_runs, str):
-        ANALYZE_RUNS = _comma_tokens(analyze_runs, key="analyze_runs")
+    elif isinstance(analyze_runs, (list, tuple)) or OmegaConf.is_list(analyze_runs):
+        ANALYZE_RUNS = _list_tokens(analyze_runs, key="analyze_runs")
     else:
         raise ValueError(
-            f"analyze_runs must be null or a comma-separated string, got {analyze_runs!r}"
+            f"analyze_runs must be null or a list, got {analyze_runs!r}"
         )
     ANALYZE_CELL_DYNAMICS = {
         "cells": config.get("cells"),
         "spec": config.get("spec"),
+        "mid": config.get("mid"),
         "node": config.get("node"),
         "radius": int(config.get("radius") or 0),
         "t_rel_start": config.get("t_rel_start"),
         "t_rel_stop": config.get("t_rel_stop"),
         "figure": bool(config.get("analyze_figure", True)),
         "json": bool(config.get("analyze_json", False)),
+        "a_mid": config.get("a_mid"),
     }
     ANALYZE_SYN_SIGN = {
         "bins": config["bins"],
@@ -270,10 +277,21 @@ active_config()
 def parse_cells(cells) -> List[str] | None:
     if cells is None:
         return None
-    if not isinstance(cells, str):
-        raise ValueError(f"cells must be a comma-separated string or null, got {cells!r}")
-    cells = parse_comma_list(cells)
-    return cells or None
+    if isinstance(cells, str):
+        value = cells.strip()
+        if "," in value:
+            raise ValueError(
+                f"multiple values require Hydra list syntax: [{value}]"
+            )
+        values = [value] if value else []
+    elif isinstance(cells, (list, tuple)) or OmegaConf.is_list(cells):
+        values = [str(value).strip() for value in cells if str(value).strip()]
+    else:
+        raise ValueError(
+            "value must be a scalar string, list, or null; "
+            f"got {cells!r}"
+        )
+    return values or None
 
 
 def _resolve_init_from(init_from):
@@ -348,6 +366,7 @@ def resolve_figure_kwargs(hydra_config) -> dict:
     if figure_plot.get("ms_shown") is not None:
         ms_shown = parse_ms_shown(figure_plot["ms_shown"])
     return dict(
+        figure_tasks=figure_plot.get("tasks"),
         plot_right_only=bool(figure_plot.get("plot_right_only", True)),
         at_x=parse_at_xs(figure_plot.get("x")),
         at_y=parse_at_xs(figure_plot.get("y")),

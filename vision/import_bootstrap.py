@@ -8,8 +8,7 @@ Roots (tried in order):
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
 logical. Renumbering is rename-only; this finder has no per-file registry.
 
-Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists)
-and :func:`standardize_option_dashes`
+Also hosts :func:`standardize_option_dashes`
 (single-dash long options → double-dash; applied to all ``argparse`` parses via
 :func:`install`).
 
@@ -38,11 +37,6 @@ _ROOTS: Tuple[Path, ...] = (
 _SKIP_NAMES = frozenset({"__pycache__", "0_runs", "0_logs"})
 _ORIG_PARSE_KNOWN_ARGS = argparse.ArgumentParser.parse_known_args
 _ARGPARSE_DASH_PATCHED = False
-
-
-def parse_comma_list(token: str) -> List[str]:
-    """Split a comma-separated token list (empty string → ``[]``)."""
-    return [t.strip() for t in str(token or "").split(",") if t.strip()]
 
 
 def standardize_option_dashes(argv: Sequence[str]) -> List[str]:

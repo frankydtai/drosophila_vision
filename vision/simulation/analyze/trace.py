@@ -20,18 +20,18 @@ Keys omitted on the Hydra CLI keep the run's train opts.
 Usage (from ``vision/simulation/``)::
 
     ../.venv/bin/python -m analyze.trace \\
-      check=oscillation ms_shown=0,1000
+      check=oscillation ms_shown=[0,1000]
 
     ../.venv/bin/python -m analyze.trace \\
-      check=flat filter=ca ms_shown=1000,1100 baseline_ms_shown=800,1000
+      check=flat filter=ca ms_shown=[1000,1100] baseline_ms_shown=[800,1000]
 
     ../.venv/bin/python -m analyze.trace \\
-      analyze_runs=hp_lp/28704173-... check=stability ms_shown=0,1000 \\
-      baseline_ms_shown=0,200
+      analyze_runs=[hp_lp/28704173-...] check=stability ms_shown=[0,1000] \\
+      baseline_ms_shown=[0,200]
 
     ../.venv/bin/python -m analyze.trace \\
-      analyze_runs=hp_lp/28704173-... check=drift ms_shown=0,1000 \\
-      cells=TmY11,Mi1,Tm3 param_vals.a_h.TmY11=1
+      analyze_runs=[hp_lp/28704173-...] check=drift ms_shown=[0,1000] \\
+      cells=[TmY11,Mi1,Tm3] param_vals.a_h.TmY11=1
 """
 from __future__ import annotations
 
@@ -65,7 +65,6 @@ import torch
 import figure.plot as plot
 import train
 from analyze.cell_dynamics import TimeWindow, analyze_spot_average
-from import_bootstrap import parse_comma_list
 
 CHECK_OSCILLATION = "oscillation"
 CHECK_FLAT = "flat"
@@ -333,7 +332,7 @@ def _resolve_windows(
     if baseline is not None and baseline[0] >= baseline[1]:
         raise SystemExit(
             f"baseline window empty: {baseline[0]:g},{baseline[1]:g} "
-            f"(set baseline_ms_shown=START,STOP)"
+            f"(set baseline_ms_shown=[START,STOP])"
         )
     if analyze[0] >= analyze[1]:
         raise SystemExit(f"ms_shown empty: {analyze[0]:g},{analyze[1]:g}")

@@ -411,7 +411,7 @@ def param_filename_suffix(param_vals=None):
 
 
 def _stored_cost_parts(run_dir):
-    """Best-run per-part costs from ``costs_by_part.npz`` (no forward)."""
+    """Best-run weighted contributions from ``costs_by_part.npz`` (no forward)."""
     final_costs, _, _, final_costs_by_part = load_stored_costs(run_dir)
     if not final_costs_by_part or final_costs is None or len(final_costs) == 0:
         return {}
@@ -456,7 +456,7 @@ def _readout_kwargs(task, **kwargs):
 
 
 def plot_figures(session, z, run_dir, suffix, model_all, *, task, **kwargs):
-    """Dispatch gt/all figures for one train ``task`` via ``figure.<task>`` hooks."""
+    """Dispatch gt/all figures for one ``task`` via ``figure.<task>`` hooks."""
     figure_task = importlib.import_module('figure.' + task)
     token = session_filter_figure_token(session)
     gt_token = figure_gt_token(task)
@@ -525,7 +525,7 @@ def plot_figures(session, z, run_dir, suffix, model_all, *, task, **kwargs):
 
 def plot_rf_t(params, run_dir, model=None, model_all=True,
                    context_dir=None,
-                   only_tasks=None, session=None, *,
+                   only_tasks=None, figure_tasks=None, session=None, *,
                    final_costs=None,
                    save_data=True,
                    gts=None,
@@ -565,7 +565,7 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
         suffix = f'{suffix}% of gt power'
     else:
         suffix = f'{suffix} ({cost_norm})'
-    tasks = list(session.tasks)
+    tasks = list(session.tasks if figure_tasks is None else figure_tasks)
     if only_tasks is not None:
         tasks = [task for task in tasks if task in only_tasks]
 
@@ -605,34 +605,36 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
 
 
 def parse_at_xs(token):
-    """Parse comma-separated ``--x`` / ``--y`` values (``null`` → ``None``)."""
+    """Parse scalar/list ``x`` / ``y`` values (``null`` → ``None``)."""
     if token is None:
         return None
-    if not isinstance(token, str):
-        raise ValueError(f"x/y must be a comma-separated string or null, got {token!r}")
-    at_xs = [float(x) for x in import_bootstrap.parse_comma_list(token)]
+    if isinstance(token, (int, float)) and not isinstance(token, bool):
+        return [float(token)]
+    if isinstance(token, str):
+        raise ValueError("x/y strings are not supported; use a number or list")
+    at_xs = [float(x) for x in token]
     if not at_xs:
-        raise ValueError("empty comma-separated at_x/at_y value")
+        raise ValueError("empty x/y list")
     return at_xs
 
 
 def parse_align_xy(token):
-    """Parse ``--align-xy X,Y`` reference sti hex (``null`` → ``None``)."""
+    """Parse two-item ``align_xy`` reference-stimulus hex list."""
     if token is None:
         return None
-    if not isinstance(token, str):
-        raise ValueError(f"align_xy must be a comma-separated string or null, got {token!r}")
-    parts = import_bootstrap.parse_comma_list(token)
+    if isinstance(token, str):
+        raise ValueError("align_xy strings are not supported; use [X,Y]")
+    parts = list(token)
     if len(parts) != 2:
-        raise ValueError("--align-xy requires exactly two comma-separated values X,Y")
+        raise ValueError("align_xy requires exactly two values [X,Y]")
     return float(parts[0]), float(parts[1])
 
 
 def parse_ms_shown(token, *, flag="ms_shown"):
-    """Parse ``START,STOP`` ms as a comma-separated string."""
-    if not isinstance(token, str):
-        raise ValueError(f"{flag} must be START,STOP as a comma-separated string")
-    parts = import_bootstrap.parse_comma_list(token)
+    """Parse ``[START,STOP]`` milliseconds."""
+    if isinstance(token, str):
+        raise ValueError(f"{flag} strings are not supported; use [START,STOP]")
+    parts = list(token)
     if len(parts) != 2:
         raise ValueError(f"{flag} must be START,STOP")
     start, stop = float(parts[0]), float(parts[1])

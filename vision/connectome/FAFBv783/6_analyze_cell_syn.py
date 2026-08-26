@@ -69,7 +69,6 @@ from build_hex import (
     xy_from_uv,
     uv_from_xy,
 )
-from import_bootstrap import parse_comma_list
 from path import (
     resolve_network_json,
     resolve_cell_counts_abc_path,
@@ -759,11 +758,11 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "cells",
-        nargs="?",
-        default="L1",
-        metavar="CELL[,CELL...]",
+        nargs="*",
+        default=["L1"],
+        metavar="CELL",
         help=(
-            "Comma-separated cells to query (e.g. T4a,T4b,T4c or Mi1). "
+            "Cells to query (e.g. T4a T4b T4c or Mi1). "
             "Prefix with : for a family "
             "(e.g. :Centrifugal) to sum its cells, or @ for a single "
             "neuron by root id (e.g. @720575940622041087). Default: L1 if omitted"
@@ -1009,7 +1008,7 @@ def main(argv: List[str] | None = None) -> int:
 
     family_from_partner_cell = family_from_cell_all if args.family else None
 
-    cells = parse_comma_list(args.cells)
+    cells = list(args.cells)
     labels, labels_from_self_cell, labels_from_self_id = resolve_query_labels(
         cells, family_from_cell_all
     )

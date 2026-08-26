@@ -6,8 +6,8 @@ Usage (from SimulationCode/):
 
     ../.venv/bin/python scratch/plot_h_curves.py
     ../.venv/bin/python scratch/plot_h_curves.py --show
-    ../.venv/bin/python scratch/plot_h_curves.py --gmax-list 0,10,25,50,100
-    ../.venv/bin/python scratch/plot_h_curves.py --tau-const-list 100,250,500,850
+    ../.venv/bin/python scratch/plot_h_curves.py --gmax-list 0 10 25 50 100
+    ../.venv/bin/python scratch/plot_h_curves.py --tau-const-list 100 250 500 850
 """
 from __future__ import annotations
 
@@ -26,7 +26,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
-from import_bootstrap import parse_comma_list
 from config import NEURON_SCHEMA
 
 P = NEURON_SCHEMA["params"]
@@ -35,9 +34,9 @@ from training_config import DELTA_MS
 DEFAULT_SAVE = os.path.join(HERE, "h_curves.png")
 DEFAULT_PULSE_SAVE = os.path.join(HERE, "h_pulse_gmax.png")
 DEFAULT_PULSE_TAU_SAVE = os.path.join(HERE, "h_pulse_tau_const.png")
-DEFAULT_GMAX_LIST = "0,10,25,50,100"
+DEFAULT_GMAX_LIST = [0.0, 10.0, 25.0, 50.0, 100.0]
 # Floor / intermediate / peak of voltage-dependent τ(V) (ms).
-DEFAULT_TAU_CONST_LIST = "100,250,500,850"
+DEFAULT_TAU_CONST_LIST = [100.0, 250.0, 500.0, 850.0]
 TAU_VDEP_MAX_MS = 850.0  # at V = tau_mid
 
 
@@ -135,15 +134,17 @@ def parse_args(argv=None):
     p.add_argument("--Ih-gmax-off", type=float, default=None)
     p.add_argument(
         "--gmax-list",
-        type=str,
+        type=float,
+        nargs="+",
         default=DEFAULT_GMAX_LIST,
-        help="comma-separated ON gmax values [nS] for pulse panel",
+        help="ON gmax values [nS] for pulse panel",
     )
     p.add_argument(
         "--tau-const-list",
-        type=str,
+        type=float,
+        nargs="+",
         default=DEFAULT_TAU_CONST_LIST,
-        help="comma-separated constant τ [ms] for tau-const pulse panel",
+        help="constant τ values [ms] for tau-const pulse panel",
     )
     p.add_argument(
         "--pulse-gmax",
@@ -328,8 +329,8 @@ def main(argv=None):
     tau_mid_off = args.tau_midv_off if args.tau_midv_off is not None else _init("tau_midv_off")
     gmax = args.Ih_gmax if args.Ih_gmax is not None else _init("Ih_gmax")
     gmax_off = args.Ih_gmax_off if args.Ih_gmax_off is not None else _init("Ih_gmax_off")
-    gmax_list = [float(x) for x in parse_comma_list(args.gmax_list)]
-    tau_const_list = [float(x) for x in parse_comma_list(args.tau_const_list)]
+    gmax_list = list(args.gmax_list)
+    tau_const_list = list(args.tau_const_list)
     pulse_gmax = args.pulse_gmax if args.pulse_gmax is not None else gmax
 
     fig = plot_static_curves(

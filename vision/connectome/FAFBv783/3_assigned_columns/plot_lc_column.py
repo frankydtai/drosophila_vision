@@ -12,12 +12,12 @@ Outputs are optional: nothing is (re)generated unless you pass a flag.
     .venv/bin/python "connectome/FAFBv783/3_assigned_columns/plot_lc_column.py" --csv
     .venv/bin/python "connectome/FAFBv783/3_assigned_columns/plot_lc_column.py" --png --csv
 
-Restrict to a subset of LC types with ``--types`` (comma-separated); the table is
+Restrict to a subset of LC types with ``--cells``; the table is
 then named after the numeric suffixes of the chosen cells (e.g.
-``LC18,LC21,LC11,LC25`` -> the file ``lc_columns_right_18_21_11_25.csv``)::
+``LC18 LC21 LC11 LC25`` -> the file ``lc_columns_right_18_21_11_25.csv``)::
 
     .venv/bin/python "connectome/FAFBv783/3_assigned_columns/plot_lc_column.py" \
-        --csv --types LC18,LC21,LC11,LC25
+        --csv --cells LC18 LC21 LC11 LC25
 """
 
 from __future__ import annotations
@@ -30,7 +30,6 @@ from typing import List, Set
 import numpy as np
 import pandas as pd
 
-from import_bootstrap import parse_comma_list
 
 import path  # noqa: E402
 from build_hex import (  # noqa: E402
@@ -336,14 +335,15 @@ def main(argv=None) -> None:
     parser.add_argument("--csv", action="store_true", help="regenerate the per-column table")
     parser.add_argument(
         "--cells",
-        default="",
-        metavar="LC,...",
-        help="comma-separated LC cells (default: all 10). The CSV is named after "
+        nargs="*",
+        default=None,
+        metavar="LC",
+        help="LC cells (default: all 10). The CSV is named after "
              "the numeric suffixes, e.g. LC18,LC21 -> lc_columns_right_18_21.csv",
     )
     args = parser.parse_args(argv)
 
-    requested = parse_comma_list(args.cells)
+    requested = list(args.cells or [])
     if not requested:
         lc_cells = LC_CELLS
     else:

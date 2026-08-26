@@ -773,7 +773,7 @@ def plot_cost_figure(
             _cost_yscale(ax, costs)
         else:
             ax.set_ylim(*cost_ylim(costs))
-        ax.set_title("total (scaled)")
+        ax.set_title("weighted mean (sum of parts)")
         ax.set_ylabel("cost [% gt power]")
         ax.grid(True, alpha=0.3, which='both' if log else 'major')
 
@@ -800,7 +800,7 @@ def plot_cost_figure(
                     else:
                         ax.set_ylim(*cost_ylim(*panel_costs))
                 if col == 0:
-                    ax.set_ylabel("cost [% gt power]", fontsize=8)
+                    ax.set_ylabel("weighted cost contribution", fontsize=8)
                 ax.set_title(str(cell), fontsize=8)
                 ax.grid(True, alpha=0.3, which='both' if log else 'major')
                 if with_legend and (not legend_done) and len(cell_costs_list) > 1:
@@ -821,7 +821,7 @@ def plot_cost_figure(
             ax.set_title(label, fontsize=8)
             ax.grid(True, alpha=0.3, which='both' if log else 'major')
             if col == 0:
-                ax.set_ylabel("cost [% gt power]", fontsize=8)
+                ax.set_ylabel("weighted cost contribution", fontsize=8)
             if row_group // n_col == n_global_row - 1:
                 ax.set_xlabel("step")
 

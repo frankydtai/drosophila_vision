@@ -28,7 +28,6 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 import numpy as np
 import torch
 
-from import_bootstrap import parse_comma_list
 from neuron import (
     build_schema,
     expand_euler,
@@ -90,7 +89,7 @@ def run_data_dir(run_dir) -> str:
 
 def _tokens(values) -> List[str]:
     if isinstance(values, str):
-        return parse_comma_list(values)
+        raise ValueError(f"expected a list, got string {values!r}")
     return [str(token) for token in values]
 
 
@@ -318,10 +317,7 @@ def _cost_ms_sidecar(cost_ms):
     if isinstance(cost_ms, (int, float)):
         return float(cost_ms)
     if isinstance(cost_ms, str):
-        tokens = parse_comma_list(cost_ms)
-        if len(tokens) == 1:
-            return float(tokens[0])
-        return [float(x) for x in tokens]
+        raise ValueError("cost_ms strings are not supported; use a number or list")
     if not cost_ms:
         raise ValueError("cost_ms list must have at least one ms")
     return [float(ms) for ms in cost_ms]

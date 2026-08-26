@@ -22,7 +22,7 @@ Usage (from ``vision/simulation/``):
 
     ../.venv/bin/python scratch/plot_hp_lp_curves.py
     ../.venv/bin/python scratch/plot_hp_lp_curves.py --show
-    ../.venv/bin/python scratch/plot_hp_lp_curves.py --euler ex --hp-a-h-list 0.1,0.5,1
+    ../.venv/bin/python scratch/plot_hp_lp_curves.py --euler ex --hp-a-h-list 0.1 0.5 1
 """
 from __future__ import annotations
 
@@ -43,19 +43,18 @@ import numpy as np
 import torch
 
 from figure.panel import save_figure
-from import_bootstrap import parse_comma_list
 from neuron.hp_lp import update_v
 from neuron.borst import expand_euler
 from config import MODEL
 
 DEFAULT_SAVE = os.path.join(HERE, "hp_lp_curves.png")
 DEFAULT_A_H = 1.0
-DEFAULT_A_H_LIST = "0,0.5,1,1.5"
-DEFAULT_HP_A_H_LIST = "0.1,0.5,1"
-DEFAULT_TAU_HP_RISE_LIST = "80,200,500,2000"
-DEFAULT_TAU_HP_FALL_LIST = "80,200,500,2000"
-DEFAULT_TAU_LP_LIST = "20,50,100"
-DEFAULT_PULSE_LIST = "50,100,500"
+DEFAULT_A_H_LIST = [0.0, 0.5, 1.0, 1.5]
+DEFAULT_HP_A_H_LIST = [0.1, 0.5, 1.0]
+DEFAULT_TAU_HP_RISE_LIST = [80.0, 200.0, 500.0, 2000.0]
+DEFAULT_TAU_HP_FALL_LIST = [80.0, 200.0, 500.0, 2000.0]
+DEFAULT_TAU_LP_LIST = [20.0, 50.0, 100.0]
+DEFAULT_PULSE_LIST = [50.0, 100.0, 500.0]
 TAU_HP_OFF_MS = 1.0e6
 EULER = str(MODEL["euler"])
 G_LEAK = float(MODEL["g_leak"])
@@ -355,17 +354,17 @@ def plot_hp_lp(
     pulse_list: list[float] | None = None,
 ) -> None:
     if a_h_list is None:
-        a_h_list = [float(x) for x in parse_comma_list(DEFAULT_A_H_LIST)]
+        a_h_list = list(DEFAULT_A_H_LIST)
     if hp_a_h_list is None:
-        hp_a_h_list = [float(x) for x in parse_comma_list(DEFAULT_HP_A_H_LIST)]
+        hp_a_h_list = list(DEFAULT_HP_A_H_LIST)
     if tau_hp_rise_list is None:
-        tau_hp_rise_list = [float(x) for x in parse_comma_list(DEFAULT_TAU_HP_RISE_LIST)]
+        tau_hp_rise_list = list(DEFAULT_TAU_HP_RISE_LIST)
     if tau_hp_fall_list is None:
-        tau_hp_fall_list = [float(x) for x in parse_comma_list(DEFAULT_TAU_HP_FALL_LIST)]
+        tau_hp_fall_list = list(DEFAULT_TAU_HP_FALL_LIST)
     if tau_lp_list is None:
-        tau_lp_list = [float(x) for x in parse_comma_list(DEFAULT_TAU_LP_LIST)]
+        tau_lp_list = list(DEFAULT_TAU_LP_LIST)
     if pulse_list is None:
-        pulse_list = [float(x) for x in parse_comma_list(DEFAULT_PULSE_LIST)]
+        pulse_list = list(DEFAULT_PULSE_LIST)
     euler = expand_euler(euler)
 
     n = int(round(t_total_ms / dt_ms)) + 1
@@ -463,21 +462,21 @@ def parse_args(argv=None):
     p.add_argument("--tau-hp-fall", type=float, default=200.0, help="baseline tau_hp_fall [ms]")
     p.add_argument("--g-leak", type=float, default=float(G_LEAK))
     p.add_argument("--euler", default=EULER, choices=("im", "ex", "implicit", "explicit"))
-    p.add_argument("--a-h-list", type=str, default=DEFAULT_A_H_LIST, help="comma-separated a_h sweep (row v)")
+    p.add_argument("--a-h-list", type=float, nargs="+", default=DEFAULT_A_H_LIST, help="a_h sweep values (row v)")
     p.add_argument(
-        "--hp-a-h-list", type=str, default=DEFAULT_HP_A_H_LIST,
-        help="comma-separated a_h for HP-stage v_hp sweep (row 2)",
+        "--hp-a-h-list", type=float, nargs="+", default=DEFAULT_HP_A_H_LIST,
+        help="a_h values for HP-stage v_hp sweep (row 2)",
     )
     p.add_argument(
-        "--tau-hp-rise-list", type=str, default=DEFAULT_TAU_HP_RISE_LIST,
-        help="comma-separated τ_HP,rise sweep [ms]",
+        "--tau-hp-rise-list", type=float, nargs="+", default=DEFAULT_TAU_HP_RISE_LIST,
+        help="τ_HP,rise sweep values [ms]",
     )
     p.add_argument(
-        "--tau-hp-fall-list", type=str, default=DEFAULT_TAU_HP_FALL_LIST,
-        help="comma-separated τ_HP,fall sweep [ms]",
+        "--tau-hp-fall-list", type=float, nargs="+", default=DEFAULT_TAU_HP_FALL_LIST,
+        help="τ_HP,fall sweep values [ms]",
     )
-    p.add_argument("--tau-lp-list", type=str, default=DEFAULT_TAU_LP_LIST, help="comma-separated τ_lp sweep [ms]")
-    p.add_argument("--pulse-list", type=str, default=DEFAULT_PULSE_LIST, help="comma-separated pulse ws [ms]")
+    p.add_argument("--tau-lp-list", type=float, nargs="+", default=DEFAULT_TAU_LP_LIST, help="τ_lp sweep values [ms]")
+    p.add_argument("--pulse-list", type=float, nargs="+", default=DEFAULT_PULSE_LIST, help="pulse widths [ms]")
     return p.parse_args(argv)
 
 
@@ -494,12 +493,12 @@ def main(argv=None):
     ):
         if val <= 0:
             raise ValueError(f"{name} must be > 0")
-    a_h_list = [float(x) for x in parse_comma_list(args.a_h_list)]
-    hp_a_h_list = [float(x) for x in parse_comma_list(args.hp_a_h_list)]
-    tau_hp_rise_list = [float(x) for x in parse_comma_list(args.tau_hp_rise_list)]
-    tau_hp_fall_list = [float(x) for x in parse_comma_list(args.tau_hp_fall_list)]
-    tau_lp_list = [float(x) for x in parse_comma_list(args.tau_lp_list)]
-    pulse_list = [float(x) for x in parse_comma_list(args.pulse_list)]
+    a_h_list = list(args.a_h_list)
+    hp_a_h_list = list(args.hp_a_h_list)
+    tau_hp_rise_list = list(args.tau_hp_rise_list)
+    tau_hp_fall_list = list(args.tau_hp_fall_list)
+    tau_lp_list = list(args.tau_lp_list)
+    pulse_list = list(args.pulse_list)
     if not a_h_list:
         raise ValueError("--a-h-list must be non-empty")
     if not hp_a_h_list:

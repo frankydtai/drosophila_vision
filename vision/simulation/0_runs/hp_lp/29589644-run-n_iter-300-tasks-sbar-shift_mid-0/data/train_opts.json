@@ -130,7 +130,7 @@
       "jit": 0.1,
       "mode": "indi",
       "modes": {
-        "indi": "Mi4:T4a,Mi4:T4b,Mi4:T4c,Mi4:T4d,Mi9:T4a,Mi9:T4b,Mi9:T4c,Mi9:T4d"
+        "indi": ["Mi4:T4a", "Mi4:T4b", "Mi4:T4c", "Mi4:T4d", "Mi9:T4a", "Mi9:T4b", "Mi9:T4c", "Mi9:T4d"]
       }
     },
     "syn_strength_edge": {
@@ -230,7 +230,7 @@
       "jit": 0.1,
       "mode": "fixed",
       "modes": {
-        "indi": "L1,L2,L4,L5"
+        "indi": ["L1", "L2", "L4", "L5"]
       }
     },
     "v_mid_h_g_rev": {

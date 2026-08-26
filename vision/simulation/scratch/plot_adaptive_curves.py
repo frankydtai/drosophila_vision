@@ -16,7 +16,7 @@ Usage (from SimulationCode/):
 
     ../.venv/bin/python scratch/plot_adaptive_curves.py
     ../.venv/bin/python scratch/plot_adaptive_curves.py --show
-    ../.venv/bin/python scratch/plot_adaptive_curves.py --gadapt-list 0,0.5,1,2 --tau-adapt-list 100,250,500,850
+    ../.venv/bin/python scratch/plot_adaptive_curves.py --gadapt-list 0 0.5 1 2 --tau-adapt-list 100 250 500 850
 """
 from __future__ import annotations
 
@@ -35,15 +35,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
-from import_bootstrap import parse_comma_list
 from config import NEURON_SCHEMA
 
 P = NEURON_SCHEMA["params"]
 from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "adaptive_curves.png")
-DEFAULT_GADAPT_LIST = "0,0.5,1,2"
-DEFAULT_TAU_ADAPT_LIST = "100,250,500,850"
+DEFAULT_GADAPT_LIST = [0.0, 0.5, 1.0, 2.0]
+DEFAULT_TAU_ADAPT_LIST = [100.0, 250.0, 500.0, 850.0]
 DEFAULT_FIXED_GADAPT = 1.0
 DEFAULT_FIXED_TAU_ADAPT = 100.0
 
@@ -150,15 +149,17 @@ def parse_args(argv=None):
     p.add_argument("--gate-pivot", type=float, default=float(fc.GATE_PIVOT))
     p.add_argument(
         "--gadapt-list",
-        type=str,
+        type=float,
+        nargs="+",
         default=DEFAULT_GADAPT_LIST,
-        help="comma-separated adapt_gain values for pulse panel",
+        help="adapt_gain values for pulse panel",
     )
     p.add_argument(
         "--tau-adapt-list",
-        type=str,
+        type=float,
+        nargs="+",
         default=DEFAULT_TAU_ADAPT_LIST,
-        help="comma-separated tau_adapt [ms] for tau-adapt pulse panel",
+        help="tau_adapt values [ms] for tau-adapt pulse panel",
     )
     p.add_argument(
         "--fixed-gadapt",
@@ -188,8 +189,8 @@ def main(argv=None):
     bias = args.bias if args.bias is not None else _init("bias")
     tau_m = args.tau_m if args.tau_m is not None else _init("tau_m")
     gate_pivot = args.gate_pivot
-    gadapt_list = [float(x) for x in parse_comma_list(args.gadapt_list)]
-    tau_adapt_list = [float(x) for x in parse_comma_list(args.tau_adapt_list)]
+    gadapt_list = list(args.gadapt_list)
+    tau_adapt_list = list(args.tau_adapt_list)
     g_fix = args.fixed_gadapt
     tau_fix = args.fixed_tau_adapt
 

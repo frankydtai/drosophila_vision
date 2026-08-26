@@ -33,7 +33,6 @@ import analyze_cell_syn
 import train
 import figure.plot as plot
 from train.implementation import load_best_node_vals
-from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_idxs
 from network.construction import load_network_json
 from config import RUN_PATH
@@ -49,10 +48,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument(
         "cells",
-        nargs="?",
-        default="L1",
-        metavar="CELL[,CELL...]",
-        help="comma-separated cells (plain names only). Default: L1",
+        nargs="*",
+        default=["L1"],
+        metavar="CELL",
+        help="cells (plain names only). Default: L1",
     )
     ap.add_argument(
         "--run",
@@ -83,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    tokens = parse_comma_list(args.cells)
+    tokens = list(args.cells)
     for token in tokens:
         if token.startswith(":") or token.startswith("@"):
             raise SystemExit(

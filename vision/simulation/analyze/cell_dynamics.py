@@ -1,11 +1,6 @@
 from __future__ import annotations
 
 from config import (
-    ANALYZE_CELL_DYNAMICS,
-    ANALYZE_RUNS,
-    FIGURE_PLOT,
-    NEURON_SCHEMA,
-    TRAIN_CONFIG,
     parse_cells,
     session_kwargs_from_cli,
 )
@@ -13,6 +8,7 @@ from config import (
 import json
 import os
 import sys
+import config as _config
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,7 +22,6 @@ if ROOT not in sys.path:
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
-from import_bootstrap import parse_comma_list
 import hydra
 import train
 import figure.plot as plot
@@ -38,7 +33,6 @@ from figure.panel import (
 from figure.plot import filter_figure_token, session_filter_figure_token
 from neuron.filter_ca import filter_ca
 from neuron.schema import param_from_entry
-from network.construction import hex2gt
 from task.mbar.pack import (
     bar_specs_from_task,
     filter_requested_specs,
@@ -46,10 +40,10 @@ from task.mbar.pack import (
     mbar_specs_by_cell,
     mbar_session_t0_grids,
 )
+from task.sbar.pack import sbar_direction_active
+from task.sbar.sti_spec import gruntman_sbar_specs
+from task.sbar.sti_geo import sti_hexes_at_xy
 from task.spread.pack import cost_sti_hexes
-from task.sbar.sti_geo import (
-    sti_hexes_at_xy,
-)
 from task.spot.pack import build_spot_center_readout
 from task.spot.sti_geo import (
     resolve_spot,
@@ -71,20 +65,22 @@ Two *different* knobs — do not mix them:
    Unset = keep the run's train opts. These change *how long*
    pre/spot/response *are*, not which slice of an existing trace you plot.
 
-2. **Analyze / plot window** (``ms_shown=START,STOP`` or ``t_rel_start`` /
+2. **Analyze / plot window** (``ms_shown=[START,STOP]`` or ``t_rel_start`` /
    ``t_rel_stop``, mutually exclusive): which inclusive slice of the forward
    to sum and report. Default if both omitted: absolute ms ``0`` .. last sample.
 
 ``ms_shown`` is **absolute aligned ms**, never "ms before onset":
 
-* **spot**: aligned ``t = 0`` is trial start. Stimulus onset is at
+* **spot** / **spread**: aligned ``t = 0`` is trial start. Stimulus onset is at
   ``t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre)`` (e.g. ``ms_pre=1000``,
   ``delta_ms_pre=5`` → ``t_onset=200`` ↔ **1000 ms**). Pre-sti is therefore
-  ``ms_shown=0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
-  Negative START is wrong for spot (aligned index goes negative; sum window
+  ``ms_shown=[0,1000]`` (or ``[0,ms_pre]``), **not** ``[-1000,0]``.
+  Negative START is wrong for spot/spread (aligned index goes negative; sum window
   collapses).
 * **mbar**: aligned ``t = 0`` is bar ``t0`` at the node (crossing), so
   ``ms_shown`` is ms relative to that ``t0`` (negative START is valid).
+* **sbar**: aligned ``t = 0`` is trial start, as for spot. Stimulus onset is
+  ``ms_pre``; negative ``ms_shown`` values are invalid.
 
 ``t_rel_start`` / ``t_rel_stop`` are **t-index offsets from the |v_post_d|
 peak** (not from onset, not absolute ms). Example: ``t_rel_start=-5 t_rel_stop=15``.
@@ -98,17 +94,19 @@ Programmatic reuse
 ------------------
 * Spot R0 / R1 average: ``analyze_spot_average`` (omit hex; ``radius=0|1``).
 * Spot one hex: ``analyze_spot_hex``.
+* Spread average / hex: ``analyze_spread_average`` / ``analyze_spread_hex``.
 * Bar average / hex: ``analyze_bar_average`` / ``analyze_bar_hex``.
 * Load run: ``figure.plot.load_best`` + ``params_from_z``; do not invent a
   second forward path.
 
 Hydra (from ``simulation/``)
 ----------------------------
-``cells=L1,L2`` ``analyze_runs=hp_lp/...`` ``tasks=spot`` ``x=`` ``y=``.
-Default run is ``RUN_PATH``. Pass comma lists in one process.
+``cells=[L1,L2]`` ``analyze_runs=hp_lp/...`` ``tasks=spot`` ``x=`` ``y=``.
+Default run is ``RUN_PATH``. Multiple cells/specs use Hydra list syntax, e.g.
+``spec=[left_bright_w4,right_bright_w4]``; multiple values must use a list.
 
-* Omit ``x`` / ``y``: cost-radius **average** (optional ``radius=0|1``).
-* Exactly one ``x`` and one ``y``: **hex** (spot or mbar; one cell).
+* Omit ``x`` / ``y``: cost-radius **average** (optional ``radius=0|1``, spot only).
+* Exactly one ``x`` and one ``y``: **hex** (spread, spot, sbar, or mbar; one cell).
   Incompatible with ``radius`` (hex is sti-on only).
 * Multiple x/y: rejected.
 
@@ -120,17 +118,19 @@ Unset = keep the run ``train_opts.json``.
 Examples
 --------
   ../.venv/bin/python -m analyze.cell_dynamics \\
-    cells=L1,L2,Mi1 tasks=spot contrasts=bright radius=0 \\
-    ms_shown=0,1000 analyze_figure=false
+    cells=[L1,L2,Mi1] tasks=spot contrasts=bright radius=0 \\
+    ms_shown=[0,1000] analyze_figure=false
 
   ../.venv/bin/python -m analyze.cell_dynamics \\
     cells=L3 tasks=spot contrasts=bright x=1 y=0
 
   ../.venv/bin/python -m analyze.cell_dynamics \\
+    cells=Mi4 tasks=spread contrasts=bright x=0 y=0
+
+  ../.venv/bin/python -m analyze.cell_dynamics \\
     cells=T4a tasks=mbar contrasts=bright \\
-    spec=left_bright_w4,right_bright_w4 \\
-    param_vals.syn_strength_cell.'Mi4:T4a'=2.0 \\
-    param_vals.syn_strength_cell.'Mi9:T4a'=1.0 \\
+    spec=[left_bright_w4,right_bright_w4] \\
+    '+param_vals.syn_strength_cell={Mi4\\:T4a:2.0,Mi9\\:T4a:1.0}' \\
     t_rel_start=-5 t_rel_stop=15
 """
 
@@ -190,24 +190,28 @@ class SharedCli:
     tasks: list[str]
     contrasts: list[str]
     specs_req: list[str] | None
+    mids_req: list[float] | None
     xs: list | None
     ys: list | None
 
 
 def resolve_shared_cli() -> SharedCli:
-    cells = parse_cells(ANALYZE_CELL_DYNAMICS.get("cells"))
+    cells = parse_cells(_config.ANALYZE_CELL_DYNAMICS.get("cells"))
     if not cells:
         raise SystemExit("cells is required")
-    tasks = list(TRAIN_CONFIG["tasks"])
-    contrasts = list(TRAIN_CONFIG["contrasts"])
-    specs_req = parse_cells(ANALYZE_CELL_DYNAMICS.get("spec"))
-    xs = plot.parse_at_xs(FIGURE_PLOT.get("x"))
-    ys = plot.parse_at_xs(FIGURE_PLOT.get("y"))
+    tasks = list(_config.TRAIN_CONFIG["tasks"])
+    contrasts = list(_config.TRAIN_CONFIG["contrasts"])
+    specs_req = parse_cells(_config.ANALYZE_CELL_DYNAMICS.get("spec"))
+    mids_raw = _config.ANALYZE_CELL_DYNAMICS.get("mid")
+    mids_req = plot.parse_at_xs(mids_raw)
+    xs = plot.parse_at_xs(_config.FIGURE_PLOT.get("x"))
+    ys = plot.parse_at_xs(_config.FIGURE_PLOT.get("y"))
     return SharedCli(
         cells=cells,
         tasks=tasks,
         contrasts=contrasts,
         specs_req=specs_req,
+        mids_req=mids_req,
         xs=xs,
         ys=ys,
     )
@@ -617,11 +621,13 @@ def _model_driver(session):
         ) from exc
 
 
-def _drive_from_i_sti(session, params, i_sti: torch.Tensor) -> torch.Tensor:
+def _drive_from_i_sti(
+    session, params, i_sti: torch.Tensor, *, pack=None,
+) -> torch.Tensor:
     """Apply indexed spot/sbar stimulus amplitudes to pack ``i_sti``."""
     from neuron.forward import inject_a_sti_mid, inject_a_sti_radius
 
-    pack = session.primary_pack
+    pack = pack or session.primary_pack
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
     i_sti = inject_a_sti_radius(i_sti, params, pack)
@@ -880,6 +886,8 @@ def _forward_component(
     *,
     t_start: int | None = None,
     t_stop: int | None = None,
+    stimulus_pack=None,
+    stimulus_bs: list[int] | None = None,
 ) -> _ComponentSums:
     """Step from t=0 (same loop as ``forward_v``); sum component.
 
@@ -904,8 +912,20 @@ def _forward_component(
         raise SystemExit(f"i_sti n_b={n_b} != len(bs)={len(bs)}")
 
     layout = _component_layout(session.model, session.euler)
-    drive = _drive_from_i_sti(session, params, i_sti)
-    t_onset = train.pack_t_onset(session.primary_pack)
+    if stimulus_bs is None:
+        drive = _drive_from_i_sti(
+            session, params, i_sti, pack=stimulus_pack,
+        )
+    else:
+        if stimulus_pack is None:
+            raise SystemExit("stimulus_bs requires stimulus_pack")
+        full_i_sti = session.pack_i_sti(stimulus_pack)
+        full_drive = _drive_from_i_sti(
+            session, params, full_i_sti, pack=stimulus_pack,
+        )
+        drive = full_drive[stimulus_bs]
+    onset_pack = stimulus_pack or session.primary_pack
+    t_onset = train.pack_t_onset(onset_pack)
 
     t_last: int | None = None
     if t_stop is not None:
@@ -1430,9 +1450,21 @@ def _build_component_b(
 
 
 def _bar_meta(session, task: str, contrast: str):
-    """One-shot ``(specs, grids)`` for a moving-bar task×contrast."""
-    specs = bar_specs_from_task(session, task)
+    """One-shot ``(specs, grids)`` for a static/moving-bar task×contrast."""
+    if task == "mbar":
+        specs = bar_specs_from_task(session, task, contrast)
+    elif task == "sbar":
+        opts = dict((session.train_opts or {}).get("sbar_sti_opts") or {})
+        specs = gruntman_sbar_specs(
+            contrasts=(contrast,),
+            bar_directions=opts["bar_directions"],
+            shift_radius=int(opts.get("shift_mid", opts.get("shift_radius", 0))),
+        )
+    else:
+        raise SystemExit(f"unsupported bar task {task!r}")
     pack = session.packs[task][contrast]
+    if task == "sbar":
+        return specs, None
     grids = mbar_session_t0_grids(
         session, specs, pack.cost_radius, int(session.n_t),
         t_onset=train.pack_t_onset(pack),
@@ -1454,19 +1486,42 @@ def _bar_specs_requested(
     """Spec list for average-mode bar without a component forward readout."""
     if specs is None or grids is None:
         specs, grids = _bar_meta(session, task, contrast)
-    specs = [spec.token for spec in specs]
-    try:
-        if requested is not None:
-            return filter_requested_specs(specs, requested)
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
-    specs_by_cell = mbar_specs_by_cell(session, task, grids.side)
+    spec_defs = list(specs)
+    specs = [spec.token for spec in spec_defs]
+    if task == "mbar":
+        specs_by_cell = mbar_specs_by_cell(
+            session, task, contrast, grids.side,
+        )
+    else:
+        specs_by_cell = {
+            cell: [
+                spec.token for spec in spec_defs
+                if sbar_direction_active(cell, spec.direction)
+            ]
+            for cell in cells
+        }
     spec_tokens: list[str] = []
     for cell in cells:
         for token in specs_by_cell.get(cell, specs):
             if token in specs and token not in spec_tokens:
                 spec_tokens.append(token)
-    return spec_tokens or list(specs)
+    available = spec_tokens or list(specs)
+    try:
+        if requested is not None:
+            contrast_names = tuple(
+                str(name) for name in ((session.train_opts or {}).get("i_sti") or {})
+            )
+            requested_here = [
+                token for token in requested
+                if f"_{contrast}_" in token
+                or not any(f"_{name}_" in token for name in contrast_names)
+            ]
+            if not requested_here:
+                return []
+            return filter_requested_specs(available, requested_here)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    return available
 
 
 def _resolve_bar_spec_i_sti(
@@ -1479,7 +1534,7 @@ def _resolve_bar_spec_i_sti(
     grids=None,
 ):
     """Validate specs; return ``(pack, specs, grids, spec_bs, i_sti, t0_bn)``."""
-    if task != "mbar":
+    if task not in ("mbar", "sbar"):
         raise SystemExit(f"unsupported task {task!r}")
     if not spec_tokens:
         raise SystemExit("bar component forward requires at least one spec")
@@ -1495,7 +1550,12 @@ def _resolve_bar_spec_i_sti(
             f"spec(s) {missing} not in {[spec.token for spec in specs]}"
         )
     spec_bs = [spec_b[token] for token in spec_tokens]
-    return pack, specs, grids, spec_bs, pack.i_sti[spec_bs], np.asarray(grids.t0_bn)
+    if task == "mbar":
+        t0_bn = np.asarray(grids.t0_bn)
+    else:
+        n_node = int(pack.i_sti.shape[-1])
+        t0_bn = np.zeros((len(specs), n_node), dtype=np.int64)
+    return pack, specs, grids, spec_bs, pack.i_sti[spec_bs], t0_bn
 
 
 def _analyze_component_forward(
@@ -1516,6 +1576,8 @@ def _analyze_component_forward(
     extra: dict[str, Any] | None = None,
     extra_from_cell=None,
     n_node_from_cell=None,
+    stimulus_pack=None,
+    stimulus_bs: list[int] | None = None,
 ):
     """Shared spot/bar: ``_forward_component`` → finalize reports.
 
@@ -1532,6 +1594,8 @@ def _analyze_component_forward(
         session, params, i_sti, component_bs, cells,
         t_start=time_window.forward_t_start(delta_ms=dt),
         t_stop=time_window.forward_t_stop(delta_ms=dt),
+        stimulus_pack=stimulus_pack,
+        stimulus_bs=stimulus_bs,
     )
     component_layout = component_sums.layout
 
@@ -1663,14 +1727,19 @@ def _analyze_bar_forward(
     component_bs: list[_ComponentB] = []
     for spec_b, spec in zip(spec_bs, spec_tokens):
         spec_nodes_by_cell = nodes_from_b(spec_b, spec, pack=pack, t0_bn=t0_bn)
-        before = int(grids.before_t[spec])
-        after = int(grids.after_t[spec])
+        if task == "mbar":
+            before = int(grids.before_t[spec])
+            after = int(grids.after_t[spec])
+            n_t_aligned = before + after + 1
+        else:
+            before = int(train.pack_t_onset(pack))
+            n_t_aligned = int(i_sti.shape[1])
         before_by_b.append(before)
         component_bs.append(
             _build_component_b(
                 spec_nodes_by_cell,
                 t0_bn_row=t0_bn[spec_b],
-                n_t_aligned=before + after + 1,
+                n_t_aligned=n_t_aligned,
             ),
         )
     return _analyze_component_forward(
@@ -1685,9 +1754,11 @@ def _analyze_bar_forward(
         b_specs=list(spec_tokens),
         time_window=time_window,
         mode=mode,
-        ti_mode="t_rel",
+        ti_mode="t_rel" if task == "mbar" else "abs_minus_before",
         merge_bs=False,
         extra=extra,
+        stimulus_pack=pack,
+        stimulus_bs=spec_bs,
     )
 
 
@@ -1702,29 +1773,89 @@ def analyze_bar_average(
     time_window: TimeWindow,
     specs=None,
     grids=None,
+    mids_req: list[float] | None = None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """One v forward over bs over all requested specs; mean component per cell.
 
     Returns ``reports[spec][cell]``. v_post + component share ``_forward_component``.
     """
-    cols_holder: list = []
+    pack = session.packs[task][contrast]
+    if task == "mbar":
+        cols_holder: list = []
 
-    def nodes_from_b(b, spec, *, pack, t0_bn):
-        connectome = session.connectome
-        if not cols_holder:
-            cols_holder.append(cost_sti_hexes(connectome, cost_radius=pack.cost_radius))
-        hexes = cols_holder[0]
-        nodes_by_cell: dict[str, np.ndarray] = {}
-        for cell in cells:
-            try:
-                nodes = nodes_from_hexes(connectome, cell, hexes)
-            except ValueError as exc:
-                raise SystemExit(str(exc)) from exc
-            nodes = nodes[t0_bn[b, nodes] >= 0]
-            if nodes.size == 0:
-                raise SystemExit(f"no valid {cell} nodes in cost_radius for bar")
-            nodes_by_cell[cell] = nodes
-        return nodes_by_cell
+        def nodes_from_b(b, spec, *, pack, t0_bn):
+            connectome = session.connectome
+            if not cols_holder:
+                cols_holder.append(cost_sti_hexes(connectome, cost_radius=pack.cost_radius))
+            hexes = cols_holder[0]
+            nodes_by_cell: dict[str, np.ndarray] = {}
+            for cell in cells:
+                try:
+                    nodes = nodes_from_hexes(connectome, cell, hexes)
+                except ValueError as exc:
+                    raise SystemExit(str(exc)) from exc
+                nodes = nodes[t0_bn[b, nodes] >= 0]
+                if nodes.size == 0:
+                    raise SystemExit(f"no valid {cell} nodes in cost_radius for bar")
+                nodes_by_cell[cell] = nodes
+            return nodes_by_cell
+    else:
+        spec_b_from_token = {
+            token: idx for idx, token in enumerate(spec_tokens)
+        }
+        entry_bs = np.asarray(pack.entry_bs)
+        entry_nodes = np.asarray(pack.entry_nodes)
+        entry_t0s = np.asarray(pack.cost_t0s) if pack.cost_t0s is not None else None
+        entry_mids: np.ndarray | None = None
+        if mids_req is not None:
+            entry_part_keys = list(pack.entry_part_keys or ())
+            if len(entry_part_keys) != len(entry_bs):
+                raise SystemExit(
+                    f"mid={mids_req} requires sbar pack with entry_part_keys"
+                )
+            entry_mids = np.full(entry_bs.shape, np.nan, dtype=float)
+            for i, key in enumerate(entry_part_keys):
+                try:
+                    entry_mids[i] = float(key.rsplit("_mid", 1)[1])
+                except (IndexError, ValueError):
+                    continue
+            available_mids = sorted(set(entry_mids[np.isfinite(entry_mids)]))
+            for mid in mids_req:
+                if not any(
+                    np.isclose(float(mid), available, atol=1e-9, rtol=0.0)
+                    for available in available_mids
+                ):
+                    raise SystemExit(
+                        f"mid={mid} not available; choose from {available_mids}"
+                    )
+
+        def nodes_from_b(b, spec, *, pack, t0_bn):
+            mask = entry_bs == b
+            if entry_t0s is not None:
+                mask &= entry_t0s >= 0
+            if mids_req is not None:
+                if entry_mids is None:
+                    raise SystemExit(f"mid={mids_req} requires sbar pack with entry_part_keys")
+                mask &= np.any(
+                    np.isclose(
+                        entry_mids[:, None], np.asarray(mids_req)[None, :],
+                        atol=1e-9, rtol=0.0,
+                    ),
+                    axis=1,
+                )
+            if not np.any(mask):
+                raise SystemExit(f"no cost entries for spec {spec!r}" +
+                    (f" mid={mids_req}" if mids_req else ""))
+            node_subset = np.unique(entry_nodes[mask])
+            connectome = session.connectome
+            cell_idx = np.asarray(connectome.node_cells)[node_subset]
+            nodes_by_cell: dict[str, np.ndarray] = {}
+            for cell in cells:
+                nodes = node_subset[np.asarray(cell_idx == connectome.cells.index(cell))]
+                if nodes.size == 0:
+                    raise SystemExit(f"no valid {cell} nodes in cost_radius for bar")
+                nodes_by_cell[cell] = nodes
+            return nodes_by_cell
 
     return _analyze_bar_forward(
         session,
@@ -1735,9 +1866,14 @@ def analyze_bar_average(
         spec_tokens=spec_tokens,
         time_window=time_window,
         nodes_from_b=nodes_from_b,
-        mode="average",
+        mode="mid" if mids_req is not None and len(mids_req) == 1 else "average",
         specs=specs,
         grids=grids,
+        extra=(
+            {"mid": float(mids_req[0])}
+            if mids_req is not None and len(mids_req) == 1
+            else None
+        ),
     )
 
 
@@ -1813,8 +1949,8 @@ def _spot_extra_from_cell(
     ).get(contrast) or {}
     opts = session_one.train_opts or {}
     from_onset = train.val_from_enabled(opts, "bias_gt")
-    lo = param_from_entry("bias_gt", "lo", NEURON_SCHEMA['params'])
-    hi = param_from_entry("bias_gt", "hi", NEURON_SCHEMA['params'])
+    lo = param_from_entry("bias_gt", "lo", _config.NEURON_SCHEMA['params'])
+    hi = param_from_entry("bias_gt", "hi", _config.NEURON_SCHEMA['params'])
     cells = [str(cell) for cell in session_one.connectome.cells]
 
     def extra_from_cell(
@@ -1936,7 +2072,7 @@ def analyze_spot_average(
 # ---------------------------------------------------------------------------
 
 
-def _hex_nodes(session, cell: str, *, at_x: float, at_y: float, cost_radius: int):
+def _hex_nodes(session, cell: str, *, at_x: float, at_y: float, cost_radius):
     connectome = session.connectome
     hexes = sti_hexes_at_xy(
         cost_sti_hexes(connectome, cost_radius=cost_radius),
@@ -1950,7 +2086,7 @@ def _hex_nodes(session, cell: str, *, at_x: float, at_y: float, cost_radius: int
     hex = hexes[0]
     if cell not in connectome.cells:
         raise SystemExit(f"unknown cell {cell!r}")
-    nodes = hex2gt(connectome, int(hex.u), int(hex.v), cell).tolist()
+    nodes = connectome.nodes_at_uv(int(hex.u), int(hex.v), cell).tolist()
     if not nodes:
         raise SystemExit(f"no {cell} node at hex ({at_x},{at_y})")
     return hex, nodes
@@ -1962,7 +2098,7 @@ def _resolve_hex_node(
     *,
     at_x: float,
     at_y: float,
-    cost_radius: int,
+    cost_radius,
     node: int | None,
 ):
     """Resolve ``(hex, node_id)`` for hex mode; ``--node`` if multiple at hex."""
@@ -2060,6 +2196,135 @@ def analyze_spot_hex(
     )
 
 
+def analyze_spread_average(
+    session_one,
+    *,
+    params,
+    cells: list[str],
+    task: str,
+    contrast: str,
+    time_window: TimeWindow,
+) -> dict[str, dict[str, Any]]:
+    """One v forward; mean components over spread cost ``entry_nodes``."""
+    if task != "spread":
+        raise SystemExit(f"unsupported task {task!r}")
+    pack = session_one.primary_pack
+    connectome = session_one.connectome
+    entry_bs = np.asarray(pack.entry_bs, dtype=np.int64)
+    entry_nodes = np.asarray(pack.entry_nodes, dtype=np.int64)
+    if entry_nodes.size == 0:
+        raise SystemExit("spread pack has no cost entry_nodes")
+    entry_cell_idxs = np.asarray(connectome.node_cells)[entry_nodes]
+    cell_idx: dict[str, int] = {}
+    for cell in cells:
+        if cell not in connectome.cells:
+            raise SystemExit(f"unknown cell {cell!r}")
+        cell_idx[cell] = connectome.cells.index(cell)
+
+    t_onset = train.pack_t_onset(pack)
+    i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
+    n_sti_b, n_t, n_node = i_sti.shape
+    t0_abs = np.zeros(n_node, dtype=np.int64)
+    n_t_aligned = time_window.aligned_n_t(n_t, delta_ms=float(session_one.delta_ms))
+
+    component_bs: list[_ComponentB] = []
+    i_sti_rows: list[int] = []
+    for sti_b in range(n_sti_b):
+        entry_mask = entry_bs == sti_b
+        if not np.any(entry_mask):
+            continue
+        nodes_by_cell: dict[str, np.ndarray] = {}
+        for cell in cells:
+            cell_entry_mask = entry_mask & (entry_cell_idxs == cell_idx[cell])
+            if np.any(cell_entry_mask):
+                nodes_by_cell[cell] = np.unique(entry_nodes[cell_entry_mask])
+        if not nodes_by_cell:
+            continue
+        component_bs.append(
+            _build_component_b(nodes_by_cell, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
+        )
+        i_sti_rows.append(sti_b)
+
+    if not component_bs:
+        raise SystemExit(
+            f"no spread cost nodes for requested cells {cells!r}"
+        )
+
+    n_b = len(component_bs)
+    return _analyze_component_forward(
+        session_one,
+        params=params,
+        cells=cells,
+        task=task,
+        contrast=contrast,
+        i_sti=i_sti[i_sti_rows],
+        component_bs=component_bs,
+        before_t=[t_onset] * n_b,
+        b_specs=[None] * n_b,
+        time_window=time_window,
+        mode="average",
+        ti_mode="abs_minus_before",
+        merge_bs=True,
+        n_node_from_cell=lambda cell: int(
+            np.sum(entry_cell_idxs == cell_idx[cell])
+        ),
+    )
+
+
+def analyze_spread_hex(
+    session_one,
+    *,
+    params,
+    cell: str,
+    task: str,
+    contrast: str,
+    at_x: float,
+    at_y: float,
+    node: int | None,
+    time_window: TimeWindow,
+) -> dict[str, dict[str, Any]]:
+    """One v forward at one hex under uniform spread ``i_sti``."""
+    if task != "spread":
+        raise SystemExit(f"unsupported task {task!r}")
+    pack = session_one.primary_pack
+    hex, node = _resolve_hex_node(
+        session_one, cell, at_x=at_x, at_y=at_y,
+        cost_radius=None, node=node,
+    )
+    t_onset = train.pack_t_onset(pack)
+    i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
+    n_sti_b, n_t, n_node = i_sti.shape
+    t0_abs = np.zeros(n_node, dtype=np.int64)
+    n_t_aligned = time_window.aligned_n_t(n_t, delta_ms=float(session_one.delta_ms))
+    nodes_by_cell = {cell: np.asarray([node], dtype=np.int64)}
+
+    component_bs: list[_ComponentB] = [
+        _build_component_b(nodes_by_cell, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned)
+        for _ in range(n_sti_b)
+    ]
+    return _analyze_component_forward(
+        session_one,
+        params=params,
+        cells=[cell],
+        task=task,
+        contrast=contrast,
+        i_sti=i_sti,
+        component_bs=component_bs,
+        before_t=[t_onset] * n_sti_b,
+        b_specs=[None] * n_sti_b,
+        time_window=time_window,
+        mode="hex",
+        ti_mode="abs_minus_before",
+        merge_bs=True,
+        extra={
+            "node": node,
+            "hex": {"x": at_x, "y": at_y},
+            "uv": {"u": int(hex.u), "v": int(hex.v)},
+        },
+        n_node_from_cell=lambda _c: 1,
+    )
+
+
 def analyze_bar_hex(
     session,
     *,
@@ -2108,6 +2373,67 @@ def analyze_bar_hex(
     )
 
 
+def analyze_bar_slice(
+    session,
+    *,
+    params,
+    cells: list[str],
+    task: str,
+    contrast: str,
+    spec_tokens: list[str],
+    at_x: float | None,
+    at_y: float | None,
+    time_window: TimeWindow,
+    specs=None,
+    grids=None,
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Average static-bar components over one x- or y-coordinate slice."""
+    if task != "sbar":
+        raise SystemExit("one-coordinate slice mode is supported only for sbar")
+    if (at_x is None) == (at_y is None):
+        raise SystemExit("sbar slice mode needs exactly one of x or y")
+
+    pack = session.packs[task][contrast]
+    hexes = sti_hexes_at_xy(
+        cost_sti_hexes(session.connectome, cost_radius=pack.cost_radius),
+        at_x=at_x,
+        at_y=at_y,
+    )
+    if not hexes:
+        axis, value = ("x", at_x) if at_x is not None else ("y", at_y)
+        raise SystemExit(
+            f"no hexes at {axis}={value!r} within cost_radius={pack.cost_radius}"
+        )
+
+    nodes_by_cell: dict[str, np.ndarray] = {}
+    for cell in cells:
+        try:
+            nodes = nodes_from_hexes(session.connectome, cell, hexes)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        if nodes.size == 0:
+            raise SystemExit(f"no {cell} nodes on requested sbar coordinate slice")
+        nodes_by_cell[cell] = nodes
+
+    def nodes_from_b(_b, _spec, *, pack, t0_bn):
+        return nodes_by_cell
+
+    return _analyze_bar_forward(
+        session,
+        params=params,
+        cells=cells,
+        task=task,
+        contrast=contrast,
+        spec_tokens=spec_tokens,
+        time_window=time_window,
+        nodes_from_b=nodes_from_b,
+        mode="slice",
+        specs=specs,
+        grids=grids,
+        extra={"slice": {"x": at_x, "y": at_y}},
+    )
+
+
 
 # ---------------------------------------------------------------------------
 # Plotting
@@ -2122,6 +2448,12 @@ def _figure_filename(report: dict[str, Any], *, file_suffix: str = "", html: boo
     if report.get("mode") == "hex":
         hex = report["hex"]
         parts.append(f"x{hex['x']}_y{hex['y']}")
+    elif report.get("mode") == "slice":
+        coordinate = report["slice"]
+        axis = "x" if coordinate["x"] is not None else "y"
+        parts.append(f"{axis}{coordinate[axis]}")
+    elif report.get("mode") == "mid":
+        parts.append(f"mid{report['mid']}")
     radius = report.get("radius")
     if radius is not None and int(radius) != 0:
         parts.append(f"radius{int(radius)}")
@@ -2133,11 +2465,32 @@ def _compare_figure_filename(
 ) -> str:
     first_report = reports[0]
     filter_token = str(first_report.get("filter") or "v")
-    specs = "_".join(str(one_report["spec"]) for one_report in reports)
+    if first_report.get("mode") == "slice":
+        coordinate = first_report["slice"]
+        axis = "x" if coordinate["x"] is not None else "y"
+        values = "_".join(
+            str(one_report["slice"][axis]) for one_report in reports
+        )
+        comparison = f"{first_report['spec']}_{axis}{values}"
+    elif first_report.get("mode") == "mid":
+        values = "_".join(str(one_report["mid"]) for one_report in reports)
+        comparison = f"{first_report['spec']}_mid{values}"
+    else:
+        comparison = "_".join(str(one_report["spec"]) for one_report in reports)
     return (
-        f"{first_report['cell']}_{first_report['task']}_{first_report['contrast']}_{filter_token}_compare_{specs}"
+        f"{first_report['cell']}_{first_report['task']}_{first_report['contrast']}_{filter_token}_compare_{comparison}"
         f"{file_suffix}{'.html' if html else '.png'}"
     )
+
+
+def _report_comparison_label(report: dict[str, Any]) -> str:
+    if report.get("mode") == "slice":
+        coordinate = report["slice"]
+        axis = "x" if coordinate["x"] is not None else "y"
+        return f"{axis}={coordinate[axis]}"
+    if report.get("mode") == "mid":
+        return f"mid={report['mid']}"
+    return str(report.get("spec"))
 
 
 def _component_figure(title: str, layout: _ComponentLayout):
@@ -2205,7 +2558,7 @@ def _shared_row_ylim(
     return ylo - pad, yhi + pad
 
 
-def _shared_row_ylim(
+def _set_shared_row_ylim(
     axes,
     traces_by_row: dict[int, list[np.ndarray]],
     layout: _ComponentLayout,
@@ -2302,7 +2655,12 @@ def _plot_component_reports(
                     if np.any(std):
                         traces_by_row[row].append(y + std)
                         traces_by_row[row].append(y - std)
-                plot_std_band(ax, xs, y, std, color=color, alpha=0.3)
+                plot_std_band(
+                    ax, xs, y, std,
+                    color=color,
+                    alpha=0.3,
+                    label="_nolegend_" if multi_report else r"$\pm$STD",
+                )
                 gt_report_key = next(
                     (
                         mapped_gt_report_key
@@ -2312,7 +2670,7 @@ def _plot_component_reports(
                     None,
                 )
                 model_label = (
-                    str(rep["spec"]) if show_legend
+                    _report_comparison_label(rep) if show_legend
                     else (series if gt_report_key is not None else "_nolegend_")
                 )
                 ax.plot(
@@ -2349,7 +2707,7 @@ def _plot_component_reports(
                 legend_ncol=1,
                 show_legend=show_legend or drew_gt,
             )
-    _shared_row_ylim(axes, traces_by_row, layout)
+    _set_shared_row_ylim(axes, traces_by_row, layout)
     _finish_component_figure(fig, title, colors, layout)
     _save_component_figure(
         fig, axes, xlabel="t (ms)",
@@ -2370,13 +2728,14 @@ def plot_report(report: dict[str, Any], out_path: str) -> None:
 
 
 def plot_reports_compare(reports: list[dict[str, Any]], out_path: str) -> None:
-    """One grid PNG: specs share color per subplot, differ by linestyle."""
+    """One grid PNG: reports share color per subplot, differ by linestyle."""
     if not reports:
         raise SystemExit("no reports to compare")
     first_report = reports[0]
-    specs_csv = ",".join(str(one_report["spec"]) for one_report in reports)
+    labels_csv = ",".join(_report_comparison_label(report) for report in reports)
     title = (
-        f"{first_report['cell']}  {first_report['task']}  {first_report['contrast']}  reports=[{specs_csv}]"
+        f"{first_report['cell']}  {first_report['task']}  {first_report['contrast']}  "
+        f"{first_report.get('spec')}  reports=[{labels_csv}]"
         f"  mode={first_report.get('mode')}  n={first_report.get('n_node')}"
     )
     _plot_component_reports(reports, out_path, title=title)
@@ -2591,19 +2950,19 @@ def main(hydra_config) -> None:
 
     resolve_config(hydra_config)
     cli = resolve_shared_cli()
-    radius = int(ANALYZE_CELL_DYNAMICS["radius"])
-    node = ANALYZE_CELL_DYNAMICS.get("node")
+    radius = int(_config.ANALYZE_CELL_DYNAMICS["radius"])
+    node = _config.ANALYZE_CELL_DYNAMICS.get("node")
     if node is not None:
         node = int(node)
-    do_figure = bool(ANALYZE_CELL_DYNAMICS["figure"])
-    do_json = bool(ANALYZE_CELL_DYNAMICS["json"])
-    html = bool(FIGURE_PLOT.get("html", False))
+    do_figure = bool(_config.ANALYZE_CELL_DYNAMICS["figure"])
+    do_json = bool(_config.ANALYZE_CELL_DYNAMICS["json"])
+    html = bool(_config.FIGURE_PLOT.get("html", False))
     session_kwargs = session_kwargs_from_cli(hydra_config)
     euler = session_kwargs["euler"]
     filter = session_kwargs["filter"]
-    t_rel_start = ANALYZE_CELL_DYNAMICS.get("t_rel_start")
-    t_rel_stop = ANALYZE_CELL_DYNAMICS.get("t_rel_stop")
-    ms_shown = FIGURE_PLOT.get("ms_shown")
+    t_rel_start = _config.ANALYZE_CELL_DYNAMICS.get("t_rel_start")
+    t_rel_stop = _config.ANALYZE_CELL_DYNAMICS.get("t_rel_stop")
+    ms_shown = _config.FIGURE_PLOT.get("ms_shown")
     if t_rel_start is not None or t_rel_stop is not None:
         if t_rel_start is None or t_rel_stop is None:
             raise SystemExit("t_rel_start and t_rel_stop must be set together")
@@ -2629,6 +2988,7 @@ def main(hydra_config) -> None:
         raise SystemExit("radius requires a spot task")
 
     hex_mode = False
+    slice_mode = False
     if cli.xs is not None and cli.ys is not None:
         if len(cli.xs) != 1 or len(cli.ys) != 1:
             raise SystemExit(
@@ -2639,16 +2999,28 @@ def main(hydra_config) -> None:
         if len(cli.cells) != 1:
             raise SystemExit("hex mode supports one cell")
     elif cli.xs is not None or cli.ys is not None:
-        raise SystemExit("pass both x and y for hex mode, or neither for averages")
+        if any(task != "sbar" for task in cli.tasks):
+            raise SystemExit(
+                "one-coordinate slice mode supports sbar only; "
+                "pass both x and y for spot/mbar hex mode"
+            )
+        if node is not None:
+            raise SystemExit("node requires both x and y for exact-hex mode")
+        slice_mode = True
 
     if hex_mode and radius != 0:
         raise SystemExit(
             "radius is average-only; omit x/y, or omit radius for hex mode"
         )
+    if cli.mids_req is not None:
+        if any(task != "sbar" for task in cli.tasks):
+            raise SystemExit("mid selection supports sbar only")
+        if hex_mode or slice_mode:
+            raise SystemExit("mid and x/y selections are mutually exclusive")
 
     param_vals = dict(active_config().get("param_vals") or {})
 
-    for run_idx, run_arg in enumerate(ANALYZE_RUNS):
+    for run_idx, run_arg in enumerate(_config.ANALYZE_RUNS):
         run_dir = plot.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
         session, z, best_cost = plot.load_best(run_dir)
@@ -2691,6 +3063,7 @@ def main(hydra_config) -> None:
         )
 
         spot_session_cache: dict[tuple[str, str], object] = {}
+        bar_session_cache: dict[tuple[str, str], object] = {}
         bar_meta_cache: dict[tuple[str, str], tuple] = {}
         spot_by_cell: dict[tuple[str, str], dict[str, Any]] = {}
         bar_by_cell: dict[tuple[str, str], dict[str, Any]] = {}
@@ -2761,18 +3134,78 @@ def main(hydra_config) -> None:
                             file_suffix=file_suffix,
                             html=html,
                         )
-                elif task == "mbar":
-                    at_x = cli.xs[0] if hex_mode else None
-                    at_y = cli.ys[0] if hex_mode else None
+                elif task == "spread":
                     cache_key = (task, contrast)
+                    if cache_key not in spot_session_cache:
+                        spot_session_cache[cache_key] = plot.session_from_task(
+                            session, task, contrast,
+                        )
+                    session_one = spot_session_cache[cache_key]
+                    if hex_mode:
+                        at_x = cli.xs[0]
+                        at_y = cli.ys[0]
+                        _log(
+                            f"component forward {task} {contrast} "
+                            f"(spread hex=({at_x},{at_y})) ..."
+                        )
+                        spread_reports = analyze_spread_hex(
+                            session_one,
+                            params=params,
+                            cell=cli.cells[0],
+                            task=task,
+                            contrast=contrast,
+                            at_x=float(at_x),
+                            at_y=float(at_y),
+                            node=node,
+                            time_window=time_window,
+                        )
+                    else:
+                        _log(
+                            f"component forward {task} {contrast} "
+                            f"(spread average) ..."
+                        )
+                        spread_reports = analyze_spread_average(
+                            session_one,
+                            params=params,
+                            cells=cli.cells,
+                            task=task,
+                            contrast=contrast,
+                            time_window=time_window,
+                        )
+                    for cell, rep in spread_reports.items():
+                        rep["best_cost"] = best_cost
+                        rep["cost"] = cost
+                        spot_by_cell[(cell, contrast)] = rep
+                        reports.append(rep)
+                        _emit_report(
+                            rep,
+                            run_dir=run_dir,
+                            do_print=not do_json,
+                            do_figure=do_figure,
+                            file_suffix=file_suffix,
+                            html=html,
+                        )
+                elif task in ("mbar", "sbar"):
+                    at_x = cli.xs[0] if hex_mode and cli.xs is not None else None
+                    at_y = cli.ys[0] if hex_mode and cli.ys is not None else None
+                    cache_key = (task, contrast)
+                    if cache_key not in bar_session_cache:
+                        bar_session_cache[cache_key] = plot.session_from_task(
+                            session, task, contrast,
+                        )
+                    session_bar = bar_session_cache[cache_key]
                     if cache_key not in bar_meta_cache:
-                        bar_meta_cache[cache_key] = _bar_meta(session, task, contrast)
+                        bar_meta_cache[cache_key] = _bar_meta(
+                            session_bar, task, contrast,
+                        )
                     specs, grids = bar_meta_cache[cache_key]
                     cells_bar = [cli.cells[0]] if hex_mode else cli.cells
                     specs_ordered = _bar_specs_requested(
-                        session, task, contrast, cells_bar, cli.specs_req,
+                        session_bar, task, contrast, cells_bar, cli.specs_req,
                         specs=specs, grids=grids,
                     )
+                    if not specs_ordered:
+                        continue
                     multi_report = do_figure and len(specs_ordered) > 1
                     if hex_mode:
                         _log(
@@ -2781,7 +3214,7 @@ def main(hydra_config) -> None:
                             f"hex=({at_x},{at_y}) (no component forward) ..."
                         )
                         reports_by_spec = analyze_bar_hex(
-                            session,
+                            session_bar,
                             params=params,
                             cell=cells_bar[0],
                             task=task,
@@ -2794,6 +3227,109 @@ def main(hydra_config) -> None:
                             specs=specs,
                             grids=grids,
                         )
+                    elif slice_mode:
+                        axis = "x" if cli.xs is not None else "y"
+                        coordinate_values = cli.xs if cli.xs is not None else cli.ys
+                        slice_reports: dict[
+                            str, dict[str, list[dict[str, Any]]]
+                        ] = {
+                            spec: {cell: [] for cell in cells_bar}
+                            for spec in specs_ordered
+                        }
+                        for value in coordinate_values:
+                            slice_x = float(value) if axis == "x" else None
+                            slice_y = float(value) if axis == "y" else None
+                            _log(
+                                f"component forward {task} {contrast} "
+                                f"specs={specs_ordered} {axis}={value} slice ..."
+                            )
+                            one_coordinate = analyze_bar_slice(
+                                session_bar,
+                                params=params,
+                                cells=cells_bar,
+                                task=task,
+                                contrast=contrast,
+                                spec_tokens=specs_ordered,
+                                at_x=slice_x,
+                                at_y=slice_y,
+                                time_window=time_window,
+                                specs=specs,
+                                grids=grids,
+                            )
+                            for spec in specs_ordered:
+                                for cell, rep in one_coordinate[spec].items():
+                                    rep["best_cost"] = best_cost
+                                    rep["cost"] = cost
+                                    bar_by_cell[(cell, contrast)] = rep
+                                    reports.append(rep)
+                                    slice_reports[spec][cell].append(rep)
+                                    if not do_json:
+                                        print("")
+                                        _print_report(rep, print_steps=not do_figure)
+                        if do_figure:
+                            for spec in specs_ordered:
+                                for cell in cells_bar:
+                                    coordinate_reports = slice_reports[spec][cell]
+                                    path = os.path.join(
+                                        run_dir,
+                                        "cell_dynamics",
+                                        _compare_figure_filename(
+                                            coordinate_reports,
+                                            file_suffix=file_suffix,
+                                            html=html,
+                                        ),
+                                    )
+                                    plot_reports_compare(coordinate_reports, path)
+                        continue
+                    elif task == "sbar" and cli.mids_req is not None:
+                        mid_reports: dict[
+                            str, dict[str, list[dict[str, Any]]]
+                        ] = {
+                            spec: {cell: [] for cell in cells_bar}
+                            for spec in specs_ordered
+                        }
+                        for mid in cli.mids_req:
+                            _log(
+                                f"component forward {task} {contrast} "
+                                f"specs={specs_ordered} mid={mid} ..."
+                            )
+                            one_mid = analyze_bar_average(
+                                session_bar,
+                                params=params,
+                                cells=cells_bar,
+                                task=task,
+                                contrast=contrast,
+                                spec_tokens=specs_ordered,
+                                time_window=time_window,
+                                specs=specs,
+                                grids=grids,
+                                mids_req=[mid],
+                            )
+                            for spec in specs_ordered:
+                                for cell, rep in one_mid[spec].items():
+                                    rep["best_cost"] = best_cost
+                                    rep["cost"] = cost
+                                    bar_by_cell[(cell, contrast)] = rep
+                                    reports.append(rep)
+                                    mid_reports[spec][cell].append(rep)
+                                    if not do_json:
+                                        print("")
+                                        _print_report(rep, print_steps=not do_figure)
+                        if do_figure:
+                            for spec in specs_ordered:
+                                for cell in cells_bar:
+                                    reports_for_mid = mid_reports[spec][cell]
+                                    path = os.path.join(
+                                        run_dir,
+                                        "cell_dynamics",
+                                        _compare_figure_filename(
+                                            reports_for_mid,
+                                            file_suffix=file_suffix,
+                                            html=html,
+                                        ),
+                                    )
+                                    plot_reports_compare(reports_for_mid, path)
+                        continue
                     else:
                         _log(
                             f"component forward {task} {contrast} "
@@ -2801,7 +3337,7 @@ def main(hydra_config) -> None:
                             f"(no component forward) ..."
                         )
                         reports_by_spec = analyze_bar_average(
-                            session,
+                            session_bar,
                             params=params,
                             cells=cells_bar,
                             task=task,

@@ -18,8 +18,8 @@ Direction matters and depends on the neuron's role:
 It includes R1-6, Lawf1/Lawf2, and SimulationCode-mapped FAFB types that lack
 native column_assignment.
 
-Cell types are one positional comma-separated token (like analyze_cell_syn.py); direction
-is a ``--post`` flag (default ``pre``, by upstream sources). Outputs go to the
+Cell types are positional arguments (like analyze_cell_syn.py); direction is a
+``--post`` flag (default ``pre``, by upstream sources). Outputs go to the
 ``3_assigned_columns/`` subfolder as ``<token>_<side>_<direction>.csv`` (e.g.
 ``r1_6_left_post.csv``).
 
@@ -27,7 +27,7 @@ Run with the project venv (default: all ``ASSIGNED_COLUMN_CELLS``):
 
     .venv/bin/python "connectome/FAFBv783/3_assign_column.py"
     .venv/bin/python "connectome/FAFBv783/3_assign_column.py" R1-6 --post
-    .venv/bin/python "connectome/FAFBv783/3_assign_column.py" TmY11,L3
+    .venv/bin/python "connectome/FAFBv783/3_assign_column.py" TmY11 L3
 """
 
 from __future__ import annotations
@@ -40,7 +40,6 @@ from typing import List, Optional, Sequence, Tuple
 import pandas as pd
 
 import path
-from import_bootstrap import parse_comma_list
 
 logger = logging.getLogger(__name__)
 
@@ -256,10 +255,10 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Locate neurons by partner columns.")
     parser.add_argument(
         "cells",
-        nargs="?",
+        nargs="*",
         default=None,
-        metavar="CELL[,CELL...]",
-        help="Comma-separated cells to locate. Default: every entry in "
+        metavar="CELL",
+        help="Cells to locate. Default: every entry in "
              "ASSIGNED_COLUMN_CELLS (one CSV per cell, using that entry's direction).",
     )
     parser.add_argument("--side", default="right", choices=["left", "right", "both"])
@@ -279,7 +278,7 @@ def _jobs_from_args(args: argparse.Namespace) -> List[Tuple[List[str], str]]:
     """Return [(cells, direction), ...] jobs to run."""
     if args.cells is None:
         return [([cell], direction) for cell, direction in ASSIGNED_COLUMN_CELLS]
-    cells = parse_comma_list(args.cells)
+    cells = list(args.cells)
     if not cells:
         raise SystemExit("cells must not be empty")
     direction = "post" if args.post else "pre"

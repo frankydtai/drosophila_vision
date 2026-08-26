@@ -30,7 +30,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-from import_bootstrap import parse_comma_list
 
 
 def V_two_exp_step_window(
@@ -62,10 +61,10 @@ def parse_args(argv=None):
     p.add_argument("--Ks", type=float, default=1.0, help="Ks (slow exponential gain)")
     p.add_argument("--Kf", type=float, default=1.0, help="Kf (fast exponential gain)")
     p.add_argument("--S0", type=float, default=1.0, help="S0")
-    p.add_argument("--Ks-list", type=str, default="0,0.5,1.0,2.0", help="comma-separated Ks sweep values")
-    p.add_argument("--Kf-list", type=str, default="0,0.5,1.0,2.0", help="comma-separated Kf sweep values")
-    p.add_argument("--tau-s-list", type=str, default="100,200,400", help="comma-separated tau_s sweep values")
-    p.add_argument("--tau-f-list", type=str, default="20,50,100", help="comma-separated tau_f sweep values")
+    p.add_argument("--Ks-list", type=float, nargs="+", default=[0, 0.5, 1.0, 2.0], help="Ks sweep values")
+    p.add_argument("--Kf-list", type=float, nargs="+", default=[0, 0.5, 1.0, 2.0], help="Kf sweep values")
+    p.add_argument("--tau-s-list", type=float, nargs="+", default=[100, 200, 400], help="tau_s sweep values")
+    p.add_argument("--tau-f-list", type=float, nargs="+", default=[20, 50, 100], help="tau_f sweep values")
     p.add_argument("--tau-f", type=float, default=50.0, help="tau_f (fast) > 0")
     p.add_argument("--tau-s", type=float, default=200.0, help="tau_s (slow) > 0")
     p.add_argument("--t-total", type=float, default=2000.0, help="pulse sim length")
@@ -100,10 +99,10 @@ def main(argv=None):
     S = np.zeros_like(t)
     S[i_on:i_off] = args.S0
 
-    Ks_vals = [float(x) for x in parse_comma_list(args.Ks_list)]
-    Kf_vals = [float(x) for x in parse_comma_list(args.Kf_list)]
-    tau_s_vals = [float(x) for x in parse_comma_list(args.tau_s_list)]
-    tau_f_vals = [float(x) for x in parse_comma_list(args.tau_f_list)]
+    Ks_vals = list(args.Ks_list)
+    Kf_vals = list(args.Kf_list)
+    tau_s_vals = list(args.tau_s_list)
+    tau_f_vals = list(args.tau_f_list)
 
     n_cols = max(len(Kf_vals), len(tau_f_vals))
     fig, axes = plt.subplots(
@@ -211,4 +210,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     main()
-

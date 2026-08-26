@@ -11,8 +11,8 @@ Usage (from SimulationCode/):
 
     ../.venv/bin/python scratch/plot_sag_curves.py
     ../.venv/bin/python scratch/plot_sag_curves.py --show
-    ../.venv/bin/python scratch/plot_sag_curves.py --g-list 0,10,25,50,100 --tau-list 100,250,500,850
-    ../.venv/bin/python scratch/plot_sag_curves.py --slope-list -0.05,-0.1,-0.15,-0.2
+    ../.venv/bin/python scratch/plot_sag_curves.py --g-list 0 10 25 50 100 --tau-list 100 250 500 850
+    ../.venv/bin/python scratch/plot_sag_curves.py --slope-list -0.05 -0.1 -0.15 -0.2
 """
 from __future__ import annotations
 
@@ -31,16 +31,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
-from import_bootstrap import parse_comma_list
 from config import NEURON_SCHEMA
 
 P = NEURON_SCHEMA["params"]
 from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "sag_curves.png")
-DEFAULT_G_LIST = "0,10,25,50,100"
-DEFAULT_TAU_LIST = "100,250,500,850"
-DEFAULT_SLOPE_LIST = "-0.05,-0.1,-0.15,-0.2"
+DEFAULT_G_LIST = [0.0, 10.0, 25.0, 50.0, 100.0]
+DEFAULT_TAU_LIST = [100.0, 250.0, 500.0, 850.0]
+DEFAULT_SLOPE_LIST = [-0.05, -0.1, -0.15, -0.2]
 DEFAULT_FIXED_G = 50.0
 
 
@@ -110,15 +109,15 @@ def parse_args(argv=None):
     p.add_argument("--midv", type=float, default=None, help="half-activation [mV]")
     p.add_argument("--slope", type=float, default=None, help="logistic slope (1/mV) for g/τ sweeps")
     p.add_argument("--tau", type=float, default=250.0, help="constant gate τ [ms] for g- and s-sweep")
-    p.add_argument("--tau-list", type=str, default=DEFAULT_TAU_LIST,
-                   help="comma-separated τ [ms] for τ-sweep panels (fixed g)")
-    p.add_argument("--slope-list", type=str, default=DEFAULT_SLOPE_LIST,
-                   help="comma-separated slope for slope-sweep panels (fixed g,τ)")
+    p.add_argument("--tau-list", type=float, nargs="+", default=DEFAULT_TAU_LIST,
+                   help="τ values [ms] for τ-sweep panels (fixed g)")
+    p.add_argument("--slope-list", type=float, nargs="+", default=DEFAULT_SLOPE_LIST,
+                   help="slope values for slope-sweep panels (fixed g,τ)")
     p.add_argument("--fixed-g", type=float, default=DEFAULT_FIXED_G,
                    help="fixed gmax [nS] for τ- and slope-sweep panels")
     p.add_argument("--E-h", type=float, default=None, help="Ih reversal [mV] (default E_Ih)")
-    p.add_argument("--g-list", type=str, default=DEFAULT_G_LIST,
-                   help="comma-separated gmax [nS]")
+    p.add_argument("--g-list", type=float, nargs="+", default=DEFAULT_G_LIST,
+                   help="gmax values [nS]")
     p.add_argument("--e-leak", type=float, default=float(fc.E_LEAK_DEPOL))
     p.add_argument("--I-pulse", type=float, default=-40.0)
     p.add_argument("--t-total", type=float, default=2000.0)
@@ -135,9 +134,9 @@ def main(argv=None):
     midv = args.midv if args.midv is not None else _init("Ih_midv")
     slope = args.slope if args.slope is not None else _init("Ih_slope")
     E_h = args.E_h if args.E_h is not None else float(fc.E_Ih)
-    g_list = [float(x) for x in parse_comma_list(args.g_list)]
-    tau_list = [float(x) for x in parse_comma_list(args.tau_list)]
-    slope_list = [float(x) for x in parse_comma_list(args.slope_list)]
+    g_list = list(args.g_list)
+    tau_list = list(args.tau_list)
+    slope_list = list(args.slope_list)
     g_fix = args.fixed_g
 
     Vm_axis = np.linspace(args.Vm_lo, args.Vm_hi, args.n)

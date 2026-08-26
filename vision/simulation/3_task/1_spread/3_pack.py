@@ -9,7 +9,6 @@ import numpy as np
 import torch
 
 import build_hex
-from import_bootstrap import parse_comma_list
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from network.construction import (
     cost_radius_mask,
@@ -148,9 +147,12 @@ def build_spread_gt(
                 entry_nodes.append(int(node))
                 gts.append(gt)
                 entry_part_keys.append(part_key(contrast, cell))
-    if not entry_nodes:
-        raise ValueError("no spread cost nodes (check gt cells)")
-    gts = np.asarray(gts, dtype=np.float64)
+    n_t_cost = int(n_t_gt) - int(t_onset)
+    gts = (
+        np.asarray(gts, dtype=np.float64)
+        if gts else
+        np.empty((0, n_t_cost), dtype=np.float64)
+    )
     entry_nodes = np.asarray(entry_nodes, dtype=np.int64)
     return SpreadGt(
         i_sti=i_sti,
@@ -185,10 +187,7 @@ def cost_mss(cost_ms, *, post, delta_ms) -> list:
         step = max(1, int(round(interval / delta_ms)))
         return [t * delta_ms for t in range(0, post, step)]
     if isinstance(cost_ms, str):
-        tokens = parse_comma_list(cost_ms)
-        if len(tokens) == 1:
-            return cost_mss(float(tokens[0]), post=post, delta_ms=delta_ms)
-        cost_ms = tokens
+        raise ValueError("cost_ms strings are not supported; use a number or list")
     mss = [float(ms) for ms in cost_ms]
     if not mss:
         raise ValueError("cost_ms list must have at least one ms")

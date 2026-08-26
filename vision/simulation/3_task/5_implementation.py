@@ -89,6 +89,9 @@ _GT_CELLS_EXPAND = {
 
 
 def resolve_gt_cells_by_task(by_task) -> dict[str, list[str]]:
+    for task, cells in (by_task or {}).items():
+        if isinstance(cells, str):
+            raise ValueError(f"gt_by_task.{task} must be a list, got {cells!r}")
     return {
         str(task): list(_GT_CELLS_EXPAND[task]([str(cell) for cell in cells]))
         for task, cells in (by_task or {}).items()
