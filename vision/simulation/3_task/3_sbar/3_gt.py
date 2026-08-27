@@ -184,12 +184,14 @@ def load_gt(
             grouped["vm_mv"],
         )
     for cell, path in _SOURCE_POSITION_CSVS.items():
+        # Mi4 CSV contribution is opposite the cell Vm used as sbar GT.
+        gt_sign = -1.0 if cell == "Mi4" else 1.0
         for (pathway, position), grouped in pd.read_csv(path).groupby(
             ["contrast", "position"],
             sort=False,
         ):
             key = f"{cell}_{pathway}_pos{position_label(float(position))}_w1"
-            gts[key] = _interp_trace(
+            gts[key] = gt_sign * _interp_trace(
                 t_axis,
                 grouped["time_ms"],
                 grouped["contribution_vm_mv"],

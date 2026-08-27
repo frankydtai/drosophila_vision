@@ -1,0 +1,49 @@
+Job ID: 29676661
+Node:   spartan-gpgpu099
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+  MIG 1g.20gb     Device  0: (UUID: MIG-ca7758cc-36b2-53c8-8bf7-fe711a703942)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+cuda: True NVIDIA A100 80GB PCIe MIG 1g.20gb
+Start:  Fri 28 Aug 2026 01:48:05 AEST
+==== config ====
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+  File "/home/yitai/drosophila_vision/vision/simulation/config.py", line 279, in <module>
+    active_config()
+  File "/home/yitai/drosophila_vision/vision/simulation/config.py", line 263, in active_config
+    _ACTIVE = load_config()
+  File "/home/yitai/drosophila_vision/vision/simulation/config.py", line 69, in load_config
+    data = OmegaConf.to_container(OmegaConf.load(config_path()), resolve=True)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/omegaconf/omegaconf.py", line 190, in load
+    obj = yaml.load(f, Loader=get_yaml_loader())
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/__init__.py", line 81, in load
+    return loader.get_single_data()
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/constructor.py", line 49, in get_single_data
+    node = self.get_single_node()
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/composer.py", line 36, in get_single_node
+    document = self.compose_document()
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/composer.py", line 55, in compose_document
+    node = self.compose_node(None, None)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/composer.py", line 84, in compose_node
+    node = self.compose_mapping_node(anchor)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/composer.py", line 133, in compose_mapping_node
+    item_value = self.compose_node(node, item_key)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/composer.py", line 84, in compose_node
+    node = self.compose_mapping_node(anchor)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/composer.py", line 127, in compose_mapping_node
+    while not self.check_event(MappingEndEvent):
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/parser.py", line 98, in check_event
+    self.current_event = self.state()
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/parser.py", line 428, in parse_block_mapping_key
+    if self.check_token(KeyToken):
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/scanner.py", line 116, in check_token
+    self.fetch_more_tokens()
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/scanner.py", line 223, in fetch_more_tokens
+    return self.fetch_value()
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/yaml/scanner.py", line 577, in fetch_value
+    raise ScannerError(None, None,
+yaml.scanner.ScannerError: mapping values are not allowed here
+  in "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml", line 173, column 26

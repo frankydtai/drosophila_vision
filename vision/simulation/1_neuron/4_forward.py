@@ -34,6 +34,16 @@ def a_sti_radius_effective(params, pack):
     return a_sti_radius * mask.to(device=a_sti_radius.device, dtype=a_sti_radius.dtype)
 
 
+def a_sti_mid_effective(params, pack):
+    """Gaussian surround gains ``exp(-0.5 * (mid / σ)²)`` from scalar ``a_sti_mid``=σ."""
+    sigma = params["a_sti_mid"]
+    mids = getattr(pack, "a_sti_mids", None) if pack is not None else None
+    if mids is None:
+        raise ValueError("a_sti_mid requires pack.a_sti_mids")
+    mids = mids.to(device=sigma.device, dtype=sigma.dtype)
+    return torch.exp(-0.5 * (mids / sigma) ** 2)
+
+
 def _indexed_stimulus_delta(
     values, value_idxs, pack, *, n_b: int, n_node: int,
 ):
@@ -82,7 +92,7 @@ def pack_stimulus_delta(i_sti, params, pack):
     )
     if mid_idxs is not None and "a_sti_mid" in params:
         mid_delta = _indexed_stimulus_delta(
-            params["a_sti_mid"], mid_idxs, pack,
+            a_sti_mid_effective(params, pack), mid_idxs, pack,
             n_b=n_b, n_node=n_node,
         )
         delta = mid_delta if delta is None else delta + mid_delta
@@ -120,7 +130,7 @@ def inject_a_sti_radius(i_sti, params, pack):
 
 
 def inject_a_sti_mid(i_sti, params, pack):
-    """Materialize sbar indexed drive; simulation uses the step-wise fast path."""
+    """Materialize sbar Gaussian surround; simulation uses the step-wise fast path."""
     a_sti_mid_idxs = (
         getattr(pack, "a_sti_mid_idxs", None) if pack is not None else None
     )
@@ -130,7 +140,7 @@ def inject_a_sti_mid(i_sti, params, pack):
         i_sti = i_sti.unsqueeze(0)
     n_b, _n_t, n_node = i_sti.shape
     delta = _indexed_stimulus_delta(
-        params["a_sti_mid"], a_sti_mid_idxs, pack,
+        a_sti_mid_effective(params, pack), a_sti_mid_idxs, pack,
         n_b=int(n_b), n_node=int(n_node),
     )
     return i_sti + _materialize_stimulus_delta(delta, pack.i_sti_pulse)

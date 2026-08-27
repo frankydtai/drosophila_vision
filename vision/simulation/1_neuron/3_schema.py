@@ -189,13 +189,14 @@ def _a_sti_radius_param(params: dict, a_sti_radii):
 
 
 def _a_sti_mid_param(params: dict, a_sti_mids):
-    """Per-absolute-mid ``a_sti_mid`` → ``(param, spec)``."""
+    """Scalar Gaussian ``a_sti_mid`` (=σ) → ``(param, spec)``.
+
+    Forward expands ``A(d)=exp(-0.5*(d/σ)^2)`` over configured ``a_sti_mids``.
+    """
     mids = [str(float(mid)).removesuffix(".0") for mid in a_sti_mids]
     if not mids:
         raise ValueError("a_sti_mid requires non-empty a_sti_mids")
-    spec = build_param_spec(
-        "a_sti_mid", len(mids), params["a_sti_mid"], mids=mids,
-    )
+    spec = build_param_spec("a_sti_mid", 1, params["a_sti_mid"])
     spec["mids"] = mids
     return "a_sti_mid", spec
 

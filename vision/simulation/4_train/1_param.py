@@ -206,7 +206,10 @@ def inits_from_node_vals(schema, node_vals):
 
 
 def schema_with_param_carry(schema, node_vals=None):
-    """Return schema copy with per-param ``carry`` (full-w) for frozen nodes."""
+    """Return schema copy with per-param ``carry`` (full-w) for frozen nodes.
+
+    Prefer ``node_vals``; else keep an existing ``carry``; else ``effective_init``.
+    """
     schema = schema_copy(schema)
     for param, spec in schema.items():
         frozen = list(spec.get('frozen') or [])
@@ -216,6 +219,8 @@ def schema_with_param_carry(schema, node_vals=None):
         n_node = spec['n_node']
         if node_vals is not None and param in node_vals:
             carry = np.asarray(node_vals[param], dtype=np.float64).reshape(-1).copy()
+        elif spec.get('carry') is not None:
+            carry = np.asarray(spec['carry'], dtype=np.float64).reshape(-1).copy()
         else:
             carry = np.asarray(
                 [effective_init(spec, node) for node in range(n_node)], dtype=np.float64,

@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 29637642-run-n_iter-200-tasks-spread,sbar
+ 29677084-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -38,17 +38,17 @@ params:
     lo: 0.1
     hi: 10.0
     init: 1.0
-    inits: {"Mi9:T4a": 0.0, "TmY15:T4a": 0.0}
+    inits: {"Tm3:T4a": 0.0, "Mi4:T4a": 0.0, "Mi9:T4a": 0.0, "T4a:T4a": 0.0, "T4b:T4a": 0.0, "Tm2:T4a": 0.0, "T5a:T4a": 0.0, "C3:T4a": 0.0, "Mi10:T4a": 0.0, "TmY15:T4a": 0.0}
     jit: 0.1
     mode: "indi"
     modes:
-      indi: ["Mi4:T4a", "Mi4:T4b", "Mi4:T4c", "Mi4:T4d", "Mi9:T4b", "Mi9:T4c", "Mi9:T4d"]
-      fixed: ["Mi9:T4a", "TmY15:T4a"]
+      indi: ["Mi4:T4b", "Mi4:T4c", "Mi4:T4d", "Mi9:T4b", "Mi9:T4c", "Mi9:T4d"]
+      fixed: ["Tm3:T4a", "Mi4:T4a", "Mi9:T4a", "T4a:T4a", "T4b:T4a", "Tm2:T4a", "T5a:T4a", "C3:T4a", "Mi10:T4a", "TmY15:T4a"]
   syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   a_in: {lo: 0.01, hi: 100.0, init: 1.0, jit: 0.1, mode: "shared"}
   a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   e_leak: {lo: -50.0, hi: 50.0, init: 0.0, jit: 1.0, mode: "indi"}
-  v_th: {lo: -100.0, hi: 100.0, init: -50.0, jit: 0.0, mode: "indi"}
+  v_th: {lo: -100.0, hi: 100.0, init: -25.0, jit: 0.0, mode: "indi"}
   tau_lp: {lo: 10.0, hi: 100.0, init: 10.0, inits: {Mi4: 200}, jit: 2.0, mode: "indi"}
   tau_hp_rise: {lo: 100.0, hi: 500.0, init: 200.0, jit: 20.0, mode: "indi"}
   tau_hp_fall: {lo: 100.0, hi: 500.0, init: 200.0, jit: 20.0, mode: "indi"}
@@ -77,8 +77,8 @@ params:
   a_ca: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   tau_ca: {lo: 100.0, hi: 1000.0, init: 350.0, jit: 10.0, mode: "indi"}
   a_sti_radius: {lo: 0.0, hi: 1.0, init: 0.0, jit: 0.05, mode: "indi"}
-  a_sti_mid:
-    {lo: 0.0, hi: 1.0, init: 0.0, inits: {0.5: 0.1, 1: 0, 1.5: 0, 2: 0}, jit: 0.05, mode: "fixed"}
+  # Scalar Gaussian σ: surround A(d)=exp(-0.5*(d/σ)^2) at a_sti_mids (Gruntman21 new light σ init).
+  a_sti_mid: {lo: 0.5, hi: 2.0, init: 1, jit: 0.05, mode: "shared"}
 
 # ---------------------------------------------------------------------------
 # 1.4   neuron.forward (model booleans; not packed into z)
@@ -141,7 +141,7 @@ bar_directions: [right, left, up, down]
 # ---------------------------------------------------------------------------
 tasks: [spread,sbar]
 gt_by_task:
-  spread: [L1, L2, L3, L4, L5, Mi9]
+  spread: [L1, L2, L3, L4, L5, Mi9, Tm3]
   sbar: [Mi1,Mi4,T4a]
 cost_radius: null
 
@@ -171,11 +171,24 @@ part_cost_scales:
   spread: 1
   sbar: 0
   sbar_bright_Mi1_mid+0: 1
-  sbar_dark_Mi1_mid+0: 0
+  sbar_bright_Mi1_mid-1: 1
+  sbar_bright_Mi1_mid-2: 1
+  sbar_bright_Mi1_mid+1: 1
+  sbar_bright_Mi1_mid+2: 1
+  sbar_bright_Mi1_mid-0.5: 1
+  sbar_bright_Mi1_mid+0.5: 1
+  sbar_bright_Mi1_mid-1.5: 1
+  sbar_bright_Mi1_mid+1.5: 1
   sbar_bright_Mi4_mid+0: 1
-  sbar_dark_Mi4_mid+0: 0
+  sbar_bright_Mi4_mid-0.5: 1
+  sbar_bright_Mi4_mid+0.5: 1
+  sbar_bright_Mi4_mid-1.5: 1
+  sbar_bright_Mi4_mid+1.5: 1
+  sbar_bright_Mi4_mid-1: 1
+  sbar_bright_Mi4_mid+1: 1
+  sbar_bright_Mi4_mid-2: 1
+  sbar_bright_Mi4_mid+2: 1
   sbar_bright_T4a_mid+0: 1
-  sbar_dark_T4a_mid+0: 0
 cost_norm: "a_gt2"
 # cost_ms: post-onset cost sample times (spread + spot; same for every radius).
 #   null — full post-onset window (no sparse cost_ts)
@@ -227,7 +240,7 @@ mbar_plot_direction: left
 # Tasks to plot after training or when re-plotting; independent of train `tasks`.
 figure_tasks: [spread, sbar]
 # Rows for sbar ``plot_all`` / ``*_all_v.png``.
-sbar_figure_cells: [R1-6, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, T4a]
+sbar_figure_cells: [R1-6, R7, R8, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a]
 html: false
 plot_right_only: true
 x: null

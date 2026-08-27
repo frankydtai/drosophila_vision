@@ -71,12 +71,13 @@ class SbarPack:
     sti_bs: Optional[torch.Tensor] = None
     sti_nodes: Optional[torch.Tensor] = None
     a_sti_mid_idxs: Optional[torch.Tensor] = None
+    a_sti_mids: Optional[torch.Tensor] = None
     entry_part_keys: Tuple[str, ...] = ()
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
 
 
 def sbar_a_sti_mids(sti_opts=None) -> tuple[float, ...]:
-    """Configured positive absolute distances controlled by ``a_sti_mid``."""
+    """Positive absolute distances for Gaussian expansion of scalar ``a_sti_mid`` (=σ)."""
     from config import SBAR_PACK
 
     values = (sti_opts or {}).get("a_sti_mids", SBAR_PACK["a_sti_mids"])
@@ -470,6 +471,7 @@ def build_sbar_pack(
         sti_bs=sti_bs,
         sti_nodes=sti_nodes,
         a_sti_mid_idxs=a_sti_mid_idxs,
+        a_sti_mids=np.asarray(a_sti_mids, dtype=np.float64),
         entry_part_keys=sbar_gt.entry_part_keys,
         cost_part_plot_specs=_sbar_cost_part_plot_specs(
             sbar_gt.entry_part_keys,

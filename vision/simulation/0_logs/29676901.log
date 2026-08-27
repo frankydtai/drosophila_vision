@@ -1,0 +1,259 @@
+Job ID: 29676901
+Node:   spartan-gpgpu099
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+  MIG 1g.20gb     Device  0: (UUID: MIG-ca7758cc-36b2-53c8-8bf7-fe711a703942)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+cuda: True NVIDIA A100 80GB PCIe MIG 1g.20gb
+Start:  Fri 28 Aug 2026 02:14:13 AEST
+==== config ====
+{'RUN_NAME': '29676672-run-n_iter-200-tasks-spread,sbar',
+ 'RUN_PATH': 'hp_lp/29676672-run-n_iter-200-tasks-spread,sbar',
+ 'MODEL': {'delta_ms': 2.0,
+           'delta_ms_pre': 2.0,
+           'cap': 40.0,
+           'g_leak': 1.0,
+           'e_exc': 10.0,
+           'e_inh': -70.0,
+           'e_h': 50.0,
+           'h_g_max': 100.0,
+           'gt_amp': 20.0,
+           'v_clamp': 100.0,
+           'a_syn_exc': 0.001,
+           'a_syn_inh': 0.001,
+           'euler': 'im'},
+ 'NEURON_SCHEMA': {'model': 'hp_lp',
+                   'filter': 'none',
+                   'syn_mode': 'per_cell',
+                   'a_lo': 0.1,
+                   'a_hi': 10.0,
+                   'h_cells': ['L1', 'L2', 'L4', 'L5'],
+                   'params': {'a_gt': {'lo': 0.5, 'hi': 2.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'syn_strength_cell': {'lo': 0.1,
+                                                    'hi': 10.0,
+                                                    'init': 1.0,
+                                                    'inits': {'Tm3:T4a': 0.0,
+                                                              'Mi4:T4a': 0.0,
+                                                              'Mi9:T4a': 0.0,
+                                                              'T4a:T4a': 0.0,
+                                                              'T4b:T4a': 0.0,
+                                                              'Tm2:T4a': 0.0,
+                                                              'T5a:T4a': 0.0,
+                                                              'C3:T4a': 0.0,
+                                                              'Mi10:T4a': 0.0,
+                                                              'TmY15:T4a': 0.0},
+                                                    'jit': 0.1,
+                                                    'mode': 'indi',
+                                                    'modes': {'indi': ['Mi4:T4b',
+                                                                       'Mi4:T4c',
+                                                                       'Mi4:T4d',
+                                                                       'Mi9:T4b',
+                                                                       'Mi9:T4c',
+                                                                       'Mi9:T4d'],
+                                                              'fixed': ['Tm3:T4a',
+                                                                        'Mi4:T4a',
+                                                                        'Mi9:T4a',
+                                                                        'T4a:T4a',
+                                                                        'T4b:T4a',
+                                                                        'Tm2:T4a',
+                                                                        'T5a:T4a',
+                                                                        'C3:T4a',
+                                                                        'Mi10:T4a',
+                                                                        'TmY15:T4a']}},
+                              'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 1.0, 'jit': 0.1, 'mode': 'shared'},
+                              'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'e_leak': {'lo': -50.0, 'hi': 50.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'v_th': {'lo': -100.0, 'hi': 100.0, 'init': -25.0, 'jit': 0.0, 'mode': 'indi'},
+                              'tau_lp': {'lo': 10.0,
+                                         'hi': 100.0,
+                                         'init': 10.0,
+                                         'inits': {'Mi4': 200},
+                                         'jit': 2.0,
+                                         'mode': 'indi'},
+                              'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'a_h': {'lo': 0.0,
+                                      'hi': 1.0,
+                                      'init': 0.0,
+                                      'inits': {'L1': 0.5, 'L2': 0.5, 'L4': 0.5, 'L5': 0.5},
+                                      'jit': 0.1,
+                                      'mode': 'indi'},
+                              'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'a_h_rev': {'lo': 0.0,
+                                          'hi': 1.0,
+                                          'init': 0.0,
+                                          'jit': 0.1,
+                                          'mode': 'fixed',
+                                          'modes': {'indi': ['L1', 'L2', 'L4', 'L5']}},
+                              'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau_rev': {'lo': -70.0,
+                                                  'hi': -40.0,
+                                                  'init': -50.0,
+                                                  'jit': 5.0,
+                                                  'mode': 'shared'},
+                              'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'},
+                              'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'},
+                              'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'},
+                              'a_sti_mid': {'lo': 0.5, 'hi': 2.0, 'init': 1, 'jit': 0.05, 'mode': 'shared'}}},
+ 'NEURON_FORWARD': {'pre_grad': True},
+ 'NETWORK_PATH': {'network': 'right_min_neuron1_r10'},
+ 'SPREAD_INPUT_SPEC': {'ms_pre': 20.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0},
+ 'SPREAD_GT': {'spread_gt_mode': 'pos'},
+ 'SPOT_INPUT_GEO': {'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0},
+ 'SPOT_PACK': {'spot_cost_radii': [0, 1, 2],
+               'a_sti_radii': [1, 2],
+               'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}},
+ 'SBAR_INPUT_GEO': {'multi_bar': False, 'bar_dist': 4, 'shift_mid': 0},
+ 'SBAR_PACK': {'a_sti_mids': [0.5, 1.0, 1.5, 2.0]},
+ 'MBAR_INPUT_SPEC': {'ms_pre': 20.0, 'bar_ws_deg': [2.25, 9.0], 'bar_directions': ['right', 'left', 'up', 'down']},
+ 'TRAIN_CONFIG': {'tasks': ['spread', 'sbar'],
+                  'contrasts': ['bright', 'dark'],
+                  'i_sti': {'bright': 40.0, 'dark': 0.0},
+                  'gt_by_task': {'spread': ['L1', 'L2', 'L3', 'L4', 'L5', 'Mi9', 'Tm3'], 'sbar': ['Mi1', 'Mi4', 'T4a']},
+                  'cost_radius': None},
+ 'VAL_FROM': {'bias_gt': {'source': 'v_onset', 'enabled': True},
+              'v_th_ca': {'source': 'v_th', 'enabled': False},
+              'a_ca': {'source': 'a_out', 'enabled': False},
+              'a_h_rev': {'source': 'a_h', 'enabled': False},
+              'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False},
+              'h_slope_rev': {'source': 'h_slope', 'enabled': False},
+              'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}},
+ 'TRAIN_OPTIMIZATION': {'part_cost_scales': {'spread': 1,
+                                             'sbar': 0,
+                                             'sbar_bright_Mi1_mid+0': 1,
+                                             'sbar_bright_Mi1_mid-1': 1,
+                                             'sbar_bright_Mi1_mid-2': 1,
+                                             'sbar_bright_Mi1_mid+1': 1,
+                                             'sbar_bright_Mi1_mid+2': 1,
+                                             'sbar_bright_Mi1_mid-0.5': 1,
+                                             'sbar_bright_Mi1_mid+0.5': 1,
+                                             'sbar_bright_Mi1_mid-1.5': 1,
+                                             'sbar_bright_Mi1_mid+1.5': 1,
+                                             'sbar_bright_Mi4_mid+0': 1,
+                                             'sbar_bright_Mi4_mid-0.5': 1,
+                                             'sbar_bright_Mi4_mid+0.5': 1,
+                                             'sbar_bright_Mi4_mid-1.5': 1,
+                                             'sbar_bright_Mi4_mid+1.5': 1,
+                                             'sbar_bright_Mi4_mid-1': 1,
+                                             'sbar_bright_Mi4_mid+1': 1,
+                                             'sbar_bright_Mi4_mid-2': 1,
+                                             'sbar_bright_Mi4_mid+2': 1,
+                                             'sbar_bright_T4a_mid+0': 1},
+                        'cost_norm': 'a_gt2',
+                        'cost_ms': None,
+                        'pre_steady': 'solve',
+                        'pre_steady_n_iter': 50,
+                        'pre_steady_damp': 0.1,
+                        'n_run': 1,
+                        'n_iter': 0,
+                        'lrs': [0.1],
+                        'checkpoint_interval': 1000},
+ 'TRAIN_SESSION': {'fp': 32, 'sequential': False},
+ 'FIGURE_PLOT': {'tasks': ['spread', 'sbar'],
+                 'sbar_figure_cells': ['R1-6',
+                                       'R7',
+                                       'R8',
+                                       'L1',
+                                       'L2',
+                                       'L3',
+                                       'L4',
+                                       'L5',
+                                       'Mi1',
+                                       'Mi4',
+                                       'Mi9',
+                                       'Tm3',
+                                       'T4a'],
+                 'html': False,
+                 'plot_right_only': True,
+                 'x': None,
+                 'y': None,
+                 'align_xy': None,
+                 'ms_shown': None},
+ 'FIGURE_PLOT_STI_SPOT': {'spot_radii': [0.5, 1.0, 1.5, 2.0], 'output': None},
+ 'FIGURE_PLOT_STI_MBAR': {'output': None,
+                          'gif': False,
+                          'gif_output': None,
+                          't_stride': 2,
+                          't': None,
+                          'direction': 'left'},
+ 'ANALYZE_RUNS': ['hp_lp/29676672-run-n_iter-200-tasks-spread,sbar'],
+ 'ANALYZE_CELL_DYNAMICS': {'cells': None,
+                           'spec': None,
+                           'mid': None,
+                           'node': None,
+                           'radius': 0,
+                           't_rel_start': None,
+                           't_rel_stop': None,
+                           'figure': True,
+                           'json': False,
+                           'a_mid': None},
+ 'ANALYZE_SYN_SIGN': {'bins': 20, 'after_train': False, 'post': False},
+ 'ANALYZE_TRACE': {'trace_osc_min_f': 0.5,
+                   'trace_osc_max_f': 20.0,
+                   'trace_osc_peak_threshold': 0.5,
+                   'trace_osc_z_threshold': 2.0,
+                   'trace_osc_snr_min': 2.0,
+                   'trace_drift_min_slope_mv_over_s': 1.0,
+                   'trace_drift_min_r': 0.5,
+                   'trace_baseline_ms': 200.0,
+                   'trace_flat_max_abs': 0.5,
+                   'trace_flat_v_peak_to_peak_max': 1.0,
+                   'trace_flat_abs_mean': 0.2,
+                   'check': None,
+                   'baseline_ms_shown': None},
+ 'ANALYZE_COST_PART': {'part': None,
+                       'cost_norm': None,
+                       'stride': 1,
+                       'per_node': False,
+                       'csv': None,
+                       'print_parts': False}}
+==== end config ====
+param_modes:
+  a_gt               indi=0/shared=0/fixed=0/frozen=56 (0)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=56 (0)
+  syn_strength_cell  indi=1/shared=0/fixed=0/frozen=1034 (1)
+  a_in               indi=0/shared=0/fixed=0/frozen=56 (0)
+  a_out              indi=0/shared=0/fixed=0/frozen=56 (0)
+  e_leak             indi=0/shared=0/fixed=0/frozen=56 (0)
+  v_th               indi=0/shared=0/fixed=0/frozen=56 (0)
+  tau_lp             indi=0/shared=0/fixed=0/frozen=56 (0)
+  tau_hp_rise        indi=0/shared=0/fixed=0/frozen=56 (0)
+  tau_hp_fall        indi=0/shared=0/fixed=0/frozen=56 (0)
+  a_h                indi=0/shared=0/fixed=0/frozen=56 (0)
+  a_sti_mid          indi=0/shared=0/fixed=0/frozen=1 (0)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, n_run=1, n_iter=100, lrs=[0.1], n_z=1, fname=train_hp_lp.npy
+checkpoint_interval=1000
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676672-run-n_iter-200-tasks-spread,sbar' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676672-run-n_iter-200-tasks-spread,sbar/data/best_param.npz' + '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676672-run-n_iter-200-tasks-spread,sbar/data/best_adam.npz' (1 z, adam_iter=200)
+
+round 0
+
+  0%|          | 0/100 [00:00<?, ?it/s] Cost: 120902.9531  [] 10%|█         | 10/100 [00:03<00:34,  2.62it/s] Cost: 94613.8047  []:  20%|██        | 20/100 [00:07<00:28,  2.80it/s] Cost: 89196.5703  []:  30%|███       | 30/100 [00:10<00:24,  2.87it/s] Cost: 90055.1094  []:  40%|████      | 40/100 [00:13<00:20,  2.90it/s] Cost: 88745.1406  []:  50%|█████     | 50/100 [00:17<00:17,  2.92it/s] Cost: 88759.6328  []:  60%|██████    | 60/100 [00:20<00:13,  2.93it/s] Cost: 88720.6016  []:  70%|███████   | 70/100 [00:24<00:10,  2.94it/s] Cost: 88671.9766  []:  80%|████████  | 80/100 [00:27<00:06,  2.95it/s] Cost: 88678.7969  []:  90%|█████████ | 90/100 [00:30<00:03,  2.95it/s] Cost: 88672.4062  []: 100%|██████████| 100/100 [00:34<00:00,  2.92it/s] Cost: 88672.1562  []: 100%|██████████| 100/100 [00:34<00:00,  2.91it/s] Cost: 88672.1562  []: 
+
+Initl cost = 120902.9531  []
+Final cost = 88672.2188  []
+Best  cost = 88671.7422  []
+time needed  = 37.79  sec
+
+done in 0.01 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676901-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676901-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par/param.csv (best run #0, cost=88671.7500)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676901-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par/syn_strength_cell.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:72: UserWarning: Data has no positive values, and therefore cannot be log-scaled.
+  ax.set_yscale('log')
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:834: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676901-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par/cost.png: prep=0.0s  plot_s=0.1s  save=0.9s  elapsed_s=1.0s
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.20gb)
+1 trained set(s); costs min=88671.7500 max=88671.7500; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676901-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par/spread_gt_v.png: prep=0.4s  plot_s=0.1s  save=0.5s  elapsed_s=0.9s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676901-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par/spread_all_v.png: prep=0.0s  plot_s=0.7s  save=2.5s  elapsed_s=3.2s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676901-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par/sbar_gt_v.png: prep=1.3s  plot_s=0.9s  save=0.8s  elapsed_s=3.0s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29676901-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par/sbar_all_v.png: prep=0.0s  plot_s=5.2s  save=5.0s  elapsed_s=10.2s

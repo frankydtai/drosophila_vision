@@ -43,12 +43,13 @@ def build_sbar_a_sti_mid_drive(
     i_baseline: float,
     i_sti: float,
 ):
-    """Add trainable symmetric surround metadata to a fixed-line sbar drive.
+    """Add trainable Gaussian-surround metadata to a fixed-line sbar drive.
 
     ``mid=0`` is already present at full amplitude in ``base_i_sti``.  Every
     configured positive distance is indexed by ``abs(axis_mid - bar_mid)``, so
-    the two sides of a bar necessarily share one scalar.  Repeated entries are
-    retained when surrounds from simultaneous bars overlap; ``index_add_`` in
+    the two sides of a bar necessarily share one Gaussian gain
+    ``A(d)=exp(-0.5*(d/σ)^2)`` from scalar ``a_sti_mid`` (=σ).  Repeated entries
+    are retained when surrounds from simultaneous bars overlap; ``index_add_`` in
     forward then sums them, matching simultaneous multi-spot stimulation.
     """
     mids = tuple(float(mid) for mid in a_sti_mids)

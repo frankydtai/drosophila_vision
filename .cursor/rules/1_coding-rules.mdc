@@ -1,5 +1,5 @@
 ---
-description: Core scope and edit rules (vision)
+description: Core scope and edit rules (vision); HARD STOP 1 = absolute subproject .venv for every Python/pip
 alwaysApply: true
 ---
 
@@ -9,21 +9,22 @@ Scope: `vision/`.
 
 ## HARD STOPS — violate = do not ship
 
+1. Python/pip — **every** invocation, including agent Shell: scripts, `-c` one-liners, `-m`, diagnostics, config/import/YAML load checks, REPL, pip install/uninstall. Must call the matching subproject `.venv` binary from the table below as an **absolute path**. Forbidden: bare `python` / `python3` / `pip` / `pip3`; any interpreter from PATH, system, or conda; another subproject’s `.venv`; `activate` then bare python; relative `python` that only works because cwd happens to be right. Choose the table row by the tree of the code being executed or imported — not by repo root. Wrong or bare interpreter = discard the output; do not ship.
 
 4. No backward compatibility: 「改成 X」→ only X; old must not remain compatible. No old+new paths, shims, dual parsers, deprecated params, loaders for old runs/sidecars.
 5. When you change core (§B), you must leave `scratch/**` (logical `scratch`) broken — do not update scratch to match. Edit `scratch/**` only when the user names that script or file in the task or when you must need to run the script.
-6. Python/pip: Must use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
+
 7. Must not automatically add new `*.py` / `*.sh` / `*.ipynb` / `*.m`: must explain + propose path/duties + wait for user approval.
 8. Rename completeness: when the user renames a parameter / CLI flag / train_opts key / concept (e.g. `init_state` → `pre_steady`), you MUST in the same change also rename every corresponding **function**, **method**, **attribute**, **constant**, **CLI**, and **docstring / comment** that still uses the old name for that concept. Partial renames (opts only, or CLI only, leaving `def old_name` / call sites / docs) = do not ship.
 9. Minimal new code: every new function / method must use the fewest lines that correctly implement the behavior. Forbidden: dead branches, unused locals, re-computing values already in hand, defensive try/except that cannot fire, copy-paste "symmetry" APIs unused by callers, bytes/None guards for types that never appear, splitting one trivial helper into many without a second call site. Prefer extend/replace an existing function over adding a parallel one. Verbose first draft = do not ship; slim before done.
 10. Lexicon details stay in lexicon only: this file must not duplicate lexicon definitions, examples, or Forbidden lists — only refer to lexicon.
 11. Rule authorship: amending this file (or other project rules) = ban + situation list only. No example identifiers, no trap tables, no before/after. Token examples belong in lexicon Example/Forbidden only.
 
-- **Python** (script location → interpreter):
+- **Python** (script location → interpreter; agent must expand to absolute path under the repo):
 | Script location | Interpreter |
 |---|---|
-| `vision/**` | `vision/.venv/bin/python` |
-| `figure_digitization/**` | `figure_digitization/.venv/bin/python` |
+| `vision/**` | `vision/.venv/bin/python` (pip: `vision/.venv/bin/pip`) |
+| `figure_digitization/**` | `figure_digitization/.venv/bin/python` (pip: `figure_digitization/.venv/bin/pip`) |
 
 ## A all script rules
 

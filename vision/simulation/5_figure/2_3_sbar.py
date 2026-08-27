@@ -99,6 +99,7 @@ class SbarTraceReadout:
     e_leak_by_cell: dict = field(default_factory=dict)
     gt_affine_by_cell: dict = field(default_factory=dict)
     a_sti_mid: dict[str, float] = field(default_factory=dict)
+    a_sti_mid_sigma: float | None = None
     session: object = None
     prep_s: float = 0.0
 
@@ -154,15 +155,14 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
     pack: SbarPack = session.packs[task][contrast]
     params = train.params_from_z(z, session)
     a_sti_mid = {}
+    a_sti_mid_sigma = None
     if "a_sti_mid" in params:
         spec = session.schema.get("a_sti_mid")
         if spec is not None:
+            a_sti_mid_sigma = float(as_numpy(params["a_sti_mid"]).reshape(-1)[0])
             a_sti_mid = {
-                str(mid): float(val)
-                for mid, val in zip(
-                    spec.get("mids") or (),
-                    as_numpy(params["a_sti_mid"]).reshape(-1),
-                )
+                str(mid): float(np.exp(-0.5 * (float(mid) / a_sti_mid_sigma) ** 2))
+                for mid in (spec.get("mids") or ())
             }
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     trace = train.forward_pack(session, params, i_sti, pack)
@@ -278,6 +278,7 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
         e_leak_by_cell=e_leak_by_cell,
         gt_affine_by_cell=gt_affine_by_cell,
         a_sti_mid=a_sti_mid,
+        a_sti_mid_sigma=a_sti_mid_sigma,
         session=session,
         prep_s=time.perf_counter() - t_prep0,
     )
@@ -314,6 +315,7 @@ def _sbar_filter_readout(readout, cells):
             for cell in keep if cell in readout.gt_affine_by_cell
         },
         a_sti_mid=dict(readout.a_sti_mid),
+        a_sti_mid_sigma=readout.a_sti_mid_sigma,
         session=readout.session,
         prep_s=readout.prep_s,
     )
@@ -448,6 +450,8 @@ def _plot_figure(path, *, timer, readouts, title, gts=None, cost_parts=None):
             )
             ax.tick_params(labelsize=6)
         axes[row, start].set_ylabel(cell_ylabel(cell, None), fontsize=8, labelpad=12)
+        for col in range(n_col):
+            axes[row, col].tick_params(labelleft=(col == start))
 
     opts = dict((primary.session.train_opts or {}).get(f"{primary.task}_sti_opts") or {})
     bar_dist = opts.get("bar_dist")
@@ -458,7 +462,14 @@ def _plot_figure(path, *, timer, readouts, title, gts=None, cost_parts=None):
         subtitle = f"  [bar_dist={bar_dist}, directions={bar_directions}]"
     if shift_mid is not None:
         subtitle += f"  [shift_mid={shift_mid}]"
-    if primary.a_sti_mid:
+    if primary.a_sti_mid_sigma is not None:
+        values = ", ".join(
+            f"{mid}={value:.4g}" for mid, value in primary.a_sti_mid.items()
+        )
+        subtitle += (
+            f"  [a_sti_mid σ={primary.a_sti_mid_sigma:.4g}: {values}]"
+        )
+    elif primary.a_sti_mid:
         values = ", ".join(
             f"{mid}={value:.4g}" for mid, value in primary.a_sti_mid.items()
         )
