@@ -256,11 +256,6 @@ def forward_v(session, params, i_sti, *, pack=None):
     sti_delta, sti_pulse = pack_stimulus_delta(i_sti, params, pack)
 
     def drive_at(t):
-        gaussian_drive = mbar_gaussian_drive(
-            params, pack, t=int(t), like=i_sti, base_drive=i_sti[:, int(t)],
-        )
-        if gaussian_drive is not None:
-            return gaussian_drive
         drive = i_sti[:, int(t)]
         if sti_delta is not None:
             pulse_t = (
@@ -268,7 +263,7 @@ def forward_v(session, params, i_sti, *, pack=None):
                 if sti_pulse.dim() == 1 else sti_pulse[:, int(t), None]
             )
             drive = drive + sti_delta * pulse_t
-        return drive
+        return _mbar_gaussian_overlay(drive, params, pack, t=int(t))
 
     pre_i_sti = drive_at(0).unsqueeze(1)
     if session.model == "hp_lp":

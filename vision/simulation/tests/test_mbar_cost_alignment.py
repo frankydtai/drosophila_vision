@@ -13,7 +13,7 @@ if SIMULATION_ROOT not in sys.path:
     sys.path.insert(0, SIMULATION_ROOT)
 
 import import_bootstrap  # noqa: E402,F401
-from neuron.forward import mbar_gaussian_drive, pack_t_onset  # noqa: E402
+from neuron.forward import _mbar_gaussian_overlay, pack_t_onset  # noqa: E402
 from neuron.readout import pack_traces  # noqa: E402
 from task.mbar.gt import fig1_trace_delta  # noqa: E402
 from task.mbar.pack import MbarPack  # noqa: E402
@@ -71,8 +71,6 @@ def test_mbar_gaussian_preserves_drive_outside_bar_support():
     params = {"a_sti_mid": torch.tensor([1.0])}
     raw_drive = torch.tensor([[0.0, 20.0, 0.0]])
 
-    drive = mbar_gaussian_drive(
-        params, pack, t=0, like=raw_drive, base_drive=raw_drive,
-    )
+    drive = _mbar_gaussian_overlay(raw_drive, params, pack, t=0)
 
     torch.testing.assert_close(drive, torch.tensor([[0.0, 40.0, 0.0]]))
