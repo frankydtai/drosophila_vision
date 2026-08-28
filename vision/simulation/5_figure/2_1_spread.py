@@ -25,7 +25,7 @@ from figure.panel import (
     readout_prep_s,
     save_figure,
     traces_with_cost_ts,
-    std_from_traces,
+    sem_from_traces,
     v_th_from_z,
 )
 from figure.plot import session_from_task
@@ -237,7 +237,7 @@ def plot_cell_time(
     mark_sti_on(ax, t_onset, t_sti_end)
     plot_timecourse(
         ax, t, traces,
-        show_std=any(trace.get("std") is not None for trace in traces),
+        show_sem=any(trace.get("sem") is not None for trace in traces),
         v_th=v_th,
         e_leak=e_leak,
         show_ylabel=show_ylabel,
@@ -282,7 +282,7 @@ class TraceReadout:
     n_t: int = 0
     prep_s: float = 0.0
     v_readout_mean_cell: dict = field(default_factory=dict)
-    std: dict = field(default_factory=dict)
+    sem: dict = field(default_factory=dict)
     n_by_cell: dict = field(default_factory=dict)
     v_th_by_cell: dict = field(default_factory=dict)
     e_leak_by_cell: dict = field(default_factory=dict)
@@ -312,9 +312,9 @@ def _spread_gt_readout(readout):
             cell: readout.v_readout_mean_cell[cell] for cell in cells
             if cell in readout.v_readout_mean_cell
         },
-        std={
-            cell: readout.std[cell] for cell in cells
-            if cell in readout.std
+        sem={
+            cell: readout.sem[cell] for cell in cells
+            if cell in readout.sem
         },
         n_by_cell={
             cell: readout.n_by_cell.get(cell) for cell in cells
@@ -350,7 +350,7 @@ def _forward_spread_readout(session, z):
     node_cells = as_numpy(connectome.node_cells)
 
     v_readout_mean_cell = {}
-    std = {}
+    sem = {}
     n_by_cell = {}
     for cell_idx, cell in enumerate(cells):
         mask = node_cells == cell_idx
@@ -358,7 +358,7 @@ def _forward_spread_readout(session, z):
             continue
         node_traces = trace[:, mask].T
         v_readout_mean_cell[cell] = node_traces.mean(axis=0)
-        std[cell] = std_from_traces(node_traces, single_hex=False)
+        sem[cell] = sem_from_traces(node_traces, single_hex=False)
         n_by_cell[cell] = int(mask.sum())
 
     opts = dict((session.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
@@ -382,7 +382,7 @@ def _forward_spread_readout(session, z):
         session=session,
         n_t=n_t,
         v_readout_mean_cell=v_readout_mean_cell,
-        std=std,
+        sem=sem,
         n_by_cell=n_by_cell,
         v_th_by_cell={cell: v_th.get(cell, np.nan) for cell in v_readout_mean_cell},
         e_leak_by_cell={cell: e_leak.get(cell, np.nan) for cell in v_readout_mean_cell},
@@ -449,7 +449,7 @@ def _plot_figure(
                 "contrast": contrast,
                 "v_readout_mean_cell": contrast_readout.v_readout_mean_cell[cell],
                 "gt": gt_trace_affine(contrast_readout, cell, gt_by_cell.get(cell)),
-                "std": contrast_readout.std.get(cell),
+                "sem": contrast_readout.sem.get(cell),
                 "linestyle": contrast_linestyle(contrast),
             })
         return traces

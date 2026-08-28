@@ -24,7 +24,24 @@
   sbar_bright_Mi4_mid+2: 1
   sbar_dark_Mi4_mid+0: 0
 
-    sbar_bright_T4a_mid-1: 1
-  sbar_bright_T4a_mid-2: 1
-  sbar_bright_T4a_mid+1: 1
-  sbar_bright_T4a_mid+2: 1
+
+
+    sbar_bright_Mi1_mid+0: 1
+  sbar_bright_Mi1_mid-1: 1
+  sbar_bright_Mi1_mid-2: 1
+  sbar_bright_Mi1_mid+1: 1
+  sbar_bright_Mi1_mid+2: 1
+  sbar_bright_Mi1_mid-0.5: 1
+  sbar_bright_Mi1_mid+0.5: 1
+  sbar_bright_Mi1_mid-1.5: 1
+  sbar_bright_Mi1_mid+1.5: 1
+  sbar_bright_Mi4_mid+0: 1
+  sbar_bright_Mi4_mid-0.5: 1
+  sbar_bright_Mi4_mid+0.5: 1
+  sbar_bright_Mi4_mid-1.5: 1
+  sbar_bright_Mi4_mid+1.5: 1
+  sbar_bright_Mi4_mid-1: 1
+  sbar_bright_Mi4_mid+1: 1
+  sbar_bright_Mi4_mid-2: 1
+  sbar_bright_Mi4_mid+2: 1
+  sbar_bright_T4a_mid+0: 1

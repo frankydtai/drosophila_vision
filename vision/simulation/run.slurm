@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=run
 #SBATCH --account=punim0477
-#SBATCH --partition=gpu-a100-mig
+#SBATCH --partition=gpu-a100-mig 
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
@@ -39,4 +39,5 @@ pprint(params, sort_dicts=False, width=120)
 PY
 echo "==== end config ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py n_iter=200 tasks=[spread,sbar] 
+"${PYTHON}" -u run_init_from.py n_iter=100 tasks=[mbar] figure_tasks=[mbar]
+

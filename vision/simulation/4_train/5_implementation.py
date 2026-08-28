@@ -636,6 +636,7 @@ def build_session(
     contrasts=None,
     part_cost_scales=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+    cost_entry_reduce=TRAIN_OPTIMIZATION['cost_entry_reduce'],
     cost_ms=None,
     cost_radius=None,
     i_sti=None,
@@ -680,6 +681,7 @@ def build_session(
             contrasts=contrasts,
             part_cost_scales=part_cost_scales,
             cost_norm=str(cost_norm),
+            cost_entry_reduce=str(cost_entry_reduce),
             cost_ms=cost_ms,
             sequential=sequential,
             cost_radius=cost_radius,
@@ -703,6 +705,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
                  network=NETWORK_PATH['network'], sequential=TRAIN_SESSION['sequential'],
                  tasks=None, contrasts=None, part_cost_scales=None,
                  cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+                 cost_entry_reduce=TRAIN_OPTIMIZATION['cost_entry_reduce'],
                  cost_ms=None,
                  cost_radius=None,
                  i_sti=None,
@@ -733,6 +736,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
         contrasts=contrasts,
         part_cost_scales=part_cost_scales,
         cost_norm=cost_norm,
+        cost_entry_reduce=cost_entry_reduce,
         cost_ms=cost_ms,
         cost_radius=cost_radius,
         i_sti=i_sti,
@@ -759,6 +763,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
     syn_mode = (session.train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode'])
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"pre_steady={session.pre_steady}, "
+          f"cost_entry_reduce={(session.train_opts or {}).get('cost_entry_reduce')}, "
           f"n_run={n_run}, n_iter={n_iter}, "
           f"lrs={lrs}, n_z={train.schema_n_z(train.schema_copy(session.schema))}, fname={fname}")
     if checkpoint_interval is not None:

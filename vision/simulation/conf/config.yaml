@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 29677084-run_init_from-n_iter-100-tasks-sbar-params.a_gt.mode-frozen-params.bias_gt.mode-frozen-params.a_in.mode-frozen-params.a_out.mode-frozen-params.e_leak.mode-frozen-params.v_th.mode-frozen-params.tau_lp.mode-frozen-params.tau_hp_rise.mode-frozen-par
+ 29677691-run-n_iter-500-tasks-sbar
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -38,12 +38,12 @@ params:
     lo: 0.1
     hi: 10.0
     init: 1.0
-    inits: {"Tm3:T4a": 0.0, "Mi4:T4a": 0.0, "Mi9:T4a": 0.0, "T4a:T4a": 0.0, "T4b:T4a": 0.0, "Tm2:T4a": 0.0, "T5a:T4a": 0.0, "C3:T4a": 0.0, "Mi10:T4a": 0.0, "TmY15:T4a": 0.0}
+    #inits: {"Tm3:T4a": 0.0, "Mi4:T4a": 0.0, "Mi9:T4a": 0.0, "T4a:T4a": 0.0, "T4b:T4a": 0.0, "Tm2:T4a": 0.0, "T5a:T4a": 0.0, "C3:T4a": 0.0, "Mi10:T4a": 0.0, "TmY15:T4a": 0.0}
     jit: 0.1
     mode: "indi"
     modes:
       indi: ["Mi4:T4b", "Mi4:T4c", "Mi4:T4d", "Mi9:T4b", "Mi9:T4c", "Mi9:T4d"]
-      fixed: ["Tm3:T4a", "Mi4:T4a", "Mi9:T4a", "T4a:T4a", "T4b:T4a", "Tm2:T4a", "T5a:T4a", "C3:T4a", "Mi10:T4a", "TmY15:T4a"]
+      #fixed: ["Tm3:T4a", "Mi4:T4a", "Mi9:T4a", "T4a:T4a", "T4b:T4a", "Tm2:T4a", "T5a:T4a", "C3:T4a", "Mi10:T4a", "TmY15:T4a"]
   syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   a_in: {lo: 0.01, hi: 100.0, init: 1.0, jit: 0.1, mode: "shared"}
   a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
@@ -97,7 +97,7 @@ i_sti:
   bright: 40.0
   dark: 0.0
 contrasts: [bright, dark]
-ms_pre: 20.0
+ms_pre: 300.0
 ms_sti: 160.0
 ms_response: 600.0
 ms_post: 0.0
@@ -134,7 +134,7 @@ bar_dist: 4
 shift_mid: 0
 a_sti_mids: [0.5, 1, 1.5, 2]
 bar_ws_deg: [2.25, 9.0]
-bar_directions: [right, left, up, down]
+bar_directions: [right]
 
 # ---------------------------------------------------------------------------
 # 4.2   train.session
@@ -142,7 +142,8 @@ bar_directions: [right, left, up, down]
 tasks: [spread,sbar]
 gt_by_task:
   spread: [L1, L2, L3, L4, L5, Mi9, Tm3]
-  sbar: [Mi1,Mi4,T4a]
+  sbar: [T4a,T4b,T4c,T4d]
+  mbar: [T4a]
 cost_radius: null
 
 # ---------------------------------------------------------------------------
@@ -169,27 +170,17 @@ val_from:
 # sbar: only mid=0; |mid| 0.5–2 scale 0 via task default.
 part_cost_scales:
   spread: 1
-  sbar: 0
-  sbar_bright_Mi1_mid+0: 1
-  sbar_bright_Mi1_mid-1: 1
-  sbar_bright_Mi1_mid-2: 1
-  sbar_bright_Mi1_mid+1: 1
-  sbar_bright_Mi1_mid+2: 1
-  sbar_bright_Mi1_mid-0.5: 1
-  sbar_bright_Mi1_mid+0.5: 1
-  sbar_bright_Mi1_mid-1.5: 1
-  sbar_bright_Mi1_mid+1.5: 1
-  sbar_bright_Mi4_mid+0: 1
-  sbar_bright_Mi4_mid-0.5: 1
-  sbar_bright_Mi4_mid+0.5: 1
-  sbar_bright_Mi4_mid-1.5: 1
-  sbar_bright_Mi4_mid+1.5: 1
-  sbar_bright_Mi4_mid-1: 1
-  sbar_bright_Mi4_mid+1: 1
-  sbar_bright_Mi4_mid-2: 1
-  sbar_bright_Mi4_mid+2: 1
+  sbar: 1
   sbar_bright_T4a_mid+0: 1
+  sbar_bright_T4a_mid-1: 1
+  sbar_bright_T4a_mid-2: 1
+  sbar_bright_T4a_mid+1: 1
+  sbar_bright_T4a_mid+2: 1
 cost_norm: "a_gt2"
+# Reduce cost entries within each fine part before comparing with GT.
+# ``mean_trace``: weighted mean trace vs weighted mean GT (default for new runs).
+# ``entry_sse``: legacy behavior, compare every entry trace with GT separately.
+cost_entry_reduce: "mean_trace"
 # cost_ms: post-onset cost sample times (spread + spot; same for every radius).
 #   null — full post-onset window (no sparse cost_ts)
 #   interval — scalar ms step: cost_ms: 10.0  → 0, 10, 20, … ms until ms_response

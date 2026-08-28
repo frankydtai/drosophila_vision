@@ -14,7 +14,7 @@ import train
 
 GT_COLOR = 'gray'
 V_READOUT_COLOR = 'red'
-STD_COLOR = 'pink'
+SEM_COLOR = 'pink'
 TRACE_LINE_W = 1.5
 N_COL_GT = 5
 N_COL_ALL = 8
@@ -105,7 +105,7 @@ def mark_sti_on(ax, t_onset, t_sti_end):
 
 
 def is_single_hex_cost(session, task=None, contrast=None):
-    """True when cost uses a single hex (no hexes STD band)."""
+    """True when cost uses a single hex (no hexes SEM band)."""
     return getattr(
         session.primary_pack if task is None and contrast is None
         else session.packs[task][contrast],
@@ -130,11 +130,12 @@ def pack_center_mask(pack, connectome):
     return np.ones(entry_nodes.shape[0], dtype=bool)
 
 
-def std_from_traces(traces, single_hex=False):
-    """Per-time STD across cost entries; zero when single-hex cost or one entry."""
-    if single_hex or traces.shape[0] == 1:
+def sem_from_traces(traces, single_hex=False):
+    """Per-time SEM across cost entries; zero when single-hex cost or one entry."""
+    n = traces.shape[0]
+    if single_hex or n <= 1:
         return np.zeros(traces.shape[1], dtype=np.float64)
-    return traces.std(axis=0)
+    return traces.std(axis=0, ddof=1) / np.sqrt(n)
 
 
 def v_th_from_z(z, session):
@@ -295,21 +296,21 @@ def at_xy_reds(n_label):
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n_label + 1)]
 
 
-def plot_std_band(ax, t, v_readout, std, *, color=None, alpha=None, label=r'$\pm$STD'):
-    """Shaded ±STD for continuous line traces."""
-    if std is None or not np.any(std):
+def plot_sem_band(ax, t, v_readout, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
+    """Shaded ±SEM for continuous line traces."""
+    if sem is None or not np.any(sem):
         return
     t = np.asarray(t)
     v_readout = np.asarray(v_readout, dtype=np.float64)
-    std = np.asarray(std, dtype=np.float64)
-    mask = np.isfinite(v_readout) & np.isfinite(std)
+    sem = np.asarray(sem, dtype=np.float64)
+    mask = np.isfinite(v_readout) & np.isfinite(sem)
     if not np.any(mask):
         return
     ax.fill_between(
         t[mask],
-        v_readout[mask] - std[mask],
-        v_readout[mask] + std[mask],
-        color=STD_COLOR if color is None else color,
+        v_readout[mask] - sem[mask],
+        v_readout[mask] + sem[mask],
+        color=SEM_COLOR if color is None else color,
         alpha=0.3 if alpha is None else alpha,
         linewidth=0,
         label=label,
@@ -401,7 +402,7 @@ def plot_timecourse(
     t,
     traces,
     *,
-    show_std=True,
+    show_sem=True,
     title=None,
     title_fontsize=7,
     v_th=None,
@@ -417,7 +418,7 @@ def plot_timecourse(
 
     ``traces``: sequence of dicts with keys ``v_readout_mean_cell`` /
     ``v_readout_mean_cell_mean_radius`` / ``ca_mean_cell``, ``gt``, optional
-    ``std``, ``linestyle`` (default ``'-'``), ``ts``.
+    ``sem``, ``linestyle`` (default ``'-'``), ``ts``.
     When ``ts`` is set, gray gt is drawn as open dots at those samples
     (still never draws ``[0, gt_from_t)`` via line); otherwise gt is a solid
     line from ``gt_from_t``. Red v_readout is dashed before ``t_onset`` and
@@ -435,7 +436,7 @@ def plot_timecourse(
         if v_readout is None:
             v_readout = trace.get("ca_mean_cell")
         gt = trace.get("gt")
-        std = trace.get("std")
+        sem = trace.get("sem")
         linestyle = trace.get("linestyle", "-")
         cost_ts = trace.get("ts")
         if cost_ts is not None:
@@ -458,8 +459,8 @@ def plot_timecourse(
                     color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LINE_W,
                 )
         if v_readout is not None:
-            if show_std and std is not None:
-                plot_std_band(ax, t, v_readout, std)
+            if show_sem and sem is not None:
+                plot_sem_band(ax, t, v_readout, sem)
             plot_trace(
                 ax, t, v_readout, t_onset=t_onset,
                 color=V_READOUT_COLOR, linestyle=linestyle, linewidth=TRACE_LINE_W,
@@ -601,7 +602,7 @@ def _save_interactive_html(fig, path):
                 layer='below',
             ))
 
-        # STD fill_between etc. before line traces (same stacking as PNG).
+        # SEM fill_between etc. before line traces (same stacking as PNG).
         for collection in ax.collections:
             if not isinstance(collection, PolyCollection):
                 continue

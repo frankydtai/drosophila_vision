@@ -39,8 +39,10 @@ import train
 from neuron.readout import pack_traces
 from task.spread.sti_spec import CONTRASTS
 from train.cost import (
+    COST_ENTRY_REDUCTIONS,
     COST_NORMS,
     _parts_from_entries,
+    _session_cost_entry_reduce,
     _session_cost_norm,
     _scaled_mse_terms,
     calc_cost_parts,
@@ -87,10 +89,21 @@ def override_cost_norm(session, cost_norm: str | None):
     return replace(session, train_opts=opts), cost_norm
 
 
+def override_cost_entry_reduce(session, reduction: str | None):
+    """Return a session with an optional entry-reduction override."""
+    if reduction is None:
+        return session, _session_cost_entry_reduce(session)
+    opts = dict(session.train_opts or {})
+    opts["cost_entry_reduce"] = str(reduction)
+    session = replace(session, train_opts=opts)
+    return session, _session_cost_entry_reduce(session)
+
+
 def cost_part(session, z, part_key: str) -> dict:
     """Build per-part tensors using the same forward + grouping as train cost."""
     params = params_from_z(z, session)
     cost_norm = _session_cost_norm(session)
+    cost_entry_reduce = _session_cost_entry_reduce(session)
     task, contrast = _task_contrast_from_part_key(part_key)
     pack = session.packs[task][contrast]
     trace = forward_pack(session, params, pack.i_sti, pack)
@@ -125,16 +138,40 @@ def cost_part(session, z, part_key: str) -> dict:
         a_gt_part, bias_gt_part, gts[entries], cost_scales_part,
         v_readout[entries], time_mask=mask_r,
     )
-    sse = sse_wt.sum(dim=0)
-    power_t = power_wt.sum(dim=0)
     n = int(entries.numel())
-    n_t = int(sse.numel())
     w_sum = float(cost_scales_part.sum().item())
     if w_sum <= 0:
         raise SystemExit(f"part {part_key!r} has zero scale sum")
     a0 = float(a_gt_part[0].item())
     b0 = float(bias_gt_part[0].item())
     a2 = max(a0 * a0, float(torch.finfo(a_gt_part.dtype).tiny))
+    if cost_entry_reduce == "mean_trace":
+        cost_scales_2d = cost_scales_2d.expand(-1, v_readout.shape[1])
+        weight_t = cost_scales_2d.sum(dim=0)
+        safe_weight_t = weight_t.clamp(min=torch.finfo(weight_t.dtype).tiny)
+        gt_aff = gt_scaled + bias_gt_part[:, None]
+        gt_aff_mean = (cost_scales_2d * gt_aff).sum(dim=0) / safe_weight_t
+        v_readout_mean = (
+            cost_scales_2d * v_readout[entries]
+        ).sum(dim=0) / safe_weight_t
+        gt_scaled_mean = (
+            cost_scales_2d * gt_scaled
+        ).sum(dim=0) / safe_weight_t
+        sse = weight_t * (v_readout_mean - gt_aff_mean) ** 2
+        power_t = weight_t * gt_scaled_mean ** 2
+        a_gt2_t = (
+            cost_scales_2d * (a_gt_part[:, None] ** 2)
+        ).sum(dim=0) / safe_weight_t
+    else:
+        sse = sse_wt.sum(dim=0)
+        power_t = power_wt.sum(dim=0)
+        gt_aff = gt_scaled + bias_gt_part[:, None]
+        gt_aff_mean = (cost_scales_2d * gt_aff).sum(dim=0) / w_sum
+        v_readout_mean = (
+            cost_scales_2d * v_readout[entries]
+        ).sum(dim=0) / w_sum
+        a_gt2_t = torch.full_like(sse, a2)
+    n_t = int(sse.numel())
     sse_sum = float(sse.sum().item())
     power_sum = float(power_t.sum().item())
 
@@ -146,26 +183,33 @@ def cost_part(session, z, part_key: str) -> dict:
         raise SystemExit(f"part {part_key!r} has zero cost scale")
     cost = float(official[part_key].item())
 
-    # Per-t display (/ w_sum); scalar ``cost`` is from ``_parts_from_entries``.
+    # Per-t display; scalar ``cost`` is from ``_parts_from_entries``.
     if cost_norm == "gt_power":
         cost_mean = torch.where(
             power_t > 0,
-            100.0 * sse / power_t / w_sum,
+            100.0 * sse / power_t / (
+                1.0 if cost_entry_reduce == "mean_trace" else w_sum
+            ),
             torch.full_like(sse, float("nan")),
         )
         denom_t = power_t
         denom = "POWER"
     elif cost_norm == "a_gt2":
-        cost_mean = sse / a2 / w_sum
-        denom_t = torch.full_like(sse, a2)
+        cost_mean = (
+            sse / a_gt2_t
+            if cost_entry_reduce == "mean_trace" else
+            sse / a2 / w_sum
+        )
+        denom_t = a_gt2_t
         denom = "a_gt2"
     else:
         raise SystemExit(f"unsupported cost_norm {cost_norm!r}")
 
-    gt_aff = gt_scaled + bias_gt_part[:, None]
-    gt_aff_mean = (cost_scales_2d * gt_aff).sum(dim=0) / w_sum
-    v_readout_mean = (cost_scales_2d * v_readout[entries]).sum(dim=0) / w_sum
-    sse_mean = sse / w_sum
+    sse_mean = (
+        (v_readout_mean - gt_aff_mean) ** 2
+        if cost_entry_reduce == "mean_trace" else
+        sse / w_sum
+    )
 
     # ``t_cost`` / ``ms_cost``: post-onset cost samples. Bare ``t`` / ``ms``: absolute.
     delta_ms = float(session.delta_ms)
@@ -199,6 +243,7 @@ def cost_part(session, z, part_key: str) -> dict:
         "part_key": part_key,
         "task": task,
         "cost_norm": cost_norm,
+        "cost_entry_reduce": cost_entry_reduce,
         "n": n,
         "w_sum": w_sum,
         "n_t": n_t,
@@ -227,6 +272,7 @@ def cost_part(session, z, part_key: str) -> dict:
 def _print_summary(info: dict) -> None:
     print(
         f"part={info['part_key']}  cost_norm={info['cost_norm']}  "
+        f"entry_reduce={info['cost_entry_reduce']}  "
         f"N={info['n']}  n_t={info['n_t']}  "
         f"a_gt={info['a_gt']:.10f}  bias_gt={info['bias_gt']:.10f}",
         flush=True,
@@ -284,7 +330,7 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
                 "cost_mean", "gt_aff_mean", "v_readout_mean",
                 "SSE_mean", denom,
                 f"{denom}_avg" if denom == "POWER" else denom,
-                "cost_norm", "part",
+                "cost_norm", "cost_entry_reduce", "part",
             ],
         )
         for j in range(info["n_t"]):
@@ -301,7 +347,7 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
                     f"{info['v_readout_mean'][j]:.10e}",
                     f"{sse_mean:.10f}", f"{den:.10f}",
                     f"{den_avg:.10f}",
-                    info["cost_norm"], info["part_key"],
+                    info["cost_norm"], info["cost_entry_reduce"], info["part_key"],
                 ],
             )
     print(f"wrote {path}", flush=True)
@@ -309,7 +355,12 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
 
 def _print_parts(session, z) -> None:
     parts = calc_cost_parts(z, session)
-    print(f"cost_norm={_session_cost_norm(session)}  n_part={len(parts)}", flush=True)
+    print(
+        f"cost_norm={_session_cost_norm(session)}  "
+        f"entry_reduce={_session_cost_entry_reduce(session)}  "
+        f"n_part={len(parts)}",
+        flush=True,
+    )
     for k in sorted(parts):
         print(f"  {k}={float(parts[k].item()):.6f}", flush=True)
 
@@ -351,6 +402,12 @@ def main(argv=None) -> None:
         help="set train_opts.cost_norm (default: keep run)",
     )
     ap.add_argument(
+        "--entry-reduce",
+        default=None,
+        choices=list(COST_ENTRY_REDUCTIONS),
+        help="set cost entry reduction (default: keep run)",
+    )
+    ap.add_argument(
         "--stride",
         type=int,
         default=1,
@@ -377,7 +434,12 @@ def main(argv=None) -> None:
     run_dir = plot.resolve_run_dir(args.run)
     session, z, best_cost = plot.load_best(run_dir, verbose=True)
     session, cost_norm = override_cost_norm(session, args.cost_norm)
-    print(f"cost_norm={cost_norm}  saved_total={best_cost:.6f}", flush=True)
+    session, reduction = override_cost_entry_reduce(session, args.entry_reduce)
+    print(
+        f"cost_norm={cost_norm}  entry_reduce={reduction}  "
+        f"saved_total={best_cost:.6f}",
+        flush=True,
+    )
 
     if args.print_parts and args.part is None and args.cell is None:
         _print_parts(session, z)

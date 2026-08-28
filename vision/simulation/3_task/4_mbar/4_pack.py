@@ -90,8 +90,8 @@ class MbarPack:
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
 
 
-def cell_part_key(contrast: str, cell: str, pd_nd_label: str) -> str:
-    return f"mbar_{contrast}_{cell}_{pd_nd_label}"
+def cell_part_key(spec_token: str, cell: str, pd_nd_label: str) -> str:
+    return f"mbar_{spec_token}_{cell}_{pd_nd_label}"
 
 
 def _mbar_cost_part_plot_specs(
@@ -117,11 +117,17 @@ def _mbar_cost_part_plot_specs(
             continue
         pd_nd_label = PD_ND_LABELS[int(pd_nd[entry])]
         cell = str(cells[int(node_cells_np[entry])])
+        suffix = f"_{cell}_{pd_nd_label}"
+        spec_token = (
+            part_key[5:-len(suffix)]
+            if part_key.startswith("mbar_") and part_key.endswith(suffix)
+            else part_key
+        )
         specs[part_key] = CostPartPlotSpec(
             part_key,
             cell,
             ("mbar_pd_nd", pd_nd_label),
-            f"{pd_nd_label} ({contrast})" if contrast else pd_nd_label,
+            f"{spec_token} @{pd_nd_label}",
         )
     return specs
 
@@ -134,7 +140,10 @@ def nodes_from_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
         raise ValueError(f"unknown cell {cell!r}; known: {list(connectome.cells)}")
     cell_idx = int(connectome.cells.index(cell))
     node_us, node_vs = node_us_vs(connectome)
-    cell_idxs = np.array(connectome.node_cells, dtype=np.int64)
+    node_cell_idxs = connectome.node_cells
+    if torch.is_tensor(node_cell_idxs):
+        node_cell_idxs = node_cell_idxs.detach().cpu().numpy()
+    cell_idxs = np.asarray(node_cell_idxs, dtype=np.int64)
     uv_span = int(max(np.max(np.abs(node_us)), np.max(np.abs(node_vs)), 1)) + 1
     return np.where(
         (cell_idxs == cell_idx)
@@ -230,7 +239,7 @@ def _assemble_mbar_readouts(
                         entry_cost_t0s.append(t0)
                         entry_cost_pd_nds.append(pd_nd_idx)
                         entry_part_keys.append(
-                            cell_part_key(spec.contrast, cell, PD_ND_LABELS[pd_nd_idx])
+                            cell_part_key(spec.token, cell, PD_ND_LABELS[pd_nd_idx])
                         )
     return (
         entry_bs, entry_nodes, entry_gts, entry_cost_scales,
@@ -387,6 +396,15 @@ def bar_specs_from_task(session, task, contrast) -> List[MbarSpec]:
     ))
 
 
+def mbar_sti_t_onset(session) -> int:
+    """Moving-bar stimulus onset (``ms_pre``), not ``pack_t_onset`` cost window."""
+    mbar_sti_opts = (session.train_opts or {}).get("mbar_sti_opts") or {}
+    return t_from_ms(
+        float(mbar_sti_opts["ms_pre"]),
+        delta_ms=float(mbar_sti_opts["delta_ms_pre"]),
+    )
+
+
 def mbar_session_t0_grids(
     session,
     specs: Sequence[MbarSpec],
@@ -395,7 +413,6 @@ def mbar_session_t0_grids(
     *,
     at_x=None,
     at_y=None,
-    t_onset: int = None,
     delta_ms: float,
 ) -> MbarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
@@ -420,7 +437,8 @@ def mbar_session_t0_grids(
         )
     mbar_sti_opts = (session.train_opts or {}).get("mbar_sti_opts") or {}
     sti = build_mbar_signals(
-        connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
+        connectome, specs=specs, n_t=n_t,
+        t_onset=mbar_sti_t_onset(session), delta_ms=delta_ms,
         bar_dist=int(mbar_sti_opts["bar_dist"]),
         multi_bar=bool(mbar_sti_opts["multi_bar"]),
         i_baseline=i_baseline,

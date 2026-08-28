@@ -702,7 +702,7 @@ def plot_trained_run(
         session=session,
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
-        save_data=not param_vals,
+        save_data=True,
         calc_cost=calc_cost,
         **figure_kwargs,
     )

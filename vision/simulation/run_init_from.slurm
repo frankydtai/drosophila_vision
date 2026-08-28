@@ -40,8 +40,9 @@ PY
 echo "==== end config ===="
 # init_from defaults to RUN_PATH; freeze all schema params except syn_strength_cell Mi4:T4a (indi).
 "${PYTHON}" -u run_init_from.py \
-  n_iter=100 \
-  tasks=[sbar] \
+  n_iter=0 \
+  tasks=[mbar] \
+  figure_tasks=[mbar] \
   params.a_gt.mode=frozen \
   params.bias_gt.mode=frozen \
   params.a_in.mode=frozen \
@@ -56,6 +57,5 @@ echo "==== end config ===="
   params.a_sti_radius.mode=frozen \
   'params.syn_strength_cell.mode=frozen' \
   'params.syn_strength_cell.modes.indi=[Mi4:T4a]' \
-  'params.syn_strength_cell.modes.fixed=[]' \
   '~part_cost_scales' \
   '+part_cost_scales={sbar:0,sbar_bright_T4a_mid+0:1,sbar_bright_T4a_mid-1:1,sbar_bright_T4a_mid-2:1,sbar_bright_T4a_mid+1:1,sbar_bright_T4a_mid+2:1}'

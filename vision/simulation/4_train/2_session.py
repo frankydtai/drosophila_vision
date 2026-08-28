@@ -210,6 +210,7 @@ def resolve_train_opts(
     cost_radius=None,
     i_sti=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+    cost_entry_reduce=TRAIN_OPTIMIZATION['cost_entry_reduce'],
     cost_ms=None,
     mbar_sti_opts=None,
     sbar_sti_opts=None,
@@ -282,6 +283,7 @@ def resolve_train_opts(
             ).items()
         },
         "cost_norm": cost_norm,
+        "cost_entry_reduce": cost_entry_reduce,
         "cost_ms": copy.deepcopy(
             cost_ms if cost_ms is not None else TRAIN_OPTIMIZATION['cost_ms']
         ),
@@ -345,6 +347,9 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
             for part_key, scale in (opts.get("part_cost_scales") or {}).items()
         },
         "cost_norm": opts.get("cost_norm", TRAIN_OPTIMIZATION['cost_norm']),
+        "cost_entry_reduce": opts.get(
+            "cost_entry_reduce", TRAIN_OPTIMIZATION['cost_entry_reduce'],
+        ),
         "cost_ms": _cost_ms_sidecar(
             opts.get("cost_ms", TRAIN_OPTIMIZATION['cost_ms'])
         ),
@@ -592,6 +597,8 @@ def _sti_delta_ms(opts: dict) -> tuple[float, float]:
 def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
     """Restore a session from a saved ``train_opts.json`` dict."""
     opts = dict(opts)
+    # Runs written before mean-trace reduction must retain their saved objective.
+    opts.setdefault("cost_entry_reduce", "entry_sse")
     opts.pop("backend", None)
     if model is None:
         model = opts.get("model")

@@ -25,6 +25,11 @@ Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 **within each part**. The train total averages those part costs (equal
 scale per cell×radius unless ``part_cost_scales`` says otherwise).
 
+Entry reduction is selected by ``cost_entry_reduce``.  ``mean_trace`` first
+takes the weighted mean of model and target traces inside each fine part
+(``entry_part_keys``), then compares those two means.  ``entry_sse`` is the
+legacy behavior that compares every entry separately before summing.
+
 Sparse cost time points (#4): ``pack.gts`` keeps the ``ms_response`` window length
 (task-specific ``ms_post`` handling lives in each pack) and the subsample is gathered from both v_readout
 trace and gt at cost time via ``pack.cost_ts`` (from ``cost_ms``: interval
@@ -63,6 +68,7 @@ from task.spread.pack import CostPartPlotSpec
 
 
 COST_NORMS = ("gt_power", "a_gt2")
+COST_ENTRY_REDUCTIONS = ("entry_sse", "mean_trace")
 
 
 @dataclass(frozen=True)
@@ -182,6 +188,19 @@ def _session_cost_norm(session: TrainSession) -> str:
     )
 
 
+def _session_cost_entry_reduce(session: TrainSession) -> str:
+    """Entry reduction from saved train opts (legacy runs default to entry SSE)."""
+    reduction = str(
+        (session.train_opts or {}).get("cost_entry_reduce", "entry_sse"),
+    )
+    if reduction not in COST_ENTRY_REDUCTIONS:
+        raise ValueError(
+            f"cost_entry_reduce must be one of {COST_ENTRY_REDUCTIONS}; "
+            f"got {reduction!r}"
+        )
+    return reduction
+
+
 def _scaled_mse_terms(
     a_gt: torch.Tensor,
     bias_gt: torch.Tensor,
@@ -214,6 +233,11 @@ def _parts_from_entries(
     """Local costs for parts via ``part_idxs`` (``part_idxs`` -1 = skip entry)."""
     if not part_keys:
         return {}
+    if _session_cost_entry_reduce(session) == "mean_trace":
+        return _mean_trace_parts_from_entries(
+            a_gt, bias_gt, gts, scale, v_readout, part_idxs, part_keys,
+            session, time_mask=time_mask,
+        )
     cost_norm = _session_cost_norm(session)
     _, _, sse_wt, power_wt = _scaled_mse_terms(
         a_gt, bias_gt, gts, scale, v_readout, time_mask=time_mask,
@@ -241,6 +265,78 @@ def _parts_from_entries(
         if _part_scale(session, part_key) == 0.0:
             continue
         parts[part_key] = costs[part_idx]
+    return parts
+
+
+def _mean_trace_parts_from_entries(
+    a_gt: torch.Tensor,
+    bias_gt: torch.Tensor,
+    gts: torch.Tensor,
+    scale: torch.Tensor,
+    v_readout: torch.Tensor,
+    part_idxs: torch.Tensor,
+    part_keys: List[str],
+    session: TrainSession,
+    time_mask: Optional[torch.Tensor] = None,
+) -> Dict[str, torch.Tensor]:
+    """Compare weighted mean model/target traces within each fine cost part.
+
+    The effective entry-weight sum is retained on the squared error.  This
+    preserves existing part/radius/count weighting while removing only the
+    within-part trace-dispersion penalty.
+    """
+    cost_norm = _session_cost_norm(session)
+    n_t = int(v_readout.shape[1])
+    weights = scale[:, None].expand(-1, n_t)
+    if time_mask is not None:
+        weights = weights * time_mask.to(
+            dtype=weights.dtype, device=weights.device,
+        )
+    gt_scaled = a_gt[:, None] * gts
+    gt_affine = gt_scaled + bias_gt[:, None]
+    tiny = torch.finfo(v_readout.dtype).tiny
+    parts: Dict[str, torch.Tensor] = {}
+
+    for part_idx, part_key in enumerate(part_keys):
+        if _part_scale(session, part_key) == 0.0:
+            continue
+        entries = part_idxs == part_idx
+        part_weights = weights[entries]
+        weight_t = part_weights.sum(dim=0)
+        valid_t = weight_t > 0
+        safe_weight_t = weight_t.clamp(min=tiny)
+
+        mean_v = (part_weights * v_readout[entries]).sum(dim=0) / safe_weight_t
+        mean_gt_scaled = (
+            (part_weights * gt_scaled[entries]).sum(dim=0) / safe_weight_t
+        )
+        mean_gt_affine = (
+            (part_weights * gt_affine[entries]).sum(dim=0) / safe_weight_t
+        )
+        error = mean_v - mean_gt_affine
+
+        if cost_norm == "gt_power":
+            numerator = (weight_t[valid_t] * error[valid_t] ** 2).sum()
+            denominator = (
+                weight_t[valid_t] * mean_gt_scaled[valid_t] ** 2
+            ).sum()
+            denominator = torch.where(
+                denominator > 0, denominator, torch.ones_like(denominator),
+            )
+            cost = 100.0 * numerator / denominator
+        elif cost_norm == "a_gt2":
+            mean_a_gt2 = (
+                part_weights * (a_gt[entries, None] ** 2)
+            ).sum(dim=0) / safe_weight_t
+            cost = (
+                weight_t[valid_t] * error[valid_t] ** 2
+                / mean_a_gt2[valid_t].clamp(min=tiny)
+            ).sum()
+        else:
+            raise ValueError(
+                f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}"
+            )
+        parts[part_key] = cost
     return parts
 
 
@@ -634,9 +730,62 @@ def _pack_cost_parts_from_params(params, pack: TaskPack, session: TrainSession, 
     )
 
 
+def _pack_parts_span_bs(pack: TaskPack) -> bool:
+    """True when any fine part has cost entries from more than one stimulus ``b``."""
+    if not pack.entry_part_keys:
+        return False
+    part_idxs, _ = entries_by_part(pack)
+    if part_idxs.numel() == 0:
+        return False
+    entry_bs = pack.entry_bs
+    for part_idx in range(int(part_idxs.max().item()) + 1):
+        mask = part_idxs == part_idx
+        if not mask.any():
+            continue
+        if len(torch.unique(entry_bs[mask])) > 1:
+            return True
+    return False
+
+
+def _session_parts_span_bs(session: TrainSession) -> bool:
+    for pack in session.iter_packs():
+        if not _pack_has_active_cost(pack, session):
+            continue
+        active_bs = _pack_active_bs(pack, session)
+        if not active_bs:
+            continue
+        active_pack = _active_cost_pack(pack, session, bs=active_bs)
+        if active_pack is not None and _pack_parts_span_bs(active_pack):
+            return True
+    return False
+
+
 def _calc_unscaled_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     """Internal per-part cost before ``part_cost_scales`` and mean normalization."""
     params = params_from_z(z, session)
+    # mean_trace over a part that spans multiple stimulus batches must see every
+    # active b before reducing; otherwise per-b sequential reduction is equivalent.
+    if (
+        session.sequential
+        and _session_cost_entry_reduce(session) == "mean_trace"
+        and _session_parts_span_bs(session)
+    ):
+        parts: Dict[str, torch.Tensor] = {}
+        for pack in session.iter_packs():
+            if not _pack_has_active_cost(pack, session):
+                continue
+            active_bs = _pack_active_bs(pack, session)
+            if not active_bs:
+                continue
+            active_pack = _active_cost_pack(pack, session, bs=active_bs)
+            if active_pack is None:
+                continue
+            for part_key, part in _pack_cost_parts_from_params(
+                params, active_pack, session, b=None,
+            ).items():
+                if _part_scale(session, part_key) != 0.0:
+                    parts[part_key] = part
+        return parts
     active_packs = _build_active_packs(session)
     fused_packs = _build_fused_packs(session, active_packs)
     if fused_packs:
@@ -778,6 +927,37 @@ def backward_part_sums(z, session: TrainSession):
     ``calc_cost`` (``Σ W·cost / Σ W``). Returned ``part_sums`` are weighted
     mean contributions and therefore sum to ``total``.
     """
+    if _session_cost_entry_reduce(session) == "mean_trace":
+        if _session_parts_span_bs(session):
+            parts = calc_cost_parts(z, session)
+            total = _scaled_cost_from_parts(parts, session)
+            total.backward()
+            part_sums = {key: float(part.item()) for key, part in parts.items()}
+            return float(total.item()), part_sums
+
+        part_sums: Dict[str, float] = {}
+        zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
+        scale_norm = _session_part_scale_sum(session)
+        if scale_norm == 0.0:
+            return 0.0, {}
+        for pack, b in _iter_cost_bs(session):
+            params = params_from_z(z, session)
+            scaled_cost = zero
+            has_cost = False
+            for part_key, part in _pack_cost_parts_from_params(
+                params, pack, session, b=b,
+            ).items():
+                scale = _part_scale(session, part_key)
+                if scale == 0.0:
+                    continue
+                scaled_cost = scaled_cost + (scale / scale_norm) * part
+                has_cost = True
+                contribution = (scale / scale_norm) * float(part.item())
+                part_sums[part_key] = part_sums.get(part_key, 0.0) + contribution
+            if has_cost:
+                scaled_cost.backward()
+        return sum(part_sums.values()), part_sums
+
     part_sums: Dict[str, float] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
     scale_norm = _session_part_scale_sum(session)

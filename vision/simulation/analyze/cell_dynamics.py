@@ -28,7 +28,7 @@ import figure.plot as plot
 from figure.spread import contrast_from_pack
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
 from figure.panel import (
-    plot_std_band,
+    plot_sem_band,
 )
 from figure.plot import filter_figure_token, session_filter_figure_token
 from neuron.filter_ca import filter_ca
@@ -766,23 +766,23 @@ def _component_matrix(component: dict[str, np.ndarray], components: tuple[str, .
     return np.column_stack([component[component_tok] for component_tok in components])
 
 
-def _std_from_sum_and_sum_sq(sum_: float, sum_sq: float, n_node: int) -> float:
-    """Match ``figure.panel.std_from_traces`` (population std)."""
+def _sem_from_sum_and_sum_sq(sum_: float, sum_sq: float, n_node: int) -> float:
+    """Match ``figure.panel.sem_from_traces`` (sample SEM)."""
     if n_node <= 1:
         return 0.0
     mean = sum_ / n_node
-    var = sum_sq / n_node - mean * mean
+    var = (sum_sq - sum_ * sum_ / n_node) / (n_node - 1)
     if var <= 0.0:
         return 0.0
-    return float(np.sqrt(var))
+    return float(np.sqrt(var) / np.sqrt(n_node))
 
 
-def _step_std(
+def _step_sem(
     sums: dict[str, float], sum_sqs: dict[str, float], n_node: int, layout: _ComponentLayout,
 ) -> dict[str, float]:
     return {
         series: (
-            0.0 if component is None else _std_from_sum_and_sum_sq(
+            0.0 if component is None else _sem_from_sum_and_sum_sq(
                 sums[component], sum_sqs[component], n_node,
             )
         )
@@ -815,7 +815,7 @@ def _step_from_sums(
         "v_pre_d": sums["v_pre_d"] / n_node,
         "v_post_minus_pre": v_post_minus_pre_sum / n_node,
         "i_sti": sums["i_sti"] / n_node,
-        "std": _step_std(sums, sum_sqs, n_node, layout),
+        "sem": _step_sem(sums, sum_sqs, n_node, layout),
         "n_node": n_node,
     }
     if layout.model == "borst":
@@ -893,8 +893,8 @@ def _forward_component(
 
     Shared by bar/spot average and bar/spot hex.
     ``v_onset`` matches ``forward_v`` (``v`` at ``t_onset - 1``). Aligned index
-    ``t = t_global - node_t0s``. v_post is mean absolute ``v_abs``; STD uses sum /
-    sum_sqs like ``std_from_traces``. When ``filter=ca``, also track ``v_ca`` /
+    ``t = t_global - node_t0s``. v_post is mean absolute ``v_abs``; SEM uses sum /
+    sum_sqs like ``sem_from_traces``. When ``filter=ca``, also track ``v_ca`` /
     ``ca`` via ``v_ca_from_v`` + ``filter_ca`` (same as ``forward_ca``).
 
     If ``t_start``/``t_stop`` are set (from ``--ms-shown`` via ``t_from_ms``), only
@@ -1467,7 +1467,6 @@ def _bar_meta(session, task: str, contrast: str):
         return specs, None
     grids = mbar_session_t0_grids(
         session, specs, pack.cost_radius, int(session.n_t),
-        t_onset=train.pack_t_onset(pack),
         delta_ms=float(session.delta_ms),
     )
     return specs, grids
@@ -2785,23 +2784,23 @@ def _plot_component_reports(
                 ts = np.asarray([step["t"] for step in rep["steps"]], dtype=int)
                 xs = ts.astype(float) * delta_ms
                 y = np.asarray([step[series] for step in rep["steps"]], dtype=float)
-                std = np.asarray(
+                sem = np.asarray(
                     [
-                        float(step.get("std", {}).get(series, 0.0))
+                        float(step.get("sem", {}).get(series, 0.0))
                         for step in rep["steps"]
                     ],
                     dtype=float,
                 )
                 if row in layout.row_shared_ylim:
                     traces_by_row[row].append(y)
-                    if np.any(std):
-                        traces_by_row[row].append(y + std)
-                        traces_by_row[row].append(y - std)
-                plot_std_band(
-                    ax, xs, y, std,
+                    if np.any(sem):
+                        traces_by_row[row].append(y + sem)
+                        traces_by_row[row].append(y - sem)
+                plot_sem_band(
+                    ax, xs, y, sem,
                     color=color,
                     alpha=0.3,
-                    label="_nolegend_" if multi_report else r"$\pm$STD",
+                    label="_nolegend_" if multi_report else r"$\pm$SEM",
                 )
                 gt_report_key = next(
                     (

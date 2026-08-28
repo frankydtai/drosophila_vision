@@ -46,7 +46,7 @@ _MODEL_KEYS = (
     "h_g_max", "gt_amp", "v_clamp", "a_syn_exc", "a_syn_inh", "euler",
 )
 _TRAIN_OPTIMIZATION_KEYS = (
-    "part_cost_scales", "cost_norm", "cost_ms",
+    "part_cost_scales", "cost_norm", "cost_entry_reduce", "cost_ms",
     "pre_steady", "pre_steady_n_iter", "pre_steady_damp", "n_run",
     "n_iter", "lrs", "checkpoint_interval",
 )
@@ -504,6 +504,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         i_sti=dict(TRAIN_CONFIG["i_sti"]),
         part_cost_scales=part_cost_scales,
         cost_norm=str(TRAIN_OPTIMIZATION["cost_norm"]),
+        cost_entry_reduce=str(TRAIN_OPTIMIZATION["cost_entry_reduce"]),
         cost_ms=cost_ms,
         cost_radius=cost_radius,
         mbar_sti_opts=mbar_sti_opts,
