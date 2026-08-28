@@ -13,7 +13,7 @@ if SIMULATION_ROOT not in sys.path:
     sys.path.insert(0, SIMULATION_ROOT)
 
 import import_bootstrap  # noqa: E402,F401
-from neuron.forward import pack_t_onset  # noqa: E402
+from neuron.forward import mbar_gaussian_drive, pack_t_onset  # noqa: E402
 from neuron.readout import pack_traces  # noqa: E402
 from task.mbar.gt import fig1_trace_delta  # noqa: E402
 from task.mbar.pack import MbarPack  # noqa: E402
@@ -59,3 +59,20 @@ def test_fig1_delta_uses_pre_stimulus_mean():
 
     np.testing.assert_allclose(delta[:150], 0.0)
     np.testing.assert_allclose(delta[150:], [2.0, 4.0])
+
+
+def test_mbar_gaussian_preserves_drive_outside_bar_support():
+    """Gaussian mbar width must not add baseline current outside STI nodes."""
+    pack = SimpleNamespace(
+        bar_axis_distance=torch.tensor([[[float("inf"), 0.0, float("inf")]]]),
+        i_sti_baseline=20.0,
+        i_sti_peak=40.0,
+    )
+    params = {"a_sti_mid": torch.tensor([1.0])}
+    raw_drive = torch.tensor([[0.0, 20.0, 0.0]])
+
+    drive = mbar_gaussian_drive(
+        params, pack, t=0, like=raw_drive, base_drive=raw_drive,
+    )
+
+    torch.testing.assert_close(drive, torch.tensor([[0.0, 40.0, 0.0]]))

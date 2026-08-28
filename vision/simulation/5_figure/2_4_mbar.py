@@ -337,6 +337,19 @@ def _mbar_ca_mean_cell_mean_hex(
     return ca_mean_cell_mean_hex
 
 
+def _mbar_primary_at_xy(*, at_x=None, at_y=None, at_xs=None, at_ys=None):
+    """``at_x``/``at_y`` for a single-locus primary readout; else full hex average."""
+    if at_x is not None or at_y is not None:
+        return at_x, at_y
+    if at_xs is None and at_ys is None:
+        return None, None
+    pairs, _ = expand_at_xy(at_xs, at_ys)
+    if len(pairs) != 1:
+        return None, None
+    _, at_x, at_y = pairs[0]
+    return at_x, at_y
+
+
 def _load_mbar_gt_traces(session, task, contrast, cells, specs, side):
     gt_traces = {}
     row_cells = cells_in_order(pack_cells(session, task, contrast))
@@ -410,8 +423,12 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
     spec_tokens = [spec.token for spec in specs]
     n_t = int(session.n_t)
     connectome = session.connectome
+    forward_at_x, forward_at_y = _mbar_primary_at_xy(
+        at_x=at_x, at_y=at_y, at_xs=at_xs, at_ys=at_ys,
+    )
     traces, cells, side, n_hex, t_onset, single_hex = _traces_from_forward(
         session, task, contrast, trace, specs, spec_tokens,
+        at_x=forward_at_x, at_y=forward_at_y,
     )
     v_th = v_th_from_z(z, session)
     if connectome is not None:
@@ -445,22 +462,24 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
     mean_hex_by_label = None
     labels = None
     if at_xs is not None or at_ys is not None:
-        mean_hex_by_label = {}
-        labels = []
-        for label, at_x, at_y in expand_at_xy(at_xs, at_ys)[0]:
-            ca_mean_cell_mean_hex = _mbar_ca_mean_cell_mean_hex(
-                session, task, contrast, trace, traces, spec_tokens,
-                at_x=at_x, at_y=at_y,
-                align_at_x=align_at_x, align_at_y=align_at_y,
-            )
-            if ca_mean_cell_mean_hex is None:
-                print(f'skip at_xy {label}: no hex within cost_radius')
-                continue
-            mean_hex_by_label[label] = ca_mean_cell_mean_hex
-            labels.append(label)
-        if not mean_hex_by_label:
-            mean_hex_by_label = None
-            labels = None
+        pairs, _ = expand_at_xy(at_xs, at_ys)
+        if len(pairs) > 1:
+            mean_hex_by_label = {}
+            labels = []
+            for label, slice_at_x, slice_at_y in pairs:
+                ca_mean_cell_mean_hex = _mbar_ca_mean_cell_mean_hex(
+                    session, task, contrast, trace, traces, spec_tokens,
+                    at_x=slice_at_x, at_y=slice_at_y,
+                    align_at_x=align_at_x, align_at_y=align_at_y,
+                )
+                if ca_mean_cell_mean_hex is None:
+                    print(f'skip at_xy {label}: no hex within cost_radius')
+                    continue
+                mean_hex_by_label[label] = ca_mean_cell_mean_hex
+                labels.append(label)
+            if not mean_hex_by_label:
+                mean_hex_by_label = None
+                labels = None
     return MbarTraceReadout(
         task=task,
         contrast=contrast,
@@ -709,7 +728,7 @@ def _plot_mbar_cell_at_xy(
 
 
 def _mbar_readout_hexes_label(readout):
-    if readout.at_xs is not None or readout.at_ys is not None:
+    if readout.ca_mean_cell_mean_hex_by_label is not None:
         pack = readout.session.primary_pack
         cost_radius = pack.cost_radius
         _, at_xy_mode = expand_at_xy(readout.at_xs, readout.at_ys)
@@ -724,6 +743,13 @@ def _mbar_readout_hexes_label(readout):
         if cost_radius is not None:
             parts.insert(0, f'cost_radius={cost_radius}')
         return ', '.join(parts)
+    if readout.at_xs is not None or readout.at_ys is not None:
+        _, at_xy_mode = expand_at_xy(readout.at_xs, readout.at_ys)
+        at_x = readout.at_xs if at_xy_mode in ('x', 'xy') else None
+        at_y = readout.at_ys if at_xy_mode in ('y', 'xy') else None
+        return _mbar_hexes_label(
+            readout.session, at_x=at_x, at_y=at_y, n_hex=readout.n_hex,
+        )
     return _mbar_hexes_label(readout.session)
 
 
@@ -853,7 +879,6 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
     paired_readout = readouts[order[1]] if len(order) > 1 else None
     timer = ElapsedTimer(prior_prep=readout_prep_s(*readouts.values()))
     timer.end_prep()
-    single_hex = readout.single_hex
     row_specs = mbar_specs_by_cell(
         readout.session, readout.task, readout.contrast, readout.side,
     )
@@ -877,6 +902,9 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
 
     def _plot_row(row, cell, specs, col_offset, row_readout, side):
         window_traces = row_readout.traces
+        labels = list(row_readout.labels or ())
+        has_at_xy = row_readout.ca_mean_cell_mean_hex_by_label is not None
+        show_sem = not row_readout.single_hex and not has_at_xy
         for col, token in enumerate(specs):
             ax = axes[row, col_offset + col]
             key = (cell, token)
@@ -890,21 +918,61 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
                 cost_parts=cost_parts,
                 cost_contrasts=cost_contrasts,
             )
-            _plot_mbar_cell(
-                ax, window_traces.ca_mean_cell[key], window_traces.ca_sem[key],
-                cell_title, before_t,
-                gt_trace=gt_trace_affine(
-                    row_readout, cell, row_readout.gt_traces.get(key),
-                ),
-                show_ylabel=(col_offset + col == 0), show_sem=not single_hex,
-                mark_cost_window=True,
-                v_th=row_readout.v_th_by_cell.get(cell),
-                e_leak=row_readout.e_leak_by_cell.get(cell),
-                linestyle=_mbar_spec_linestyle(side, cell, token),
-                t_onset=_mbar_t_onset(row_readout, cell, token),
-                delta_ms=row_readout.session.delta_ms,
-                ms_shown=row_readout.ms_shown,
+            gt_trace = gt_trace_affine(
+                row_readout, cell, row_readout.gt_traces.get(key),
             )
+            v_th = row_readout.v_th_by_cell.get(cell)
+            e_leak = row_readout.e_leak_by_cell.get(cell)
+            t_onset = _mbar_t_onset(row_readout, cell, token)
+            delta_ms = row_readout.session.delta_ms
+            ms_shown = row_readout.ms_shown
+            show_ylabel = col_offset + col == 0
+            show_tick_labels = row == n_row - 1
+            if has_at_xy:
+                ca_mean_cell_mean_hex_by_label = {
+                    label: row_readout.ca_mean_cell_mean_hex_by_label[label][key]
+                    for label in labels
+                    if key in row_readout.ca_mean_cell_mean_hex_by_label[label]
+                }
+                if not ca_mean_cell_mean_hex_by_label:
+                    ax.axis('off')
+                    continue
+                plot_labels = [
+                    label for label in labels
+                    if label in ca_mean_cell_mean_hex_by_label
+                ]
+                sem_trace = window_traces.ca_sem.get(key)
+                _plot_mbar_cell_at_xy(
+                    ax, window_traces.ca_mean_cell[key], sem_trace,
+                    ca_mean_cell_mean_hex_by_label, plot_labels,
+                    cell_title, before_t,
+                    gt_trace=gt_trace,
+                    show_ylabel=show_ylabel,
+                    show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
+                    show_legend=(row == 0 and col_offset + col == 0),
+                    mark_cost_window=True,
+                    v_th=v_th,
+                    e_leak=e_leak,
+                    t_onset=t_onset,
+                    delta_ms=delta_ms,
+                    ms_shown=ms_shown,
+                    show_tick_labels=show_tick_labels,
+                )
+            else:
+                _plot_mbar_cell(
+                    ax, window_traces.ca_mean_cell[key], window_traces.ca_sem[key],
+                    cell_title, before_t,
+                    gt_trace=gt_trace,
+                    show_ylabel=show_ylabel, show_sem=show_sem,
+                    show_tick_labels=show_tick_labels,
+                    mark_cost_window=True,
+                    v_th=v_th,
+                    e_leak=e_leak,
+                    linestyle=_mbar_spec_linestyle(side, cell, token),
+                    t_onset=t_onset,
+                    delta_ms=delta_ms,
+                    ms_shown=ms_shown,
+                )
 
     for row, cell in enumerate(gt_cells):
         _plot_row(row, cell, row_specs[cell], 0, readout, readout.side)
@@ -915,7 +983,7 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
         axes[row, 0].set_ylabel(
             cell_ylabel(cell, readout.traces.ca_n), fontsize=8, labelpad=12,
         )
-    hexes_label = _mbar_hexes_label(readout.session)
+    hexes_label = _mbar_readout_hexes_label(readout)
     fig.suptitle(
         title + f'  [{hexes_label}, t_first_sti-aligned trace]',
         fontsize=12,

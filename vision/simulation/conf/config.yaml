@@ -32,7 +32,14 @@ a_lo: 0.1
 a_hi: 10.0
 h_cells: [L1, L2, L4, L5]
 params:
-  a_gt: {lo: 0.5, hi: 2.0, init: 1.0, jit: 0.1, mode: "indi"}
+  a_gt:
+    lo: 0.5
+    hi: 2.0
+    init: 1.0
+    jit: 0.1
+    mode: "indi"
+    modes:
+      fixed: [T4a, T4b, T4c, T4d]
   bias_gt: {lo: -200.0, hi: 200.0, init: 0.0, jit: 1.0, mode: "indi"}
   syn_strength_cell:
     lo: 0.1

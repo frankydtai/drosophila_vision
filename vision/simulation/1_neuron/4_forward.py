@@ -44,6 +44,27 @@ def a_sti_mid_effective(params, pack):
     return torch.exp(-0.5 * (mids / sigma) ** 2)
 
 
+def _mbar_gaussian_overlay(drive, params, pack, *, t: int):
+    """Overlay Gaussian bar drive on sti nodes where ``bar_axis_distance`` is finite."""
+    bar_axis_distance = getattr(pack, "bar_axis_distance", None)
+    if bar_axis_distance is None or "a_sti_mid" not in params:
+        return drive
+    distance = bar_axis_distance[:, int(t)].to(device=drive.device, dtype=drive.dtype)
+    sigma = params["a_sti_mid"].reshape(-1)[0].to(device=drive.device, dtype=drive.dtype)
+    gain = torch.exp(-0.5 * (distance / sigma) ** 2)
+    peak_b = getattr(pack, "i_sti_peak_b", None)
+    base_b = getattr(pack, "i_sti_baseline_b", None)
+    if peak_b is not None and base_b is not None:
+        peak_b = peak_b.to(device=gain.device, dtype=gain.dtype)
+        base_b = base_b.to(device=gain.device, dtype=gain.dtype)
+        gaussian = base_b[:, None] + gain * (peak_b[:, None] - base_b[:, None])
+    else:
+        i_base = drive.new_tensor(float(pack.i_sti_baseline))
+        i_peak = drive.new_tensor(float(pack.i_sti_peak))
+        gaussian = i_base + gain * (i_peak - i_base)
+    return torch.where(torch.isfinite(distance), gaussian, drive)
+
+
 def _indexed_stimulus_delta(
     values, value_idxs, pack, *, n_b: int, n_node: int,
 ):
@@ -130,20 +151,28 @@ def inject_a_sti_radius(i_sti, params, pack):
 
 
 def inject_a_sti_mid(i_sti, params, pack):
-    """Materialize sbar Gaussian surround; simulation uses the step-wise fast path."""
+    """Materialize sbar indexed surround or mbar Gaussian cross-section."""
+    squeeze = i_sti.dim() == 2
+    if squeeze:
+        i_sti = i_sti.unsqueeze(0)
+    bar_axis_distance = getattr(pack, "bar_axis_distance", None)
+    if bar_axis_distance is not None and "a_sti_mid" in params:
+        out = i_sti.clone()
+        for t in range(int(i_sti.shape[1])):
+            out[:, t] = _mbar_gaussian_overlay(i_sti[:, t], params, pack, t=t)
+        return out.squeeze(0) if squeeze else out
     a_sti_mid_idxs = (
         getattr(pack, "a_sti_mid_idxs", None) if pack is not None else None
     )
     if a_sti_mid_idxs is None or "a_sti_mid" not in params:
-        return i_sti
-    if i_sti.dim() == 2:
-        i_sti = i_sti.unsqueeze(0)
+        return i_sti.squeeze(0) if squeeze else i_sti
     n_b, _n_t, n_node = i_sti.shape
     delta = _indexed_stimulus_delta(
         a_sti_mid_effective(params, pack), a_sti_mid_idxs, pack,
         n_b=int(n_b), n_node=int(n_node),
     )
-    return i_sti + _materialize_stimulus_delta(delta, pack.i_sti_pulse)
+    out = i_sti + _materialize_stimulus_delta(delta, pack.i_sti_pulse)
+    return out.squeeze(0) if squeeze else out
 
 
 def pack_t_onset(pack) -> int:
@@ -227,6 +256,11 @@ def forward_v(session, params, i_sti, *, pack=None):
     sti_delta, sti_pulse = pack_stimulus_delta(i_sti, params, pack)
 
     def drive_at(t):
+        gaussian_drive = mbar_gaussian_drive(
+            params, pack, t=int(t), like=i_sti, base_drive=i_sti[:, int(t)],
+        )
+        if gaussian_drive is not None:
+            return gaussian_drive
         drive = i_sti[:, int(t)]
         if sti_delta is not None:
             pulse_t = (

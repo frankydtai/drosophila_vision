@@ -53,7 +53,6 @@ from neuron.forward import (
     pack_t_onset,
 )
 from neuron.readout import (
-    pack_cost_window_t_min,
     pack_traces,
     window_time_traces,
 )
@@ -535,6 +534,13 @@ def _subset_pack_bs(pack: TaskPack, bs: Tuple[int, ...]) -> Optional[TaskPack]:
         )[pack.entry_bs[entry_mask]],
     )
     fields["i_sti"] = pack.i_sti.index_select(0, active_bs)
+    bar_axis_distance = getattr(pack, "bar_axis_distance", None)
+    if bar_axis_distance is not None:
+        fields["bar_axis_distance"] = bar_axis_distance.index_select(0, active_bs)
+    for field in ("i_sti_baseline_b", "i_sti_peak_b"):
+        values = getattr(pack, field, None)
+        if values is not None:
+            fields[field] = values.index_select(0, active_bs)
     sti_bs = getattr(pack, "sti_bs", None)
     if sti_bs is not None and sti_bs.numel():
         sti_mask = torch.isin(sti_bs, active_bs)
@@ -630,6 +636,24 @@ def _fused_forward_pack(fused: FusedPacks) -> TaskPack:
     if len(packs) == 1:
         return first
     fields = {"i_sti": torch.cat([pack.i_sti for pack in packs], dim=0)}
+    if all(getattr(pack, "bar_axis_distance", None) is not None for pack in packs):
+        fields["bar_axis_distance"] = torch.cat(
+            [pack.bar_axis_distance for pack in packs], dim=0,
+        )
+        baseline_b = []
+        peak_b = []
+        for pack in packs:
+            n_b = int(pack.i_sti.shape[0])
+            baseline_b.append(torch.full(
+                (n_b,), float(pack.i_sti_baseline),
+                dtype=pack.i_sti.dtype, device=pack.i_sti.device,
+            ))
+            peak_b.append(torch.full(
+                (n_b,), float(pack.i_sti_peak),
+                dtype=pack.i_sti.dtype, device=pack.i_sti.device,
+            ))
+        fields["i_sti_baseline_b"] = torch.cat(baseline_b, dim=0)
+        fields["i_sti_peak_b"] = torch.cat(peak_b, dim=0)
     idx_field = next(
         (
             field for field in ("a_sti_radius_idxs", "a_sti_mid_idxs")
@@ -716,7 +740,7 @@ def _pack_cost_parts_from_params(params, pack: TaskPack, session: TrainSession, 
                 entry_nodes,
                 cost_t0s[entry_mask],
                 n_t,
-                t_onset=pack_cost_window_t_min(pack),
+                t_onset=t_onset,
             )
         )
     else:

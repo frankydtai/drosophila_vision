@@ -206,6 +206,77 @@ def hex_first_sti_t(
     return int(idx[0])
 
 
+def _mbar_bar_center(spec: MbarSpec, bar_bound: float) -> float:
+    """Bar centre on the motion axis (degrees) from the leading-edge ``bar_bound``."""
+    bar_w_deg = float(spec.bar_w_deg)
+    if spec.direction in ("right", "up"):
+        return float(bar_bound) + 0.5 * bar_w_deg
+    if spec.direction in ("left", "down"):
+        return float(bar_bound) - 0.5 * bar_w_deg
+    raise ValueError(f"unknown direction {spec.direction!r}")
+
+
+def build_bar_axis_distance_hex(
+    hexes: Sequence[Hex],
+    specs: Sequence[MbarSpec],
+    n_t: int,
+    bar_dist: int,
+    *,
+    multi_bar: bool = True,
+    t_onset: int,
+    delta_ms: float,
+) -> np.ndarray:
+    """``(B, T, n_hex)`` axis distance (deg) from each hex to the nearest bar centre.
+
+    Pre-onset samples stay ``inf`` (zero Gaussian gain in forward).  Simultaneous
+    bars contribute the minimum distance at each sample.
+    """
+    n_b = len(specs)
+    n_hex = len(hexes)
+    if n_hex == 0 or n_b == 0:
+        return np.zeros((n_b, n_t, n_hex), dtype=np.float64)
+
+    dist_hex = np.full((n_b, n_t, n_hex), np.inf, dtype=np.float64)
+    view_deg = view_bounds(hexes)
+    hex_axis_deg = np.empty((n_hex, 2), dtype=np.float64)
+    for hex_idx, hex in enumerate(hexes):
+        hex_axis_deg[hex_idx, 0] = float(hex.x) * float(DEG)
+        hex_axis_deg[hex_idx, 1] = float(hex.y) * float(DEG)
+
+    by_geometry: dict[Tuple[str, float, float], List[int]] = {}
+    for b, spec in enumerate(specs):
+        geometry = (spec.direction, float(spec.bar_w_deg), float(spec.speed_deg_over_s))
+        by_geometry.setdefault(geometry, []).append(b)
+
+    for bs in by_geometry.values():
+        spec = specs[bs[0]]
+        shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
+        if spec.direction in ("left", "down"):
+            shift_deg = -shift_deg
+        elif spec.direction not in ("right", "up"):
+            raise ValueError(f"unknown direction {spec.direction!r}")
+        axis_is_x = spec.direction in ("right", "left")
+        n_post = n_t - t_onset
+        for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
+            spec, view_deg, bar_dist, multi_bar=multi_bar,
+        ):
+            if spec.direction in ("right", "up"):
+                bar_bound = float(bar_bound0) - float(spec.bar_w_deg)
+            else:
+                bar_bound = float(bar_bound1) + float(spec.bar_w_deg)
+            for t in range(n_post):
+                center = _mbar_bar_center(spec, bar_bound)
+                axis_dist = (
+                    np.abs(hex_axis_deg[:, 0] - center)
+                    if axis_is_x else np.abs(hex_axis_deg[:, 1] - center)
+                )
+                sample = t_onset + t
+                for b in bs:
+                    dist_hex[b, sample] = np.minimum(dist_hex[b, sample], axis_dist)
+                bar_bound += shift_deg
+    return dist_hex
+
+
 def build_i_sti_hex(
     hexes: Sequence[Hex],
     specs: Sequence[MbarSpec],
@@ -293,6 +364,7 @@ class MbarSti:
     sweep_s: float
     bar_dist: int
     multi_bar: bool
+    bar_axis_distance_hex: Optional[np.ndarray] = None
 
 
 from task.spread.sti_spec import i_baseline_from_i_sti
@@ -447,6 +519,7 @@ def build_mbar_signals(
     multi_bar: bool = True,
     i_baseline: float,
     i_sti: float,
+    use_a_sti_mid: bool = False,
     use_cache: bool = True,
     refresh_cache: bool = False,
     network_json: Optional[Path] = None,
@@ -484,7 +557,15 @@ def build_mbar_signals(
     i_sti_hex: Optional[np.ndarray] = None
     if cache_path is not None and use_cache and not refresh_cache:
         i_sti_hex = _load_mbar_hex_cache(cache_path)
-        if i_sti_hex is not None:
+        if i_sti_hex is not None and (
+            int(i_sti_hex.shape[0]) != n_b or int(i_sti_hex.shape[1]) != int(n_t)
+        ):
+            logger.warning(
+                "Ignoring stale moving-bar cache %s (shape %s, expected (%d, %d, n_hex))",
+                cache_path, tuple(i_sti_hex.shape), n_b, n_t,
+            )
+            i_sti_hex = None
+        elif i_sti_hex is not None:
             logger.info("Loaded moving-bar i_sti_hex from cache %s", cache_path)
 
     if i_sti_hex is None:
@@ -495,6 +576,13 @@ def build_mbar_signals(
         )
         if cache_path is not None and use_cache:
             _save_mbar_hex_cache(cache_path, i_sti_hex)
+
+    bar_axis_distance_hex = None
+    if use_a_sti_mid:
+        bar_axis_distance_hex = build_bar_axis_distance_hex(
+            sti, specs, n_t=n_t, bar_dist=bar_dist, multi_bar=multi_bar,
+            t_onset=t_onset, delta_ms=delta_ms,
+        )
 
     return MbarSti(
         i_sti=i_sti_nodes_from_hexes(i_sti_hex, sti, connectome.n_node),
@@ -509,4 +597,5 @@ def build_mbar_signals(
         sweep_s=sweep_t * delta_ms / 1000.0,
         bar_dist=bar_dist,
         multi_bar=multi_bar,
+        bar_axis_distance_hex=bar_axis_distance_hex,
     )

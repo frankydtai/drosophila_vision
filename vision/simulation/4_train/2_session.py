@@ -65,7 +65,7 @@ def materialize_pack(pack, *, device, sim_dtype):
     fields = {}
     for field in (
         "i_sti", "gts", "cost_scales", "i_sti_pulse", "a_sti_radius_mask",
-        "a_sti_mids",
+        "a_sti_mids", "bar_axis_distance", "i_sti_baseline_b", "i_sti_peak_b",
     ):
         if getattr(pack, field, None) is not None and not torch.is_tensor(getattr(pack, field)):
             fields[field] = torch.tensor(
@@ -395,7 +395,7 @@ def resolve_schema(model, connectome, schema, train_opts):
         a_sti_radii=spot_a_sti_radii() if "spot" in tasks else (),
         a_sti_mids=sbar_a_sti_mids(
             (train_opts or {}).get("sbar_sti_opts") or {},
-        ) if "sbar" in tasks else (),
+        ) if ("sbar" in tasks or "mbar" in tasks) else (),
     )
     val_from = (train_opts or {}).get("val_from") or {}
     schema = schema_copy(schema)

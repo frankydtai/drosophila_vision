@@ -84,9 +84,12 @@ def sti_hexes_at_xy(hexes, *, at_x=None, at_y=None):
     ]
 
 
-def i_sti_nodes_from_hexes(i_sti_hex, hexes, n_node):
+def i_sti_nodes_from_hexes(i_sti_hex, hexes, n_node, *, fill=0.0):
     """Map ``(B, T, n_hex)`` i_sti_hex to ``(B, T, n_node)`` by hex->node index."""
-    i_sti = np.zeros((i_sti_hex.shape[0], i_sti_hex.shape[1], n_node), dtype=np.float64)
+    i_sti = np.full(
+        (i_sti_hex.shape[0], i_sti_hex.shape[1], n_node),
+        float(fill), dtype=np.float64,
+    )
     hex_idxs = []
     nodes = []
     for hex_idx, sti_hex in enumerate(hexes):

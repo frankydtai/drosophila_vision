@@ -410,6 +410,18 @@ def param_filename_suffix(param_vals=None):
     return "_" + "_".join(parts)
 
 
+def at_xy_filename_suffix(at_x=None, at_y=None):
+    """PNG filename token suffix for ``x`` / ``y`` hex-step filters (analyze slice tokens)."""
+    parts = []
+    if at_x is not None:
+        parts.extend(f"x{_filename_token(x)}" for x in at_x)
+    if at_y is not None:
+        parts.extend(f"y{_filename_token(y)}" for y in at_y)
+    if not parts:
+        return ""
+    return "_" + "_".join(parts)
+
+
 def _stored_cost_parts(run_dir):
     """Best-run weighted contributions from ``costs_by_part.npz`` (no forward)."""
     final_costs, _, _, final_costs_by_part = load_stored_costs(run_dir)
@@ -690,6 +702,10 @@ def plot_trained_run(
         ms_filename_suffix(**ms_changed)
         + euler_filename_suffix(euler)
         + param_filename_suffix(param_vals=param_vals)
+        + at_xy_filename_suffix(
+            figure_kwargs.get('at_x'),
+            figure_kwargs.get('at_y'),
+        )
     )
     model = resolve_model(run_dir)
     z = z.detach().cpu().numpy()

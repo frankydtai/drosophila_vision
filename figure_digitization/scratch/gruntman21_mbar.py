@@ -46,6 +46,7 @@ OUTPUT_W1_FIG1_PNG = HERE / "gruntman21_mbar_w1_56_fig1.png"
 OUTPUT_W1_FIG1_CSV = HERE / "gruntman21_mbar_w1_56_fig1.csv"
 OUTPUT_W1_FIG1_SHARED_PNG = HERE / "gruntman21_mbar_w1_56_fig1_shared.png"
 OUTPUT_W1_FIG1_SHARED_CSV = HERE / "gruntman21_mbar_w1_56_fig1_shared.csv"
+OUTPUT_W1_W4_METHODS_PNG = HERE / "gruntman21_mbar_w1_w4_discrete_convolution.png"
 W1_FIG1_SHIFT_MS = np.arange(-200.0, 200.0 + 0.5, 1.0)
 
 W1_TARGET_WIDTH_LED = 1
@@ -59,7 +60,6 @@ W1_SCAN_DIRECTIONS = {
 W1_POSITION_STEP_POS = 0.5
 
 POSITION_STEP_DEG = 4.5
-W1_BAR_WIDTH_POS = W1_POSITION_STEP_DEG / POSITION_STEP_DEG
 SPEEDS_DEG_PER_S = (1.40625, 14.0625, 28.125, 56.25, 112.5)
 DT_MS = 1.0
 PRE_MS = 1000.0
@@ -406,23 +406,11 @@ def w1_bar_spatial_drive(
     positions: np.ndarray,
     gain: np.ndarray,
     direction: str,
-    *,
-    bar_width_pos: float = W1_BAR_WIDTH_POS,
-    quad_step: float = 0.05,
 ) -> np.ndarray:
-    """Integrate ``gain`` under a uniform W1 bar behind the leading edge."""
-    offsets = np.arange(0.0, bar_width_pos + quad_step / 2.0, quad_step)
-    if direction == "PD":
-        sample_pos = leading_edge[:, None] - offsets[None, :]
-    elif direction == "ND":
-        sample_pos = leading_edge[:, None] + offsets[None, :]
-    else:
+    """Evaluate the already W1-scaled bar gain along the bar trajectory."""
+    if direction not in DIRECTIONS:
         raise ValueError(f"unknown direction {direction!r}")
-    gain_under_bar = np.interp(
-        sample_pos, positions, gain, left=0.0, right=0.0,
-    )
-    trapz = getattr(np, "trapezoid", np.trapz)
-    return trapz(gain_under_bar, x=offsets, axis=1)
+    return np.interp(leading_edge, positions, gain, left=0.0, right=0.0)
 
 
 def convolved_w1_responses(
@@ -484,6 +472,152 @@ def convolved_w1_responses(
                 )
             )
     return pd.concat(frames, ignore_index=True)
+
+
+def discrete_shift_sum_responses(
+    width_led: int,
+    position_delay_ms: float,
+) -> pd.DataFrame:
+    """Old discrete method: shift every 160-ms flash trace and sum it."""
+    data = pd.read_csv(INPUT_W1_CSV)
+    data = data[
+        (data["cell_type"] == "T4")
+        & (data["target_width_led"] == W1_TARGET_WIDTH_LED)
+    ]
+    value_column = "vm_mv" if width_led == 1 else "source_vm_mv"
+    positions_pd = W1_SCAN_DIRECTIONS["PD"]
+    min_time = float(data["time_ms"].min())
+    max_time = float(data["time_ms"].max()) + (
+        len(positions_pd) - 1
+    ) * position_delay_ms
+    time_ms = np.arange(min_time, max_time + DT_MS / 2.0, DT_MS)
+    frames = []
+    for contrast in CONTRASTS:
+        for direction, positions in W1_SCAN_DIRECTIONS.items():
+            total = np.zeros_like(time_ms)
+            for index, position in enumerate(positions):
+                trace = data[
+                    (data["contrast"] == contrast)
+                    & np.isclose(data["position"], position)
+                ].sort_values("time_ms")
+                if trace.empty:
+                    raise ValueError(
+                        f"missing {contrast} W{width_led} flash at {position:g}"
+                    )
+                total += np.interp(
+                    time_ms - index * position_delay_ms,
+                    trace["time_ms"].to_numpy(dtype=float),
+                    trace[value_column].to_numpy(dtype=float),
+                    left=0.0,
+                    right=0.0,
+                )
+            frames.append(pd.DataFrame({
+                "time_ms": time_ms,
+                "contrast": contrast,
+                "direction": direction,
+                "total_mv": total,
+            }))
+    return pd.concat(frames, ignore_index=True)
+
+
+def convolved_w4_comparison_responses(
+    fits: pd.DataFrame,
+) -> pd.DataFrame:
+    """W4 convolution on corrected physical coordinates -3 .. +2.5."""
+    position_delay_ms = (
+        W1_POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
+    )
+    positions = np.asarray(POSITIONS, dtype=float) / 2.0
+    scan_duration_ms = (positions[-1] - positions[0]) * (
+        POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
+    )
+    time_ms = np.arange(
+        -PRE_MS, scan_duration_ms + POST_MS + DT_MS / 2.0, DT_MS
+    )
+    frames = []
+    for contrast in CONTRASTS:
+        condition, temporal = load_t4_condition(fits, contrast)
+        condition = condition.set_index("position")
+        gain_pos = condition.loc[POSITIONS, "gain_pos_mv"].to_numpy(dtype=float)
+        gain_neg = condition.loc[POSITIONS, "gain_neg_mv"].to_numpy(dtype=float)
+        for direction in DIRECTIONS:
+            if direction == "PD":
+                position = positions[0] + time_ms / (
+                    POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
+                )
+            else:
+                position = positions[-1] - time_ms / (
+                    POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
+                )
+            active = (time_ms >= 0.0) & (time_ms <= scan_duration_ms)
+            positive_drive = np.zeros_like(time_ms)
+            negative_drive = np.zeros_like(time_ms)
+            positive_drive[active] = np.interp(
+                position[active], positions, gain_pos
+            )
+            negative_drive[active] = np.interp(
+                position[active], positions, gain_neg
+            )
+            frames.append(pd.DataFrame({
+                "time_ms": time_ms,
+                "contrast": contrast,
+                "direction": direction,
+                "total_mv": (
+                    temporal_convolved_component(
+                        positive_drive, time_ms,
+                        temporal["tau_pos_ms"], temporal["delay_pos_ms"],
+                    )
+                    + temporal_convolved_component(
+                        negative_drive, time_ms,
+                        temporal["tau_neg_ms"], temporal["delay_neg_ms"],
+                    )
+                ),
+            }))
+    return pd.concat(frames, ignore_index=True)
+
+
+def plot_w1_w4_discrete_convolution(
+    fits: pd.DataFrame,
+    w1_convolution: pd.DataFrame,
+    position_delay_ms: float,
+) -> None:
+    """2x2 W1/W4 comparison: discrete sums above, convolutions below."""
+    sources = (
+        ("W1 — Discrete shifted sum", discrete_shift_sum_responses(1, position_delay_ms)),
+        ("W4 — Discrete shifted sum", discrete_shift_sum_responses(4, position_delay_ms)),
+        ("W1 — Convolution", w1_convolution),
+        ("W4 — Convolution", convolved_w4_comparison_responses(fits)),
+    )
+    fig, axes = plt.subplots(2, 2, figsize=(13.0, 8.0), sharex=True)
+    for axis, (title, frame) in zip(axes.flat, sources):
+        for contrast, linestyle in (("PC", "-"), ("NC", "--")):
+            for direction in DIRECTIONS:
+                trace = frame[
+                    (frame["contrast"] == contrast)
+                    & (frame["direction"] == direction)
+                ].sort_values("time_ms")
+                axis.plot(
+                    trace["time_ms"], trace["total_mv"],
+                    color=DIRECTION_COLORS[direction], linestyle=linestyle,
+                    linewidth=2.0, label=f"{contrast} {direction}",
+                )
+        axis.axhline(0.0, color="0.65", linewidth=0.8)
+        axis.axvline(0.0, color="0.65", linewidth=0.8)
+        axis.grid(alpha=0.2)
+        axis.set_xlim(-100.0, 1000.0)
+        axis.set_title(title)
+        axis.set_ylabel("response (mV)")
+    axes[0, 0].legend(frameon=False, fontsize=8, ncol=2)
+    for axis in axes[-1]:
+        axis.set_xlabel("time from first position onset (ms)")
+    fig.suptitle(
+        "T4 moving-bar predictions at 56.25 deg/s\n"
+        "red/blue = PD/ND; solid/dashed = PC/NC"
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
+    fig.savefig(OUTPUT_W1_W4_METHODS_PNG, dpi=180)
+    plt.close(fig)
+    print(f"wrote {OUTPUT_W1_W4_METHODS_PNG}")
 
 
 def w1_scan_duration_ms(position_delay_ms: float) -> float:
@@ -883,6 +1017,7 @@ def write_w1_56(fits: pd.DataFrame) -> None:
     plot_w1_56(responses, position_delay_ms)
     write_w1_56_fig1(responses, position_delay_ms)
     write_w1_56_fig1(responses, position_delay_ms, shared=True)
+    plot_w1_w4_discrete_convolution(fits, responses, position_delay_ms)
     print(f"wrote {OUTPUT_W1_CSV}")
     print(f"wrote {OUTPUT_W1_PNG}")
 

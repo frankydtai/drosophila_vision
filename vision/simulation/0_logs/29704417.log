@@ -205,4 +205,25 @@ from '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29677691-run-
 
 round 0
 
-  0%|          | 0/100 [00:00<?, ?it/s] Cost: 1587946.6250  [] 10%|█         | 10/100 [00:34<05:14,  3.49s/it] Cost: 1517544.5000  []:  20%|██        | 20/100 [01:09<04:39,  3.49s/it] Cost: 1590102.5000  []:  30%|███       | 30/100 [01:44<04:04,  3.49s/it] Cost: 2076990.6250  []:  40%|████      | 40/100 [02:19<03:29,  3.48s/it] Cost: 2079924.3750  []:  50%|█████     | 50/100 [02:54<02:54,  3.49s/it] Cost: 2079924.1250  []:  60%|██████    | 60/100 [03:29<02:19,  3.49s/it] Cost: 2079924.6250  []:  70%|███████   | 70/100 [04:04<01:44,  3.50s/it] Cost: 2079924.3750  []:  80%|████████  | 80/100 [04:39<01:09,  3.50s/it] Cost: 2079924.5000  []:  90%|█████████ | 90/100 [05:14<00:35,  3.51s/it] Cost: 2079928.2500  []: 
+  0%|          | 0/100 [00:00<?, ?it/s] Cost: 1587946.6250  [] 10%|█         | 10/100 [00:34<05:14,  3.49s/it] Cost: 1517544.5000  []:  20%|██        | 20/100 [01:09<04:39,  3.49s/it] Cost: 1590102.5000  []:  30%|███       | 30/100 [01:44<04:04,  3.49s/it] Cost: 2076990.6250  []:  40%|████      | 40/100 [02:19<03:29,  3.48s/it] Cost: 2079924.3750  []:  50%|█████     | 50/100 [02:54<02:54,  3.49s/it] Cost: 2079924.1250  []:  60%|██████    | 60/100 [03:29<02:19,  3.49s/it] Cost: 2079924.6250  []:  70%|███████   | 70/100 [04:04<01:44,  3.50s/it] Cost: 2079924.3750  []:  80%|████████  | 80/100 [04:39<01:09,  3.50s/it] Cost: 2079924.5000  []:  90%|█████████ | 90/100 [05:14<00:35,  3.51s/it] Cost: 2079928.2500  []: 100%|██████████| 100/100 [05:49<00:00,  3.51s/it] Cost: 2079924.8750  []: 100%|██████████| 100/100 [05:49<00:00,  3.50s/it] Cost: 2079924.8750  []: 
+
+Initl cost = 1587946.6250  []
+Final cost = 2079924.6250  []
+Best  cost = 1178493.1250  []
+time needed  = 355.61  sec
+
+done in 0.10 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704417-run_init_from-n_iter-100-tasks-mbar-figure_tasks-mbar/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704417-run_init_from-n_iter-100-tasks-mbar-figure_tasks-mbar/param.csv (best run #0, cost=1178493.2500)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704417-run_init_from-n_iter-100-tasks-mbar-figure_tasks-mbar/syn_strength_cell.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:835: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704417-run_init_from-n_iter-100-tasks-mbar-figure_tasks-mbar/cost.png: prep=0.0s  plot_s=0.1s  save=0.7s  elapsed_s=0.7s
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.20gb)
+1 trained set(s); costs min=1178493.2500 max=1178493.2500; selected #0 (from saved final costs)
+[2026-08-28 19:15:19,143][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/044dfbd949367727.npz
+[2026-08-28 19:15:20,062][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/044dfbd949367727.npz
+[2026-08-28 19:15:20,746][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/54bb3b5c117c27f2.npz
+[2026-08-28 19:15:21,673][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/54bb3b5c117c27f2.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704417-run_init_from-n_iter-100-tasks-mbar-figure_tasks-mbar/mbar_gt_v.png: prep=2.4s  plot_s=0.1s  save=0.2s  elapsed_s=2.7s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704417-run_init_from-n_iter-100-tasks-mbar-figure_tasks-mbar/mbar_all_v.png: prep=0.0s  plot_s=2.4s  save=6.0s  elapsed_s=8.4s

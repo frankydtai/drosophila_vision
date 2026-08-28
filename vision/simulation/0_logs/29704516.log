@@ -205,4 +205,25 @@ checkpoint_interval=1000
 
 round 0
 
-  0%|          | 0/300 [00:00<?, ?it/s] Cost: 2078313.0000  []
+  0%|          | 0/300 [00:00<?, ?it/s] Cost: 2078313.0000  []  3%|▎         | 10/300 [00:53<26:00,  5.38s/it] Cost: 1193745.0000  []:   7%|▋         | 20/300 [01:47<25:05,  5.38s/it] Cost: 773055.8750  []:   10%|█         | 30/300 [02:41<24:10,  5.37s/it] Cost: 581989.7500  []:  13%|█▎        | 40/300 [03:34<23:16,  5.37s/it] Cost: 1478915.2500  []:  17%|█▋        | 50/300 [04:28<22:21,  5.37s/it] Cost: 1275384.2500  []:  20%|██        | 60/300 [05:22<21:28,  5.37s/it] Cost: 755689.5625  []:   23%|██▎       | 70/300 [06:15<20:35,  5.37s/it] Cost: 720263.6875  []:  27%|██▋       | 80/300 [07:09<19:41,  5.37s/it] Cost: 630347.6875  []:  30%|███       | 90/300 [08:03<18:46,  5.37s/it] Cost: 590512.8750  []:  33%|███▎      | 100/300 [08:56<17:52,  5.36s/it] Cost: 555379.8750  []:  37%|███▋      | 110/300 [09:50<16:59,  5.36s/it] Cost: 520807.5938  []:  40%|████      | 120/300 [10:43<16:04,  5.36s/it] Cost: 453152.5938  []:  43%|████▎     | 130/300 [11:37<15:10,  5.36s/it] Cost: 481008.4375  []:  47%|████▋     | 140/300 [12:31<14:17,  5.36s/it] Cost: 368720.4375  []:  50%|█████     | 150/300 [13:24<13:23,  5.36s/it] Cost: 271452.8438  []:  53%|█████▎    | 160/300 [14:18<12:29,  5.36s/it] Cost: 209986.7500  []:  57%|█████▋    | 170/300 [15:11<11:36,  5.36s/it] Cost: 211255.2344  []:  60%|██████    | 180/300 [16:05<10:42,  5.36s/it] Cost: 164991.1094  []:  63%|██████▎   | 190/300 [16:58<09:49,  5.36s/it] Cost: 188912.7344  []:  67%|██████▋   | 200/300 [17:52<08:55,  5.36s/it] Cost: 114452.3047  []:  70%|███████   | 210/300 [18:45<08:01,  5.35s/it] Cost: 88437.1719  []:   73%|███████▎  | 220/300 [19:39<07:08,  5.35s/it] Cost: 73066.3594  []:  77%|███████▋  | 230/300 [20:32<06:14,  5.35s/it] Cost: 61142.7578  []:  80%|████████  | 240/300 [21:26<05:20,  5.35s/it] Cost: 55151.2539  []:  83%|████████▎ | 250/300 [22:19<04:27,  5.35s/it] Cost: 50223.0898  []:  87%|████████▋ | 260/300 [23:13<03:33,  5.35s/it] Cost: 44595.3789  []:  90%|█████████ | 270/300 [24:06<02:40,  5.35s/it] Cost: 47921.7656  []:  93%|█████████▎| 280/300 [24:59<01:46,  5.35s/it] Cost: 97924.6094  []:  97%|█████████▋| 290/300 [25:53<00:53,  5.35s/it] Cost: 52344.3438  []: 100%|██████████| 300/300 [26:46<00:00,  5.34s/it] Cost: 47175.8984  []: 100%|██████████| 300/300 [26:46<00:00,  5.36s/it] Cost: 47175.8984  []: 
+
+Initl cost = 2078313.0000  []
+Final cost = 38273.0977  []
+Best  cost = 38273.0977  []
+time needed  = 1612.29  sec
+
+done in 0.45 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704516-run-n_iter-300-tasks-mbar-figure_tasks-mbar/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704516-run-n_iter-300-tasks-mbar-figure_tasks-mbar/param.csv (best run #0, cost=38273.1367)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704516-run-n_iter-300-tasks-mbar-figure_tasks-mbar/syn_strength_cell.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:835: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704516-run-n_iter-300-tasks-mbar-figure_tasks-mbar/cost.png: prep=0.0s  plot_s=0.1s  save=0.7s  elapsed_s=0.7s
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.10gb)
+1 trained set(s); costs min=38273.1367 max=38273.1367; selected #0 (from saved final costs)
+[2026-08-28 19:41:11,224][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/044dfbd949367727.npz
+[2026-08-28 19:41:12,128][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/044dfbd949367727.npz
+[2026-08-28 19:41:12,781][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/54bb3b5c117c27f2.npz
+[2026-08-28 19:41:13,684][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/54bb3b5c117c27f2.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704516-run-n_iter-300-tasks-mbar-figure_tasks-mbar/mbar_gt_v.png: prep=2.3s  plot_s=0.1s  save=0.2s  elapsed_s=2.6s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29704516-run-n_iter-300-tasks-mbar-figure_tasks-mbar/mbar_all_v.png: prep=0.0s  plot_s=2.2s  save=5.6s  elapsed_s=7.8s
