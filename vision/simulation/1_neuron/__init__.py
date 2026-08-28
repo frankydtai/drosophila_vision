@@ -41,6 +41,7 @@ from neuron.forward import (
     v_ca_from_v,
 )
 from neuron.readout import (
+    pack_cost_window_t_min,
     pack_traces,
     window_time_traces,
 )
@@ -72,6 +73,7 @@ __all__ = [
     "forward_trace",
     "ca_from_v_ca",
     "v_ca_from_v",
+    "pack_cost_window_t_min",
     "pack_t_onset",
     "step_delta_ms",
     "pack_traces",

@@ -337,15 +337,6 @@ def _mbar_ca_mean_cell_mean_hex(
     return ca_mean_cell_mean_hex
 
 
-def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
-    """ΔVm for fig1 cost-window traces (subtract pre-sti mean)."""
-    trace = np.asarray(trace, dtype=np.float64)
-    i_on = t_from_ms(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
-    if i_on > 0 and i_on < len(trace):
-        return trace - float(np.mean(trace[:i_on]))
-    return trace - float(trace[0])
-
-
 def _load_mbar_gt_traces(session, task, contrast, cells, specs, side):
     gt_traces = {}
     row_cells = cells_in_order(pack_cells(session, task, contrast))
@@ -356,9 +347,9 @@ def _load_mbar_gt_traces(session, task, contrast, cells, specs, side):
             trace_token = fig1_trace_from_sti(side, cell, spec)
             if trace_token is None:
                 continue
-            trace = _fig1_trace_delta(
-                load_fig1_trace(trace_token, delta_ms=session.delta_ms),
-                session.delta_ms,
+            trace = load_fig1_trace(
+                trace_token, delta_ms=session.delta_ms,
+                baseline_delta=True,
             )
             gt_traces[(cell, spec.token)] = trace
     return gt_traces

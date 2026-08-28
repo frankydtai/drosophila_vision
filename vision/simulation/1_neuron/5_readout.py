@@ -38,6 +38,20 @@ def window_time_traces(trace, entry_bs, entry_nodes, cost_t0s, n_t, *, t_onset=0
     return torch.where(ts < int(t_onset), torch.zeros_like(v_readout), v_readout)
 
 
+def pack_cost_window_t_min(pack) -> int:
+    """Lowest absolute sample retained by a pack's aligned cost windows.
+
+    Most packs use onset-relative traces and therefore suppress samples before
+    ``pack_t_onset``.  Moving-bar windows contain a real pre-stimulus baseline
+    for every local hex onset, so those samples must be retained.
+    """
+    return (
+        pack_t_onset(pack)
+        if getattr(pack, "cost_zero_before_t_onset", True)
+        else 0
+    )
+
+
 def pack_traces(trace, pack, *, b_offset=0):
     """Select MSE traces for cost nodes; uses ``cost_t0s`` when set."""
     entry_bs = pack.entry_bs if b_offset == 0 else pack.entry_bs + b_offset
@@ -47,5 +61,5 @@ def pack_traces(trace, pack, *, b_offset=0):
         return trace[entry_bs, t_onset:t_onset + n_t, pack.entry_nodes]
     return window_time_traces(
         trace, entry_bs, pack.entry_nodes, pack.cost_t0s,
-        n_t, t_onset=t_onset,
+        n_t, t_onset=pack_cost_window_t_min(pack),
     )

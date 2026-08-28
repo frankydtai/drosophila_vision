@@ -62,6 +62,7 @@ class MbarGt:
     entry_nodes: torch.Tensor
     n_b: int
     n_t: int
+    t_onset: int
     n_cost_hex: int
     active_gts: List[str]
     waveform_mse: bool
@@ -82,6 +83,8 @@ class MbarPack:
     cost_scales: torch.Tensor
     entry_bs: torch.Tensor
     entry_nodes: torch.Tensor
+    t_onset: int
+    cost_zero_before_t_onset: bool = False
     cost_t0s: Optional[torch.Tensor] = None
     cost_ts: Optional[torch.Tensor] = None
     cost_radius: Optional[int] = None
@@ -306,7 +309,12 @@ def build_mbar_gt(
         i_sti=float(i_sti),
     )
     n_t = int(sti.n_t)
-    fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
+    fig1 = (
+        load_fig1_traces(
+            fig1_path, delta_ms=delta_ms, baseline_delta=True,
+        )
+        if waveform_mse else None
+    )
     before_t = t_from_ms(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
     after_t = t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
 
@@ -368,6 +376,7 @@ def build_mbar_gt(
         cost_pd_nds=cost_pd_nds,
         n_b=sti.n_b,
         n_t=n_t,
+        t_onset=int(sti.t_onset),
         n_cost_hex=len(hexes),
         active_gts=list(active),
         waveform_mse=bool(waveform_mse),
@@ -603,6 +612,8 @@ def build_mbar_pack(
         cost_scales=mbar_gt.cost_scales,
         entry_bs=mbar_gt.entry_bs,
         entry_nodes=mbar_gt.entry_nodes,
+        t_onset=mbar_gt.t_onset,
+        cost_zero_before_t_onset=False,
         cost_t0s=mbar_gt.cost_t0s,
         cost_radius=cost_radius,
         cost_pd_nds=mbar_gt.cost_pd_nds,

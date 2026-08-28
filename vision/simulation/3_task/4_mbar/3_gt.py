@@ -175,32 +175,43 @@ def parse_mbar_spec(token: str) -> Tuple[str, str, str]:
 _TRACE_CACHE: Dict[str, np.ndarray] = {}
 
 
+def fig1_trace_delta(trace: np.ndarray, *, delta_ms: float) -> np.ndarray:
+    """Return Fig. 1 Vm relative to its mean pre-stimulus baseline."""
+    trace = np.asarray(trace, dtype=np.float64)
+    i_on = t_from_ms(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
+    if 0 < i_on < len(trace):
+        return trace - float(np.mean(trace[:i_on]))
+    return trace - float(trace[0])
+
+
 def load_fig1_trace(
     trace_token: str,
     npz_path: Path = FIG1_CI_NPZ,
     *,
     delta_ms: float,
+    baseline_delta: bool = False,
 ) -> np.ndarray:
     """Resample one fig1 trace onto the moving-bar cost window."""
     n_t = t_from_ms(COST_WINDOW_MS, delta_ms=delta_ms) + 1
     key = f"{trace_token}|{n_t}|{delta_ms}|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
-    if key in _TRACE_CACHE:
-        return _TRACE_CACHE[key]
-    with np.load(npz_path) as npz:
-        t_key = f"{trace_token}__time_ms"
-        if t_key not in npz.files:
-            raise KeyError(f"missing trace {trace_token!r} in {npz_path}")
-        time_ms = np.asarray(npz[t_key], dtype=np.float64)
-        vm_mv = np.asarray(npz[f"{trace_token}__vm_mv"], dtype=np.float64)
-    return _TRACE_CACHE.setdefault(
-        key,
-        np.interp(
+    if key not in _TRACE_CACHE:
+        with np.load(npz_path) as npz:
+            t_key = f"{trace_token}__time_ms"
+            if t_key not in npz.files:
+                raise KeyError(f"missing trace {trace_token!r} in {npz_path}")
+            time_ms = np.asarray(npz[t_key], dtype=np.float64)
+            vm_mv = np.asarray(npz[f"{trace_token}__vm_mv"], dtype=np.float64)
+        _TRACE_CACHE[key] = np.interp(
             np.arange(n_t, dtype=np.float64) * delta_ms,
             time_ms,
             vm_mv,
             left=vm_mv[0],
             right=vm_mv[-1],
-        ),
+        )
+    trace = _TRACE_CACHE[key]
+    return (
+        fig1_trace_delta(trace, delta_ms=delta_ms)
+        if baseline_delta else trace
     )
 
 
@@ -208,6 +219,7 @@ def load_fig1_traces(
     npz_path: Path = FIG1_CI_NPZ,
     *,
     delta_ms: float,
+    baseline_delta: bool = False,
 ) -> Dict[str, np.ndarray]:
     """All fig1 traces resampled to the per-hex train window."""
     with np.load(npz_path) as npz:
@@ -215,6 +227,9 @@ def load_fig1_traces(
             {k.replace("__time_ms", "") for k in npz.files if k.endswith("__time_ms")}
         )
     return {
-        trace_token: load_fig1_trace(trace_token, npz_path, delta_ms=delta_ms)
+        trace_token: load_fig1_trace(
+            trace_token, npz_path, delta_ms=delta_ms,
+            baseline_delta=baseline_delta,
+        )
         for trace_token in trace_tokens
     }

@@ -97,7 +97,7 @@ i_sti:
   bright: 40.0
   dark: 0.0
 contrasts: [bright, dark]
-ms_pre: 300.0
+ms_pre: 324.0
 ms_sti: 160.0
 ms_response: 600.0
 ms_post: 0.0
@@ -133,8 +133,8 @@ bar_dist: 4
 # S-bar hex-shift radius projected onto the bar-normal mid axis (0 disables).
 shift_mid: 0
 a_sti_mids: [0.5, 1, 1.5, 2]
-bar_ws_deg: [2.25, 9.0]
-bar_directions: [right]
+bar_ws_deg: [2.25]
+bar_directions: [right,left]
 
 # ---------------------------------------------------------------------------
 # 4.2   train.session

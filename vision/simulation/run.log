@@ -12,3 +12,5 @@
 [2026-08-28 14:40:23,998][task.mbar.sti_spec][INFO] - Cached moving-bar i_sti_hex to /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/03c152090157fdd7.npz
 [2026-08-28 14:53:38,460][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/595ecd5524afa4b3.npz
 [2026-08-28 14:53:38,889][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/03c152090157fdd7.npz
+[2026-08-28 19:14:16,295][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/044dfbd949367727.npz
+[2026-08-28 19:14:16,717][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10/mbar_cache/54bb3b5c117c27f2.npz
