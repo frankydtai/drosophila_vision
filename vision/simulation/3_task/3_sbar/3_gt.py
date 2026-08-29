@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Static-bar GT numbers: Gruntman Fig.2 digitized width-1 traces.
+"""Static-bar GT numbers from the original Gruntman recordings.
 
 Data sources:
-- T4/T5: ``figure_digitization/gruntman21/2ax2bc_digitized.csv``
-  (Gruntman 2021 Fig.2a/2b/2c digitized flash-response traces).
+- T4/T5: ``t4_t5_w1_160ms_mean_std.csv`` generated directly from
+  ``singleBarStT4.mat`` / ``singleBarStT5.mat``.  Each source trace is the
+  repeat-average of one biological cell; mean and sample SD are then taken
+  across biological cells.
 - Mi1/Mi4: ``gruntman21_mi1_position_traces.csv`` /
   ``gruntman21_mi4_position_traces.csv`` (three-source spatial decomposition
   contributions at the same nine flash positions; PC/NC from the T4 pathway).
@@ -11,29 +13,22 @@ Data sources:
 GT layout: each entry is one cell's response to a width-1 static bar
 placed at one spatial position on the motion axis.
 
-CRITICAL NUMBERS — do not guess, do not round, do not say "approximately":
-- The CSV ``position`` field has EXACTLY 9 distinct values: -2, -1.5, -1, -0.5, 0,
-  0.5, 1, 1.5, 2 (degrees, measured from the RF centre along the bar motion axis).
-  These are NOT just -2..+2 integers — 0.5-step positions exist and are required.
-- The CSV ``target_width_led`` == 1 filter selects ONLY width-1 traces (9 positions).
-  The same CSV also has ``target_width_led`` == 2 (width-2 traces, 2.25° wide, pos -2..+2
-  in 0.5° steps); those are for a different sbar variant and must be excluded here.
+CRITICAL NUMBERS:
+- The raw-data CSV has exactly nine measured aligned positions: integers -4..+4.
+- It contains only width 1 and duration 160 ms.
+- Half-step positions required by the vertical hex axis are spatially linearly
+  interpolated between the two adjacent measured positions at load time.
 - T4/T5 ``trace_id`` encodes: {cell_prefix}_{PC|NC}_{posSIGN}_w1
   e.g. T4_PC_pos-2_w1, T5_NC_pos+0_w1, T4_PC_pos+1.5_w1.
   PC = ON-pathway (T4 bright / T5 dark); NC = OFF-pathway (T4 dark / T5 bright).
 - Mi1/Mi4 keys use the full cell name: Mi1_PC_pos+0_w1, Mi4_NC_pos-1.5_w1.
   Bright → PC, dark → NC (same as T4; traces come from the T4 PC/NC fit).
-- The ``position`` column (column 6, 0-indexed) and the ``pos{N}_w1`` trace_id
-  suffix MUST agree numerically — both carry the same float position value.
-- Each position trace has ~90-100 time samples from -355ms to ~+400ms (pre- and
-  post-stimulus window); ``t_axis`` is ``(arange(n_t) - t_onset) * delta_ms`` so
-  CSV ``time_ms=0`` lands on sample ``t_onset`` (same onset paste as spread Arenz).
-- There are 8 T4/T5 cells × 9 positions = 72 possible width-1 traces; Mi1/Mi4 add
-  2 × 2 pathways × 9 positions. Available T4/T5 traces depend on which PC/NC
-  pathway each cell uses for each contrast.
+- ``vm_std_mv`` is sample SD across biological-cell repeat averages (ddof=1),
+  never SD across pooled repeat recordings.
 
 COMMON MISTAKES this module has been fixed from:
-- Claiming positions are integers only (wrong: 0.5-step exists).
+- Confusing the nine measured integer positions with the derived half-step
+  positions used only for vertical-axis geometry.
 - Claiming there are "10 positions" or "tens of positions" (wrong: exactly 9).
 - Claiming each cell has a different set of positions (wrong: all cells share
   the same 9-position grid).
@@ -69,7 +64,7 @@ _GRUNTMAN21 = (
     / "figure_digitization"
     / "gruntman21"
 )
-_T4_T5_CSV = _GRUNTMAN21 / "2ax2bc_digitized.csv"
+_T4_T5_CSV = _GRUNTMAN21 / "t4_t5_w1_160ms_mean_std.csv"
 _SOURCE_POSITION_CSVS = {
     "Mi1": _GRUNTMAN21 / "gruntman21_mi1_position_traces.csv",
     "Mi4": _GRUNTMAN21 / "gruntman21_mi4_position_traces.csv",
@@ -136,7 +131,7 @@ def _interp_trace(t_axis: np.ndarray, time_ms, vm_mv) -> np.ndarray:
     )
 
 
-def load_gt(
+def load_gt_stats(
     *,
     t_onset,
     ms_response,
@@ -144,19 +139,12 @@ def load_gt(
     delta_ms: float,
     ms_post=0.0,
 ):
-    """Load width-1 digitized traces keyed by GT ``trace_id``.
+    """Return ``(means, stds)`` on the simulation time axis.
 
-    The ``target_width_led == 1`` filter (T4/T5 CSV) is MANDATORY.
-    The same CSV also has ``target_width_led`` == 2 (width-2 traces, 2.25° wide,
-    same 9 positions); those are for a different sbar variant and must be excluded here.
-
-    The ``position`` field has exactly 9 distinct values:
-    -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2 degrees.
-    Keys encode this as ``pos{-2}_w1``, ``pos{-1.5}_w1``, …, ``pos{+2}_w1``.
-
-    Return: dict keyed by trace_id string e.g. ``"T4_PC_pos-2_w1"`` /
-    ``"Mi1_PC_pos+0_w1"``, value is a (n_t,) np.float64 trace aligned to the
-    simulation time axis.
+    ``stds`` contains T4/T5 only because the Mi1/Mi4 decomposition has no
+    biological-cell variation data.  Measured integer T4/T5 positions are
+    supplemented with half-step spatial interpolation for the vertical hex
+    axis; measured keys themselves are never replaced.
     """
     ms_response = float(ms_response)
     if ms_sti is not None:
@@ -171,18 +159,39 @@ def load_gt(
     )
     t_axis = (np.arange(n_t, dtype=np.float64) - t_onset) * float(delta_ms)
     gts = {}
-    # CRITICAL: target_width_led == 1 selects only width-1 traces (9 positions, 2.25° wide).
-    # The same CSV also has target_width_led == 2 (width-2 traces, 4.5° wide).
-    # Do NOT remove this filter — loading width-2 traces will silently produce
-    # wrong GT for all cost entries.
-    for _, grouped in pd.read_csv(_T4_T5_CSV).query(
-        "target_width_led == 1"
-    ).groupby("trace_id"):
-        gts[str(grouped["trace_id"].iloc[0])] = _interp_trace(
+    gt_stds = {}
+    frame = pd.read_csv(_T4_T5_CSV)
+    if set(frame["width_led"].unique()) != {1} or set(
+        frame["duration_ms"].unique()
+    ) != {160}:
+        raise ValueError(f"unexpected width/duration in {_T4_T5_CSV}")
+    for _, grouped in frame.groupby("trace_id", sort=False):
+        key = str(grouped["trace_id"].iloc[0])
+        gts[key] = _interp_trace(
             t_axis,
             grouped["time_ms"],
-            grouped["vm_mv"],
+            grouped["vm_mean_mv"],
         )
+        gt_stds[key] = _interp_trace(
+            t_axis,
+            grouped["time_ms"],
+            grouped["vm_std_mv"],
+        )
+
+    # Hex y coordinates include half steps, while the raw aligned-position grid
+    # is integer.  Interpolate the two statistics spatially without modifying
+    # the directly measured integer-position traces.
+    for cell in ("T4", "T5"):
+        for pathway in ("PC", "NC"):
+            for position2 in range(-7, 8, 2):
+                position = position2 / 2.0
+                lo = float(np.floor(position))
+                hi = float(np.ceil(position))
+                lo_key = f"{cell}_{pathway}_pos{position_label(lo)}_w1"
+                hi_key = f"{cell}_{pathway}_pos{position_label(hi)}_w1"
+                key = f"{cell}_{pathway}_pos{position_label(position)}_w1"
+                gts[key] = 0.5 * (gts[lo_key] + gts[hi_key])
+                gt_stds[key] = 0.5 * (gt_stds[lo_key] + gt_stds[hi_key])
     for cell, path in _SOURCE_POSITION_CSVS.items():
         # Mi4 CSV contribution is opposite the cell Vm used as sbar GT.
         gt_sign = -1.0 if cell == "Mi4" else 1.0
@@ -196,4 +205,9 @@ def load_gt(
                 grouped["time_ms"],
                 grouped["contribution_vm_mv"],
             )
-    return gts
+    return gts, gt_stds
+
+
+def load_gt(**kwargs):
+    """Backward-compatible mean-only GT loader."""
+    return load_gt_stats(**kwargs)[0]

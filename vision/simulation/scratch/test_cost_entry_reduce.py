@@ -18,16 +18,20 @@ import torch  # noqa: E402
 from train.cost import _parts_from_entries  # noqa: E402
 
 
-def _session(reduction: str, norm: str = "a_gt2"):
+def _session(reduction: str, norm: str = "a_gt2", a_lsd: float = 1.0):
     return SimpleNamespace(
-        train_opts={"cost_entry_reduce": reduction, "cost_norm": norm},
+        train_opts={
+            "cost_entry_reduce": reduction,
+            "cost_norm": norm,
+            "a_lsd": a_lsd,
+        },
         part_cost_scales={},
         tasks=("toy",),
     )
 
 
 def _part(values, *, reduction="mean_trace", norm="a_gt2", weights=None,
-          gts=None, part_idxs=None, time_mask=None):
+          gts=None, gt_stds=None, part_idxs=None, time_mask=None, a_lsd=1.0):
     values = torch.as_tensor(values, dtype=torch.float64)
     n_entry, n_t = values.shape
     a_gt = torch.ones(n_entry, dtype=values.dtype)
@@ -47,10 +51,14 @@ def _part(values, *, reduction="mean_trace", norm="a_gt2", weights=None,
     keys = [f"toy_{i}" for i in range(int(part_idxs.max().item()) + 1)]
     return _parts_from_entries(
         a_gt, bias_gt, gts, weights, values, part_idxs, keys,
-        _session(reduction, norm),
+        _session(reduction, norm, a_lsd),
         time_mask=(
             None if time_mask is None else
             torch.as_tensor(time_mask, dtype=values.dtype)
+        ),
+        gt_stds=(
+            None if gt_stds is None else
+            torch.as_tensor(gt_stds, dtype=values.dtype)
         ),
     )
 
@@ -95,6 +103,33 @@ class CostEntryReduceTest(unittest.TestCase):
         )
         # t0: W=2, mean=1 -> 2; t1: W=1, mean=20 -> 400.
         self.assertEqual(float(parts["toy_0"].item()), 402.0)
+
+    def test_gt_std_matches_model_sample_std(self):
+        # Values [0, 2] have mean 1 and sample SD sqrt(2).  Mean and SD both
+        # match their targets, so the combined objective is zero (up to eps).
+        target_sd = 2.0 ** 0.5
+        cost = _part(
+            [[0.0], [2.0]],
+            gts=[[1.0], [1.0]],
+            gt_stds=[[target_sd], [target_sd]],
+        )["toy_0"]
+        self.assertLess(float(cost.item()), 1e-12)
+
+    def test_gt_std_penalizes_wrong_variation_not_individual_traces(self):
+        # Mean is exactly zero; only the SD mismatch contributes.
+        cost = _part(
+            [[-1.0], [1.0]],
+            gt_stds=[[0.0], [0.0]],
+        )["toy_0"]
+        self.assertGreater(float(cost.item()), 3.9)
+
+    def test_a_lsd_zero_disables_std_loss(self):
+        cost = _part(
+            [[-1.0], [1.0]],
+            gt_stds=[[0.0], [0.0]],
+            a_lsd=0.0,
+        )["toy_0"]
+        self.assertEqual(float(cost.item()), 0.0)
 
 
 if __name__ == "__main__":

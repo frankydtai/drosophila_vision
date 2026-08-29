@@ -27,8 +27,11 @@ scale per cell×radius unless ``part_cost_scales`` says otherwise).
 
 Entry reduction is selected by ``cost_entry_reduce``.  ``mean_trace`` first
 takes the weighted mean of model and target traces inside each fine part
-(``entry_part_keys``), then compares those two means.  ``entry_sse`` is the
-legacy behavior that compares every entry separately before summing.
+(``entry_part_keys``), then compares those two means.  When a pack supplies
+``gt_stds``, it additionally compares the baseline-aligned model sample SD to
+``abs(a_gt) * gt_std`` with the same normalization. ``entry_sse`` is the legacy
+behavior that compares every entry separately before summing and does not use
+the distribution-level SD target.
 
 Sparse cost time points (#4): ``pack.gts`` keeps the ``ms_response`` window length
 (task-specific ``ms_post`` handling lives in each pack) and the subsample is gathered from both v_readout
@@ -201,6 +204,14 @@ def _session_cost_entry_reduce(session: TrainSession) -> str:
     return reduction
 
 
+def _session_a_lsd(session: TrainSession) -> float:
+    """Fixed manual SD-loss weight; absent legacy runs remain mean-only."""
+    value = float((session.train_opts or {}).get("a_lsd", 0.0))
+    if not np.isfinite(value) or value < 0.0:
+        raise ValueError(f"a_lsd must be finite and >= 0; got {value!r}")
+    return value
+
+
 def _scaled_mse_terms(
     a_gt: torch.Tensor,
     bias_gt: torch.Tensor,
@@ -229,6 +240,8 @@ def _parts_from_entries(
     part_keys: List[str],
     session: TrainSession,
     time_mask: Optional[torch.Tensor] = None,
+    gt_stds: Optional[torch.Tensor] = None,
+    gt_std_scales: Optional[torch.Tensor] = None,
 ) -> Dict[str, torch.Tensor]:
     """Local costs for parts via ``part_idxs`` (``part_idxs`` -1 = skip entry)."""
     if not part_keys:
@@ -236,7 +249,8 @@ def _parts_from_entries(
     if _session_cost_entry_reduce(session) == "mean_trace":
         return _mean_trace_parts_from_entries(
             a_gt, bias_gt, gts, scale, v_readout, part_idxs, part_keys,
-            session, time_mask=time_mask,
+            session, time_mask=time_mask, gt_stds=gt_stds,
+            gt_std_scales=gt_std_scales,
         )
     cost_norm = _session_cost_norm(session)
     _, _, sse_wt, power_wt = _scaled_mse_terms(
@@ -278,12 +292,17 @@ def _mean_trace_parts_from_entries(
     part_keys: List[str],
     session: TrainSession,
     time_mask: Optional[torch.Tensor] = None,
+    gt_stds: Optional[torch.Tensor] = None,
+    gt_std_scales: Optional[torch.Tensor] = None,
 ) -> Dict[str, torch.Tensor]:
-    """Compare weighted mean model/target traces within each fine cost part.
+    """Compare weighted model/target mean and, when supplied, sample SD.
 
     The effective entry-weight sum is retained on the squared error.  This
     preserves existing part/radius/count weighting while removing only the
-    within-part trace-dispersion penalty.
+    within-part trace-dispersion penalty.  ``gt_stds`` adds an explicit SD
+    target instead: model responses are first baseline-aligned with
+    ``bias_gt``, then their weighted sample SD is compared with
+    ``abs(a_gt) * gt_std``.  Both mean and SD errors use the same normalization.
     """
     cost_norm = _session_cost_norm(session)
     n_t = int(v_readout.shape[1])
@@ -315,8 +334,54 @@ def _mean_trace_parts_from_entries(
         )
         error = mean_v - mean_gt_affine
 
+        std_numerator = error.new_zeros(())
+        std_mean_a_gt2 = None
+        if gt_stds is not None:
+            std_entry_scale = (
+                torch.ones_like(scale) if gt_std_scales is None else
+                gt_std_scales
+            )
+            std_weights = (
+                scale[entries, None] * std_entry_scale[entries, None]
+            ).expand(-1, n_t)
+            if time_mask is not None:
+                std_weights = std_weights * time_mask[entries].to(
+                    dtype=std_weights.dtype, device=std_weights.device,
+                )
+            std_weight_t = std_weights.sum(dim=0)
+            std_weight2_t = (std_weights ** 2).sum(dim=0)
+            std_safe_weight_t = std_weight_t.clamp(min=tiny)
+            sample_denom = (
+                std_weight_t - std_weight2_t / std_safe_weight_t
+            )
+            std_valid_t = sample_denom > 0
+            responses = v_readout[entries] - bias_gt[entries, None]
+            mean_response = (
+                std_weights * responses
+            ).sum(dim=0) / std_safe_weight_t
+            model_var = (
+                std_weights * (responses - mean_response) ** 2
+            ).sum(dim=0) / sample_denom.clamp(min=tiny)
+            # epsilon keeps sqrt's derivative finite when model variance is 0.
+            model_std = torch.sqrt(
+                model_var.clamp(min=0) + torch.finfo(model_var.dtype).eps
+            )
+            target_std = (
+                std_weights
+                * (a_gt[entries, None].abs() * gt_stds[entries])
+            ).sum(dim=0) / std_safe_weight_t
+            std_error = model_std - target_std
+            std_numerator = (
+                std_weight_t[std_valid_t] * std_error[std_valid_t] ** 2
+            ).sum()
+            std_mean_a_gt2 = (
+                std_weights * (a_gt[entries, None] ** 2)
+            ).sum(dim=0) / std_safe_weight_t
+
         if cost_norm == "gt_power":
-            numerator = (weight_t[valid_t] * error[valid_t] ** 2).sum()
+            numerator = (
+                weight_t[valid_t] * error[valid_t] ** 2
+            ).sum() + _session_a_lsd(session) * std_numerator
             denominator = (
                 weight_t[valid_t] * mean_gt_scaled[valid_t] ** 2
             ).sum()
@@ -332,6 +397,11 @@ def _mean_trace_parts_from_entries(
                 weight_t[valid_t] * error[valid_t] ** 2
                 / mean_a_gt2[valid_t].clamp(min=tiny)
             ).sum()
+            if std_mean_a_gt2 is not None:
+                cost = cost + _session_a_lsd(session) * (
+                    std_weight_t[std_valid_t] * std_error[std_valid_t] ** 2
+                    / std_mean_a_gt2[std_valid_t].clamp(min=tiny)
+                ).sum()
         else:
             raise ValueError(
                 f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}"
@@ -496,6 +566,9 @@ def _pack_entry_fields(
         ),
         "entry_nodes": pack.entry_nodes[sel],
     }
+    for field in ("gt_stds", "gt_std_scales"):
+        if getattr(pack, field, None) is not None:
+            fields[field] = getattr(pack, field)[sel]
     cost_scales = getattr(pack, "cost_scales", None)
     if cost_scales is not None:
         fields["cost_scales"] = cost_scales[sel]
@@ -700,10 +773,13 @@ def _pack_cost_parts_from_v_readout(
     if not part_keys:
         return {}
     gts = pack.gts
+    gt_stds = getattr(pack, "gt_stds", None)
     if pack.cost_ts is not None:
         cost_ts = pack.cost_ts.to(device=v_readout.device)
         v_readout = v_readout.index_select(1, cost_ts)
         gts = gts.index_select(1, cost_ts)
+        if gt_stds is not None:
+            gt_stds = gt_stds.index_select(1, cost_ts)
     cost_time_mask = getattr(pack, "cost_time_mask", None)
     return _parts_from_entries(
         a_gt, bias_gt, gts, _entry_cost_scales(pack), v_readout,
@@ -712,6 +788,8 @@ def _pack_cost_parts_from_v_readout(
             None if cost_time_mask is None else
             cost_time_mask.to(device=v_readout.device)
         ),
+        gt_stds=gt_stds,
+        gt_std_scales=getattr(pack, "gt_std_scales", None),
     )
 
 

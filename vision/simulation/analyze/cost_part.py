@@ -109,12 +109,15 @@ def cost_part(session, z, part_key: str) -> dict:
     trace = forward_pack(session, params, pack.i_sti, pack)
     a_gt, bias_gt = gt_affine_from_pack(params, pack, session)
     gts = pack.gts
+    gt_stds = getattr(pack, "gt_stds", None)
     scale = pack.cost_scales
     v_readout = pack_traces(trace, pack)
     if pack.cost_ts is not None:
         cost_ts = pack.cost_ts.to(device=v_readout.device)
         v_readout = v_readout.index_select(1, cost_ts)
         gts = gts.index_select(1, cost_ts)
+        if gt_stds is not None:
+            gt_stds = gt_stds.index_select(1, cost_ts)
     time_mask = getattr(pack, "cost_time_mask", None)
     if time_mask is not None:
         time_mask = time_mask.to(device=v_readout.device)
@@ -178,6 +181,8 @@ def cost_part(session, z, part_key: str) -> dict:
     official = _parts_from_entries(
         a_gt, bias_gt, gts, scale, v_readout, part_idxs, part_keys, session,
         time_mask=time_mask,
+        gt_stds=gt_stds,
+        gt_std_scales=getattr(pack, "gt_std_scales", None),
     )
     if part_key not in official:
         raise SystemExit(f"part {part_key!r} has zero cost scale")

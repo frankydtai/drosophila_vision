@@ -184,8 +184,12 @@ part_cost_scales:
   sbar_bright_T4a_mid+1: 1
   sbar_bright_T4a_mid+2: 1
 cost_norm: "a_gt2"
+# Fixed manual weight; it is not included in the trainable parameter schema.
+# Ltotal = Lmean + a_lsd * Lsd
+a_lsd: 1.0
 # Reduce cost entries within each fine part before comparing with GT.
-# ``mean_trace``: weighted mean trace vs weighted mean GT (default for new runs).
+# ``mean_trace``: weighted mean trace vs weighted mean GT (default for new runs);
+#                 packs with GT SD (sbar) also match baseline-aligned sample SD.
 # ``entry_sse``: legacy behavior, compare every entry trace with GT separately.
 cost_entry_reduce: "mean_trace"
 # cost_ms: post-onset cost sample times (spread + spot; same for every radius).

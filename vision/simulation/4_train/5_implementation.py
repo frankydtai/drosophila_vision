@@ -636,6 +636,7 @@ def build_session(
     contrasts=None,
     part_cost_scales=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+    a_lsd=TRAIN_OPTIMIZATION['a_lsd'],
     cost_entry_reduce=TRAIN_OPTIMIZATION['cost_entry_reduce'],
     cost_ms=None,
     cost_radius=None,
@@ -681,6 +682,7 @@ def build_session(
             contrasts=contrasts,
             part_cost_scales=part_cost_scales,
             cost_norm=str(cost_norm),
+            a_lsd=float(a_lsd),
             cost_entry_reduce=str(cost_entry_reduce),
             cost_ms=cost_ms,
             sequential=sequential,
@@ -705,6 +707,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
                  network=NETWORK_PATH['network'], sequential=TRAIN_SESSION['sequential'],
                  tasks=None, contrasts=None, part_cost_scales=None,
                  cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+                 a_lsd=TRAIN_OPTIMIZATION['a_lsd'],
                  cost_entry_reduce=TRAIN_OPTIMIZATION['cost_entry_reduce'],
                  cost_ms=None,
                  cost_radius=None,
@@ -736,6 +739,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
         contrasts=contrasts,
         part_cost_scales=part_cost_scales,
         cost_norm=cost_norm,
+        a_lsd=a_lsd,
         cost_entry_reduce=cost_entry_reduce,
         cost_ms=cost_ms,
         cost_radius=cost_radius,
@@ -763,6 +767,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
     syn_mode = (session.train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode'])
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"pre_steady={session.pre_steady}, "
+          f"a_lsd={(session.train_opts or {}).get('a_lsd')}, "
           f"cost_entry_reduce={(session.train_opts or {}).get('cost_entry_reduce')}, "
           f"n_run={n_run}, n_iter={n_iter}, "
           f"lrs={lrs}, n_z={train.schema_n_z(train.schema_copy(session.schema))}, fname={fname}")

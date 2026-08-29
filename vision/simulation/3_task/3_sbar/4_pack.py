@@ -19,7 +19,7 @@ from network.construction import (
     node_cells,
     standardize_cost_radius,
 )
-from task.sbar.gt import GT_CELLS, gt_trace_key, load_gt
+from task.sbar.gt import GT_CELLS, gt_trace_key, load_gt_stats
 from task.sbar.sti_geo import sbar_line_mids, sti_hexes
 from task.sbar.sti_spec import (
     build_sbar_a_sti_mid_drive,
@@ -39,6 +39,8 @@ from task.spread.sti_spec import i_baseline_from_i_sti
 class SbarGt:
     i_sti: torch.Tensor
     gts: torch.Tensor
+    gt_stds: torch.Tensor
+    gt_std_scales: torch.Tensor
     power: torch.Tensor
     cost_scales: torch.Tensor
     entry_bs: torch.Tensor
@@ -60,6 +62,8 @@ class SbarPack:
     contrast: str
     i_sti: torch.Tensor
     gts: torch.Tensor
+    gt_stds: torch.Tensor
+    gt_std_scales: torch.Tensor
     cost_scales: torch.Tensor
     entry_bs: torch.Tensor
     entry_nodes: torch.Tensor
@@ -172,13 +176,13 @@ def build_sbar_gt(
     """Build sbar cost GT.
 
     CRITICAL GT FACTS (from ``3_gt.py`` docstring — read there first):
-    - CSV has exactly 9 distinct positions: -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2 degrees.
-      The 0.5-step positions (e.g. pos+0.5, pos-1.5) ARE REQUIRED — do not skip them.
-    - ``target_width_led == 1`` filter selects width-1 traces only (2.25° wide).
-      The same CSV also has ``target_width_led == 2`` (width-2, 4.5°) — those are a
-      different task variant and MUST be excluded by the ``load_gt`` call.
+    - The raw-data CSV has nine measured integer positions, -4..+4, width 1,
+      duration 160 ms. Vertical-axis half positions are spatial interpolations.
+    - Mean and sample SD are across biological-cell repeat averages, not pooled
+      repeat recordings.
     - Trace ID format: ``{cell_prefix}_{PC|NC}_pos{SIGN}_w1``, e.g. ``T4_PC_pos+0.5_w1``.
-      The float position in the trace_id (e.g. ``+0.5``) MUST match the CSV ``position`` field.
+      Integer keys come from CSV measurements; half-position keys are spatial
+      interpolations created by ``load_gt_stats``.
     - Each simultaneous bar line is a separate spatial replicate, matching how
       spot expands every simultaneous spot center. ``mid`` is the cost-node
       position relative to that bar line, not the node's absolute axis value.
@@ -211,7 +215,7 @@ def build_sbar_gt(
         i_baseline=i_baseline,
         i_sti=float(i_sti),
     )
-    gts = load_gt(
+    gts, gt_stds = load_gt_stats(
         t_onset=sti.t_onset,
         ms_response=ms_response,
         ms_sti=ms_sti,
@@ -228,8 +232,11 @@ def build_sbar_gt(
     t0 = int(sti.t_onset)
     n_t_cost = int(t_from_ms(float(ms_response), delta_ms=float(delta_ms)) + 1)
 
-    entry_bs, entry_nodes, entry_gts, entry_cost_scales, entry_cost_t0s = (
-        [], [], [], [], [],
+    entry_bs, entry_nodes, entry_gts, entry_gt_stds = (
+        [], [], [], [],
+    )
+    entry_gt_std_scales, entry_cost_scales, entry_cost_t0s = (
+        [], [], [],
     )
     entry_part_keys: List[str] = []
     cost_bar_hexes = set()
@@ -262,12 +269,26 @@ def build_sbar_gt(
                     (gts[gt_key][t0:t0 + n_t_cost] for _, _, gt_key in bar_samples),
                     np.zeros(n_t_cost, dtype=np.float64),
                 )
+                # A simultaneous sum needs cross-position covariance, which the
+                # source data do not provide.  Use SD supervision only when the
+                # target is one measured/interpolated single-bar distribution.
+                has_gt_std = (
+                    len(bar_samples) == 1
+                    and bar_samples[0][2] in gt_stds
+                )
+                gt_std = (
+                    gt_stds[bar_samples[0][2]][t0:t0 + n_t_cost]
+                    if has_gt_std else
+                    np.zeros(n_t_cost, dtype=np.float64)
+                )
                 for bar_mid, relative_mid, _ in bar_samples:
                     cost_bar_hexes.add((axis, bar_mid, int(hex.u), int(hex.v)))
                     for node in nodes:
                         entry_bs.append(b)
                         entry_nodes.append(int(node))
                         entry_gts.append(gt)
+                        entry_gt_stds.append(gt_std)
+                        entry_gt_std_scales.append(float(has_gt_std))
                         entry_cost_scales.append(1.0)
                         entry_cost_t0s.append(t0)
                         entry_part_keys.append(
@@ -278,6 +299,8 @@ def build_sbar_gt(
         raise ValueError("no static-bar cost nodes (check subtypes and sti hexes)")
 
     gts = np.asarray(entry_gts, dtype=np.float64)
+    gt_stds = np.asarray(entry_gt_stds, dtype=np.float64)
+    gt_std_scales = np.asarray(entry_gt_std_scales, dtype=np.float64)
     cost_scales = np.asarray(entry_cost_scales, dtype=np.float64)
     entry_bs = np.asarray(entry_bs, dtype=np.int64)
     entry_nodes = np.asarray(entry_nodes, dtype=np.int64)
@@ -289,6 +312,8 @@ def build_sbar_gt(
     return SbarGt(
         i_sti=sti.i_sti,
         gts=gts,
+        gt_stds=gt_stds,
+        gt_std_scales=gt_std_scales,
         power=power,
         cost_scales=cost_scales,
         entry_bs=entry_bs,
@@ -460,6 +485,8 @@ def build_sbar_pack(
         contrast=contrast,
         i_sti=pack_i_sti,
         gts=sbar_gt.gts,
+        gt_stds=sbar_gt.gt_stds,
+        gt_std_scales=sbar_gt.gt_std_scales,
         cost_scales=sbar_gt.cost_scales,
         entry_bs=sbar_gt.entry_bs,
         entry_nodes=sbar_gt.entry_nodes,

@@ -64,7 +64,8 @@ TaskPack = Any
 def materialize_pack(pack, *, device, sim_dtype):
     fields = {}
     for field in (
-        "i_sti", "gts", "cost_scales", "i_sti_pulse", "a_sti_radius_mask",
+        "i_sti", "gts", "gt_stds", "gt_std_scales", "cost_scales",
+        "i_sti_pulse", "a_sti_radius_mask",
         "a_sti_mids", "bar_axis_distance", "i_sti_baseline_b", "i_sti_peak_b",
     ):
         if getattr(pack, field, None) is not None and not torch.is_tensor(getattr(pack, field)):
@@ -210,6 +211,7 @@ def resolve_train_opts(
     cost_radius=None,
     i_sti=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+    a_lsd=TRAIN_OPTIMIZATION['a_lsd'],
     cost_entry_reduce=TRAIN_OPTIMIZATION['cost_entry_reduce'],
     cost_ms=None,
     mbar_sti_opts=None,
@@ -249,6 +251,9 @@ def resolve_train_opts(
         raise ValueError(
             f"pre_steady_damp must be in (0, 1]; got {pre_steady_damp}"
         )
+    a_lsd = float(a_lsd)
+    if not np.isfinite(a_lsd) or a_lsd < 0.0:
+        raise ValueError(f"a_lsd must be finite and >= 0; got {a_lsd!r}")
     val_from = resolve_val_from(val_from=val_from)
     val_from_opts = {"val_from": val_from}
     if filter != "ca":
@@ -283,6 +288,7 @@ def resolve_train_opts(
             ).items()
         },
         "cost_norm": cost_norm,
+        "a_lsd": a_lsd,
         "cost_entry_reduce": cost_entry_reduce,
         "cost_ms": copy.deepcopy(
             cost_ms if cost_ms is not None else TRAIN_OPTIMIZATION['cost_ms']
@@ -347,6 +353,7 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
             for part_key, scale in (opts.get("part_cost_scales") or {}).items()
         },
         "cost_norm": opts.get("cost_norm", TRAIN_OPTIMIZATION['cost_norm']),
+        "a_lsd": float(opts.get("a_lsd", TRAIN_OPTIMIZATION['a_lsd'])),
         "cost_entry_reduce": opts.get(
             "cost_entry_reduce", TRAIN_OPTIMIZATION['cost_entry_reduce'],
         ),
@@ -599,6 +606,8 @@ def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSess
     opts = dict(opts)
     # Runs written before mean-trace reduction must retain their saved objective.
     opts.setdefault("cost_entry_reduce", "entry_sse")
+    # Runs saved before SD supervision must retain their mean-only objective.
+    opts.setdefault("a_lsd", 0.0)
     opts.pop("backend", None)
     if model is None:
         model = opts.get("model")
