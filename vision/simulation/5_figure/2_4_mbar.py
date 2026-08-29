@@ -39,11 +39,11 @@ from figure.panel import (
     ms_shown_axis_xlim,
     at_xy_reds,
     plot_trace,
-    plot_sem_band,
+    plot_sd_band,
     plot_timecourse,
     pack_center_mask,
     save_figure,
-    sem_from_traces,
+    sd_from_traces,
     expand_at_xy,
     is_single_hex_cost,
     v_th_from_z,
@@ -110,7 +110,7 @@ PLOT_ALIGN_XY = True
 @dataclass
 class MbarWindowTraces:
     ca_mean_cell: dict
-    ca_sem: dict
+    ca_sd: dict
     ca_n: dict
     before_t: dict
     after_t: dict
@@ -237,7 +237,7 @@ def _mbar_ca_mean_cell(
     hex_mask=None,
 ):
     """``windows_by_b[b]`` shape ``(n_node, n_t)``."""
-    ca_mean_cell, ca_sem, ca_n = {}, {}, {}
+    ca_mean_cell, ca_sd, ca_n = {}, {}, {}
     valid = t0_bn >= 0
     for figure_cell_idx, cell in enumerate(cells):
         cell_mask = cell_idxs == figure_cell_idx
@@ -253,9 +253,9 @@ def _mbar_ca_mean_cell(
             traces = windows_by_b[b][nodes]
             key = (cell, token)
             ca_mean_cell[key] = traces.mean(axis=0)
-            ca_sem[key] = sem_from_traces(traces, single_hex=single_hex)
+            ca_sd[key] = sd_from_traces(traces, single_hex=single_hex)
             ca_n[key] = int(np.unique(nodes).size)
-    return ca_mean_cell, ca_sem, ca_n
+    return ca_mean_cell, ca_sd, ca_n
 
 
 def _network_hex_node_mask(connectome, hexes, n_b):
@@ -394,12 +394,12 @@ def _traces_from_forward(
         for token in spec_tokens
     ]
     windows_by_b = _windows_by_b(trace, t0_bn, n_t_by_b)
-    ca_mean_cell, ca_sem, ca_n = _mbar_ca_mean_cell(
+    ca_mean_cell, ca_sd, ca_n = _mbar_ca_mean_cell(
         windows_by_b, t0_bn, cell_idxs, cells, spec_tokens, single_hex,
     )
     return MbarWindowTraces(
         ca_mean_cell=ca_mean_cell,
-        ca_sem=ca_sem,
+        ca_sd=ca_sd,
         ca_n=ca_n,
         before_t=before_t,
         after_t=after_t,
@@ -612,13 +612,13 @@ def _mbar_spec_linestyle(side, cell, token):
 def _plot_mbar_cell(
     ax,
     ca_trace,
-    sem_trace,
+    sd_trace,
     title,
     before_t,
     *,
     gt_trace=None,
     show_ylabel=False,
-    show_sem=True,
+    show_sd=True,
     cell_ticks=True,
     show_tick_labels=True,
     mark_cost_window=False,
@@ -648,10 +648,10 @@ def _plot_mbar_cell(
         [{
             "ca_mean_cell": ca_trace,
             "gt": None,
-            "sem": sem_trace,
+            "sd": sd_trace,
             "linestyle": linestyle,
         }],
-        show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
+        show_sd=show_sd and sd_trace is not None and np.any(sd_trace),
         title=title,
         v_th=v_th,
         e_leak=e_leak,
@@ -668,7 +668,7 @@ def _plot_mbar_cell(
 def _plot_mbar_cell_at_xy(
     ax,
     v_readout,
-    sem_trace,
+    sd_trace,
     ca_mean_cell_mean_hex_by_label,
     labels,
     title,
@@ -676,7 +676,7 @@ def _plot_mbar_cell_at_xy(
     *,
     gt_trace=None,
     show_ylabel=False,
-    show_sem=True,
+    show_sd=True,
     show_legend=False,
     cell_ticks=True,
     show_tick_labels=True,
@@ -710,8 +710,8 @@ def _plot_mbar_cell_at_xy(
             ax, t, ca_mean_cell_mean_hex_by_label[label], t_onset=t_onset,
             color=color, linestyle='-', linewidth=TRACE_LINE_W, label=label,
         )
-    if show_sem and sem_trace is not None and np.any(sem_trace):
-        plot_sem_band(ax, t, v_readout, sem_trace)
+    if show_sd and sd_trace is not None and np.any(sd_trace):
+        plot_sd_band(ax, t, v_readout, sd_trace)
     plot_trace(
         ax, t, v_readout, t_onset=t_onset,
         color=colors[-1], linestyle='-', linewidth=TRACE_LINE_W, label='hexes',
@@ -770,7 +770,7 @@ def _mbar_all_figure(readouts, title, *, right_only=True, cost_parts=None):
     window_traces = readout.traces
     spec_tokens = _filter_right_specs(readout.spec_tokens, right_only)
     n_col_readout = len(spec_tokens)
-    ca_mean_cell, ca_sem, ca_n = window_traces.ca_mean_cell, window_traces.ca_sem, window_traces.ca_n
+    ca_mean_cell, ca_sd, ca_n = window_traces.ca_mean_cell, window_traces.ca_sd, window_traces.ca_n
     gt_traces = readout.gt_traces
     v_th_by_cell = readout.v_th_by_cell
     e_leak_by_cell = readout.e_leak_by_cell
@@ -786,12 +786,12 @@ def _mbar_all_figure(readouts, title, *, right_only=True, cost_parts=None):
             _filter_right_specs(paired_readout.spec_tokens, right_only)
         )
         ca_mean_cell = {**ca_mean_cell, **paired_window_traces.ca_mean_cell}
-        ca_sem = {**ca_sem, **paired_window_traces.ca_sem}
+        ca_sd = {**ca_sd, **paired_window_traces.ca_sd}
         ca_n = {**ca_n, **paired_window_traces.ca_n}
         gt_traces = {**gt_traces, **paired_readout.gt_traces}
         paired_v_th_by_cell = paired_readout.v_th_by_cell
         paired_e_leak_by_cell = paired_readout.e_leak_by_cell
-    show_sem = not single_hex and not has_at_xy
+    show_sd = not single_hex and not has_at_xy
     n_row = len(cells)
     n_col = len(spec_tokens)
     fig, axes = _mbar_figure(n_row, n_col)
@@ -829,12 +829,12 @@ def _mbar_all_figure(readouts, title, *, right_only=True, cost_parts=None):
                     label for label in labels if label in ca_mean_cell_mean_hex_by_label
                 ]
                 _plot_mbar_cell_at_xy(
-                    ax, ca_mean_cell[key], ca_sem.get(key),
+                    ax, ca_mean_cell[key], ca_sd.get(key),
                     ca_mean_cell_mean_hex_by_label, plot_labels,
                     cell_title, before_t,
                     gt_trace=gt_trace_affine(panel_readout, cell, gt_traces.get(key)),
                     show_ylabel=(col == 0),
-                    show_sem=show_sem and key in ca_sem and np.any(ca_sem[key]),
+                    show_sd=show_sd and key in ca_sd and np.any(ca_sd[key]),
                     show_legend=(row == 0 and col == 0),
                     cell_ticks=False,
                     show_tick_labels=(row == n_row - 1),
@@ -848,11 +848,11 @@ def _mbar_all_figure(readouts, title, *, right_only=True, cost_parts=None):
             else:
                 src = panel_readout or readout
                 _plot_mbar_cell(
-                    ax, ca_mean_cell[key], ca_sem.get(key),
+                    ax, ca_mean_cell[key], ca_sd.get(key),
                     cell_title, before_t,
                     gt_trace=gt_trace_affine(src, cell, gt_traces.get(key)),
                     show_ylabel=(col == 0),
-                    show_sem=show_sem and key in ca_sem and np.any(ca_sem[key]),
+                    show_sd=show_sd and key in ca_sd and np.any(ca_sd[key]),
                     cell_ticks=False,
                     show_tick_labels=(row == n_row - 1),
                     mark_cost_window=True,
@@ -904,7 +904,7 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
         window_traces = row_readout.traces
         labels = list(row_readout.labels or ())
         has_at_xy = row_readout.ca_mean_cell_mean_hex_by_label is not None
-        show_sem = not row_readout.single_hex and not has_at_xy
+        show_sd = not row_readout.single_hex and not has_at_xy
         for col, token in enumerate(specs):
             ax = axes[row, col_offset + col]
             key = (cell, token)
@@ -941,14 +941,14 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
                     label for label in labels
                     if label in ca_mean_cell_mean_hex_by_label
                 ]
-                sem_trace = window_traces.ca_sem.get(key)
+                sd_trace = window_traces.ca_sd.get(key)
                 _plot_mbar_cell_at_xy(
-                    ax, window_traces.ca_mean_cell[key], sem_trace,
+                    ax, window_traces.ca_mean_cell[key], sd_trace,
                     ca_mean_cell_mean_hex_by_label, plot_labels,
                     cell_title, before_t,
                     gt_trace=gt_trace,
                     show_ylabel=show_ylabel,
-                    show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
+                    show_sd=show_sd and sd_trace is not None and np.any(sd_trace),
                     show_legend=(row == 0 and col_offset + col == 0),
                     mark_cost_window=True,
                     v_th=v_th,
@@ -960,10 +960,10 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
                 )
             else:
                 _plot_mbar_cell(
-                    ax, window_traces.ca_mean_cell[key], window_traces.ca_sem[key],
+                    ax, window_traces.ca_mean_cell[key], window_traces.ca_sd[key],
                     cell_title, before_t,
                     gt_trace=gt_trace,
-                    show_ylabel=show_ylabel, show_sem=show_sem,
+                    show_ylabel=show_ylabel, show_sd=show_sd,
                     show_tick_labels=show_tick_labels,
                     mark_cost_window=True,
                     v_th=v_th,

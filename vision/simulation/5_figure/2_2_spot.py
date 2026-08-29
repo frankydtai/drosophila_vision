@@ -41,7 +41,7 @@ from figure.panel import (
     plot_trace,
     plot_timecourse,
     traces_with_cost_ts,
-    sem_from_traces,
+    sd_from_traces,
     expand_at_xy,
     is_single_hex_cost,
     v_th_from_z,
@@ -176,7 +176,7 @@ def resolve_spot_gts(sessions, gts=None, *, filter=None):
     return gts
 
 
-def center_trace_and_rf_profile(radius_time, center_radius, sem=None, *, t_onset=None, t_sti_end=None, t_delay=0):
+def center_trace_and_rf_profile(radius_time, center_radius, sd=None, *, t_onset=None, t_sti_end=None, t_delay=0):
     """Center-radius time course + RF profile from gt or v_readout.
 
     RF peak time ``peak_t`` is ``argmax |v - v_onset|`` inside the
@@ -203,8 +203,8 @@ def center_trace_and_rf_profile(radius_time, center_radius, sem=None, *, t_onset
     ref = float(resp[0]) if np.isfinite(resp[0]) else float(resp[np.isfinite(resp)][0])
     peak_t = t0 + int(np.nanargmax(np.abs(resp - ref)))
     rf_profile = np.asarray(radius_time[:, peak_t], dtype=np.float64)
-    center_sem = None if sem is None else sem[center_radius]
-    return center_trace, rf_profile, center_sem
+    center_sd = None if sd is None else sd[center_radius]
+    return center_trace, rf_profile, center_sd
 
 
 def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
@@ -245,20 +245,20 @@ def _rf_profile_contrast_traces(
 ):
     """RF profile + center traces for each contrast.
 
-    ``traces`` items may include ``v_readout_mean_cell_mean_radius``, ``gt``, ``sem``.
+    ``traces`` items may include ``v_readout_mean_cell_mean_radius``, ``gt``, ``sd``.
     Returns a list of dicts with ``v_readout_center``, ``v_readout_rf_profile``,
-    ``v_readout_sem``, ``gt_center``, ``gt_rf_profile`` plus passthrough keys.
+    ``v_readout_sd``, ``gt_center``, ``gt_rf_profile`` plus passthrough keys.
     """
     rf_profile_kwargs = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
     for i, trace in enumerate(traces):
         v_readout = trace.get("v_readout_mean_cell_mean_radius")
         gt = trace.get("gt")
         if v_readout is not None:
-            v_readout_center, v_readout_rf_profile, v_readout_sem = center_trace_and_rf_profile(
-                v_readout, center_radius, trace.get("sem"), **rf_profile_kwargs,
+            v_readout_center, v_readout_rf_profile, v_readout_sd = center_trace_and_rf_profile(
+                v_readout, center_radius, trace.get("sd"), **rf_profile_kwargs,
             )
         else:
-            v_readout_center, v_readout_rf_profile, v_readout_sem = None, None, None
+            v_readout_center, v_readout_rf_profile, v_readout_sd = None, None, None
         if gt is not None:
             gt_center, gt_rf_profile, _ = center_trace_and_rf_profile(
                 gt, center_radius, **rf_profile_kwargs,
@@ -269,7 +269,7 @@ def _rf_profile_contrast_traces(
             **trace,
             "v_readout_center": v_readout_center,
             "v_readout_rf_profile": v_readout_rf_profile,
-            "v_readout_sem": v_readout_sem,
+            "v_readout_sd": v_readout_sd,
             "gt_center": gt_center,
             "gt_rf_profile": gt_rf_profile,
         }
@@ -353,13 +353,13 @@ def plot_cell_time(
             {
                 "v_readout_mean_cell_mean_radius": trace["v_readout_center"],
                 "gt": trace["gt_center"],
-                "sem": trace["v_readout_sem"],
+                "sd": trace["v_readout_sd"],
                 "linestyle": trace.get("linestyle", "-"),
                 "ts": trace.get("ts"),
             }
             for trace in scaled
         ],
-        show_sem=any(trace["v_readout_sem"] is not None for trace in scaled),
+        show_sd=any(trace["v_readout_sd"] is not None for trace in scaled),
         v_th=v_th,
         e_leak=e_leak,
         show_ylabel=show_ylabel,
@@ -534,7 +534,7 @@ def plot_cell_rf_time_at_xy(
 
 
 def _spot_v_readout_mean_cell_mean_radius(readout, *, mask=None):
-    """``cell → (n_radius, n_t)`` mean; also ``sem`` and ``n_by_cell``."""
+    """``cell → (n_radius, n_t)`` mean; also ``sd`` and ``n_by_cell``."""
     figure_cells = list(readout['figure_cells'])
     cells = readout['cells']
     n_t = readout['n_t']
@@ -548,7 +548,7 @@ def _spot_v_readout_mean_cell_mean_radius(readout, *, mask=None):
         dv = dv[mask]
         figure_traces = figure_traces[mask]
     v_stack = np.full((len(figure_cells), RF_N_RADII, n_t), np.nan)
-    sem_stack = np.full((len(figure_cells), RF_N_RADII, n_t), np.nan)
+    sd_stack = np.full((len(figure_cells), RF_N_RADII, n_t), np.nan)
     n_by_cell = {}
     for figure_cell_idx, figure_cell in enumerate(figure_cells):
         cell_entry_mask = node_cell_idx == cells.index(figure_cell)
@@ -565,7 +565,7 @@ def _spot_v_readout_mean_cell_mean_radius(readout, *, mask=None):
                 continue
             traces = figure_traces[grouped_entries]
             v_stack[figure_cell_idx, radius] = traces.mean(axis=0)
-            sem_stack[figure_cell_idx, radius] = sem_from_traces(
+            sd_stack[figure_cell_idx, radius] = sd_from_traces(
                 traces, single_hex=False,
             )
             n_by_radius[radius] = len(grouped_entries)
@@ -574,11 +574,11 @@ def _spot_v_readout_mean_cell_mean_radius(readout, *, mask=None):
         figure_cell: v_stack[figure_cell_idx]
         for figure_cell_idx, figure_cell in enumerate(figure_cells)
     }
-    sem = {
-        figure_cell: sem_stack[figure_cell_idx]
+    sd = {
+        figure_cell: sd_stack[figure_cell_idx]
         for figure_cell_idx, figure_cell in enumerate(figure_cells)
     }
-    return v_readout_mean_cell_mean_radius, sem, n_by_cell
+    return v_readout_mean_cell_mean_radius, sd, n_by_cell
 
 
 @dataclass
@@ -613,9 +613,9 @@ def _spot_gt_readout(readout):
             cell: readout.v_readout_mean_cell_mean_radius[cell] for cell in cells
             if cell in readout.v_readout_mean_cell_mean_radius
         },
-        sem={
-            cell: readout.sem[cell] for cell in cells
-            if cell in readout.sem
+        sd={
+            cell: readout.sd[cell] for cell in cells
+            if cell in readout.sd
         },
         n_by_cell={
             cell: dict(readout.n_by_cell.get(cell) or {})
@@ -793,7 +793,7 @@ def network_spot_trace_readout(
     """Run one forward; full cost-radius spot traces over all types."""
     t_prep0 = time.perf_counter()
     readout = _forward_spot_readout(session, z)
-    v_readout_mean_cell_mean_radius, sem, n_by_cell = (
+    v_readout_mean_cell_mean_radius, sd, n_by_cell = (
         _spot_v_readout_mean_cell_mean_radius(readout)
     )
     figure_cells = list(readout['figure_cells'])
@@ -801,7 +801,7 @@ def network_spot_trace_readout(
     if is_single_hex_cost(
         session, task=readout['pack'].task, contrast=readout['pack'].contrast,
     ):
-        sem = {}
+        sd = {}
     rows = _rows_from_cell_rows(readout['cell_rows'], figure_cells)
     mean_hex_by_label, labels = (None, None)
     if at_xs is not None or at_ys is not None:
@@ -820,7 +820,7 @@ def network_spot_trace_readout(
         n_t=n_t,
         prep_s=time.perf_counter() - t_prep0,
         v_readout_mean_cell_mean_radius=v_readout_mean_cell_mean_radius,
-        sem=sem,
+        sd=sd,
         n_by_cell=n_by_cell,
         v_th_by_cell=dict(readout.get('v_th_by_cell') or {}),
         e_leak_by_cell=dict(readout.get('e_leak_by_cell') or {}),
@@ -915,7 +915,7 @@ def _plot_figure(
                 "contrast": contrast,
                 "v_readout_mean_cell_mean_radius": contrast_readout.v_readout_mean_cell_mean_radius[cell],
                 "gt": gt_trace_affine(contrast_readout, cell, gt_by_cell.get(cell)),
-                "sem": contrast_readout.sem.get(cell),
+                "sd": contrast_readout.sd.get(cell),
                 "v_th": contrast_readout.v_th_by_cell.get(cell),
                 "linestyle": contrast_linestyle(contrast),
                 "gt_label": f"{contrast} gt",

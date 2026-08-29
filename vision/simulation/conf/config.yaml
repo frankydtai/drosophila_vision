@@ -189,7 +189,7 @@ cost_norm: "a_gt2"
 a_lsd: 1.0
 # Reduce cost entries within each fine part before comparing with GT.
 # ``mean_trace``: weighted mean trace vs weighted mean GT (default for new runs);
-#                 packs with GT SD (sbar) also match baseline-aligned sample SD.
+#                 packs with GT SD (sbar) also match mean_v±SD to gt_aff±|a_gt|·gt_std.
 # ``entry_sse``: legacy behavior, compare every entry trace with GT separately.
 cost_entry_reduce: "mean_trace"
 # cost_ms: post-onset cost sample times (spread + spot; same for every radius).

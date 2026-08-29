@@ -14,7 +14,7 @@ import train
 
 GT_COLOR = 'gray'
 V_READOUT_COLOR = 'red'
-SEM_COLOR = 'pink'
+SD_COLOR = 'pink'
 TRACE_LINE_W = 1.5
 N_COL_GT = 5
 N_COL_ALL = 8
@@ -34,6 +34,14 @@ def gt_trace_affine(readout, cell, gt_trace):
         return None
     a_gt, bias = readout.gt_affine_by_cell.get(str(cell), (1.0, 0.0))
     return float(a_gt) * np.asarray(gt_trace, dtype=float) + float(bias)
+
+
+def gt_sd_affine(readout, cell, gt_std):
+    """Half-width for gt_aff ± band; matches sbar band-edge cost target."""
+    if gt_std is None:
+        return None
+    a_gt, _ = readout.gt_affine_by_cell.get(str(cell), (1.0, 0.0))
+    return abs(float(a_gt)) * np.asarray(gt_std, dtype=float)
 
 
 def cost_ylim(*costs, percentile=99.0, padding=1.1, floor=1.0, log=False):
@@ -105,7 +113,7 @@ def mark_sti_on(ax, t_onset, t_sti_end):
 
 
 def is_single_hex_cost(session, task=None, contrast=None):
-    """True when cost uses a single hex (no hexes SEM band)."""
+    """True when cost uses a single hex (no hexes SD band)."""
     return getattr(
         session.primary_pack if task is None and contrast is None
         else session.packs[task][contrast],
@@ -130,12 +138,12 @@ def pack_center_mask(pack, connectome):
     return np.ones(entry_nodes.shape[0], dtype=bool)
 
 
-def sem_from_traces(traces, single_hex=False):
-    """Per-time SEM across cost entries; zero when single-hex cost or one entry."""
+def sd_from_traces(traces, single_hex=False):
+    """Per-time SD across cost entries; zero when single-hex cost or one entry."""
     n = traces.shape[0]
     if single_hex or n <= 1:
         return np.zeros(traces.shape[1], dtype=np.float64)
-    return traces.std(axis=0, ddof=1) / np.sqrt(n)
+    return traces.std(axis=0, ddof=1)
 
 
 def v_th_from_z(z, session):
@@ -296,21 +304,21 @@ def at_xy_reds(n_label):
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n_label + 1)]
 
 
-def plot_sem_band(ax, t, v_readout, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
-    """Shaded ±SEM for continuous line traces."""
-    if sem is None or not np.any(sem):
+def plot_sd_band(ax, t, v_readout, sd, *, color=None, alpha=None, label=r'$\pm$SD'):
+    """Shaded ±SD for continuous line traces."""
+    if sd is None or not np.any(sd):
         return
     t = np.asarray(t)
     v_readout = np.asarray(v_readout, dtype=np.float64)
-    sem = np.asarray(sem, dtype=np.float64)
-    mask = np.isfinite(v_readout) & np.isfinite(sem)
+    sd = np.asarray(sd, dtype=np.float64)
+    mask = np.isfinite(v_readout) & np.isfinite(sd)
     if not np.any(mask):
         return
     ax.fill_between(
         t[mask],
-        v_readout[mask] - sem[mask],
-        v_readout[mask] + sem[mask],
-        color=SEM_COLOR if color is None else color,
+        v_readout[mask] - sd[mask],
+        v_readout[mask] + sd[mask],
+        color=SD_COLOR if color is None else color,
         alpha=0.3 if alpha is None else alpha,
         linewidth=0,
         label=label,
@@ -402,7 +410,7 @@ def plot_timecourse(
     t,
     traces,
     *,
-    show_sem=True,
+    show_sd=True,
     title=None,
     title_fontsize=7,
     v_th=None,
@@ -418,7 +426,7 @@ def plot_timecourse(
 
     ``traces``: sequence of dicts with keys ``v_readout_mean_cell`` /
     ``v_readout_mean_cell_mean_radius`` / ``ca_mean_cell``, ``gt``, optional
-    ``sem``, ``linestyle`` (default ``'-'``), ``ts``.
+    ``sd`` / ``gt_sd``, ``linestyle`` (default ``'-'``), ``ts``.
     When ``ts`` is set, gray gt is drawn as open dots at those samples
     (still never draws ``[0, gt_from_t)`` via line); otherwise gt is a solid
     line from ``gt_from_t``. Red v_readout is dashed before ``t_onset`` and
@@ -436,12 +444,18 @@ def plot_timecourse(
         if v_readout is None:
             v_readout = trace.get("ca_mean_cell")
         gt = trace.get("gt")
-        sem = trace.get("sem")
+        sd = trace.get("sd")
+        gt_sd = trace.get("gt_sd")
         linestyle = trace.get("linestyle", "-")
         cost_ts = trace.get("ts")
         if cost_ts is not None:
             gt_time, gt_value = _trace_points(t, gt, ts=cost_ts)
             if gt_time is not None:
+                if show_sd and gt is not None and gt_sd is not None:
+                    plot_sd_band(
+                        ax, t, gt, gt_sd,
+                        color=GT_COLOR, label="_nolegend_",
+                    )
                 ax.plot(
                     gt_time, gt_value, linestyle='none', marker='o', markersize=4,
                     fillstyle='none', markeredgewidth=1.0, color=GT_COLOR,
@@ -454,13 +468,19 @@ def plot_timecourse(
             n_gt = int(gt.shape[0])
             gt_start_clamped = max(0, min(gt_start, n_gt))
             if gt_start_clamped < n_gt:
+                if show_sd and gt_sd is not None:
+                    plot_sd_band(
+                        ax, time_gt[gt_start_clamped:], gt[gt_start_clamped:],
+                        np.asarray(gt_sd, dtype=np.float64)[gt_start_clamped:],
+                        color=GT_COLOR, label="_nolegend_",
+                    )
                 ax.plot(
                     time_gt[gt_start_clamped:], gt[gt_start_clamped:],
                     color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LINE_W,
                 )
         if v_readout is not None:
-            if show_sem and sem is not None:
-                plot_sem_band(ax, t, v_readout, sem)
+            if show_sd and sd is not None:
+                plot_sd_band(ax, t, v_readout, sd)
             plot_trace(
                 ax, t, v_readout, t_onset=t_onset,
                 color=V_READOUT_COLOR, linestyle=linestyle, linewidth=TRACE_LINE_W,
@@ -602,7 +622,7 @@ def _save_interactive_html(fig, path):
                 layer='below',
             ))
 
-        # SEM fill_between etc. before line traces (same stacking as PNG).
+        # SD fill_between etc. before line traces (same stacking as PNG).
         for collection in ax.collections:
             if not isinstance(collection, PolyCollection):
                 continue

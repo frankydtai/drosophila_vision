@@ -42,7 +42,7 @@ from figure.panel import (
     gt_trace_affine,
     readout_prep_s,
     save_figure,
-    sem_from_traces,
+    sd_from_traces,
     traces_with_cost_ts,
     v_th_from_z,
 )
@@ -93,7 +93,7 @@ class SbarTraceReadout:
     t_sti_end: int | None = None
     ms_shown: tuple[float, float] | None = None
     v_readout: dict = field(default_factory=dict)
-    sem: dict = field(default_factory=dict)
+    sd: dict = field(default_factory=dict)
     n_by_cell_mid: dict = field(default_factory=dict)
     v_th_by_cell: dict = field(default_factory=dict)
     e_leak_by_cell: dict = field(default_factory=dict)
@@ -180,7 +180,7 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
     mids = _sbar_mids_from_pack(pack)
 
     v_readout: dict = {}
-    sem_out: dict = {}
+    sd_out: dict = {}
     n_by_cell_mid: dict = {}
 
     for cell in all_cells:
@@ -188,7 +188,7 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
         if not np.any(cell_entry_mask):
             continue
         v_readout[cell] = {}
-        sem_out[cell] = {}
+        sd_out[cell] = {}
         n_by_cell_mid[cell] = {}
         for mid in mids:
             mid_entry_mask = cell_entry_mask.copy()
@@ -202,7 +202,7 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
                 entry_bs[mid_entry_mask], :, entry_nodes[mid_entry_mask]
             ]
             v_readout[cell][mid] = entry_traces.mean(axis=0)
-            sem_out[cell][mid] = sem_from_traces(
+            sd_out[cell][mid] = sd_from_traces(
                 entry_traces, single_hex=(entry_traces.shape[0] == 1),
             )
             n_by_cell_mid[cell][mid] = int(entry_traces.shape[0])
@@ -213,7 +213,7 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
         if cell in v_readout or cell not in connectome.cells:
             continue
         cell_v: dict = {}
-        cell_sem: dict = {}
+        cell_sd: dict = {}
         cell_n: dict = {}
         for mid in mids:
             mid_traces = []
@@ -235,14 +235,14 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
                 continue
             entry_traces = np.stack(mid_traces, axis=0)
             cell_v[mid] = entry_traces.mean(axis=0)
-            cell_sem[mid] = sem_from_traces(
+            cell_sd[mid] = sd_from_traces(
                 entry_traces, single_hex=(entry_traces.shape[0] == 1),
             )
             cell_n[mid] = int(entry_traces.shape[0])
         if not cell_v:
             continue
         v_readout[cell] = cell_v
-        sem_out[cell] = cell_sem
+        sd_out[cell] = cell_sd
         n_by_cell_mid[cell] = cell_n
 
     readout_cells = cells_in_order(list(v_readout))
@@ -272,7 +272,7 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
         t_sti_end=t_sti_end(t_onset, n_t, ms_sti, delta_ms=delta_ms),
         ms_shown=ms_shown,
         v_readout=v_readout,
-        sem=sem_out,
+        sd=sd_out,
         n_by_cell_mid=n_by_cell_mid,
         v_th_by_cell=v_th_by_cell,
         e_leak_by_cell=e_leak_by_cell,
@@ -297,7 +297,7 @@ def _sbar_filter_readout(readout, cells):
         t_sti_end=readout.t_sti_end,
         ms_shown=readout.ms_shown,
         v_readout={cell: readout.v_readout[cell] for cell in keep},
-        sem={cell: readout.sem[cell] for cell in keep if cell in readout.sem},
+        sd={cell: readout.sd[cell] for cell in keep if cell in readout.sd},
         n_by_cell_mid={
             cell: readout.n_by_cell_mid[cell]
             for cell in keep if cell in readout.n_by_cell_mid
@@ -427,7 +427,7 @@ def _plot_figure(path, *, timer, readouts, title, gts=None, cost_parts=None):
                     "gt": gt_trace_affine(
                         contrast_readout, cell, gt_by_cell_mid.get((cell, mid)),
                     ),
-                    "sem": contrast_readout.sem.get(cell, {}).get(mid),
+                    "sd": contrast_readout.sd.get(cell, {}).get(mid),
                     "linestyle": contrast_linestyle(contrast),
                 })
             traces = traces_with_cost_ts(traces, readouts)

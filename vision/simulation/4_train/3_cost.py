@@ -28,10 +28,12 @@ scale per cell×radius unless ``part_cost_scales`` says otherwise).
 Entry reduction is selected by ``cost_entry_reduce``.  ``mean_trace`` first
 takes the weighted mean of model and target traces inside each fine part
 (``entry_part_keys``), then compares those two means.  When a pack supplies
-``gt_stds``, it additionally compares the baseline-aligned model sample SD to
-``abs(a_gt) * gt_std`` with the same normalization. ``entry_sse`` is the legacy
-behavior that compares every entry separately before summing and does not use
-the distribution-level SD target.
+``gt_stds``, it additionally compares model ``mean_v ± sample_SD`` to
+``gt_aff ± abs(a_gt) * gt_std`` (band edges, same stacking as sbar figures).
+The fixed manual config weight gives ``L_total = L_mean + a_lsd * L_band``;
+``a_lsd`` is not trainable.
+``entry_sse`` is the legacy behavior that compares every entry separately
+before summing and does not use the distribution-level SD target.
 
 Sparse cost time points (#4): ``pack.gts`` keeps the ``ms_response`` window length
 (task-specific ``ms_post`` handling lives in each pack) and the subsample is gathered from both v_readout
@@ -295,14 +297,13 @@ def _mean_trace_parts_from_entries(
     gt_stds: Optional[torch.Tensor] = None,
     gt_std_scales: Optional[torch.Tensor] = None,
 ) -> Dict[str, torch.Tensor]:
-    """Compare weighted model/target mean and, when supplied, sample SD.
+    """Compare weighted model/target mean and, when supplied, ±SD bands.
 
     The effective entry-weight sum is retained on the squared error.  This
     preserves existing part/radius/count weighting while removing only the
-    within-part trace-dispersion penalty.  ``gt_stds`` adds an explicit SD
-    target instead: model responses are first baseline-aligned with
-    ``bias_gt``, then their weighted sample SD is compared with
-    ``abs(a_gt) * gt_std``.  Both mean and SD errors use the same normalization.
+    within-part trace-dispersion penalty.  ``gt_stds`` supervises band edges:
+    weighted ``mean_v ± sample_SD`` vs ``gt_aff ± abs(a_gt) * gt_std``.
+    Both mean and band errors use the same normalization.
     """
     cost_norm = _session_cost_norm(session)
     n_t = int(v_readout.shape[1])
@@ -355,12 +356,9 @@ def _mean_trace_parts_from_entries(
                 std_weight_t - std_weight2_t / std_safe_weight_t
             )
             std_valid_t = sample_denom > 0
-            responses = v_readout[entries] - bias_gt[entries, None]
-            mean_response = (
-                std_weights * responses
-            ).sum(dim=0) / std_safe_weight_t
+            entry_v = v_readout[entries]
             model_var = (
-                std_weights * (responses - mean_response) ** 2
+                std_weights * (entry_v - mean_v[None, :]) ** 2
             ).sum(dim=0) / sample_denom.clamp(min=tiny)
             # epsilon keeps sqrt's derivative finite when model variance is 0.
             model_std = torch.sqrt(
@@ -370,9 +368,12 @@ def _mean_trace_parts_from_entries(
                 std_weights
                 * (a_gt[entries, None].abs() * gt_stds[entries])
             ).sum(dim=0) / std_safe_weight_t
-            std_error = model_std - target_std
+            upper_error = (mean_v + model_std) - (mean_gt_affine + target_std)
+            lower_error = (mean_v - model_std) - (mean_gt_affine - target_std)
             std_numerator = (
-                std_weight_t[std_valid_t] * std_error[std_valid_t] ** 2
+                std_weight_t[std_valid_t] * upper_error[std_valid_t] ** 2
+            ).sum() + (
+                std_weight_t[std_valid_t] * lower_error[std_valid_t] ** 2
             ).sum()
             std_mean_a_gt2 = (
                 std_weights * (a_gt[entries, None] ** 2)
@@ -398,9 +399,12 @@ def _mean_trace_parts_from_entries(
                 / mean_a_gt2[valid_t].clamp(min=tiny)
             ).sum()
             if std_mean_a_gt2 is not None:
+                band_denom = std_mean_a_gt2[std_valid_t].clamp(min=tiny)
                 cost = cost + _session_a_lsd(session) * (
-                    std_weight_t[std_valid_t] * std_error[std_valid_t] ** 2
-                    / std_mean_a_gt2[std_valid_t].clamp(min=tiny)
+                    (
+                        std_weight_t[std_valid_t] * upper_error[std_valid_t] ** 2
+                        + std_weight_t[std_valid_t] * lower_error[std_valid_t] ** 2
+                    ) / band_denom
                 ).sum()
         else:
             raise ValueError(
