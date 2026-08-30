@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 29677691-run-n_iter-500-tasks-sbar
+ 29744533-run-n_iter-500-tasks-sbar-figure_tasks-spread,sbar,mbar
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ spot_cost_radius_scale:
 multi_bar: false
 bar_dist: 4
 # S-bar hex-shift radius projected onto the bar-normal mid axis (0 disables).
-shift_mid: 0
+shift_mid: 2
 a_sti_mids: [0.5, 1, 1.5, 2]
 bar_ws_deg: [2.25]
 bar_directions: [right,left]
@@ -150,8 +150,9 @@ tasks: [spread,sbar]
 gt_by_task:
   spread: [L1, L2, L3, L4, L5, Mi9, Tm3]
   sbar: [T4a,T4b,T4c,T4d]
-  mbar: [T4a]
+  mbar: [T4a,T4b]
 cost_radius: null
+cost_mid: 0
 
 # ---------------------------------------------------------------------------
 # 4.1   train.param (plot/analyze live vals; Hydra param_vals.a_h.L1=0.8)
@@ -240,7 +241,7 @@ mbar_plot_direction: left
 # 5.4   figure.plot
 # ---------------------------------------------------------------------------
 # Tasks to plot after training or when re-plotting; independent of train `tasks`.
-figure_tasks: [spread, sbar]
+figure_tasks: [spread, sbar, mbar]
 # Rows for sbar ``plot_all`` / ``*_all_v.png``.
 sbar_figure_cells: [R1-6, R7, R8, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a]
 html: false

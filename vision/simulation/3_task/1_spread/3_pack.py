@@ -11,9 +11,12 @@ import torch
 import build_hex
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from network.construction import (
+    cost_mid_mask,
     cost_radius_mask,
     gt_cells_from_opts,
     node_cells,
+    standardize_cost_mid,
+    standardize_cost_radius,
 )
 from neuron.borst import t_from_ms
 from task.spread.gt import (
@@ -102,6 +105,8 @@ def build_spread_gt(
     gt_cells: Optional[Sequence[str]] = None,
     filter: str = "none",
     spread_gt_mode: str,
+    cost_radius=None,
+    cost_mid=None,
 ) -> SpreadGt:
     if ms_response is None:
         raise ValueError("build_spread_gt requires ms_response")
@@ -127,7 +132,7 @@ def build_spread_gt(
     if not gt_cells:
         raise ValueError(f"spread has no gt cells (requested subset of {list(GT_CELLS)!r})")
     cells = node_cells(connectome)
-    hexes = cost_sti_hexes(connectome)
+    hexes = cost_sti_hexes(connectome, cost_radius=cost_radius, cost_mid=cost_mid)
     i_sti_pulse = (float(i_sti) - i_baseline) * sti_mask(
         t_onset, n_t, ms_sti, delta_ms=delta_ms,
     )
@@ -209,8 +214,16 @@ def build_cost_ts(opts, *, cost_ms):
     return np.asarray(sorted(ts), dtype=np.int64)
 
 
-def cost_hex_label(cost_radius, n_cost_hex) -> str:
-    radius_label = "all hexes" if cost_radius is None else f"radius={int(cost_radius)}"
+def cost_hex_label(cost_radius, n_cost_hex, cost_mid=None) -> str:
+    from network.construction import standardize_cost_mid
+
+    cost_mid = standardize_cost_mid(cost_mid)
+    labels = []
+    if cost_radius is not None:
+        labels.append(f"radius={int(cost_radius)}")
+    if cost_mid is not None:
+        labels.append(f"mid=±{cost_mid:g}")
+    radius_label = ", ".join(labels) if labels else "all hexes"
     if isinstance(n_cost_hex, dict):
         hex_labels = ", ".join(
             f"b{int(b)}={int(n_hex)}"
@@ -230,8 +243,8 @@ class CostStiHex:
     y: float
 
 
-def cost_sti_hexes(connectome, cost_radius=None) -> List[CostStiHex]:
-    """Sti hexes used for cost (optional central hex disc)."""
+def cost_sti_hexes(connectome, cost_radius=None, cost_mid=None) -> List[CostStiHex]:
+    """Sti hexes used for cost (optional hex disc and connectome mid cross)."""
     hexes_by_uv: Dict[Tuple[int, int], CostStiHex] = {}
     for node in connectome.sti_nodes:
         u = int(connectome.us[node])
@@ -239,6 +252,8 @@ def cost_sti_hexes(connectome, cost_radius=None) -> List[CostStiHex]:
         if (u, v) in hexes_by_uv or not cost_radius_mask(u, v, cost_radius):
             continue
         x, y = build_hex.xy_from_uv(u, v)
+        if not cost_mid_mask(x, y, cost_mid):
+            continue
         hexes_by_uv[(u, v)] = CostStiHex(u=u, v=v, x=float(x), y=float(y))
     return [hexes_by_uv[(u, v)] for u, v in sorted(hexes_by_uv)]
 
@@ -293,6 +308,8 @@ def build_spread_pack(
     delta_ms_pre = float(sti_opts["delta_ms_pre"])
     ms_post = float(sti_opts.get("ms_post", 0.0))
     ms_sti = sti_opts.get("ms_sti")
+    cost_radius = standardize_cost_radius(sti_opts.get("cost_radius"))
+    cost_mid = standardize_cost_mid(sti_opts.get("cost_mid"))
     t_onset = int(t_from_ms(ms_pre, delta_ms=delta_ms_pre))
     n_t = int(
         t_onset
@@ -314,6 +331,8 @@ def build_spread_pack(
         gt_cells=gt_cells_from_opts(sti_opts),
         filter=filter,
         spread_gt_mode=spread_gt_mode,
+        cost_radius=cost_radius,
+        cost_mid=cost_mid,
     )
     pack = SpreadPack(
         task="spread",

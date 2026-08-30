@@ -19,6 +19,7 @@ from network.construction import (
     active_gt_cells,
     node_cells,
     gt_cells_from_opts,
+    standardize_cost_mid,
     standardize_cost_radius,
 )
 from task.spread.pack import CostPartPlotSpec, cost_hex_label, cost_sti_hexes
@@ -87,6 +88,7 @@ class MbarPack:
     cost_t0s: Optional[torch.Tensor] = None
     cost_ts: Optional[torch.Tensor] = None
     cost_radius: Optional[int] = None
+    cost_mid: Optional[float] = None
     cost_pd_nds: Optional[torch.Tensor] = None
     entry_part_keys: Tuple[str, ...] = ()
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
@@ -290,6 +292,7 @@ def build_mbar_gt(
     bar_directions: Sequence[str],
     multi_bar: bool = True,
     cost_radius: Optional[int] = None,
+    cost_mid: Optional[float] = None,
     i_baseline: float,
     i_sti: float,
     contrasts: Sequence[str],
@@ -329,7 +332,9 @@ def build_mbar_gt(
         (int(hex.u), int(hex.v)): hex_idx
         for hex_idx, hex in enumerate(sti_hexes(connectome))
     }
-    hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
+    hexes = cost_sti_hexes(
+        connectome, cost_radius=cost_radius, cost_mid=cost_mid,
+    )
     cost_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
     hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_idxs)}
 
@@ -422,6 +427,7 @@ def mbar_session_t0_grids(
     cost_radius,
     n_t: int,
     *,
+    cost_mid=None,
     at_x=None,
     at_y=None,
     delta_ms: float,
@@ -432,7 +438,9 @@ def mbar_session_t0_grids(
     i_baseline = i_baseline_from_i_sti(i_sti)
 
     side = connectome.meta.get('side', 'right')
-    hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
+    hexes = cost_sti_hexes(
+        connectome, cost_radius=cost_radius, cost_mid=cost_mid,
+    )
     if at_x is not None or at_y is not None:
         filt_hexes = sti_hexes_at_xy(hexes, at_x=at_x, at_y=at_y)
         if not filt_hexes:
@@ -583,6 +591,7 @@ def build_mbar_pack(
         raise ValueError("mbar requires sti opts (from resolve_train_opts / CLI)")
     sti_opts = dict(sti_opts)
     cost_radius = standardize_cost_radius(sti_opts.get("cost_radius"))
+    cost_mid = standardize_cost_mid(sti_opts.get("cost_mid"))
     use_a_sti_mid = "a_sti_mid" in ((opts.get("params") or {}))
     t_onset = int(t_from_ms(
         float(sti_opts["ms_pre"]),
@@ -595,6 +604,7 @@ def build_mbar_pack(
         t_onset=t_onset,
         delta_ms=float(sti_opts["delta_ms"]),
         cost_radius=cost_radius,
+        cost_mid=cost_mid,
         i_baseline=i_baseline,
         i_sti=i_sti_peak,
         contrasts=(contrast,),
@@ -610,6 +620,8 @@ def build_mbar_pack(
     sti_opts["spec_tokens"] = list(mbar_gt.spec_tokens)
     if cost_radius is not None:
         sti_opts["cost_radius"] = int(cost_radius)
+    if cost_mid is not None:
+        sti_opts["cost_mid"] = float(cost_mid)
     sti_opts["gt_cells"] = list(mbar_gt.active_gts)
     bar_axis_distance = None
     if use_a_sti_mid and mbar_gt.bar_axis_distance_hex is not None:
@@ -629,6 +641,7 @@ def build_mbar_pack(
         entry_nodes=mbar_gt.entry_nodes,
         cost_t0s=mbar_gt.cost_t0s,
         cost_radius=cost_radius,
+        cost_mid=cost_mid,
         cost_pd_nds=mbar_gt.cost_pd_nds,
         t_onset=t_onset,
         bar_axis_distance=bar_axis_distance,
@@ -651,5 +664,5 @@ def build_mbar_pack(
     return pack, sti_opts, (
         f"moving-bar {contrast} (B={mbar_gt.n_b} stis, "
         f"{int(mbar_gt.entry_bs.shape[0])} cost nodes, "
-        f"{cost_hex_label(cost_radius, mbar_gt.n_cost_hex)})"
+        f"{cost_hex_label(cost_radius, mbar_gt.n_cost_hex, cost_mid=cost_mid)})"
     )

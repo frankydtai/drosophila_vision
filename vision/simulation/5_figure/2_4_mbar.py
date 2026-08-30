@@ -280,11 +280,13 @@ def _t0_from_align_hex(t0_bn, b, ref_hex, *, connectome):
 
 def t0_bn_from_align_at_xy(
     t0_bn, n_b, hexes, align_at_x, align_at_y, *,
-    session, cost_radius,
+    session, cost_radius, cost_mid=None,
 ):
     """Copy ``t0_bn`` with at_xy nodes forced to the ref hex ``t0`` (plot only)."""
     connectome = session.connectome
-    cost_hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
+    cost_hexes = cost_sti_hexes(
+        connectome, cost_radius=cost_radius, cost_mid=cost_mid,
+    )
     ref_hexes = sti_hexes_at_xy(cost_hexes, at_x=align_at_x, at_y=align_at_y)
     if len(ref_hexes) != 1:
         raise SystemExit(
@@ -315,7 +317,9 @@ def _mbar_ca_mean_cell_mean_hex(
     t0_bn = base_traces.t0_bn
     n_b = len(spec_tokens)
     connectome = session.connectome
-    hexes = cost_sti_hexes(connectome, cost_radius=pack.cost_radius)
+    hexes = cost_sti_hexes(
+        connectome, cost_radius=pack.cost_radius, cost_mid=getattr(pack, "cost_mid", None),
+    )
     hexes = sti_hexes_at_xy(hexes, at_x=at_x, at_y=at_y)
     if not hexes:
         return None
@@ -329,6 +333,7 @@ def _mbar_ca_mean_cell_mean_hex(
         t0_bn_aligned = t0_bn_from_align_at_xy(
             t0_bn, n_b, hexes, align_at_x, align_at_y,
             session=session, cost_radius=pack.cost_radius,
+            cost_mid=getattr(pack, "cost_mid", None),
         )
     windows_by_b = _windows_by_b(trace, t0_bn_aligned, n_t_by_b)
     ca_mean_cell_mean_hex, _, _ = _mbar_ca_mean_cell(
@@ -374,10 +379,12 @@ def _traces_from_forward(
 ):
     pack = session.packs[task][contrast]
     cost_radius = pack.cost_radius
+    cost_mid = getattr(pack, "cost_mid", None)
     n_t = int(session.n_t)
     _t_onset = train.pack_t_onset(pack)
     grids = mbar_session_t0_grids(
-        session, specs, cost_radius, n_t, at_x=at_x, at_y=at_y,
+        session, specs, cost_radius, n_t,
+        cost_mid=cost_mid, at_x=at_x, at_y=at_y,
         delta_ms=session.delta_ms,
     )
     cells, cell_idxs = _cells_and_cell_idxs(session)
@@ -432,7 +439,9 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
     )
     v_th = v_th_from_z(z, session)
     if connectome is not None:
-        hexes = cost_sti_hexes(connectome, cost_radius=pack.cost_radius)
+        hexes = cost_sti_hexes(
+        connectome, cost_radius=pack.cost_radius, cost_mid=getattr(pack, "cost_mid", None),
+    )
         if at_x is not None or at_y is not None:
             hexes = sti_hexes_at_xy(hexes, at_x=at_x, at_y=at_y)
         nodes_by_cell = {
@@ -546,6 +555,7 @@ def _cost_window_xy(cost_trace, before_t, delta_ms):
 def _mbar_hexes_label(session, *, at_x=None, at_y=None, n_hex=None):
     pack = session.primary_pack
     cost_radius = pack.cost_radius
+    cost_mid = getattr(pack, "cost_mid", None)
     connectome = session.connectome
     if at_x is not None or at_y is not None:
         ncol_part = f'{n_hex} sti hex'
@@ -554,10 +564,19 @@ def _mbar_hexes_label(session, *, at_x=None, at_y=None, n_hex=None):
         parts = [at_xy_label(at_x, at_y), ncol_part]
         if cost_radius is not None:
             parts.insert(0, f'cost_radius={cost_radius}')
+        if cost_mid is not None:
+            parts.insert(0, f'cost_mid=±{cost_mid:g}')
         return ', '.join(parts)
-    if cost_radius is not None:
-        n_sti_hex = len(cost_sti_hexes(connectome, cost_radius=cost_radius))
-        return f'cost_radius={cost_radius} ({n_sti_hex} sti hexes)'
+    if cost_radius is not None or cost_mid is not None:
+        n_sti_hex = len(cost_sti_hexes(
+            connectome, cost_radius=cost_radius, cost_mid=cost_mid,
+        ))
+        labels = []
+        if cost_radius is not None:
+            labels.append(f'cost_radius={cost_radius}')
+        if cost_mid is not None:
+            labels.append(f'cost_mid=±{cost_mid:g}')
+        return f'{", ".join(labels)} ({n_sti_hex} sti hexes)'
     return f'avg over {len(sti_hexes(connectome))} sti hexes'
 
 

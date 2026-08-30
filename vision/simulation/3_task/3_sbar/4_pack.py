@@ -17,6 +17,7 @@ from network.construction import (
     active_gt_cells,
     gt_cells_from_opts,
     node_cells,
+    standardize_cost_mid,
     standardize_cost_radius,
 )
 from task.sbar.gt import GT_CELLS, gt_trace_key, load_gt_stats
@@ -70,6 +71,7 @@ class SbarPack:
     cost_t0s: Optional[torch.Tensor] = None
     cost_ts: Optional[torch.Tensor] = None
     cost_radius: Optional[int] = None
+    cost_mid: Optional[float] = None
     t_onset: Optional[int] = None
     i_sti_pulse: Optional[torch.Tensor] = None
     sti_bs: Optional[torch.Tensor] = None
@@ -168,6 +170,7 @@ def build_sbar_gt(
     shift_radius: int = 0,
     multi_bar: bool = True,
     cost_radius: Optional[int] = None,
+    cost_mid: Optional[float] = None,
     i_baseline: float,
     i_sti: float,
     contrasts: Sequence[str],
@@ -176,13 +179,14 @@ def build_sbar_gt(
     """Build sbar cost GT.
 
     CRITICAL GT FACTS (from ``3_gt.py`` docstring — read there first):
-    - The raw-data CSV has nine measured integer positions, -4..+4, width 1,
-      duration 160 ms. Vertical-axis half positions are spatial interpolations.
+    - The raw-data CSV has nine measured integer position indices, -4..+4,
+      width 1 and duration 160 ms. Loading divides each index by 2, producing
+      measured mids -2..+2 in 0.5 steps; there is no spatial interpolation.
     - Mean and sample SD are across biological-cell repeat averages, not pooled
       repeat recordings.
-    - Trace ID format: ``{cell_prefix}_{PC|NC}_pos{SIGN}_w1``, e.g. ``T4_PC_pos+0.5_w1``.
-      Integer keys come from CSV measurements; half-position keys are spatial
-      interpolations created by ``load_gt_stats``.
+    - Loaded trace-key format is ``{cell_prefix}_{PC|NC}_pos{SIGN}_w1``, e.g.
+      ``T4_PC_pos+0.5_w1``. Both integer and half-position keys map directly to
+      measured CSV rows after the index-to-mid division.
     - Each simultaneous bar line is a separate spatial replicate, matching how
       spot expands every simultaneous spot center. ``mid`` is the cost-node
       position relative to that bar line, not the node's absolute axis value.
@@ -227,7 +231,9 @@ def build_sbar_gt(
     )
     cells = node_cells(connectome)
     hexes = sti_hexes(connectome)
-    cost_hexes = cost_sti_hexes(connectome, cost_radius=cost_radius)
+    cost_hexes = cost_sti_hexes(
+        connectome, cost_radius=cost_radius, cost_mid=cost_mid,
+    )
     bar_dist = int(bar_dist)
     t0 = int(sti.t_onset)
     n_t_cost = int(t_from_ms(float(ms_response), delta_ms=float(delta_ms)) + 1)
@@ -433,6 +439,7 @@ def build_sbar_pack(
     # ``shift_radius`` is accepted only for loading older saved run options.
     shift_mid = int(sti_opts.get("shift_mid", sti_opts.get("shift_radius", 0)))
     cost_radius = standardize_cost_radius(sti_opts.get("cost_radius"))
+    cost_mid = standardize_cost_mid(sti_opts.get("cost_mid"))
     sbar_gt = build_sbar_gt(
         connectome=connectome,
         ms_pre=float(sti_opts["ms_pre"]),
@@ -442,6 +449,7 @@ def build_sbar_pack(
         delta_ms=float(sti_opts["delta_ms"]),
         delta_ms_pre=float(sti_opts["delta_ms_pre"]),
         cost_radius=cost_radius,
+        cost_mid=cost_mid,
         i_baseline=i_baseline_from_i_sti(i_sti),
         i_sti=float(i_sti[contrast]),
         contrasts=(contrast,),
@@ -479,6 +487,8 @@ def build_sbar_pack(
     sti_opts["spec_tokens"] = list(sbar_gt.spec_tokens)
     if cost_radius is not None:
         sti_opts["cost_radius"] = int(cost_radius)
+    if cost_mid is not None:
+        sti_opts["cost_mid"] = float(cost_mid)
     sti_opts["gt_cells"] = list(sbar_gt.active_gts)
     pack = SbarPack(
         task="sbar",
@@ -493,6 +503,7 @@ def build_sbar_pack(
         cost_t0s=sbar_gt.cost_t0s,
         cost_ts=build_cost_ts(sti_opts, cost_ms=opts.get("cost_ms")),
         cost_radius=cost_radius,
+        cost_mid=cost_mid,
         t_onset=t_onset,
         i_sti_pulse=i_sti_pulse,
         sti_bs=sti_bs,
@@ -511,5 +522,5 @@ def build_sbar_pack(
     return pack, sti_opts, (
         f"static-bar {contrast} (B={sbar_gt.n_b} stis, "
         f"{int(sbar_gt.entry_bs.shape[0])} cost nodes, "
-        f"{cost_hex_label(cost_radius, sbar_gt.n_cost_hex)})"
+        f"{cost_hex_label(cost_radius, sbar_gt.n_cost_hex, cost_mid=cost_mid)})"
     )

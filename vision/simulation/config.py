@@ -168,6 +168,7 @@ def _bind_config(config: dict) -> None:
         },
         "gt_by_task": config.get("gt_by_task"),
         "cost_radius": config.get("cost_radius"),
+        "cost_mid": config.get("cost_mid"),
     }
     VAL_FROM = dict(config.get("val_from") or {})
     TRAIN_OPTIMIZATION = {
@@ -413,6 +414,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
     model = str(NEURON_SCHEMA["model"])
     init_from = _resolve_init_from(config.get("init_from"))
     cost_radius = TRAIN_CONFIG.get("cost_radius")
+    cost_mid = TRAIN_CONFIG.get("cost_mid")
 
     syn_mode = str(NEURON_SCHEMA["syn_mode"])
     filter = str(NEURON_SCHEMA["filter"])
@@ -508,6 +510,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         cost_entry_reduce=str(TRAIN_OPTIMIZATION["cost_entry_reduce"]),
         cost_ms=cost_ms,
         cost_radius=cost_radius,
+        cost_mid=cost_mid,
         mbar_sti_opts=mbar_sti_opts,
         sbar_sti_opts=sbar_sti_opts,
         spread_sti_opts=spread_sti_opts,

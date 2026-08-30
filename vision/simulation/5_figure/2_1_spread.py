@@ -237,7 +237,10 @@ def plot_cell_time(
     mark_sti_on(ax, t_onset, t_sti_end)
     plot_timecourse(
         ax, t, traces,
-        show_sd=any(trace.get("sd") is not None for trace in traces),
+        show_sd=any(
+            trace.get("sd") is not None or trace.get("gt_sd") is not None
+            for trace in traces
+        ),
         v_th=v_th,
         e_leak=e_leak,
         show_ylabel=show_ylabel,

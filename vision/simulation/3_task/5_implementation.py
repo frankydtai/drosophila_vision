@@ -103,6 +103,7 @@ def resolve_sti_opts(
     sti_opts,
     *,
     cost_radius=None,
+    cost_mid=None,
 ) -> dict:
     if task not in _RESOLVE_STI_OPTS:
         raise ValueError(f"unknown task {task!r}")
@@ -112,6 +113,10 @@ def resolve_sti_opts(
         sti_opts["cost_radius"] = int(cost_radius)
     else:
         sti_opts.pop("cost_radius", None)
+    if cost_mid is not None:
+        sti_opts["cost_mid"] = float(cost_mid)
+    else:
+        sti_opts.pop("cost_mid", None)
     return sti_opts
 
 
@@ -119,6 +124,7 @@ def resolve_train_sti_opts(
     tasks,
     *,
     cost_radius=None,
+    cost_mid=None,
     spread_sti_opts=None,
     spot_sti_opts=None,
     mbar_sti_opts=None,
@@ -140,6 +146,7 @@ def resolve_train_sti_opts(
             task,
             sti_opts_by_task[task],
             cost_radius=cost_radius,
+            cost_mid=cost_mid,
         )
     return out
 

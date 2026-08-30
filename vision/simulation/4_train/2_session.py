@@ -209,6 +209,7 @@ def resolve_train_opts(
     part_cost_scales=None,
     sequential=None,
     cost_radius=None,
+    cost_mid=None,
     i_sti=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
     a_lsd=TRAIN_OPTIMIZATION['a_lsd'],
@@ -269,6 +270,7 @@ def resolve_train_opts(
     sti_opts = resolve_train_sti_opts(
         tasks,
         cost_radius=cost_radius,
+        cost_mid=cost_mid,
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
         mbar_sti_opts=mbar_sti_opts,

@@ -141,6 +141,29 @@ def cost_radius_mask(u, v, cost_radius=None) -> bool:
     return bool(build_hex.radius_mask(int(u), int(v), int(cost_radius)))
 
 
+def standardize_cost_mid(cost_mid=None):
+    """``None`` or ``-1`` → unrestricted; else non-negative connectome mid limit."""
+    if cost_mid is None:
+        return None
+    cost_mid = float(cost_mid)
+    if cost_mid == -1:
+        return None
+    if cost_mid < 0:
+        raise ValueError(f"cost_mid must be >= 0, null, or -1; got {cost_mid!r}")
+    return cost_mid
+
+
+def cost_mid_mask(x, y, cost_mid=None) -> bool:
+    """True when connectome ``x`` or ``y`` lies in ``[-cost_mid, +cost_mid]``."""
+    cost_mid = standardize_cost_mid(cost_mid)
+    if cost_mid is None:
+        return True
+    limit = float(cost_mid)
+    x = float(x)
+    y = float(y)
+    return -limit <= x <= limit or -limit <= y <= limit
+
+
 def active_gt_cells(
     gt_cells: Sequence[str] | None,
     fallback_gt_cells: Sequence[str],

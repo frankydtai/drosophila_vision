@@ -14,12 +14,12 @@ GT layout: each entry is one cell's response to a width-1 static bar
 placed at one spatial position on the motion axis.
 
 CRITICAL NUMBERS:
-- The raw-data CSV has exactly nine measured aligned positions: integers -4..+4.
+- The raw T4/T5 CSV position indices are exactly the integers -4..+4.  They
+  map directly to hex-axis mids by dividing by 2, giving -2..+2 in 0.5 steps.
 - It contains only width 1 and duration 160 ms.
-- Half-step positions required by the vertical hex axis are spatially linearly
-  interpolated between the two adjacent measured positions at load time.
 - T4/T5 ``trace_id`` encodes: {cell_prefix}_{PC|NC}_{posSIGN}_w1
-  e.g. T4_PC_pos-2_w1, T5_NC_pos+0_w1, T4_PC_pos+1.5_w1.
+  after remapping, e.g. T4_PC_pos-2_w1, T5_NC_pos+0_w1,
+  T4_PC_pos+1.5_w1.
   PC = ON-pathway (T4 bright / T5 dark); NC = OFF-pathway (T4 dark / T5 bright).
 - Mi1/Mi4 keys use the full cell name: Mi1_PC_pos+0_w1, Mi4_NC_pos-1.5_w1.
   Bright → PC, dark → NC (same as T4; traces come from the T4 PC/NC fit).
@@ -27,8 +27,8 @@ CRITICAL NUMBERS:
   never SD across pooled repeat recordings.
 
 COMMON MISTAKES this module has been fixed from:
-- Confusing the nine measured integer positions with the derived half-step
-  positions used only for vertical-axis geometry.
+- Treating raw T4/T5 position indices as mids.  A raw index must be divided by
+  2; the resulting half-step mids are measured samples, not interpolations.
 - Claiming there are "10 positions" or "tens of positions" (wrong: exactly 9).
 - Claiming each cell has a different set of positions (wrong: all cells share
   the same 9-position grid).
@@ -142,9 +142,9 @@ def load_gt_stats(
     """Return ``(means, stds)`` on the simulation time axis.
 
     ``stds`` contains T4/T5 only because the Mi1/Mi4 decomposition has no
-    biological-cell variation data.  Measured integer T4/T5 positions are
-    supplemented with half-step spatial interpolation for the vertical hex
-    axis; measured keys themselves are never replaced.
+    biological-cell variation data.  Raw T4/T5 position indices -4..+4 are
+    mapped directly to mids -2..+2 by division by 2.  No spatial interpolation
+    is performed.
     """
     ms_response = float(ms_response)
     if ms_sti is not None:
@@ -165,8 +165,16 @@ def load_gt_stats(
         frame["duration_ms"].unique()
     ) != {160}:
         raise ValueError(f"unexpected width/duration in {_T4_T5_CSV}")
+    raw_positions = set(frame["position"].unique())
+    if raw_positions != set(range(-4, 5)):
+        raise ValueError(
+            f"unexpected T4/T5 positions in {_T4_T5_CSV}: {raw_positions}"
+        )
     for _, grouped in frame.groupby("trace_id", sort=False):
-        key = str(grouped["trace_id"].iloc[0])
+        cell = str(grouped["cell_type"].iloc[0])
+        pathway = str(grouped["contrast"].iloc[0])
+        mid = float(grouped["position"].iloc[0]) / 2.0
+        key = f"{cell}_{pathway}_pos{position_label(mid)}_w1"
         gts[key] = _interp_trace(
             t_axis,
             grouped["time_ms"],
@@ -178,20 +186,6 @@ def load_gt_stats(
             grouped["vm_std_mv"],
         )
 
-    # Hex y coordinates include half steps, while the raw aligned-position grid
-    # is integer.  Interpolate the two statistics spatially without modifying
-    # the directly measured integer-position traces.
-    for cell in ("T4", "T5"):
-        for pathway in ("PC", "NC"):
-            for position2 in range(-7, 8, 2):
-                position = position2 / 2.0
-                lo = float(np.floor(position))
-                hi = float(np.ceil(position))
-                lo_key = f"{cell}_{pathway}_pos{position_label(lo)}_w1"
-                hi_key = f"{cell}_{pathway}_pos{position_label(hi)}_w1"
-                key = f"{cell}_{pathway}_pos{position_label(position)}_w1"
-                gts[key] = 0.5 * (gts[lo_key] + gts[hi_key])
-                gt_stds[key] = 0.5 * (gt_stds[lo_key] + gt_stds[hi_key])
     for cell, path in _SOURCE_POSITION_CSVS.items():
         # Mi4 CSV contribution is opposite the cell Vm used as sbar GT.
         gt_sign = -1.0 if cell == "Mi4" else 1.0

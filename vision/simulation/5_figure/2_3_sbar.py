@@ -19,11 +19,13 @@ import torch
 
 import train
 from config import FIGURE_PLOT
-from task.sbar.gt import GT_CELLS, gt_trace_key, load_gt as load_sbar_gt
-from task.sbar.pack import SbarPack
-from task.sbar.sti_geo import node_us_vs
+from task.sbar.gt import GT_CELLS, gt_trace_key, load_gt_stats
+from task.sbar.pack import SbarPack, part_key
+from task.sbar.sti_geo import node_us_vs, sti_hexes_at_xy
+from task.spread.pack import cost_sti_hexes
 from figure.spread import (
     _session_task_timing,
+    _style_time_axis,
     contrast_linestyle,
     contrast_order,
     plot_cell_time,
@@ -36,10 +38,18 @@ from network.construction import (
 from figure.plot import session_from_task
 from figure.panel import (
     ElapsedTimer,
+    GT_COLOR,
+    TRACE_LINE_W,
+    annotate_v_th,
     as_numpy,
+    at_xy_reds,
     cell_ylabel,
     e_leak_from_z,
+    expand_at_xy,
     gt_trace_affine,
+    gt_sd_affine,
+    mark_sti_on,
+    plot_trace,
     readout_prep_s,
     save_figure,
     sd_from_traces,
@@ -50,6 +60,7 @@ from task.spread.sti_spec import t_sti_end
 
 
 SBAR_DPI = 100
+PLOT_AT_XY = True
 
 
 def sbar_figure_cells() -> tuple[str, ...]:
@@ -102,6 +113,10 @@ class SbarTraceReadout:
     a_sti_mid_sigma: float | None = None
     session: object = None
     prep_s: float = 0.0
+    at_xs: list | None = None
+    at_ys: list | None = None
+    labels: list[str] | None = None
+    v_readout_mean_hex_by_label: dict | None = None
 
 
 def _sbar_mids_from_pack(pack: SbarPack) -> list:
@@ -113,18 +128,23 @@ def _sbar_mids_from_pack(pack: SbarPack) -> list:
     return sorted(mids)
 
 
-def resolve_sbar_gts(sessions, gts=None):
-    """``{contrast: {(cell, mid): gt}}`` — abs-time gt (length ``n_t``) for cost ``ts``."""
+def resolve_sbar_gts(sessions, gts=None, gt_stds=None):
+    """``(gts, gt_stds)``: contrast → ``{(cell, mid): (n_t,) trace}``.
+
+    ``gts`` are mean traces on the simulation axis; ``gt_stds`` are T4/T5
+    measured std only (Mi1/Mi4 source data have no cell-variation std).
+    """
     if gts is not None:
-        return gts
+        return gts, gt_stds or {}
     if not sessions:
-        return {}
-    gts = {}
+        return {}, {}
+    gts_out = {}
+    gt_stds_out = {}
     for contrast, session in sessions.items():
         pack = session.primary_pack
         t_onset, n_t, n_t_gt, ms_sti, delta_ms = _session_task_timing(session)
         opts = dict((session.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
-        raw_gts = load_sbar_gt(
+        raw_gts, raw_gt_stds = load_gt_stats(
             t_onset=t_onset,
             ms_response=float(opts["ms_response"]),
             ms_sti=ms_sti,
@@ -132,6 +152,7 @@ def resolve_sbar_gts(sessions, gts=None):
             ms_post=float(opts.get("ms_post", 0.0)),
         )
         by_cell_mid = {}
+        std_by_cell_mid = {}
         for cell in cells_in_order(GT_CELLS):
             if cell not in session.connectome.cells:
                 continue
@@ -144,47 +165,75 @@ def resolve_sbar_gts(sessions, gts=None):
                     raw_gts[key][t_onset:t_onset + n_t_gt], dtype=np.float64,
                 )
                 by_cell_mid[(cell, mid)] = gt
-        gts[str(contrast)] = by_cell_mid
-    return gts
+                if key in raw_gt_stds:
+                    gt_std = np.full(n_t, np.nan, dtype=np.float64)
+                    gt_std[t_onset:t_onset + n_t_gt] = np.asarray(
+                        raw_gt_stds[key][t_onset:t_onset + n_t_gt],
+                        dtype=np.float64,
+                    )
+                    std_by_cell_mid[(cell, mid)] = gt_std
+        gts_out[str(contrast)] = by_cell_mid
+        gt_stds_out[str(contrast)] = std_by_cell_mid
+    return gts_out, gt_stds_out
 
 
-@torch.no_grad()
-def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
-    """Run one forward; return :class:`SbarTraceReadout`."""
-    t_prep0 = time.perf_counter()
-    pack: SbarPack = session.packs[task][contrast]
-    params = train.params_from_z(z, session)
-    a_sti_mid = {}
-    a_sti_mid_sigma = None
-    if "a_sti_mid" in params:
-        spec = session.schema.get("a_sti_mid")
-        if spec is not None:
-            a_sti_mid_sigma = float(as_numpy(params["a_sti_mid"]).reshape(-1)[0])
-            a_sti_mid = {
-                str(mid): float(np.exp(-0.5 * (float(mid) / a_sti_mid_sigma) ** 2))
-                for mid in (spec.get("mids") or ())
-            }
-    i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    trace = train.forward_pack(session, params, i_sti, pack)
-    trace = as_numpy(trace)
+def _sbar_entry_hex_mask(
+    connectome, entry_nodes, cost_radius, *, cost_mid=None, at_x=None, at_y=None,
+):
+    """True for pack entries whose node sits on ``at_x``/``at_y`` cost hexes."""
+    hexes = sti_hexes_at_xy(
+        cost_sti_hexes(connectome, cost_radius=cost_radius, cost_mid=cost_mid),
+        at_x=at_x,
+        at_y=at_y,
+    )
+    if not hexes:
+        return np.zeros(len(entry_nodes), dtype=bool)
+    node_us, node_vs = node_us_vs(connectome)
+    hex_uv = {(int(sti_hex.u), int(sti_hex.v)) for sti_hex in hexes}
+    return np.array(
+        [
+            (int(node_us[node]), int(node_vs[node])) in hex_uv
+            for node in np.asarray(entry_nodes, dtype=np.int64)
+        ],
+        dtype=bool,
+    )
 
-    connectome = session.connectome
-    n_t = int(i_sti.shape[1])
+
+def _sbar_hex_uv_at_xy(connectome, cost_radius, *, cost_mid=None, at_x=None, at_y=None):
+    if at_x is None and at_y is None:
+        return None
+    hexes = sti_hexes_at_xy(
+        cost_sti_hexes(connectome, cost_radius=cost_radius, cost_mid=cost_mid),
+        at_x=at_x,
+        at_y=at_y,
+    )
+    return {(int(sti_hex.u), int(sti_hex.v)) for sti_hex in hexes}
+
+
+def _sbar_build_v_readout(
+    connectome, pack, trace, mids, *,
+    entry_mask=None,
+    hex_uv=None,
+    include_figure_cells=True,
+):
+    """cell × mid mean traces from one forward ``trace``."""
     entry_bs = as_numpy(pack.entry_bs)
     entry_nodes = as_numpy(pack.entry_nodes)
     entry_part_keys = pack.entry_part_keys
-    node_cells = as_numpy(connectome.node_cells[entry_nodes])
+    node_cells_arr = as_numpy(connectome.node_cells[entry_nodes])
     cells = list(connectome.cells)
     all_cells = cells_in_order(connectome.cells)
-
-    mids = _sbar_mids_from_pack(pack)
+    if entry_mask is not None:
+        entry_mask = np.asarray(entry_mask, dtype=bool)
 
     v_readout: dict = {}
     sd_out: dict = {}
     n_by_cell_mid: dict = {}
 
     for cell in all_cells:
-        cell_entry_mask = node_cells == cells.index(cell)
+        cell_entry_mask = node_cells_arr == cells.index(cell)
+        if entry_mask is not None:
+            cell_entry_mask = cell_entry_mask & entry_mask
         if not np.any(cell_entry_mask):
             continue
         v_readout[cell] = {}
@@ -207,43 +256,141 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
             )
             n_by_cell_mid[cell][mid] = int(entry_traces.shape[0])
 
-    # Plot-only: sample ``sbar_figure_cells`` at the same (b, hex) as pack entries.
-    us, vs = node_us_vs(connectome)
-    for cell in sbar_figure_cells():
-        if cell in v_readout or cell not in connectome.cells:
-            continue
-        cell_v: dict = {}
-        cell_sd: dict = {}
-        cell_n: dict = {}
-        for mid in mids:
-            mid_traces = []
-            seen_b_uv: set[tuple[int, int, int]] = set()
-            for entry_idx, key in enumerate(entry_part_keys):
-                mid_str = key.rsplit("_mid", 1)[1]
-                if float(mid_str) != mid:
-                    continue
-                entry_node = int(entry_nodes[entry_idx])
-                b = int(entry_bs[entry_idx])
-                u, v = int(us[entry_node]), int(vs[entry_node])
-                b_uv = (b, u, v)
-                if b_uv in seen_b_uv:
-                    continue
-                seen_b_uv.add(b_uv)
-                for cell_node in connectome.nodes_at_uv(u, v, cell):
-                    mid_traces.append(trace[b, :, int(cell_node)])
-            if not mid_traces:
+    if include_figure_cells:
+        us, vs = node_us_vs(connectome)
+        for cell in sbar_figure_cells():
+            if cell in v_readout or cell not in connectome.cells:
                 continue
-            entry_traces = np.stack(mid_traces, axis=0)
-            cell_v[mid] = entry_traces.mean(axis=0)
-            cell_sd[mid] = sd_from_traces(
-                entry_traces, single_hex=(entry_traces.shape[0] == 1),
+            cell_v: dict = {}
+            cell_sd: dict = {}
+            cell_n: dict = {}
+            for mid in mids:
+                mid_traces = []
+                seen_b_uv: set[tuple[int, int, int]] = set()
+                for entry_idx, key in enumerate(entry_part_keys):
+                    if entry_mask is not None and not entry_mask[entry_idx]:
+                        continue
+                    mid_str = key.rsplit("_mid", 1)[1]
+                    if float(mid_str) != mid:
+                        continue
+                    entry_node = int(entry_nodes[entry_idx])
+                    b = int(entry_bs[entry_idx])
+                    u, v = int(us[entry_node]), int(vs[entry_node])
+                    if hex_uv is not None and (u, v) not in hex_uv:
+                        continue
+                    b_uv = (b, u, v)
+                    if b_uv in seen_b_uv:
+                        continue
+                    seen_b_uv.add(b_uv)
+                    for cell_node in connectome.nodes_at_uv(u, v, cell):
+                        mid_traces.append(trace[b, :, int(cell_node)])
+                if not mid_traces:
+                    continue
+                entry_traces = np.stack(mid_traces, axis=0)
+                cell_v[mid] = entry_traces.mean(axis=0)
+                cell_sd[mid] = sd_from_traces(
+                    entry_traces, single_hex=(entry_traces.shape[0] == 1),
+                )
+                cell_n[mid] = int(entry_traces.shape[0])
+            if not cell_v:
+                continue
+            v_readout[cell] = cell_v
+            sd_out[cell] = cell_sd
+            n_by_cell_mid[cell] = cell_n
+
+    return v_readout, sd_out, n_by_cell_mid
+
+
+@torch.no_grad()
+def network_sbar_trace_readout(
+    session, z, task, contrast, *, at_xs=None, at_ys=None, ms_shown=None,
+):
+    """Run one forward; return :class:`SbarTraceReadout`."""
+    t_prep0 = time.perf_counter()
+    pack: SbarPack = session.packs[task][contrast]
+    params = train.params_from_z(z, session)
+    a_sti_mid = {}
+    a_sti_mid_sigma = None
+    if "a_sti_mid" in params:
+        spec = session.schema.get("a_sti_mid")
+        if spec is not None:
+            a_sti_mid_sigma = float(as_numpy(params["a_sti_mid"]).reshape(-1)[0])
+            a_sti_mid = {
+                str(mid): float(np.exp(-0.5 * (float(mid) / a_sti_mid_sigma) ** 2))
+                for mid in (spec.get("mids") or ())
+            }
+    i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
+    trace = train.forward_pack(session, params, i_sti, pack)
+    trace = as_numpy(trace)
+
+    connectome = session.connectome
+    n_t = int(i_sti.shape[1])
+    entry_nodes = as_numpy(pack.entry_nodes)
+    mids = _sbar_mids_from_pack(pack)
+
+    pairs = []
+    if at_xs is not None or at_ys is not None:
+        pairs, _ = expand_at_xy(at_xs, at_ys)
+    filter_at_x = filter_at_y = None
+    if len(pairs) == 1:
+        _, filter_at_x, filter_at_y = pairs[0]
+    entry_mask = None
+    hex_uv = None
+    if filter_at_x is not None or filter_at_y is not None:
+        entry_mask = _sbar_entry_hex_mask(
+            connectome, entry_nodes, pack.cost_radius,
+            cost_mid=getattr(pack, "cost_mid", None),
+            at_x=filter_at_x, at_y=filter_at_y,
+        )
+        hex_uv = _sbar_hex_uv_at_xy(
+            connectome, pack.cost_radius,
+            cost_mid=getattr(pack, "cost_mid", None),
+            at_x=filter_at_x, at_y=filter_at_y,
+        )
+
+    v_readout, sd_out, n_by_cell_mid = _sbar_build_v_readout(
+        connectome, pack, trace, mids,
+        entry_mask=entry_mask,
+        hex_uv=hex_uv,
+    )
+
+    v_readout_mean_hex_by_label = None
+    labels = None
+    if len(pairs) > 1:
+        v_readout_mean_hex_by_label = {}
+        labels = []
+        for label, slice_at_x, slice_at_y in pairs:
+            slice_mask = _sbar_entry_hex_mask(
+                connectome, entry_nodes, pack.cost_radius,
+                cost_mid=getattr(pack, "cost_mid", None),
+                at_x=slice_at_x, at_y=slice_at_y,
             )
-            cell_n[mid] = int(entry_traces.shape[0])
-        if not cell_v:
-            continue
-        v_readout[cell] = cell_v
-        sd_out[cell] = cell_sd
-        n_by_cell_mid[cell] = cell_n
+            if not np.any(slice_mask):
+                print(f'skip at_xy {label}: no hex within cost_radius')
+                continue
+            slice_hex_uv = _sbar_hex_uv_at_xy(
+                connectome, pack.cost_radius,
+                cost_mid=getattr(pack, "cost_mid", None),
+                at_x=slice_at_x, at_y=slice_at_y,
+            )
+            v_slice, _, _ = _sbar_build_v_readout(
+                connectome, pack, trace, mids,
+                entry_mask=slice_mask,
+                hex_uv=slice_hex_uv,
+                include_figure_cells=False,
+            )
+            if not any(
+                np.isfinite(v_readout_trace).any()
+                for cell_v in v_slice.values()
+                for v_readout_trace in cell_v.values()
+            ):
+                print(f'skip at_xy {label}: no readouts')
+                continue
+            v_readout_mean_hex_by_label[label] = v_slice
+            labels.append(label)
+        if not v_readout_mean_hex_by_label:
+            v_readout_mean_hex_by_label = None
+            labels = None
 
     readout_cells = cells_in_order(list(v_readout))
     v_th = v_th_from_z(z, session)
@@ -281,6 +428,10 @@ def network_sbar_trace_readout(session, z, task, contrast, *, ms_shown=None):
         a_sti_mid_sigma=a_sti_mid_sigma,
         session=session,
         prep_s=time.perf_counter() - t_prep0,
+        at_xs=at_xs,
+        at_ys=at_ys,
+        labels=labels,
+        v_readout_mean_hex_by_label=v_readout_mean_hex_by_label,
     )
 
 
@@ -318,6 +469,10 @@ def _sbar_filter_readout(readout, cells):
         a_sti_mid_sigma=readout.a_sti_mid_sigma,
         session=readout.session,
         prep_s=readout.prep_s,
+        at_xs=readout.at_xs,
+        at_ys=readout.at_ys,
+        labels=readout.labels,
+        v_readout_mean_hex_by_label=readout.v_readout_mean_hex_by_label,
     )
 
 
@@ -353,6 +508,17 @@ def _panel_a_sti_mid(readout: SbarTraceReadout, mid: float) -> str:
     return "n/a" if value is None else f"{float(value):.4g}"
 
 
+def _sbar_panel_cost_lines(cell, mid, cost_parts, order):
+    if not cost_parts or not order:
+        return []
+    lines = []
+    for contrast in order:
+        key = part_key(contrast, cell, mid)
+        if key in cost_parts:
+            lines.append(f'{contrast}: {float(cost_parts[key]):.1f}')
+    return lines
+
+
 def _sbar_figure(n_row, n_col):
     fig, axes = plt.subplots(
         n_row, n_col,
@@ -365,6 +531,75 @@ def _sbar_figure(n_row, n_col):
     if n_col == 1:
         axes = axes[:, None]
     return fig, axes
+
+
+def _plot_sbar_panel_at_xy(
+    ax,
+    readouts,
+    order,
+    *,
+    cell,
+    mid,
+    labels,
+    title,
+    gt_by_contrast,
+    show_xlabels,
+    show_ylabel,
+    v_th,
+    e_leak,
+    n_t,
+    t_onset,
+    t_sti_end,
+    delta_ms,
+    delta_ms_pre,
+    ms_shown,
+):
+    t = np.arange(n_t)
+    trace_t_onset = int(t_onset or 0)
+    if title is not None:
+        ax.set_title(title, fontsize=8, pad=2)
+    mark_sti_on(ax, t_onset, t_sti_end)
+    primary = readouts[order[0]]
+    for contrast in order:
+        contrast_readout = readouts[contrast]
+        gt_by_cell_mid = gt_by_contrast.get(contrast) or {}
+        gt_trace = gt_trace_affine(
+            contrast_readout, cell, gt_by_cell_mid.get((cell, mid)),
+        )
+        if gt_trace is not None:
+            plot_trace(
+                ax, t, gt_trace, t_onset=trace_t_onset,
+                color=GT_COLOR, linestyle=contrast_linestyle(contrast),
+                linewidth=TRACE_LINE_W,
+            )
+    colors = at_xy_reds(len(labels))
+    for label, color in zip(labels, colors):
+        v_readout = (
+            primary.v_readout_mean_hex_by_label.get(label, {})
+            .get(cell, {})
+            .get(mid)
+        )
+        if v_readout is None:
+            continue
+        plot_trace(
+            ax, t, v_readout, t_onset=trace_t_onset,
+            color=color, linestyle='-', linewidth=TRACE_LINE_W, label=label,
+        )
+    v_readout = primary.v_readout.get(cell, {}).get(mid)
+    if v_readout is not None:
+        plot_trace(
+            ax, t, v_readout, t_onset=trace_t_onset,
+            color=colors[-1], linestyle='-', linewidth=TRACE_LINE_W, label='hexes',
+        )
+    _style_time_axis(
+        ax, show_xlabels, n_t,
+        delta_ms=delta_ms, delta_ms_pre=delta_ms_pre, t_onset=t_onset,
+        ms_shown=ms_shown,
+    )
+    if show_ylabel:
+        ax.set_ylabel('mV', fontsize=8)
+    ax.tick_params(labelsize=6)
+    annotate_v_th(ax, v_th, e_leak=e_leak)
 
 
 def _plot_figure(path, *, timer, readouts, title, gts=None, cost_parts=None):
@@ -381,10 +616,12 @@ def _plot_figure(path, *, timer, readouts, title, gts=None, cost_parts=None):
     delta_ms = float(primary.session.delta_ms)
     delta_ms_pre = float(primary.session.delta_ms_pre)
     ms_shown = primary.ms_shown
+    has_at_xy = primary.v_readout_mean_hex_by_label is not None
+    labels = list(primary.labels or ())
 
     timer.end_prep()
     sessions = {contrast: readouts[contrast].session for contrast in order}
-    gt_by_contrast = resolve_sbar_gts(sessions, gts)
+    gt_by_contrast, gt_std_by_contrast = resolve_sbar_gts(sessions, gts)
     mids_by_cell = {
         cell: sorted({
             float(mid)
@@ -414,6 +651,8 @@ def _plot_figure(path, *, timer, readouts, title, gts=None, cost_parts=None):
                 f"n={n_label}\n"
                 f"a_sti_mid={_panel_a_sti_mid(primary, mid)}"
             )
+            for cost_line in _sbar_panel_cost_lines(cell, mid, cost_parts, order):
+                panel_title += f'\n{cost_line}'
             traces = []
             for contrast in order:
                 contrast_readout = readouts[contrast]
@@ -421,11 +660,16 @@ def _plot_figure(path, *, timer, readouts, title, gts=None, cost_parts=None):
                 if v_readout is None:
                     continue
                 gt_by_cell_mid = gt_by_contrast.get(contrast) or {}
+                gt_std_by_cell_mid = gt_std_by_contrast.get(contrast) or {}
                 traces.append({
                     "contrast": contrast,
                     "v_readout_mean_cell": v_readout,
                     "gt": gt_trace_affine(
                         contrast_readout, cell, gt_by_cell_mid.get((cell, mid)),
+                    ),
+                    "gt_sd": gt_sd_affine(
+                        contrast_readout, cell,
+                        gt_std_by_cell_mid.get((cell, mid)),
                     ),
                     "sd": contrast_readout.sd.get(cell, {}).get(mid),
                     "linestyle": contrast_linestyle(contrast),
@@ -434,48 +678,53 @@ def _plot_figure(path, *, timer, readouts, title, gts=None, cost_parts=None):
             if not traces:
                 ax.axis("off")
                 continue
-            plot_cell_time(
-                ax, traces,
-                title=panel_title,
-                show_xlabels=(row == n_row - 1),
-                show_ylabel=(col == start),
-                v_th=primary.v_th_by_cell.get(cell),
-                e_leak=primary.e_leak_by_cell.get(cell),
-                n_t=n_t,
-                t_onset=t_onset,
-                t_sti_end=t_sti_end,
-                delta_ms=delta_ms,
-                delta_ms_pre=delta_ms_pre,
-                ms_shown=ms_shown,
-            )
+            if has_at_xy:
+                plot_labels = [
+                    label for label in labels
+                    if mid in primary.v_readout_mean_hex_by_label.get(label, {}).get(cell, {})
+                ]
+                if not plot_labels:
+                    ax.axis("off")
+                    continue
+                _plot_sbar_panel_at_xy(
+                    ax, readouts, order,
+                    cell=cell,
+                    mid=mid,
+                    labels=plot_labels,
+                    title=panel_title,
+                    gt_by_contrast=gt_by_contrast,
+                    show_xlabels=(row == n_row - 1),
+                    show_ylabel=(col == start),
+                    v_th=primary.v_th_by_cell.get(cell),
+                    e_leak=primary.e_leak_by_cell.get(cell),
+                    n_t=n_t,
+                    t_onset=t_onset,
+                    t_sti_end=t_sti_end,
+                    delta_ms=delta_ms,
+                    delta_ms_pre=delta_ms_pre,
+                    ms_shown=ms_shown,
+                )
+            else:
+                plot_cell_time(
+                    ax, traces,
+                    title=panel_title,
+                    show_xlabels=(row == n_row - 1),
+                    show_ylabel=(col == start),
+                    v_th=primary.v_th_by_cell.get(cell),
+                    e_leak=primary.e_leak_by_cell.get(cell),
+                    n_t=n_t,
+                    t_onset=t_onset,
+                    t_sti_end=t_sti_end,
+                    delta_ms=delta_ms,
+                    delta_ms_pre=delta_ms_pre,
+                    ms_shown=ms_shown,
+                )
             ax.tick_params(labelsize=6)
         axes[row, start].set_ylabel(cell_ylabel(cell, None), fontsize=8, labelpad=12)
         for col in range(n_col):
             axes[row, col].tick_params(labelleft=(col == start))
 
-    opts = dict((primary.session.train_opts or {}).get(f"{primary.task}_sti_opts") or {})
-    bar_dist = opts.get("bar_dist")
-    bar_directions = opts.get("bar_directions")
-    shift_mid = opts.get("shift_mid", opts.get("shift_radius"))
-    subtitle = ""
-    if bar_dist is not None and bar_directions is not None:
-        subtitle = f"  [bar_dist={bar_dist}, directions={bar_directions}]"
-    if shift_mid is not None:
-        subtitle += f"  [shift_mid={shift_mid}]"
-    if primary.a_sti_mid_sigma is not None:
-        values = ", ".join(
-            f"{mid}={value:.4g}" for mid, value in primary.a_sti_mid.items()
-        )
-        subtitle += (
-            f"  [a_sti_mid σ={primary.a_sti_mid_sigma:.4g}: {values}]"
-        )
-    elif primary.a_sti_mid:
-        values = ", ".join(
-            f"{mid}={value:.4g}" for mid, value in primary.a_sti_mid.items()
-        )
-        subtitle += f"  [a_sti_mid: {values}]"
-    fig.suptitle(title + subtitle, fontsize=12)
-    fig.subplots_adjust(top=0.92, bottom=0.10, hspace=0.85, wspace=0.35)
+    fig.subplots_adjust(top=0.98, bottom=0.10, hspace=0.85, wspace=0.35)
     timer.end_plot()
     save_figure(fig, path, dpi=SBAR_DPI, rasterize=True, timer=timer)
 
