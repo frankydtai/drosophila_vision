@@ -35,6 +35,19 @@ Usage (from ``vision/simulation/``)::
 """
 from __future__ import annotations
 
+import csv
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)  # simulation/
+VISION = os.path.dirname(ROOT)  # vision/ (import_bootstrap.py)
+for _p in (VISION, ROOT):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+os.chdir(ROOT)
+
+import import_bootstrap  # noqa: F401
 from config import (
     ANALYZE_CELL_DYNAMICS,
     ANALYZE_RUNS,
@@ -46,18 +59,6 @@ from config import (
     parse_cells,
     session_kwargs_from_cli,
 )
-
-import csv
-import os
-import sys
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-os.chdir(ROOT)
-
-import import_bootstrap  # noqa: F401
 import hydra
 import numpy as np
 import torch

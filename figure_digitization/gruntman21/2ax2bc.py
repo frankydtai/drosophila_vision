@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/yitai/drosophila_vision/figure_digitization/.venv/bin/python
 """Scale Figure 2A pulse responses by Figure 2C/B width ratios.
 
 For each T4/T5, PC/NC, and receptive-field position, calculate the ratio of
@@ -30,8 +30,15 @@ Run:
 
 from __future__ import annotations
 
-import argparse
+import os
+import sys
 from pathlib import Path
+
+_VENV_PYTHON = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
+if Path(sys.executable).parent.resolve() != _VENV_PYTHON.parent.resolve():
+    os.execv(_VENV_PYTHON, [str(_VENV_PYTHON), *sys.argv])
+
+import argparse
 
 import matplotlib
 

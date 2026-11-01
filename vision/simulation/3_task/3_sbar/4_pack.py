@@ -126,6 +126,22 @@ def sbar_pd_axis_sign(cell: str) -> int:
     raise ValueError(f"unknown sbar gt cell subtype: {cell!r}")
 
 
+def sbar_cost_mid_mask(x, y, cost_mid, *, axis: str) -> bool:
+    """Axis-aligned ``cost_mid`` band for sbar (not the spread/mbar mid cross).
+
+    ``right``/``left`` keep ``|x| <= cost_mid``; ``up``/``down`` keep ``|y| <= cost_mid``.
+    """
+    cost_mid = standardize_cost_mid(cost_mid)
+    if cost_mid is None:
+        return True
+    limit = float(cost_mid)
+    if axis == "x":
+        return -limit <= float(x) <= limit
+    if axis == "y":
+        return -limit <= float(y) <= limit
+    raise ValueError(f"unknown sbar cost_mid axis {axis!r}")
+
+
 def _sbar_cost_part_plot_specs(
     entry_part_keys: Sequence[str],
     entry_nodes,
@@ -175,25 +191,28 @@ def build_sbar_gt(
     i_sti: float,
     contrasts: Sequence[str],
     gt_cells: Optional[Sequence[str]] = None,
+    sbar_gt_w: int = 1,
 ) -> SbarGt:
     """Build sbar cost GT.
 
     CRITICAL GT FACTS (from ``3_gt.py`` docstring — read there first):
     - The raw-data CSV has nine measured integer position indices, -4..+4,
-      width 1 and duration 160 ms. Loading divides each index by 2, producing
+      configured width 1 or 2 and duration 160 ms. Loading divides each index by 2, producing
       measured mids -2..+2 in 0.5 steps; there is no spatial interpolation.
     - Mean and sample SD are across biological-cell repeat averages, not pooled
       repeat recordings.
-    - Loaded trace-key format is ``{cell_prefix}_{PC|NC}_pos{SIGN}_w1``, e.g.
-      ``T4_PC_pos+0.5_w1``. Both integer and half-position keys map directly to
+    - Loaded trace-key format is ``{cell_prefix}_{PC|NC}_pos{SIGN}_w{width}``, e.g.
+      ``T4_PC_pos+0.5_w2``. Both integer and half-position keys map directly to
       measured CSV rows after the index-to-mid division.
     - Each simultaneous bar line is a separate spatial replicate, matching how
       spot expands every simultaneous spot center. ``mid`` is the cost-node
       position relative to that bar line, not the node's absolute axis value.
       Thus multi-bar produces more ``(bar, node)`` cost entries than single-bar.
-    - Subtypes a/b use only the right/left axis; subtypes c/d use only the
+      - Subtypes a/b use only the right/left axis; subtypes c/d use only the
       up/down axis. In particular, a/b ``mid`` values are integer ``x`` values
       and must never receive half-step ``y`` entries from up/down conditions.
+      - ``cost_mid`` is axis-aligned to the bar (``|x|`` for right/left,
+        ``|y|`` for up/down), not the spread/mbar mid cross.
 
     When a node lies within the GT position range of multiple simultaneous
     bars, its target is the sum of those single-bar GT traces. It remains one
@@ -225,6 +244,7 @@ def build_sbar_gt(
         ms_sti=ms_sti,
         delta_ms=float(delta_ms),
         ms_post=float(ms_post),
+        sbar_gt_w=int(sbar_gt_w),
     )
     active = active_gt_cells(
         gt_cells, GT_CELLS, connectome.cells, context="sbar",
@@ -232,7 +252,7 @@ def build_sbar_gt(
     cells = node_cells(connectome)
     hexes = sti_hexes(connectome)
     cost_hexes = cost_sti_hexes(
-        connectome, cost_radius=cost_radius, cost_mid=cost_mid,
+        connectome, cost_radius=cost_radius, cost_mid=None,
     )
     bar_dist = int(bar_dist)
     t0 = int(sti.t_onset)
@@ -254,6 +274,8 @@ def build_sbar_gt(
         )
         axis = "x" if spec.direction in ("right", "left") else "y"
         for hex in cost_hexes:
+            if not sbar_cost_mid_mask(hex.x, hex.y, cost_mid, axis=axis):
+                continue
             cell_mid = float(hex.x if axis == "x" else hex.y)
             for cell in active:
                 if not sbar_direction_active(cell, spec.direction):
@@ -263,7 +285,10 @@ def build_sbar_gt(
                     relative_mid = float(
                         sbar_pd_axis_sign(cell) * (bar_mid - cell_mid)
                     )
-                    gt_key = gt_trace_key(cell, spec.contrast, relative_mid)
+                    gt_key = gt_trace_key(
+                        cell, spec.contrast, relative_mid,
+                        sbar_gt_w=int(sbar_gt_w),
+                    )
                     if gt_key in gts:
                         bar_samples.append((float(bar_mid), relative_mid, gt_key))
                 if not bar_samples:
@@ -348,6 +373,7 @@ def build_sbar_sti_opts(
     shift_mid: int = 0,
     a_sti_mids=None,
     gt_cells=None,
+    sbar_gt_w: int = 1,
 ):
     if a_sti_mids is None:
         a_sti_mids = sbar_a_sti_mids()
@@ -362,6 +388,7 @@ def build_sbar_sti_opts(
         "multi_bar": bool(multi_bar),
         "shift_mid": int(shift_mid),
         "a_sti_mids": [float(mid) for mid in a_sti_mids],
+        "sbar_gt_w": int(sbar_gt_w),
     }
     if ms_sti is not None:
         sti_opts["ms_sti"] = ms_sti
@@ -386,6 +413,7 @@ def resolve_sbar_sti_opts(opts, **_):
         shift_mid=opts.get("shift_mid", opts.get("shift_radius", 0)),
         a_sti_mids=opts.get("a_sti_mids", sbar_a_sti_mids()),
         gt_cells=opts.get("gt_cells"),
+        sbar_gt_w=opts.get("sbar_gt_w", 1),
     )
 
 
@@ -403,6 +431,7 @@ def sbar_sti_opts(
     multi_bar: bool,
     shift_mid: int = 0,
     a_sti_mids=None,
+    sbar_gt_w: int = 1,
 ) -> dict:
     if sbar_sti_opts:
         return dict(sbar_sti_opts)
@@ -420,6 +449,7 @@ def sbar_sti_opts(
         a_sti_mids=(
             sbar_a_sti_mids() if a_sti_mids is None else a_sti_mids
         ),
+        sbar_gt_w=sbar_gt_w,
     )
 
 
@@ -458,6 +488,7 @@ def build_sbar_pack(
         bar_directions=sti_opts["bar_directions"],
         shift_radius=shift_mid,
         multi_bar=bool(sti_opts["multi_bar"]),
+        sbar_gt_w=int(sti_opts.get("sbar_gt_w", 1)),
     )
     a_sti_mids = sbar_a_sti_mids(sti_opts)
     t_onset = int(t_from_ms(

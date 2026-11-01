@@ -26,6 +26,7 @@ SPREAD_GT: Dict[str, object] = {}
 SPOT_INPUT_GEO: Dict[str, object] = {}
 SPOT_PACK: Dict[str, object] = {}
 SBAR_INPUT_GEO: Dict[str, object] = {}
+SBAR_GT: Dict[str, object] = {}
 SBAR_PACK: Dict[str, object] = {}
 MBAR_INPUT_SPEC: Dict[str, object] = {}
 TRAIN_CONFIG: Dict[str, object] = {}
@@ -99,7 +100,7 @@ def _bind_config(config: dict) -> None:
     global RUN_NAME, RUN_PATH
     global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
     global SPREAD_INPUT_SPEC, SPREAD_GT, SPOT_INPUT_GEO, SPOT_PACK
-    global SBAR_INPUT_GEO, SBAR_PACK, MBAR_INPUT_SPEC
+    global SBAR_INPUT_GEO, SBAR_GT, SBAR_PACK, MBAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
     global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, FIGURE_PLOT_STI_MBAR, ANALYZE_RUNS
     global ANALYZE_CELL_DYNAMICS, ANALYZE_SYN_SIGN, ANALYZE_TRACE
@@ -148,6 +149,12 @@ def _bind_config(config: dict) -> None:
         "bar_dist": config["bar_dist"],
         "shift_mid": config["shift_mid"],
     }
+    sbar_gt_w = int(config["sbar_gt_w"])
+    if sbar_gt_w not in (1, 2):
+        raise ValueError(
+            f"sbar_gt_w must be 1 or 2, got {sbar_gt_w}"
+        )
+    SBAR_GT = {"sbar_gt_w": sbar_gt_w}
     SBAR_PACK = {
         "a_sti_mids": _float_list(
             config["a_sti_mids"], key="a_sti_mids",

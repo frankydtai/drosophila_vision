@@ -46,7 +46,7 @@ OUTPUT_W1_FIG1_PNG = HERE / "gruntman21_mbar_w1_56_fig1.png"
 OUTPUT_W1_FIG1_CSV = HERE / "gruntman21_mbar_w1_56_fig1.csv"
 OUTPUT_W1_FIG1_SHARED_PNG = HERE / "gruntman21_mbar_w1_56_fig1_shared.png"
 OUTPUT_W1_FIG1_SHARED_CSV = HERE / "gruntman21_mbar_w1_56_fig1_shared.csv"
-OUTPUT_W1_W4_METHODS_PNG = HERE / "gruntman21_mbar_w1_w4_discrete_convolution.png"
+OUTPUT_W1_W2_W4_METHODS_PNG = HERE / "gruntman21_mbar_w1_w2_w4_discrete_convolution.png"
 W1_FIG1_SHIFT_MS = np.arange(-200.0, 200.0 + 0.5, 1.0)
 
 W1_TARGET_WIDTH_LED = 1
@@ -58,6 +58,13 @@ W1_SCAN_DIRECTIONS = {
 }
 # One W1_SCAN position step is 2.25 deg; integer position units span 4.5 deg.
 W1_POSITION_STEP_POS = 0.5
+
+FLASH_WIDTHS_LED = (1, 2, 4)
+FLASH_POSITIONS = tuple(range(-4, 5))
+FLASH_SCAN_DIRECTIONS = {
+    "PD": FLASH_POSITIONS,
+    "ND": tuple(reversed(FLASH_POSITIONS)),
+}
 
 POSITION_STEP_DEG = 4.5
 SPEEDS_DEG_PER_S = (1.40625, 14.0625, 28.125, 56.25, 112.5)
@@ -76,14 +83,19 @@ WIDTH_LINESTYLES = {4: "-", 1: "--"}
 def load_t4_condition(
     fits: pd.DataFrame,
     contrast: str,
+    width_led: int = 4,
 ) -> tuple[pd.DataFrame, dict[str, float]]:
-    """Load one T4 contrast and its four globally fitted parameters."""
+    """Load one T4 contrast/width and its four globally fitted parameters."""
     condition = fits[
         fits["trace_id"].str.startswith(f"T4_{contrast}_")
+        & fits["trace_id"].str.endswith(f"_w{width_led}")
     ].copy()
     condition = condition.sort_values("position")
-    if condition["position"].astype(int).tolist() != POSITIONS:
-        raise ValueError(f"expected T4 {contrast} positions {POSITIONS}")
+    expected = list(FLASH_POSITIONS)
+    if condition["position"].astype(int).tolist() != expected:
+        raise ValueError(
+            f"expected T4 {contrast} w{width_led} positions {expected}"
+        )
 
     parameter_columns = (
         "delay_pos_ms",
@@ -95,7 +107,7 @@ def load_t4_condition(
     for column in parameter_columns:
         values = condition[column].to_numpy(dtype=float)
         if not np.allclose(values, values[0], atol=1e-9, rtol=0.0):
-            raise ValueError(f"T4 {contrast} {column} is not globally shared")
+            raise ValueError(f"T4 {contrast} w{width_led} {column} is not globally shared")
         parameters[column] = float(values[0])
     return condition, parameters
 
@@ -477,15 +489,13 @@ def convolved_w1_responses(
 def discrete_shift_sum_responses(
     width_led: int,
     position_delay_ms: float,
+    flashes: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Old discrete method: shift every 160-ms flash trace and sum it."""
-    data = pd.read_csv(INPUT_W1_CSV)
-    data = data[
-        (data["cell_type"] == "T4")
-        & (data["target_width_led"] == W1_TARGET_WIDTH_LED)
+    """Shift every 160-ms cell-average flash and sum across positions."""
+    data = flashes[
+        (flashes["cell_type"] == "T4") & (flashes["width_led"] == width_led)
     ]
-    value_column = "vm_mv" if width_led == 1 else "source_vm_mv"
-    positions_pd = W1_SCAN_DIRECTIONS["PD"]
+    positions_pd = FLASH_SCAN_DIRECTIONS["PD"]
     min_time = float(data["time_ms"].min())
     max_time = float(data["time_ms"].max()) + (
         len(positions_pd) - 1
@@ -493,21 +503,21 @@ def discrete_shift_sum_responses(
     time_ms = np.arange(min_time, max_time + DT_MS / 2.0, DT_MS)
     frames = []
     for contrast in CONTRASTS:
-        for direction, positions in W1_SCAN_DIRECTIONS.items():
+        for direction, positions in FLASH_SCAN_DIRECTIONS.items():
             total = np.zeros_like(time_ms)
             for index, position in enumerate(positions):
                 trace = data[
                     (data["contrast"] == contrast)
-                    & np.isclose(data["position"], position)
+                    & (data["position"] == position)
                 ].sort_values("time_ms")
                 if trace.empty:
                     raise ValueError(
-                        f"missing {contrast} W{width_led} flash at {position:g}"
+                        f"missing {contrast} W{width_led} flash at {position:+d}"
                     )
                 total += np.interp(
                     time_ms - index * position_delay_ms,
                     trace["time_ms"].to_numpy(dtype=float),
-                    trace[value_column].to_numpy(dtype=float),
+                    trace["vm_mv"].to_numpy(dtype=float),
                     left=0.0,
                     right=0.0,
                 )
@@ -520,35 +530,32 @@ def discrete_shift_sum_responses(
     return pd.concat(frames, ignore_index=True)
 
 
-def convolved_w4_comparison_responses(
+def convolved_flash_width_responses(
     fits: pd.DataFrame,
+    width_led: int,
 ) -> pd.DataFrame:
-    """W4 convolution on corrected physical coordinates -3 .. +2.5."""
-    position_delay_ms = (
-        W1_POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
-    )
-    positions = np.asarray(POSITIONS, dtype=float) / 2.0
-    scan_duration_ms = (positions[-1] - positions[0]) * (
-        POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
-    )
+    """Continuous leading-edge convolution from one width's fitted LP gains."""
+    position_time_ms = POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
+    positions = np.asarray(FLASH_POSITIONS, dtype=float)
+    scan_duration_ms = (positions[-1] - positions[0]) * position_time_ms
     time_ms = np.arange(
         -PRE_MS, scan_duration_ms + POST_MS + DT_MS / 2.0, DT_MS
     )
     frames = []
     for contrast in CONTRASTS:
-        condition, temporal = load_t4_condition(fits, contrast)
+        condition, temporal = load_t4_condition(fits, contrast, width_led)
         condition = condition.set_index("position")
-        gain_pos = condition.loc[POSITIONS, "gain_pos_mv"].to_numpy(dtype=float)
-        gain_neg = condition.loc[POSITIONS, "gain_neg_mv"].to_numpy(dtype=float)
+        gain_pos = condition.loc[list(FLASH_POSITIONS), "gain_pos_mv"].to_numpy(
+            dtype=float
+        )
+        gain_neg = condition.loc[list(FLASH_POSITIONS), "gain_neg_mv"].to_numpy(
+            dtype=float
+        )
         for direction in DIRECTIONS:
             if direction == "PD":
-                position = positions[0] + time_ms / (
-                    POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
-                )
+                position = positions[0] + time_ms / position_time_ms
             else:
-                position = positions[-1] - time_ms / (
-                    POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
-                )
+                position = positions[-1] - time_ms / position_time_ms
             active = (time_ms >= 0.0) & (time_ms <= scan_duration_ms)
             positive_drive = np.zeros_like(time_ms)
             negative_drive = np.zeros_like(time_ms)
@@ -576,19 +583,24 @@ def convolved_w4_comparison_responses(
     return pd.concat(frames, ignore_index=True)
 
 
-def plot_w1_w4_discrete_convolution(
+def plot_w1_w2_w4_discrete_convolution(
     fits: pd.DataFrame,
-    w1_convolution: pd.DataFrame,
+    flashes: pd.DataFrame,
     position_delay_ms: float,
 ) -> None:
-    """2x2 W1/W4 comparison: discrete sums above, convolutions below."""
-    sources = (
-        ("W1 — Discrete shifted sum", discrete_shift_sum_responses(1, position_delay_ms)),
-        ("W4 — Discrete shifted sum", discrete_shift_sum_responses(4, position_delay_ms)),
-        ("W1 — Convolution", w1_convolution),
-        ("W4 — Convolution", convolved_w4_comparison_responses(fits)),
-    )
-    fig, axes = plt.subplots(2, 2, figsize=(13.0, 8.0), sharex=True)
+    """2x3 W1/W2/W4: discrete shifted sums above, LP convolutions below."""
+    sources = []
+    for width_led in FLASH_WIDTHS_LED:
+        sources.append((
+            f"W{width_led} — Discrete shifted sum",
+            discrete_shift_sum_responses(width_led, position_delay_ms, flashes),
+        ))
+    for width_led in FLASH_WIDTHS_LED:
+        sources.append((
+            f"W{width_led} — Convolution",
+            convolved_flash_width_responses(fits, width_led),
+        ))
+    fig, axes = plt.subplots(2, 3, figsize=(16.0, 8.0), sharex=True, sharey=True)
     for axis, (title, frame) in zip(axes.flat, sources):
         for contrast, linestyle in (("PC", "-"), ("NC", "--")):
             for direction in DIRECTIONS:
@@ -611,13 +623,14 @@ def plot_w1_w4_discrete_convolution(
     for axis in axes[-1]:
         axis.set_xlabel("time from first position onset (ms)")
     fig.suptitle(
-        "T4 moving-bar predictions at 56.25 deg/s\n"
-        "red/blue = PD/ND; solid/dashed = PC/NC"
+        "T4 moving-bar predictions at 56.25 deg/s "
+        f"(positions −4…+4, {position_delay_ms:g} ms/step)\n"
+        "from cell-average w1/w2/w4 flashes; red/blue = PD/ND; solid/dashed = PC/NC"
     )
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
-    fig.savefig(OUTPUT_W1_W4_METHODS_PNG, dpi=180)
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))
+    fig.savefig(OUTPUT_W1_W2_W4_METHODS_PNG, dpi=180)
     plt.close(fig)
-    print(f"wrote {OUTPUT_W1_W4_METHODS_PNG}")
+    print(f"wrote {OUTPUT_W1_W2_W4_METHODS_PNG}")
 
 
 def w1_scan_duration_ms(position_delay_ms: float) -> float:
@@ -1009,6 +1022,8 @@ def write_w1_56_fig1(
 
 def write_w1_56(fits: pd.DataFrame) -> None:
     """Build bar-width convolved width-1 traces and write CSV/PNG."""
+    from gruntman21_fit_lp import load_cell_averages
+
     position_delay_ms = (
         W1_POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
     )
@@ -1017,7 +1032,12 @@ def write_w1_56(fits: pd.DataFrame) -> None:
     plot_w1_56(responses, position_delay_ms)
     write_w1_56_fig1(responses, position_delay_ms)
     write_w1_56_fig1(responses, position_delay_ms, shared=True)
-    plot_w1_w4_discrete_convolution(fits, responses, position_delay_ms)
+    flash_delay_ms = POSITION_STEP_DEG / W1_SPEED_DEG_PER_S * 1000.0
+    flashes = pd.concat(
+        [load_cell_averages(width_led) for width_led in FLASH_WIDTHS_LED],
+        ignore_index=True,
+    )
+    plot_w1_w2_w4_discrete_convolution(fits, flashes, flash_delay_ms)
     print(f"wrote {OUTPUT_W1_CSV}")
     print(f"wrote {OUTPUT_W1_PNG}")
 

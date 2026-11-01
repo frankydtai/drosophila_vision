@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/yitai/drosophila_vision/figure_digitization/.venv/bin/python
 """Digitize Figure 1 Ci/Cii traces from a rendered Figure 1 PNG.
 
 Extracts 16 population traces (PD=red, ND=blue) by reading the published
@@ -11,10 +11,16 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
+import os
 import sys
-from dataclasses import dataclass
 from pathlib import Path
+
+_VENV_PYTHON = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
+if Path(sys.executable).parent.resolve() != _VENV_PYTHON.parent.resolve():
+    os.execv(_VENV_PYTHON, [str(_VENV_PYTHON), *sys.argv])
+
+import argparse
+from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np

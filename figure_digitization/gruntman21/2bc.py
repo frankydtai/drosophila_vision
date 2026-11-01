@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/yitai/drosophila_vision/figure_digitization/.venv/bin/python
 """Digitize Gruntman et al. 2021 Figure 2B/C mean markers.
 
 Panels 2B and 2C show the maximal depolarizing and hyperpolarizing responses
@@ -16,9 +16,15 @@ Run:
 
 from __future__ import annotations
 
-import argparse
-from dataclasses import dataclass
+import os
+import sys
 from pathlib import Path
+
+_VENV_PYTHON = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
+if Path(sys.executable).parent.resolve() != _VENV_PYTHON.parent.resolve():
+    os.execv(_VENV_PYTHON, [str(_VENV_PYTHON), *sys.argv])
+
+import argparse
 
 import matplotlib
 

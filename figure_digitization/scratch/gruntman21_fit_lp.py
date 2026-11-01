@@ -1,23 +1,11 @@
 #!/usr/bin/env python3
-"""Fit Gruntman et al. 2021 Fig. 2A T4 PD traces with two delayed LPs.
+"""Fit Gruntman 2021 T4/T5 160-ms cell-average traces with two delayed LPs.
 
-The stimulus is a unit rectangular pulse (160 ms).  Each digitized T4 PC
-(green) Vm trace is fit with
+Source matches plot_t4_t5_w1_w2_w4_pc_nc_cell_average_grid.py (widths 1/2/4,
+positions -4..+4): cell-mean baseSub traces from singleBarSt{T4,T5}.mat.
 
     Vm(t) = gain_pos * LP_tau_pos[pulse(t - delay_pos)]
           + gain_neg * LP_tau_neg[pulse(t - delay_neg)]
-
-where gain_pos >= 0 and gain_neg <= 0 (enforced by bounds), so the model
-has one positive and one negative channel with independent tau and delay.
-
-T5 and NC (black) traces are excluded.  Digitized traces are already
-pre-stimulus baseline-subtracted, so the baseline is fixed at zero.
-
-Outputs:
-  gruntman21_fit_lp.csv  one row per independently fitted T4-PC trace
-  gruntman21_fit_lp.png  12 raw-data/fit panels
-  gruntman21_fit_lp.csv  non-mirrored fit parameters
-  gruntman21_fit_lp.png  non-mirrored fit panels
 
 Run:  ../.venv/bin/python gruntman21_fit_lp.py
 """
@@ -26,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import h5py
 import matplotlib
 
 matplotlib.use("Agg")
@@ -35,8 +24,10 @@ import pandas as pd
 from scipy.optimize import least_squares
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent
-INPUT_CSV = ROOT / "gruntman21" / "2a_digitized.csv"
+RAW_DIR = Path(
+    "/data/scratch/projects/punim0477/yitai/drosophila_vision/"
+    "gruntman21/Figure2"
+)
 OUT_CSV = HERE / "gruntman21_fit_lp.csv"
 OUT_PNG = HERE / "gruntman21_fit_lp.png"
 OUT_MIRRORED_D_CSV = HERE / "gruntman21_fit_lp_mirrored_d.csv"
@@ -47,8 +38,16 @@ OUT_MIRRORED_G_CSV = HERE / "gruntman21_fit_lp_mirrored_g.csv"
 OUT_MIRRORED_G_PNG = HERE / "gruntman21_fit_lp_mirrored_g.png"
 
 DURATION_MS = 160.0
-POSITIONS = list(range(-6, 6))
-N_COL = 12
+WIDTHS_LED = (1, 2, 4)
+POSITIONS = list(range(-4, 5))
+N_COL = 9
+TIMES_MS = np.arange(-200.0, 750.0 + 5.0, 5.0)
+CONDITIONS = (
+    ("T4", "PC", 1),
+    ("T4", "NC", 0),
+    ("T5", "PC", 0),
+    ("T5", "NC", 1),
+)
 
 TAU_POS_STARTS_MS = (200.0,)
 TAU_NEG_STARTS_MS = (300.0,)
@@ -95,6 +94,127 @@ def two_pulse_lp(
     ) + delayed_lp_pulse(
         time_ms, duration_ms, tau_neg_ms, delay_neg_ms, -abs(gain_neg_mv)
     )
+
+
+def _object(h5, value):
+    array = np.asarray(value)
+    return h5[array.flat[0]] if array.dtype == h5py.ref_dtype else array
+
+
+def _values(h5, dataset, cell_index):
+    return np.atleast_1d(
+        np.asarray(_object(h5, dataset[cell_index, 0])).squeeze()
+    )
+
+
+def _scalar(h5, dataset, index):
+    return float(np.asarray(_object(h5, dataset[index])).squeeze())
+
+
+def _condition_index(result, value_index, width_index, duration_index, position_index):
+    if result["empty"].ndim == 4:
+        return value_index, width_index, duration_index, position_index
+    if result["empty"].ndim == 3:
+        return width_index, duration_index, position_index
+    raise ValueError(f"unsupported result rank {result['empty'].ndim}")
+
+
+def load_cell_averages(width_led: int) -> pd.DataFrame:
+    """Cell-mean ΔVm for one width, 160 ms — same alignment as the w1/w2/w4 grid."""
+    rows = []
+    for cell_type, contrast, value in CONDITIONS:
+        path = RAW_DIR / f"singleBarSt{cell_type}.mat"
+        with h5py.File(path, "r") as h5:
+            root = h5[f"singleBarSt{cell_type}"]
+            cells = []
+            for cell_index in range(root["result"].shape[0]):
+                result = _object(h5, root["result"][cell_index, 0])
+                if not isinstance(result, h5py.Group):
+                    continue
+                positions = _values(h5, root["positions"], cell_index)
+                durations = _values(h5, root["durations"], cell_index)
+                widths = _values(h5, root["widths"], cell_index)
+                values = _values(h5, root["vals"], cell_index)
+                duration_hits = np.where(
+                    np.isclose(durations, DURATION_MS / 1000.0)
+                )[0]
+                width_hits = np.where(np.isclose(widths, float(width_led)))[0]
+                value_hits = np.where(values == value)[0]
+                if not duration_hits.size or not width_hits.size or not value_hits.size:
+                    continue
+                summary_index = tuple(-1 for _ in range(result["empty"].ndim))
+                center = _scalar(h5, result["maxExtPosVal"], summary_index)
+                min_position = _scalar(h5, result["minInhPosVal"], summary_index)
+                relative_pd = int(np.sign(min_position - center))
+                cells.append((
+                    result,
+                    positions,
+                    int(duration_hits[0]),
+                    int(width_hits[0]),
+                    int(value_hits[0]),
+                    center,
+                    relative_pd,
+                ))
+            for relative_position in POSITIONS:
+                traces = []
+                for (
+                    result,
+                    positions,
+                    duration_index,
+                    width_index,
+                    value_index,
+                    center,
+                    relative_pd,
+                ) in cells:
+                    if relative_pd == 1:
+                        original_position = center + relative_position
+                    else:
+                        original_position = (
+                            center + float(width_led) - 1.0 - relative_position
+                        )
+                    position_hits = np.where(
+                        np.isclose(positions, original_position)
+                    )[0]
+                    if not position_hits.size:
+                        continue
+                    index = _condition_index(
+                        result,
+                        value_index,
+                        width_index,
+                        duration_index,
+                        int(position_hits[0]),
+                    )
+                    if float(
+                        np.asarray(_object(h5, result["empty"][index])).squeeze()
+                    ):
+                        continue
+                    base_sub = np.asarray(
+                        _object(h5, result["subData"][index])["baseSub"],
+                        dtype=float,
+                    )
+                    traces.append(np.interp(TIMES_MS, base_sub[0], base_sub[1]))
+                traces = np.asarray(traces)
+                if traces.shape[0] < 2:
+                    raise ValueError(
+                        f"{cell_type} {contrast} w{width_led} "
+                        f"position {relative_position:+d}: "
+                        f"need >=2 cells, got {traces.shape[0]}"
+                    )
+                mean = traces.mean(axis=0)
+                trace_id = (
+                    f"{cell_type}_{contrast}_pos{relative_position:+d}_w{width_led}"
+                )
+                for time_ms, vm_mv in zip(TIMES_MS, mean):
+                    rows.append({
+                        "trace_id": trace_id,
+                        "cell_type": cell_type,
+                        "contrast": contrast,
+                        "position": relative_position,
+                        "width_led": width_led,
+                        "time_ms": float(time_ms),
+                        "vm_mv": float(vm_mv),
+                    })
+    return pd.DataFrame(rows)
 
 
 def load_traces(data: pd.DataFrame, cell_type: str, contrast: str) -> pd.DataFrame:
@@ -674,7 +794,7 @@ def plot_fits_multi(
             fit = fits[row.trace_id]
 
             ax.plot(fit["time_ms"], fit["vm_mv"],
-                    color=data_color, lw=1.2, alpha=0.75, label="digitized data")
+                    color=data_color, lw=1.2, alpha=0.75, label="cell-average")
             ax.plot(fit["time_ms"], fit["prediction_mv"],
                     color="#2474b5", lw=2.0, ls="--", label=fit_label)
             t = fit["time_ms"]
@@ -738,9 +858,8 @@ def plot_fits_multi(
 
 
 def main() -> int:
-    raw = pd.read_csv(INPUT_CSV)
     all_columns = [
-        "trace_id", "gain_pos_mv", "gain_neg_mv",
+        "trace_id", "width_led", "gain_pos_mv", "gain_neg_mv",
         "delay_pos_ms", "delay_neg_ms", "tau_pos_ms", "tau_neg_ms",
         "r_squared", "global_r_squared",
     ]
@@ -753,21 +872,26 @@ def main() -> int:
 
     row_groups = []
     result_frames = []
-    for row_label, data_color, cell_type, contrast in row_specs:
-        data = load_traces(raw, cell_type, contrast)
-        fit_rows, fits = fit_non_mirrored(data)
-        results = pd.DataFrame(fit_rows).sort_values("position")
-        result_frames.append(results)
-        row_groups.append((row_label, data_color, results, fits))
-        print(f"\n=== {row_label} — non-mirrored ===")
-        print(results[all_columns].to_string(
-            index=False, float_format=lambda x: f"{x:.4g}"))
+    for width_led in WIDTHS_LED:
+        raw = load_cell_averages(width_led)
+        for row_label, data_color, cell_type, contrast in row_specs:
+            data = load_traces(raw, cell_type, contrast)
+            fit_rows, fits = fit_non_mirrored(data)
+            results = pd.DataFrame(fit_rows).sort_values("position")
+            results.insert(1, "width_led", width_led)
+            result_frames.append(results)
+            row_groups.append(
+                (f"w{width_led} {row_label}", data_color, results, fits)
+            )
+            print(f"\n=== w{width_led} {row_label} — non-mirrored ===")
+            print(results[all_columns].to_string(
+                index=False, float_format=lambda x: f"{x:.4g}"))
 
     pd.concat(result_frames, ignore_index=True).to_csv(OUT_CSV, index=False)
     plot_fits_multi(
         row_groups,
         OUT_PNG,
-        "Gruntman 2021 Fig. 2A T4/T5 — non-mirrored",
+        "Gruntman 2021 T4/T5 w1/w2/w4 160 ms cell-average — non-mirrored",
         "non-mirrored LP fit",
     )
     print(f"\nwrote {OUT_CSV}")
@@ -775,30 +899,35 @@ def main() -> int:
 
     d_row_groups = []
     d_result_frames = []
-    for cell_type, pc_color, nc_color in [
-        ("T4", "#2ca02c", "#303030"),
-        ("T5", "#d62728", "#7f7f7f"),
-    ]:
-        data_pc = load_traces(raw, cell_type, "PC")
-        data_nc = load_traces(raw, cell_type, "NC")
-        pc_rows, pc_fits, nc_rows, nc_fits = fit_mirrored_d(data_pc, data_nc)
-        for contrast, color, rows, fits in [
-            ("PC", pc_color, pc_rows, pc_fits),
-            ("NC", nc_color, nc_rows, nc_fits),
+    for width_led in WIDTHS_LED:
+        raw = load_cell_averages(width_led)
+        for cell_type, pc_color, nc_color in [
+            ("T4", "#2ca02c", "#303030"),
+            ("T5", "#d62728", "#7f7f7f"),
         ]:
-            results = pd.DataFrame(rows).sort_values("position")
-            d_result_frames.append(results)
-            d_row_groups.append((f"{cell_type} {contrast}", color, results, fits))
-            print(f"\n=== {cell_type} {contrast} — mirrored delays ===")
-            print(results[all_columns].to_string(
-                index=False, float_format=lambda x: f"{x:.4g}"))
+            data_pc = load_traces(raw, cell_type, "PC")
+            data_nc = load_traces(raw, cell_type, "NC")
+            pc_rows, pc_fits, nc_rows, nc_fits = fit_mirrored_d(data_pc, data_nc)
+            for contrast, color, rows, fits in [
+                ("PC", pc_color, pc_rows, pc_fits),
+                ("NC", nc_color, nc_rows, nc_fits),
+            ]:
+                results = pd.DataFrame(rows).sort_values("position")
+                results.insert(1, "width_led", width_led)
+                d_result_frames.append(results)
+                d_row_groups.append(
+                    (f"w{width_led} {cell_type} {contrast}", color, results, fits)
+                )
+                print(f"\n=== w{width_led} {cell_type} {contrast} — mirrored delays ===")
+                print(results[all_columns].to_string(
+                    index=False, float_format=lambda x: f"{x:.4g}"))
 
     pd.concat(d_result_frames, ignore_index=True).to_csv(
         OUT_MIRRORED_D_CSV, index=False)
     plot_fits_multi(
         d_row_groups,
         OUT_MIRRORED_D_PNG,
-        "Gruntman 2021 Fig. 2A T4/T5 — mirrored delays",
+        "Gruntman 2021 T4/T5 w1/w2/w4 160 ms cell-average — mirrored delays",
         "mirrored-delay LP fit",
     )
     print(f"\nwrote {OUT_MIRRORED_D_CSV}")
@@ -806,30 +935,35 @@ def main() -> int:
 
     t_row_groups = []
     t_result_frames = []
-    for cell_type, pc_color, nc_color in [
-        ("T4", "#2ca02c", "#303030"),
-        ("T5", "#d62728", "#7f7f7f"),
-    ]:
-        data_pc = load_traces(raw, cell_type, "PC")
-        data_nc = load_traces(raw, cell_type, "NC")
-        pc_rows, pc_fits, nc_rows, nc_fits = fit_mirrored_t(data_pc, data_nc)
-        for contrast, color, rows, fits in [
-            ("PC", pc_color, pc_rows, pc_fits),
-            ("NC", nc_color, nc_rows, nc_fits),
+    for width_led in WIDTHS_LED:
+        raw = load_cell_averages(width_led)
+        for cell_type, pc_color, nc_color in [
+            ("T4", "#2ca02c", "#303030"),
+            ("T5", "#d62728", "#7f7f7f"),
         ]:
-            results = pd.DataFrame(rows).sort_values("position")
-            t_result_frames.append(results)
-            t_row_groups.append((f"{cell_type} {contrast}", color, results, fits))
-            print(f"\n=== {cell_type} {contrast} — mirrored taus ===")
-            print(results[all_columns].to_string(
-                index=False, float_format=lambda x: f"{x:.4g}"))
+            data_pc = load_traces(raw, cell_type, "PC")
+            data_nc = load_traces(raw, cell_type, "NC")
+            pc_rows, pc_fits, nc_rows, nc_fits = fit_mirrored_t(data_pc, data_nc)
+            for contrast, color, rows, fits in [
+                ("PC", pc_color, pc_rows, pc_fits),
+                ("NC", nc_color, nc_rows, nc_fits),
+            ]:
+                results = pd.DataFrame(rows).sort_values("position")
+                results.insert(1, "width_led", width_led)
+                t_result_frames.append(results)
+                t_row_groups.append(
+                    (f"w{width_led} {cell_type} {contrast}", color, results, fits)
+                )
+                print(f"\n=== w{width_led} {cell_type} {contrast} — mirrored taus ===")
+                print(results[all_columns].to_string(
+                    index=False, float_format=lambda x: f"{x:.4g}"))
 
     pd.concat(t_result_frames, ignore_index=True).to_csv(
         OUT_MIRRORED_T_CSV, index=False)
     plot_fits_multi(
         t_row_groups,
         OUT_MIRRORED_T_PNG,
-        "Gruntman 2021 Fig. 2A T4/T5 — mirrored taus",
+        "Gruntman 2021 T4/T5 w1/w2/w4 160 ms cell-average — mirrored taus",
         "mirrored-τ LP fit",
     )
     print(f"\nwrote {OUT_MIRRORED_T_CSV}")
@@ -838,36 +972,45 @@ def main() -> int:
     g_row_groups = []
     g_result_frames = []
     gain_columns = [*all_columns, "gain_scale_a"]
-    gain_scales = {}
-    for cell_type, pc_color, nc_color in [
-        ("T4", "#2ca02c", "#303030"),
-        ("T5", "#d62728", "#7f7f7f"),
-    ]:
-        data_pc = load_traces(raw, cell_type, "PC")
-        data_nc = load_traces(raw, cell_type, "NC")
-        pc_rows, pc_fits, nc_rows, nc_fits, gain_scale_a = fit_mirrored_g(
-            data_pc, data_nc)
-        gain_scales[cell_type] = gain_scale_a
-        for contrast, color, rows, fits in [
-            ("PC", pc_color, pc_rows, pc_fits),
-            ("NC", nc_color, nc_rows, nc_fits),
+    gain_scales: dict[tuple[int, str], float] = {}
+    for width_led in WIDTHS_LED:
+        raw = load_cell_averages(width_led)
+        for cell_type, pc_color, nc_color in [
+            ("T4", "#2ca02c", "#303030"),
+            ("T5", "#d62728", "#7f7f7f"),
         ]:
-            results = pd.DataFrame(rows).sort_values("position")
-            g_result_frames.append(results)
-            g_row_groups.append((f"{cell_type} {contrast}", color, results, fits))
-            print(
-                f"\n=== {cell_type} {contrast} — mirrored gains "
-                f"(a={gain_scale_a:.4g}) ===")
-            print(results[gain_columns].to_string(
-                index=False, float_format=lambda x: f"{x:.4g}"))
+            data_pc = load_traces(raw, cell_type, "PC")
+            data_nc = load_traces(raw, cell_type, "NC")
+            pc_rows, pc_fits, nc_rows, nc_fits, gain_scale_a = fit_mirrored_g(
+                data_pc, data_nc)
+            gain_scales[(width_led, cell_type)] = gain_scale_a
+            for contrast, color, rows, fits in [
+                ("PC", pc_color, pc_rows, pc_fits),
+                ("NC", nc_color, nc_rows, nc_fits),
+            ]:
+                results = pd.DataFrame(rows).sort_values("position")
+                results.insert(1, "width_led", width_led)
+                g_result_frames.append(results)
+                g_row_groups.append(
+                    (f"w{width_led} {cell_type} {contrast}", color, results, fits)
+                )
+                print(
+                    f"\n=== w{width_led} {cell_type} {contrast} — mirrored gains "
+                    f"(a={gain_scale_a:.4g}) ===")
+                print(results[gain_columns].to_string(
+                    index=False, float_format=lambda x: f"{x:.4g}"))
 
     pd.concat(g_result_frames, ignore_index=True).to_csv(
         OUT_MIRRORED_G_CSV, index=False)
+    scale_bits = "; ".join(
+        f"a_w{width_led}_{cell_type}={gain_scales[(width_led, cell_type)]:.3g}"
+        for width_led in WIDTHS_LED
+        for cell_type in ("T4", "T5")
+    )
     plot_fits_multi(
         g_row_groups,
         OUT_MIRRORED_G_PNG,
-        ("Gruntman 2021 Fig. 2A T4/T5 — mirrored gains "
-         f"(a_T4={gain_scales['T4']:.3g}; a_T5={gain_scales['T5']:.3g})"),
+        f"Gruntman 2021 T4/T5 w1/w2/w4 160 ms cell-average — mirrored gains ({scale_bits})",
         "mirrored-gain LP fit",
     )
     print(f"\nwrote {OUT_MIRRORED_G_CSV}")

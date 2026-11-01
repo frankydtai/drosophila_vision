@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Shift and linearly sum Gruntman21 Fig. 2A T4/T5 position traces.
+"""Shift and linearly sum Gruntman21 T4/T5 width-2 position traces.
 
-The 12 flash positions are separated by 4.5 degrees.  At the Gruntman fast
+The nine flash positions are separated by 4.5 degrees.  At the Gruntman fast
 moving-bar speed of 56.25 degrees/s, neighbouring positions are therefore
 separated by 80 ms.  T4/T5 and PC/NC traces are processed independently in
 both scan directions.
 
+The traces are 160-ms width-2 cell averages loaded from the Figure 2 MAT
+files, matching the W2 discrete shifted sum in ``gruntman21_mbar.py``.
+
 Outputs:
-  gruntman21_shift_overlay.csv  shifted components and their pointwise sums
-  gruntman21_shift_overlay.png  eight-panel overlay and sum diagnostic
+  gruntman21_shift_overlay.csv/.png      width-2 (backward-compatible names)
+  gruntman21_shift_overlay_w1.csv/.png   width-1
+  gruntman21_shift_overlay_w4.csv/.png   width-4
 
 Run:  ../.venv/bin/python gruntman21_shift_overlay.py
 """
@@ -25,10 +29,19 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent
-INPUT_CSV = ROOT / "gruntman21" / "2a_digitized.csv"
 OUT_CSV = HERE / "gruntman21_shift_overlay.csv"
 OUT_PNG = HERE / "gruntman21_shift_overlay.png"
+WIDTH_OUTPUTS = {
+    1: (
+        HERE / "gruntman21_shift_overlay_w1.csv",
+        HERE / "gruntman21_shift_overlay_w1.png",
+    ),
+    2: (OUT_CSV, OUT_PNG),
+    4: (
+        HERE / "gruntman21_shift_overlay_w4.csv",
+        HERE / "gruntman21_shift_overlay_w4.png",
+    ),
+}
 ADDITIONAL_OUT_PNGS = {
     160.0: HERE / "gruntman21_shift_overlay_160ms.png",
     40.0: HERE / "gruntman21_shift_overlay_40ms.png",
@@ -36,7 +49,8 @@ ADDITIONAL_OUT_PNGS = {
 }
 
 CELL_TYPES = ("T4", "T5")
-POSITIONS = tuple(range(-5, 7))
+WIDTHS_LED = (1, 2, 4)
+POSITIONS = tuple(range(-4, 5))
 CONTRASTS = ("PC", "NC")
 SAMPLE_INTERVAL_MS = 5.0
 POSITION_STEP_DEG = 4.5
@@ -49,9 +63,11 @@ DIRECTIONS = {
 }
 
 
-def load_traces() -> dict[tuple[str, str, int], pd.DataFrame]:
+def load_traces(width_led: int) -> dict[tuple[str, str, int], pd.DataFrame]:
     """Load and validate one uniformly sampled trace per condition."""
-    data = pd.read_csv(INPUT_CSV)
+    from gruntman21_fit_lp import load_cell_averages
+
+    data = load_cell_averages(width_led)
     data = data[data["cell_type"].isin(CELL_TYPES)].copy()
     traces: dict[tuple[str, str, int], pd.DataFrame] = {}
 
@@ -151,7 +167,10 @@ def shifted_components(
 
 
 def plot_overlay(
-    data: pd.DataFrame, output_path: Path, position_delay_ms: float
+    data: pd.DataFrame,
+    output_path: Path,
+    position_delay_ms: float,
+    width_led: int,
 ) -> None:
     """Plot eight shifted-trace panels with one shared y-axis scale."""
     fig, axes = plt.subplots(
@@ -218,8 +237,8 @@ def plot_overlay(
         loc="upper right",
     )
     fig.suptitle(
-        "Gruntman21 Fig. 2A T4/T5 shifted-position overlays\n"
-        f"{position_delay_ms:g} ms per position; shared y-axis"
+        f"Gruntman21 T4/T5 W{width_led} shifted-position overlays\n"
+        f"160-ms flashes; {position_delay_ms:g} ms per position; shared y-axis"
     )
     fig.tight_layout()
     fig.savefig(output_path, dpi=180)
@@ -227,16 +246,20 @@ def plot_overlay(
 
 
 def main() -> int:
-    traces = load_traces()
-    output = shifted_components(traces, POSITION_DELAY_MS)
-    output.to_csv(OUT_CSV, index=False, float_format="%.6f")
-    plot_overlay(output, OUT_PNG, POSITION_DELAY_MS)
-    print(f"wrote {OUT_CSV} ({len(output):,} rows)")
-    print(f"wrote {OUT_PNG}")
+    traces_by_width = {}
+    for width_led in WIDTHS_LED:
+        traces = load_traces(width_led)
+        traces_by_width[width_led] = traces
+        output = shifted_components(traces, POSITION_DELAY_MS)
+        output_csv, output_png = WIDTH_OUTPUTS[width_led]
+        output.to_csv(output_csv, index=False, float_format="%.6f")
+        plot_overlay(output, output_png, POSITION_DELAY_MS, width_led)
+        print(f"wrote {output_csv} ({len(output):,} rows)")
+        print(f"wrote {output_png}")
 
     for delay_ms, output_path in ADDITIONAL_OUT_PNGS.items():
-        delayed_output = shifted_components(traces, delay_ms)
-        plot_overlay(delayed_output, output_path, delay_ms)
+        delayed_output = shifted_components(traces_by_width[2], delay_ms)
+        plot_overlay(delayed_output, output_path, delay_ms, 2)
         print(f"wrote {output_path} (position delay: {delay_ms:g} ms)")
 
     print(f"CSV position delay: {POSITION_DELAY_MS:g} ms")

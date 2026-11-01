@@ -5,6 +5,7 @@ from __future__ import annotations
 from config import (
     MBAR_INPUT_SPEC,
     MODEL,
+    SBAR_GT,
     SBAR_INPUT_GEO,
     SBAR_PACK,
     SPREAD_INPUT_SPEC,
@@ -69,6 +70,7 @@ _STI_OPTS_BY_TASK = {
         "bar_directions": list(MBAR_INPUT_SPEC["bar_directions"]),
         "multi_bar": SBAR_INPUT_GEO["multi_bar"],
         "shift_mid": SBAR_INPUT_GEO["shift_mid"],
+        "sbar_gt_w": SBAR_GT["sbar_gt_w"],
         "a_sti_mids": list(SBAR_PACK["a_sti_mids"]),
     },
 }

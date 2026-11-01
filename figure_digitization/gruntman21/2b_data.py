@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/yitai/drosophila_vision/figure_digitization/.venv/bin/python
 """Plot Gruntman et al. 2021 Figure 2B from the Figshare single-bar recordings.
 
 Selective h5py reads of per-trial peak responses (width 4, 160 ms), matching
@@ -12,7 +12,13 @@ Run:
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
+
+_VENV_PYTHON = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
+if Path(sys.executable).parent.resolve() != _VENV_PYTHON.parent.resolve():
+    os.execv(_VENV_PYTHON, [str(_VENV_PYTHON), *sys.argv])
 
 import h5py
 import matplotlib

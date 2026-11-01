@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 29744533-run-n_iter-500-tasks-sbar-figure_tasks-spread,sbar,mbar
+ 34162483-run-n_iter-200-tasks-sbar-a_lsd-1
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -47,9 +47,9 @@ params:
     init: 1.0
     #inits: {"Tm3:T4a": 0.0, "Mi4:T4a": 0.0, "Mi9:T4a": 0.0, "T4a:T4a": 0.0, "T4b:T4a": 0.0, "Tm2:T4a": 0.0, "T5a:T4a": 0.0, "C3:T4a": 0.0, "Mi10:T4a": 0.0, "TmY15:T4a": 0.0}
     jit: 0.1
-    mode: "indi"
+    mode: "fixed"
     modes:
-      indi: ["Mi4:T4b", "Mi4:T4c", "Mi4:T4d", "Mi9:T4b", "Mi9:T4c", "Mi9:T4d"]
+      indi: ["Mi4:T4a", "Mi4:T4b"]
       #fixed: ["Tm3:T4a", "Mi4:T4a", "Mi9:T4a", "T4a:T4a", "T4b:T4a", "Tm2:T4a", "T5a:T4a", "C3:T4a", "Mi10:T4a", "TmY15:T4a"]
   syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   a_in: {lo: 0.01, hi: 100.0, init: 1.0, jit: 0.1, mode: "shared"}
@@ -95,7 +95,7 @@ pre_grad: true
 # ---------------------------------------------------------------------------
 # 2.1   network.path
 # ---------------------------------------------------------------------------
-network: "right_min_neuron1_r10"
+network: "right_min_neuron1_r10_filtered"
 
 # ---------------------------------------------------------------------------
 # 3.1.1   task.spread.sti_spec
@@ -139,6 +139,16 @@ multi_bar: false
 bar_dist: 4
 # S-bar hex-shift radius projected onto the bar-normal mid axis (0 disables).
 shift_mid: 2
+
+# ---------------------------------------------------------------------------
+# 3.3.3   task.sbar.gt
+# ---------------------------------------------------------------------------
+# Width (LED columns) of the Gruntman static-bar training GT: 1 or 2.
+sbar_gt_w: 2
+
+# ---------------------------------------------------------------------------
+# 3.3.4   task.sbar.pack
+# ---------------------------------------------------------------------------
 a_sti_mids: [0.5, 1, 1.5, 2]
 bar_ws_deg: [2.25]
 bar_directions: [right,left]
@@ -177,12 +187,12 @@ val_from:
 # Task keys apply to every fine part in that task; a full part key overrides it.
 # sbar: only mid=0; |mid| 0.5–2 scale 0 via task default.
 part_cost_scales:
-  spread: 1
-  sbar: 1
-  sbar_bright_T4a_mid+0: 1
-  sbar_bright_T4a_mid-1: 1
-  sbar_bright_T4a_mid-2: 1
-  sbar_bright_T4a_mid+1: 1
+  spread: 0
+  sbar: 0
+  sbar_bright_T4a_mid+0: 0
+  sbar_bright_T4a_mid-1: 0
+  sbar_bright_T4a_mid-2: 0
+  sbar_bright_T4a_mid+1: 0
   sbar_bright_T4a_mid+2: 1
 cost_norm: "a_gt2"
 # Fixed manual weight; it is not included in the trainable parameter schema.
@@ -241,7 +251,7 @@ mbar_plot_direction: left
 # 5.4   figure.plot
 # ---------------------------------------------------------------------------
 # Tasks to plot after training or when re-plotting; independent of train `tasks`.
-figure_tasks: [spread, sbar, mbar]
+figure_tasks: [spread, sbar]
 # Rows for sbar ``plot_all`` / ``*_all_v.png``.
 sbar_figure_cells: [R1-6, R7, R8, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a]
 html: false

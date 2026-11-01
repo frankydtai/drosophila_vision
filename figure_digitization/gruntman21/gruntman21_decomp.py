@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/yitai/drosophila_vision/figure_digitization/.venv/bin/python
 """Plot Gaussian three-source spatial fit for Gruntman21 T4 width 1/4.
 
 Input:
@@ -17,7 +17,13 @@ Run:
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
+
+_VENV_PYTHON = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
+if Path(sys.executable).parent.resolve() != _VENV_PYTHON.parent.resolve():
+    os.execv(_VENV_PYTHON, [str(_VENV_PYTHON), *sys.argv])
 
 import matplotlib
 

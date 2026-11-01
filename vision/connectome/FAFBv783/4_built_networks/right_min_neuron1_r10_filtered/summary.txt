@@ -1,0 +1,18 @@
+network summary: right_min_neuron1_r10_filtered
+========================================
+side                 : right
+min_neuron_count     : 1
+radius               : 10
+filtered_from        : right_min_neuron1_r10
+sign_mode            : per_edge
+
+n_node              : 5789
+n_node_with_column  : 5789
+n_node_without_column  : 0
+n_sti_node        : 1576
+n_edge              : 27824
+n_cell         : 14
+
+keep_cells          : L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, R1-6, T4a, T4b, T4c, T4d, Tm3
+forced_negative      : R1-6, R7, R8
+sign_from_nt           : {'ACH': 1.0, 'GLUT': -1.0, 'GABA': -1.0, 'SER': 1.0, 'DA': 1.0, 'OCT': 1.0}

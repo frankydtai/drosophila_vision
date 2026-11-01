@@ -21,8 +21,8 @@ HERE = Path(__file__).resolve().parent
 INPUT_CSV = HERE / "gruntman21_fit_lp.csv"
 OUTPUT_CSV = HERE / "gruntman21_t4_g.csv"
 OUTPUT_PNG = HERE / "gruntman21_t4_g.png"
-POSITIONS = list(range(-6, 6))
-G_POSITIONS = list(range(-7, 8))
+POSITIONS = list(range(-4, 5))
+G_POSITIONS = list(range(-5, 7))
 POSITIVE_COLOR = "tab:blue"
 NEGATIVE_COLOR = "tab:orange"
 

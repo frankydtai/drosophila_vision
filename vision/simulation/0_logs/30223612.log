@@ -1,0 +1,245 @@
+Job ID: 30223612
+Node:   spartan-gpgpu099
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+  MIG 1g.20gb     Device  0: (UUID: MIG-bf385ceb-5949-5136-9f64-4eb4b863fdba)
+cuda: True NVIDIA A100 80GB PCIe MIG 1g.20gb
+Start:  Tue 08 Sep 2026 04:00:00 AEST
+==== config ====
+{'RUN_NAME': '29744533-run-n_iter-500-tasks-sbar-figure_tasks-spread,sbar,mbar',
+ 'RUN_PATH': 'hp_lp/29744533-run-n_iter-500-tasks-sbar-figure_tasks-spread,sbar,mbar',
+ 'MODEL': {'delta_ms': 2.0,
+           'delta_ms_pre': 2.0,
+           'cap': 40.0,
+           'g_leak': 1.0,
+           'e_exc': 10.0,
+           'e_inh': -70.0,
+           'e_h': 50.0,
+           'h_g_max': 100.0,
+           'gt_amp': 20.0,
+           'v_clamp': 100.0,
+           'a_syn_exc': 0.001,
+           'a_syn_inh': 0.001,
+           'euler': 'im'},
+ 'NEURON_SCHEMA': {'model': 'hp_lp',
+                   'filter': 'none',
+                   'syn_mode': 'per_cell',
+                   'a_lo': 0.1,
+                   'a_hi': 10.0,
+                   'h_cells': ['L1', 'L2', 'L4', 'L5'],
+                   'params': {'a_gt': {'lo': 0.5,
+                                       'hi': 2.0,
+                                       'init': 1.0,
+                                       'jit': 0.1,
+                                       'mode': 'indi',
+                                       'modes': {'fixed': ['T4a', 'T4b', 'T4c', 'T4d']}},
+                              'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'syn_strength_cell': {'lo': 0.1,
+                                                    'hi': 10.0,
+                                                    'init': 1.0,
+                                                    'jit': 0.1,
+                                                    'mode': 'fixed',
+                                                    'modes': {'fixed': ['Mi4:T4b',
+                                                                        'Mi4:T4c',
+                                                                        'Mi4:T4d',
+                                                                        'Mi9:T4b',
+                                                                        'Mi9:T4c',
+                                                                        'Mi9:T4d']}},
+                              'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 1.0, 'jit': 0.1, 'mode': 'shared'},
+                              'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'e_leak': {'lo': -50.0, 'hi': 50.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'v_th': {'lo': -100.0, 'hi': 100.0, 'init': -25.0, 'jit': 0.0, 'mode': 'indi'},
+                              'tau_lp': {'lo': 10.0,
+                                         'hi': 100.0,
+                                         'init': 10.0,
+                                         'inits': {'Mi4': 200},
+                                         'jit': 2.0,
+                                         'mode': 'indi'},
+                              'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'a_h': {'lo': 0.0,
+                                      'hi': 1.0,
+                                      'init': 0.0,
+                                      'inits': {'L1': 0.5, 'L2': 0.5, 'L4': 0.5, 'L5': 0.5},
+                                      'jit': 0.1,
+                                      'mode': 'indi'},
+                              'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'a_h_rev': {'lo': 0.0,
+                                          'hi': 1.0,
+                                          'init': 0.0,
+                                          'jit': 0.1,
+                                          'mode': 'fixed',
+                                          'modes': {'indi': ['L1', 'L2', 'L4', 'L5']}},
+                              'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau_rev': {'lo': -70.0,
+                                                  'hi': -40.0,
+                                                  'init': -50.0,
+                                                  'jit': 5.0,
+                                                  'mode': 'shared'},
+                              'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'},
+                              'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'},
+                              'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'},
+                              'a_sti_mid': {'lo': 0.5, 'hi': 2.0, 'init': 1, 'jit': 0.05, 'mode': 'shared'}}},
+ 'NEURON_FORWARD': {'pre_grad': True},
+ 'NETWORK_PATH': {'network': 'right_min_neuron1_r10_filtered'},
+ 'SPREAD_INPUT_SPEC': {'ms_pre': 324.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0},
+ 'SPREAD_GT': {'spread_gt_mode': 'pos'},
+ 'SPOT_INPUT_GEO': {'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0},
+ 'SPOT_PACK': {'spot_cost_radii': [0, 1, 2],
+               'a_sti_radii': [1, 2],
+               'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}},
+ 'SBAR_INPUT_GEO': {'multi_bar': False, 'bar_dist': 4, 'shift_mid': 2},
+ 'SBAR_GT': {'sbar_gt_w': 2},
+ 'SBAR_PACK': {'a_sti_mids': [0.5, 1.0, 1.5, 2.0]},
+ 'MBAR_INPUT_SPEC': {'ms_pre': 324.0, 'bar_ws_deg': [2.25], 'bar_directions': ['right', 'left']},
+ 'TRAIN_CONFIG': {'tasks': ['spread', 'sbar'],
+                  'contrasts': ['bright', 'dark'],
+                  'i_sti': {'bright': 40.0, 'dark': 0.0},
+                  'gt_by_task': {'spread': ['L1', 'L2', 'L3', 'L4', 'L5', 'Mi9', 'Tm3'],
+                                 'sbar': ['T4a', 'T4b', 'T4c', 'T4d'],
+                                 'mbar': ['T4a', 'T4b']},
+                  'cost_radius': None,
+                  'cost_mid': 0},
+ 'VAL_FROM': {'bias_gt': {'source': 'v_onset', 'enabled': True},
+              'v_th_ca': {'source': 'v_th', 'enabled': False},
+              'a_ca': {'source': 'a_out', 'enabled': False},
+              'a_h_rev': {'source': 'a_h', 'enabled': False},
+              'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False},
+              'h_slope_rev': {'source': 'h_slope', 'enabled': False},
+              'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}},
+ 'TRAIN_OPTIMIZATION': {'part_cost_scales': {'spread': 1,
+                                             'sbar': 1,
+                                             'sbar_bright_T4a_mid+0': 1,
+                                             'sbar_bright_T4a_mid-1': 1,
+                                             'sbar_bright_T4a_mid-2': 1,
+                                             'sbar_bright_T4a_mid+1': 1,
+                                             'sbar_bright_T4a_mid+2': 1},
+                        'cost_norm': 'a_gt2',
+                        'a_lsd': 1.0,
+                        'cost_entry_reduce': 'mean_trace',
+                        'cost_ms': None,
+                        'pre_steady': 'solve',
+                        'pre_steady_n_iter': 50,
+                        'pre_steady_damp': 0.1,
+                        'n_run': 1,
+                        'n_iter': 0,
+                        'lrs': [0.1],
+                        'checkpoint_interval': 1000},
+ 'TRAIN_SESSION': {'fp': 32, 'sequential': False},
+ 'FIGURE_PLOT': {'tasks': ['spread', 'sbar'],
+                 'sbar_figure_cells': ['R1-6',
+                                       'R7',
+                                       'R8',
+                                       'L1',
+                                       'L2',
+                                       'L3',
+                                       'L4',
+                                       'L5',
+                                       'Mi1',
+                                       'Mi4',
+                                       'Mi9',
+                                       'Tm3',
+                                       'T4a'],
+                 'html': False,
+                 'plot_right_only': True,
+                 'x': None,
+                 'y': None,
+                 'align_xy': None,
+                 'ms_shown': None},
+ 'FIGURE_PLOT_STI_SPOT': {'spot_radii': [0.5, 1.0, 1.5, 2.0], 'output': None},
+ 'FIGURE_PLOT_STI_MBAR': {'output': None,
+                          'gif': False,
+                          'gif_output': None,
+                          't_stride': 2,
+                          't': None,
+                          'direction': 'left'},
+ 'ANALYZE_RUNS': ['hp_lp/29744533-run-n_iter-500-tasks-sbar-figure_tasks-spread,sbar,mbar'],
+ 'ANALYZE_CELL_DYNAMICS': {'cells': None,
+                           'spec': None,
+                           'mid': None,
+                           'node': None,
+                           'radius': 0,
+                           't_rel_start': None,
+                           't_rel_stop': None,
+                           'figure': True,
+                           'json': False,
+                           'a_mid': None},
+ 'ANALYZE_SYN_SIGN': {'bins': 20, 'after_train': False, 'post': False},
+ 'ANALYZE_TRACE': {'trace_osc_min_f': 0.5,
+                   'trace_osc_max_f': 20.0,
+                   'trace_osc_peak_threshold': 0.5,
+                   'trace_osc_z_threshold': 2.0,
+                   'trace_osc_snr_min': 2.0,
+                   'trace_drift_min_slope_mv_over_s': 1.0,
+                   'trace_drift_min_r': 0.5,
+                   'trace_baseline_ms': 200.0,
+                   'trace_flat_max_abs': 0.5,
+                   'trace_flat_v_peak_to_peak_max': 1.0,
+                   'trace_flat_abs_mean': 0.2,
+                   'check': None,
+                   'baseline_ms_shown': None},
+ 'ANALYZE_COST_PART': {'part': None,
+                       'cost_norm': None,
+                       'stride': 1,
+                       'per_node': False,
+                       'csv': None,
+                       'print_parts': False}}
+==== end config ====
+config: {'run_name': '29744533-run-n_iter-500-tasks-sbar-figure_tasks-spread,sbar,mbar', 'run_path': 'hp_lp/${run_name}', 'delta_ms': 2.0, 'delta_ms_pre': 2.0, 'cap': 40.0, 'g_leak': 1.0, 'e_exc': 10.0, 'e_inh': -70.0, 'e_h': 50.0, 'h_g_max': 100.0, 'gt_amp': 20.0, 'v_clamp': 100.0, 'a_syn_exc': 0.001, 'a_syn_inh': 0.001, 'euler': 'im', 'model': 'hp_lp', 'filter': 'none', 'syn_mode': 'per_cell', 'a_lo': 0.1, 'a_hi': 10.0, 'h_cells': ['L1', 'L2', 'L4', 'L5'], 'params': {'a_gt': {'lo': 0.5, 'hi': 2.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi', 'modes': {'fixed': ['T4a', 'T4b', 'T4c', 'T4d']}}, 'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'}, 'syn_strength_cell': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'fixed', 'modes': {'fixed': ['Mi4:T4b', 'Mi4:T4c', 'Mi4:T4d', 'Mi9:T4b', 'Mi9:T4c', 'Mi9:T4d']}}, 'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 1.0, 'jit': 0.1, 'mode': 'shared'}, 'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'e_leak': {'lo': -50.0, 'hi': 50.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'}, 'v_th': {'lo': -100.0, 'hi': 100.0, 'init': -25.0, 'jit': 0.0, 'mode': 'indi'}, 'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 10.0, 'inits': {'Mi4': 200}, 'jit': 2.0, 'mode': 'indi'}, 'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'}, 'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'}, 'a_h': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'inits': {'L1': 0.5, 'L2': 0.5, 'L4': 0.5, 'L5': 0.5}, 'jit': 0.1, 'mode': 'indi'}, 'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'}, 'a_h_rev': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.1, 'mode': 'fixed', 'modes': {'indi': '${h_cells}'}}, 'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'v_mid_h_tau_rev': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'}, 'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'}, 'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'}, 'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'}, 'a_sti_mid': {'lo': 0.5, 'hi': 2.0, 'init': 1, 'jit': 0.05, 'mode': 'shared'}}, 'pre_grad': True, 'network': 'right_min_neuron1_r10_filtered', 'i_sti': {'bright': 40.0, 'dark': 0.0}, 'contrasts': ['bright', 'dark'], 'ms_pre': 324.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0, 'spread_gt_mode': 'pos', 'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0, 'spot_cost_radii': [0, 1, 2], 'a_sti_radii': [1, 2], 'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}, 'multi_bar': False, 'bar_dist': 4, 'shift_mid': 2, 'sbar_gt_w': 2, 'a_sti_mids': [0.5, 1, 1.5, 2], 'bar_ws_deg': [2.25], 'bar_directions': ['right', 'left'], 'tasks': ['sbar'], 'gt_by_task': {'spread': ['L1', 'L2', 'L3', 'L4', 'L5', 'Mi9', 'Tm3'], 'sbar': ['T4a', 'T4b', 'T4c', 'T4d'], 'mbar': ['T4a', 'T4b']}, 'cost_radius': None, 'cost_mid': 0, 'param_vals': {}, 'val_from': {'bias_gt': {'source': 'v_onset', 'enabled': True}, 'v_th_ca': {'source': 'v_th', 'enabled': False}, 'a_ca': {'source': 'a_out', 'enabled': False}, 'a_h_rev': {'source': 'a_h', 'enabled': False}, 'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False}, 'h_slope_rev': {'source': 'h_slope', 'enabled': False}, 'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}}, 'part_cost_scales': {'spread': 1, 'sbar': 1, 'sbar_bright_T4a_mid+0': 1, 'sbar_bright_T4a_mid-1': 1, 'sbar_bright_T4a_mid-2': 1, 'sbar_bright_T4a_mid+1': 1, 'sbar_bright_T4a_mid+2': 1}, 'cost_norm': 'a_gt2', 'a_lsd': 1, 'cost_entry_reduce': 'mean_trace', 'cost_ms': None, 'pre_steady': 'solve', 'pre_steady_n_iter': 50, 'pre_steady_damp': 0.1, 'n_run': 1, 'n_iter': 1000, 'lrs': [0.1], 'checkpoint_interval': 1000, 'init_from': None, 'fp': 32, 'sequential': False, 'spot_radii': [0.5, 1.0, 1.5, 2.0], 'spot_plot_output': None, 'mbar_plot_output': None, 'mbar_plot_gif': False, 'mbar_plot_gif_output': None, 'mbar_plot_t_stride': 2, 'mbar_plot_t': None, 'mbar_plot_direction': 'left', 'figure_tasks': ['spread', 'sbar'], 'sbar_figure_cells': ['R1-6', 'R7', 'R8', 'L1', 'L2', 'L3', 'L4', 'L5', 'Mi1', 'Mi4', 'Mi9', 'Tm3', 'T4a'], 'html': False, 'plot_right_only': True, 'x': None, 'y': None, 'align_xy': None, 'ms_shown': None, 'analyze_runs': None, 'cells': None, 'spec': None, 'mid': None, 'node': None, 'radius': 0, 't_rel_start': None, 't_rel_stop': None, 'analyze_figure': True, 'analyze_json': False, 'post': False, 'check': None, 'baseline_ms_shown': None, 'part': None, 'analyze_cost_norm': None, 'stride': 1, 'per_node': False, 'cost_part_csv': None, 'print_parts': False, 'bins': 20, 'after_train': False, 'trace_osc_min_f': 0.5, 'trace_osc_max_f': 20.0, 'trace_osc_peak_threshold': 0.5, 'trace_osc_z_threshold': 2.0, 'trace_osc_snr_min': 2.0, 'trace_drift_min_slope_mv_over_s': 1.0, 'trace_drift_min_r': 0.5, 'trace_baseline_ms': 200.0, 'trace_flat_max_abs': 0.5, 'trace_flat_v_peak_to_peak_max': 1.0, 'trace_flat_abs_mean': 0.2}
+param_modes:
+  a_gt               indi=10/shared=0/fixed=4/frozen=0 (10)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=14 (0)
+  syn_strength_cell  indi=0/shared=0/fixed=101/frozen=0 (0)
+  a_in               indi=0/shared=14/fixed=0/frozen=0 (1)
+  a_out              indi=14/shared=0/fixed=0/frozen=0 (14)
+  e_leak             indi=14/shared=0/fixed=0/frozen=0 (14)
+  v_th               indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_lp             indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_rise        indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_fall        indi=14/shared=0/fixed=0/frozen=0 (14)
+  a_h                indi=14/shared=0/fixed=0/frozen=0 (14)
+  a_sti_mid          indi=0/shared=1/fixed=0/frozen=0 (1)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, a_lsd=1.0, cost_entry_reduce=mean_trace, n_run=1, n_iter=1000, lrs=[0.1], n_z=110, fname=train_hp_lp.npy
+checkpoint_interval=1000
+
+round 0
+
+  0%|          | 0/1000 [00:00<?, ?it/s] Cost: 407934.8125  [sbar_bright_T4a_mid+0=79532.5547  sbar_bright_T4b_mid+0=80029.6484  sbar_dark_T4a_mid+0=3183.7439  sbar_dark_T4b_mid+0=3231.1958]  1%|          | 10/1000 [00:07<12:30,  1.32it/s] Cost: 364559.4688  [sbar_bright_T4a_mid+0=73426.9141  sbar_bright_T4b_mid+0=75847.9297  sbar_dark_T4a_mid+0=2087.0203  sbar_dark_T4b_mid+0=2164.4958]:   2%|▏         | 20/1000 [00:15<12:20,  1.32it/s] Cost: 229961.5625  [sbar_bright_T4a_mid+0=43216.9141  sbar_bright_T4b_mid+0=48831.4258  sbar_dark_T4a_mid+0=3452.2285  sbar_dark_T4b_mid+0=2762.4414]:   3%|▎         | 30/1000 [00:22<12:08,  1.33it/s] Cost: 157709.8594  [sbar_bright_T4a_mid+0=22632.0156  sbar_bright_T4b_mid+0=25305.7227  sbar_dark_T4a_mid+0=4542.3726  sbar_dark_T4b_mid+0=3899.1602]:   4%|▍         | 40/1000 [00:30<12:01,  1.33it/s] Cost: 142005.3906  [sbar_bright_T4a_mid+0=20349.2070  sbar_bright_T4b_mid+0=23098.1719  sbar_dark_T4a_mid+0=3285.3962  sbar_dark_T4b_mid+0=2858.1318]:   5%|▌         | 50/1000 [00:37<11:52,  1.33it/s] Cost: 130654.0781  [sbar_bright_T4a_mid+0=18289.6777  sbar_bright_T4b_mid+0=21295.2227  sbar_dark_T4a_mid+0=3444.9153  sbar_dark_T4b_mid+0=2750.2683]:   6%|▌         | 60/1000 [00:44<11:42,  1.34it/s] Cost: 122576.1875  [sbar_bright_T4a_mid+0=16195.6660  sbar_bright_T4b_mid+0=19396.6387  sbar_dark_T4a_mid+0=3295.1711  sbar_dark_T4b_mid+0=2656.6335]:   7%|▋         | 70/1000 [00:52<11:34,  1.34it/s] Cost: 116174.9141  [sbar_bright_T4a_mid+0=14732.8438  sbar_bright_T4b_mid+0=17663.4980  sbar_dark_T4a_mid+0=2984.6633  sbar_dark_T4b_mid+0=2444.1755]:   8%|▊         | 80/1000 [00:59<11:26,  1.34it/s] Cost: 110830.4297  [sbar_bright_T4a_mid+0=13714.4404  sbar_bright_T4b_mid+0=16376.0068  sbar_dark_T4a_mid+0=3067.4099  sbar_dark_T4b_mid+0=2400.1545]:   9%|▉         | 90/1000 [01:07<11:17,  1.34it/s] Cost: 106176.5859  [sbar_bright_T4a_mid+0=12586.6602  sbar_bright_T4b_mid+0=15159.8389  sbar_dark_T4a_mid+0=2868.7009  sbar_dark_T4b_mid+0=2236.4849]:  10%|█         | 100/1000 [01:14<11:10,  1.34it/s] Cost: 102117.4609  [sbar_bright_T4a_mid+0=11636.5459  sbar_bright_T4b_mid+0=14143.0068  sbar_dark_T4a_mid+0=2844.4180  sbar_dark_T4b_mid+0=2169.6924]:  11%|█         | 110/1000 [01:22<11:03,  1.34it/s] Cost: 98461.0625  [sbar_bright_T4a_mid+0=10799.4639  sbar_bright_T4b_mid+0=13170.9316  sbar_dark_T4a_mid+0=2813.4336  sbar_dark_T4b_mid+0=2107.2588]:   12%|█▏        | 120/1000 [01:29<10:55,  1.34it/s] Cost: 95094.9844  [sbar_bright_T4a_mid+0=10022.2227  sbar_bright_T4b_mid+0=12262.2451  sbar_dark_T4a_mid+0=2855.5781  sbar_dark_T4b_mid+0=2091.1794]:  13%|█▎        | 130/1000 [01:37<10:47,  1.34it/s] Cost: 91930.2344  [sbar_bright_T4a_mid+0=9298.5723  sbar_bright_T4b_mid+0=11405.2295  sbar_dark_T4a_mid+0=2856.1758  sbar_dark_T4b_mid+0=2041.8945]:   14%|█▍        | 140/1000 [01:44<10:39,  1.34it/s] Cost: 88974.1250  [sbar_bright_T4a_mid+0=8648.3643  sbar_bright_T4b_mid+0=10610.2314  sbar_dark_T4a_mid+0=2815.6216  sbar_dark_T4b_mid+0=1967.2500]:  15%|█▌        | 150/1000 [01:52<10:34,  1.34it/s] Cost: 86230.8750  [sbar_bright_T4a_mid+0=8067.0933  sbar_bright_T4b_mid+0=9919.0107  sbar_dark_T4a_mid+0=2649.9653  sbar_dark_T4b_mid+0=1822.1383]:   16%|█▌        | 160/1000 [01:59<10:27,  1.34it/s] Cost: 83700.0781  [sbar_bright_T4a_mid+0=7489.0464  sbar_bright_T4b_mid+0=9315.8379  sbar_dark_T4a_mid+0=2550.3745  sbar_dark_T4b_mid+0=1714.1869]:  17%|█▋        | 170/1000 [02:06<10:19,  1.34it/s] Cost: 81352.6250  [sbar_bright_T4a_mid+0=6950.1499  sbar_bright_T4b_mid+0=8745.7529  sbar_dark_T4a_mid+0=2505.0984  sbar_dark_T4b_mid+0=1621.1617]:  18%|█▊        | 180/1000 [02:14<10:11,  1.34it/s] Cost: 79218.1484  [sbar_bright_T4a_mid+0=6454.6304  sbar_bright_T4b_mid+0=8216.2764  sbar_dark_T4a_mid+0=2425.1721  sbar_dark_T4b_mid+0=1507.8170]:  19%|█▉        | 190/1000 [02:21<10:03,  1.34it/s] Cost: 77293.1797  [sbar_bright_T4a_mid+0=6032.6680  sbar_bright_T4b_mid+0=7776.3462  sbar_dark_T4a_mid+0=2308.0696  sbar_dark_T4b_mid+0=1387.0127]:  20%|██        | 200/1000 [02:29<09:55,  1.34it/s] Cost: 75488.2266  [sbar_bright_T4a_mid+0=5632.4976  sbar_bright_T4b_mid+0=7433.7627  sbar_dark_T4a_mid+0=2190.6252  sbar_dark_T4b_mid+0=1251.1909]:  21%|██        | 210/1000 [02:36<09:50,  1.34it/s] Cost: 73665.3438  [sbar_bright_T4a_mid+0=5388.1772  sbar_bright_T4b_mid+0=7134.5586  sbar_dark_T4a_mid+0=2081.7466  sbar_dark_T4b_mid+0=1120.2532]:  22%|██▏       | 220/1000 [02:44<09:42,  1.34it/s] Cost: 72074.1328  [sbar_bright_T4a_mid+0=5078.7031  sbar_bright_T4b_mid+0=6901.4673  sbar_dark_T4a_mid+0=1863.7793  sbar_dark_T4b_mid+0=960.1945]:   23%|██▎       | 230/1000 [02:51<09:33,  1.34it/s] Cost: 70590.4297  [sbar_bright_T4a_mid+0=4740.7866  sbar_bright_T4b_mid+0=6540.7515  sbar_dark_T4a_mid+0=1803.9000  sbar_dark_T4b_mid+0=907.4457]:  24%|██▍       | 240/1000 [02:59<09:25,  1.34it/s] Cost: 69041.6172  [sbar_bright_T4a_mid+0=4612.3096  sbar_bright_T4b_mid+0=6329.9805  sbar_dark_T4a_mid+0=1669.5029  sbar_dark_T4b_mid+0=819.8006]:  25%|██▌       | 250/1000 [03:06<09:19,  1.34it/s] Cost: 67647.5391  [sbar_bright_T4a_mid+0=4297.0615  sbar_bright_T4b_mid+0=5935.5952  sbar_dark_T4a_mid+0=1845.9457  sbar_dark_T4b_mid+0=881.9426]:  26%|██▌       | 260/1000 [03:14<09:11,  1.34it/s] Cost: 66297.6016  [sbar_bright_T4a_mid+0=4124.3677  sbar_bright_T4b_mid+0=5680.7705  sbar_dark_T4a_mid+0=1892.0785  sbar_dark_T4b_mid+0=892.5961]:  27%|██▋       | 270/1000 [03:21<09:04,  1.34it/s] Cost: 65127.0508  [sbar_bright_T4a_mid+0=3881.5935  sbar_bright_T4b_mid+0=5378.7046  sbar_dark_T4a_mid+0=2035.4434  sbar_dark_T4b_mid+0=973.0273]:  28%|██▊       | 280/1000 [03:29<08:58,  1.34it/s] Cost: 64114.9414  [sbar_bright_T4a_mid+0=3664.9778  sbar_bright_T4b_mid+0=5132.4819  sbar_dark_T4a_mid+0=1997.6044  sbar_dark_T4b_mid+0=952.2169]:  29%|██▉       | 290/1000 [03:36<08:50,  1.34it/s] Cost: 63184.5234  [sbar_bright_T4a_mid+0=3452.4119  sbar_bright_T4b_mid+0=4923.1846  sbar_dark_T4a_mid+0=1948.0160  sbar_dark_T4b_mid+0=924.5107]:  30%|███       | 300/1000 [03:44<08:44,  1.33it/s] Cost: 62311.3789  [sbar_bright_T4a_mid+0=3289.7661  sbar_bright_T4b_mid+0=4719.9478  sbar_dark_T4a_mid+0=1841.8418  sbar_dark_T4b_mid+0=895.3381]:  31%|███       | 310/1000 [03:51<08:35,  1.34it/s] Cost: 61589.9688  [sbar_bright_T4a_mid+0=3278.0911  sbar_bright_T4b_mid+0=4540.3774  sbar_dark_T4a_mid+0=1777.7080  sbar_dark_T4b_mid+0=914.6141]:  32%|███▏      | 320/1000 [03:59<08:29,  1.34it/s] Cost: 60796.0195  [sbar_bright_T4a_mid+0=3064.0830  sbar_bright_T4b_mid+0=4414.9214  sbar_dark_T4a_mid+0=1777.5114  sbar_dark_T4b_mid+0=931.2301]:  33%|███▎      | 330/1000 [04:06<08:21,  1.33it/s] Cost: 59963.5469  [sbar_bright_T4a_mid+0=2940.4839  sbar_bright_T4b_mid+0=4227.0117  sbar_dark_T4a_mid+0=1646.5107  sbar_dark_T4b_mid+0=896.3415]:  34%|███▍      | 340/1000 [04:14<08:16,  1.33it/s] Cost: 59157.0312  [sbar_bright_T4a_mid+0=2828.7700  sbar_bright_T4b_mid+0=4019.7263  sbar_dark_T4a_mid+0=1553.9902  sbar_dark_T4b_mid+0=889.1416]:  35%|███▌      | 350/1000 [04:21<08:08,  1.33it/s] Cost: 58384.2461  [sbar_bright_T4a_mid+0=2727.5024  sbar_bright_T4b_mid+0=3855.6711  sbar_dark_T4a_mid+0=1445.4366  sbar_dark_T4b_mid+0=873.6552]:  36%|███▌      | 360/1000 [04:29<07:59,  1.34it/s] Cost: 57633.8516  [sbar_bright_T4a_mid+0=2643.7063  sbar_bright_T4b_mid+0=3667.1091  sbar_dark_T4a_mid+0=1375.2373  sbar_dark_T4b_mid+0=863.0514]:  37%|███▋      | 370/1000 [04:36<07:52,  1.33it/s] Cost: 56847.8828  [sbar_bright_T4a_mid+0=2595.7720  sbar_bright_T4b_mid+0=3515.0981  sbar_dark_T4a_mid+0=1322.5380  sbar_dark_T4b_mid+0=862.3903]:  38%|███▊      | 380/1000 [04:44<07:45,  1.33it/s] Cost: 57438.1133  [sbar_bright_T4a_mid+0=3098.7302  sbar_bright_T4b_mid+0=3073.2205  sbar_dark_T4a_mid+0=1531.6028  sbar_dark_T4b_mid+0=1026.4858]:  39%|███▉      | 390/1000 [04:51<07:37,  1.33it/s] Cost: 55725.4336  [sbar_bright_T4a_mid+0=2580.9089  sbar_bright_T4b_mid+0=3754.9119  sbar_dark_T4a_mid+0=1017.4474  sbar_dark_T4b_mid+0=767.2941]:   40%|████      | 400/1000 [04:59<07:30,  1.33it/s] Cost: 54388.2695  [sbar_bright_T4a_mid+0=2470.2856  sbar_bright_T4b_mid+0=3145.4880  sbar_dark_T4a_mid+0=1148.3544  sbar_dark_T4b_mid+0=898.1324]:  41%|████      | 410/1000 [05:06<07:22,  1.33it/s] Cost: 53424.4219  [sbar_bright_T4a_mid+0=2410.5662  sbar_bright_T4b_mid+0=3234.9141  sbar_dark_T4a_mid+0=901.7155  sbar_dark_T4b_mid+0=776.0513]:   42%|████▏     | 420/1000 [05:13<07:13,  1.34it/s] Cost: 52601.7695  [sbar_bright_T4a_mid+0=2406.7554  sbar_bright_T4b_mid+0=3140.0188  sbar_dark_T4a_mid+0=799.2673  sbar_dark_T4b_mid+0=735.0872]:  43%|████▎     | 430/1000 [05:21<07:05,  1.34it/s] Cost: 51946.4531  [sbar_bright_T4a_mid+0=2380.2205  sbar_bright_T4b_mid+0=3167.2244  sbar_dark_T4a_mid+0=689.5606  sbar_dark_T4b_mid+0=683.9623]:  44%|████▍     | 440/1000 [05:28<06:57,  1.34it/s] Cost: 51471.2227  [sbar_bright_T4a_mid+0=2285.0813  sbar_bright_T4b_mid+0=3086.2046  sbar_dark_T4a_mid+0=708.7140  sbar_dark_T4b_mid+0=706.0757]:  45%|████▌     | 450/1000 [05:36<06:49,  1.34it/s] Cost: 51088.3242  [sbar_bright_T4a_mid+0=2230.1384  sbar_bright_T4b_mid+0=3003.1492  sbar_dark_T4a_mid+0=676.9265  sbar_dark_T4b_mid+0=687.1432]:  46%|████▌     | 460/1000 [05:43<06:41,  1.34it/s] Cost: 50743.2500  [sbar_bright_T4a_mid+0=2219.7214  sbar_bright_T4b_mid+0=2993.0208  sbar_dark_T4a_mid+0=685.8558  sbar_dark_T4b_mid+0=693.4087]:  47%|████▋     | 470/1000 [05:51<06:34,  1.34it/s] Cost: 50433.9453  [sbar_bright_T4a_mid+0=2169.8035  sbar_bright_T4b_mid+0=2941.5037  sbar_dark_T4a_mid+0=681.1386  sbar_dark_T4b_mid+0=694.4843]:  48%|████▊     | 480/1000 [05:58<06:27,  1.34it/s] Cost: 50145.5820  [sbar_bright_T4a_mid+0=2138.1926  sbar_bright_T4b_mid+0=2907.7617  sbar_dark_T4a_mid+0=689.3144  sbar_dark_T4b_mid+0=704.6748]:  49%|████▉     | 490/1000 [06:06<06:21,  1.34it/s] Cost: 50284.3555  [sbar_bright_T4a_mid+0=2136.4441  sbar_bright_T4b_mid+0=2725.4368  sbar_dark_T4a_mid+0=789.2306  sbar_dark_T4b_mid+0=757.5146]:  50%|█████     | 500/1000 [06:13<06:13,  1.34it/s] Cost: 49758.8828  [sbar_bright_T4a_mid+0=2068.6250  sbar_bright_T4b_mid+0=2789.4700  sbar_dark_T4a_mid+0=754.7984  sbar_dark_T4b_mid+0=751.2623]:  51%|█████     | 510/1000 [06:21<06:06,  1.34it/s] Cost: 49420.5977  [sbar_bright_T4a_mid+0=2053.3862  sbar_bright_T4b_mid+0=2784.3713  sbar_dark_T4a_mid+0=786.9591  sbar_dark_T4b_mid+0=779.9755]:  52%|█████▏    | 520/1000 [06:28<06:00,  1.33it/s] Cost: 49032.7969  [sbar_bright_T4a_mid+0=2026.9657  sbar_bright_T4b_mid+0=2783.8162  sbar_dark_T4a_mid+0=699.3644  sbar_dark_T4b_mid+0=724.3213]:  53%|█████▎    | 530/1000 [06:36<05:52,  1.33it/s] Cost: 48758.7852  [sbar_bright_T4a_mid+0=2026.0228  sbar_bright_T4b_mid+0=2799.8308  sbar_dark_T4a_mid+0=679.0217  sbar_dark_T4b_mid+0=724.0687]:  54%|█████▍    | 540/1000 [06:43<05:44,  1.34it/s] Cost: 48648.1992  [sbar_bright_T4a_mid+0=2054.2769  sbar_bright_T4b_mid+0=2809.4663  sbar_dark_T4a_mid+0=595.3782  sbar_dark_T4b_mid+0=639.9940]:  55%|█████▌    | 550/1000 [06:51<05:36,  1.34it/s] Cost: 48359.6602  [sbar_bright_T4a_mid+0=2086.6746  sbar_bright_T4b_mid+0=2855.0818  sbar_dark_T4a_mid+0=687.9141  sbar_dark_T4b_mid+0=737.9133]:  56%|█████▌    | 560/1000 [06:58<05:28,  1.34it/s] Cost: 47764.9141  [sbar_bright_T4a_mid+0=1939.4973  sbar_bright_T4b_mid+0=2580.6548  sbar_dark_T4a_mid+0=658.7137  sbar_dark_T4b_mid+0=701.7455]:  57%|█████▋    | 570/1000 [07:05<05:20,  1.34it/s] Cost: 47440.5391  [sbar_bright_T4a_mid+0=1880.6058  sbar_bright_T4b_mid+0=2395.6189  sbar_dark_T4a_mid+0=704.2876  sbar_dark_T4b_mid+0=741.7863]:  58%|█████▊    | 580/1000 [07:13<05:13,  1.34it/s] Cost: 47093.2656  [sbar_bright_T4a_mid+0=1805.1200  sbar_bright_T4b_mid+0=2425.4202  sbar_dark_T4a_mid+0=670.3608  sbar_dark_T4b_mid+0=721.3898]:  59%|█████▉    | 590/1000 [07:20<05:05,  1.34it/s] Cost: 46832.5352  [sbar_bright_T4a_mid+0=1818.7750  sbar_bright_T4b_mid+0=2375.8008  sbar_dark_T4a_mid+0=668.8589  sbar_dark_T4b_mid+0=717.0827]:  60%|██████    | 600/1000 [07:28<04:57,  1.34it/s] Cost: 46568.7305  [sbar_bright_T4a_mid+0=1767.1014  sbar_bright_T4b_mid+0=2351.6794  sbar_dark_T4a_mid+0=662.9345  sbar_dark_T4b_mid+0=723.3693]:  61%|██████    | 610/1000 [07:35<04:49,  1.35it/s] Cost: 46393.9531  [sbar_bright_T4a_mid+0=1777.7598  sbar_bright_T4b_mid+0=2435.8904  sbar_dark_T4a_mid+0=640.8906  sbar_dark_T4b_mid+0=700.7262]:  62%|██████▏   | 620/1000 [07:43<04:43,  1.34it/s] Cost: 46074.9141  [sbar_bright_T4a_mid+0=1765.9755  sbar_bright_T4b_mid+0=2268.4653  sbar_dark_T4a_mid+0=663.0770  sbar_dark_T4b_mid+0=717.9721]:  63%|██████▎   | 630/1000 [07:50<04:35,  1.34it/s] Cost: 45893.1875  [sbar_bright_T4a_mid+0=1774.9199  sbar_bright_T4b_mid+0=2177.9207  sbar_dark_T4a_mid+0=674.3825  sbar_dark_T4b_mid+0=726.4031]:  64%|██████▍   | 640/1000 [07:58<04:27,  1.34it/s] Cost: 45939.2188  [sbar_bright_T4a_mid+0=1877.0530  sbar_bright_T4b_mid+0=2061.4368  sbar_dark_T4a_mid+0=703.5766  sbar_dark_T4b_mid+0=750.8903]:  65%|██████▌   | 650/1000 [08:05<04:21,  1.34it/s] Cost: 45337.6484  [sbar_bright_T4a_mid+0=1691.6793  sbar_bright_T4b_mid+0=2171.3711  sbar_dark_T4a_mid+0=672.9944  sbar_dark_T4b_mid+0=723.3752]:  66%|██████▌   | 660/1000 [08:12<04:13,  1.34it/s] Cost: 44946.1367  [sbar_bright_T4a_mid+0=1707.1465  sbar_bright_T4b_mid+0=2240.4343  sbar_dark_T4a_mid+0=635.4304  sbar_dark_T4b_mid+0=695.6006]:  67%|██████▋   | 670/1000 [08:20<04:06,  1.34it/s] Cost: 44496.3125  [sbar_bright_T4a_mid+0=1648.1195  sbar_bright_T4b_mid+0=2151.4998  sbar_dark_T4a_mid+0=658.8330  sbar_dark_T4b_mid+0=693.7041]:  68%|██████▊   | 680/1000 [08:27<03:58,  1.34it/s] Cost: 43951.5117  [sbar_bright_T4a_mid+0=1590.6078  sbar_bright_T4b_mid+0=2173.7288  sbar_dark_T4a_mid+0=594.2751  sbar_dark_T4b_mid+0=622.1965]:  69%|██████▉   | 690/1000 [08:35<03:51,  1.34it/s] Cost: 43427.6289  [sbar_bright_T4a_mid+0=1553.7905  sbar_bright_T4b_mid+0=2018.4515  sbar_dark_T4a_mid+0=624.3363  sbar_dark_T4b_mid+0=651.5383]:  70%|███████   | 700/1000 [08:42<03:43,  1.34it/s] Cost: 43087.2539  [sbar_bright_T4a_mid+0=1474.5986  sbar_bright_T4b_mid+0=2062.4692  sbar_dark_T4a_mid+0=617.0496  sbar_dark_T4b_mid+0=640.6955]:  71%|███████   | 710/1000 [08:50<03:36,  1.34it/s] Cost: 44518.9062  [sbar_bright_T4a_mid+0=1430.4470  sbar_bright_T4b_mid+0=2061.0974  sbar_dark_T4a_mid+0=812.2853  sbar_dark_T4b_mid+0=797.5270]:  72%|███████▏  | 720/1000 [08:57<03:29,  1.34it/s] Cost: 43261.2539  [sbar_bright_T4a_mid+0=1530.8671  sbar_bright_T4b_mid+0=1836.1967  sbar_dark_T4a_mid+0=697.2852  sbar_dark_T4b_mid+0=713.9340]:  73%|███████▎  | 730/1000 [09:05<03:21,  1.34it/s] Cost: 42671.1094  [sbar_bright_T4a_mid+0=1448.6504  sbar_bright_T4b_mid+0=1802.0299  sbar_dark_T4a_mid+0=671.6074  sbar_dark_T4b_mid+0=717.4337]:  74%|███████▍  | 740/1000 [09:12<03:14,  1.34it/s] Cost: 42217.7266  [sbar_bright_T4a_mid+0=1382.6213  sbar_bright_T4b_mid+0=1752.9270  sbar_dark_T4a_mid+0=661.5818  sbar_dark_T4b_mid+0=680.5243]:  75%|███████▌  | 750/1000 [09:20<03:07,  1.33it/s] Cost: 41967.2812  [sbar_bright_T4a_mid+0=1415.5198  sbar_bright_T4b_mid+0=1754.5107  sbar_dark_T4a_mid+0=651.0556  sbar_dark_T4b_mid+0=678.1523]:  76%|███████▌  | 760/1000 [09:27<03:00,  1.33it/s] Cost: 41815.1680  [sbar_bright_T4a_mid+0=1400.3226  sbar_bright_T4b_mid+0=1746.1207  sbar_dark_T4a_mid+0=650.2679  sbar_dark_T4b_mid+0=673.6183]:  77%|███████▋  | 770/1000 [09:35<02:52,  1.33it/s] Cost: 41692.4453  [sbar_bright_T4a_mid+0=1402.3713  sbar_bright_T4b_mid+0=1747.7782  sbar_dark_T4a_mid+0=650.0393  sbar_dark_T4b_mid+0=670.5612]:  78%|███████▊  | 780/1000 [09:42<02:45,  1.33it/s] Cost: 41606.6211  [sbar_bright_T4a_mid+0=1401.5000  sbar_bright_T4b_mid+0=1760.7992  sbar_dark_T4a_mid+0=653.4381  sbar_dark_T4b_mid+0=676.1220]:  79%|███████▉  | 790/1000 [09:50<02:37,  1.33it/s] Cost: 41513.9844  [sbar_bright_T4a_mid+0=1387.4202  sbar_bright_T4b_mid+0=1758.2430  sbar_dark_T4a_mid+0=652.1277  sbar_dark_T4b_mid+0=676.5415]:  80%|████████  | 800/1000 [09:57<02:29,  1.34it/s] Cost: 41432.1289  [sbar_bright_T4a_mid+0=1380.4412  sbar_bright_T4b_mid+0=1738.6139  sbar_dark_T4a_mid+0=659.2318  sbar_dark_T4b_mid+0=684.4547]:  81%|████████  | 810/1000 [10:05<02:22,  1.34it/s] Cost: 41362.7969  [sbar_bright_T4a_mid+0=1369.5363  sbar_bright_T4b_mid+0=1737.4688  sbar_dark_T4a_mid+0=658.8428  sbar_dark_T4b_mid+0=686.8131]:  82%|████████▏ | 820/1000 [10:12<02:14,  1.34it/s] Cost: 41297.1172  [sbar_bright_T4a_mid+0=1366.7188  sbar_bright_T4b_mid+0=1733.2474  sbar_dark_T4a_mid+0=661.5095  sbar_dark_T4b_mid+0=688.6755]:  83%|████████▎ | 830/1000 [10:20<02:06,  1.34it/s] Cost: 41233.9453  [sbar_bright_T4a_mid+0=1358.1263  sbar_bright_T4b_mid+0=1728.9707  sbar_dark_T4a_mid+0=662.6821  sbar_dark_T4b_mid+0=691.0469]:  84%|████████▍ | 840/1000 [10:27<01:59,  1.34it/s] Cost: 41173.5703  [sbar_bright_T4a_mid+0=1353.8622  sbar_bright_T4b_mid+0=1726.4896  sbar_dark_T4a_mid+0=665.7856  sbar_dark_T4b_mid+0=694.4196]:  85%|████████▌ | 850/1000 [10:35<01:51,  1.34it/s] Cost: 41122.7227  [sbar_bright_T4a_mid+0=1350.7898  sbar_bright_T4b_mid+0=1722.3359  sbar_dark_T4a_mid+0=667.4257  sbar_dark_T4b_mid+0=696.7371]:  86%|████████▌ | 860/1000 [10:42<01:44,  1.34it/s] Cost: 41080.9922  [sbar_bright_T4a_mid+0=1342.3960  sbar_bright_T4b_mid+0=1721.1445  sbar_dark_T4a_mid+0=667.1730  sbar_dark_T4b_mid+0=696.9188]:  87%|████████▋ | 870/1000 [10:50<01:37,  1.34it/s] Cost: 41041.5469  [sbar_bright_T4a_mid+0=1336.0952  sbar_bright_T4b_mid+0=1723.4540  sbar_dark_T4a_mid+0=667.1765  sbar_dark_T4b_mid+0=697.7772]:  88%|████████▊ | 880/1000 [10:57<01:29,  1.34it/s] Cost: 41004.0508  [sbar_bright_T4a_mid+0=1332.7606  sbar_bright_T4b_mid+0=1728.8622  sbar_dark_T4a_mid+0=669.5590  sbar_dark_T4b_mid+0=699.2376]:  89%|████████▉ | 890/1000 [11:05<01:22,  1.34it/s] Cost: 40967.7266  [sbar_bright_T4a_mid+0=1332.4535  sbar_bright_T4b_mid+0=1732.5852  sbar_dark_T4a_mid+0=669.9541  sbar_dark_T4b_mid+0=699.2726]:  90%|█████████ | 900/1000 [11:12<01:14,  1.34it/s] Cost: 40931.9414  [sbar_bright_T4a_mid+0=1330.0032  sbar_bright_T4b_mid+0=1739.7582  sbar_dark_T4a_mid+0=671.9853  sbar_dark_T4b_mid+0=700.4599]:  91%|█████████ | 910/1000 [11:19<01:07,  1.34it/s] Cost: 40895.8633  [sbar_bright_T4a_mid+0=1327.5243  sbar_bright_T4b_mid+0=1747.4286  sbar_dark_T4a_mid+0=671.0359  sbar_dark_T4b_mid+0=699.3183]:  92%|█████████▏| 920/1000 [11:27<00:59,  1.34it/s] Cost: 40860.0859  [sbar_bright_T4a_mid+0=1324.6893  sbar_bright_T4b_mid+0=1750.3344  sbar_dark_T4a_mid+0=673.1266  sbar_dark_T4b_mid+0=700.8124]:  93%|█████████▎| 930/1000 [11:34<00:52,  1.34it/s] Cost: 40823.7695  [sbar_bright_T4a_mid+0=1327.5808  sbar_bright_T4b_mid+0=1757.5797  sbar_dark_T4a_mid+0=677.6840  sbar_dark_T4b_mid+0=704.7857]:  94%|█████████▍| 940/1000 [11:42<00:44,  1.34it/s] Cost: 40786.4219  [sbar_bright_T4a_mid+0=1327.5773  sbar_bright_T4b_mid+0=1766.6923  sbar_dark_T4a_mid+0=677.3350  sbar_dark_T4b_mid+0=703.8361]:  95%|█████████▌| 950/1000 [11:49<00:37,  1.34it/s] Cost: 40748.6836  [sbar_bright_T4a_mid+0=1326.7631  sbar_bright_T4b_mid+0=1768.8635  sbar_dark_T4a_mid+0=677.6923  sbar_dark_T4b_mid+0=702.5311]:  96%|█████████▌| 960/1000 [11:57<00:29,  1.34it/s] Cost: 40711.0977  [sbar_bright_T4a_mid+0=1326.2257  sbar_bright_T4b_mid+0=1773.4629  sbar_dark_T4a_mid+0=678.9827  sbar_dark_T4b_mid+0=702.7029]:  97%|█████████▋| 970/1000 [12:04<00:22,  1.34it/s] Cost: 40672.9023  [sbar_bright_T4a_mid+0=1326.6346  sbar_bright_T4b_mid+0=1779.6996  sbar_dark_T4a_mid+0=678.3224  sbar_dark_T4b_mid+0=701.0009]:  98%|█████████▊| 980/1000 [12:12<00:14,  1.34it/s] Cost: 40630.1992  [sbar_bright_T4a_mid+0=1327.3521  sbar_bright_T4b_mid+0=1783.7880  sbar_dark_T4a_mid+0=674.8605  sbar_dark_T4b_mid+0=694.4511]:  99%|█████████▉| 990/1000 [12:19<00:07,  1.34it/s] Cost: 40558.6328  [sbar_bright_T4a_mid+0=1312.2317  sbar_bright_T4b_mid+0=1781.6299  sbar_dark_T4a_mid+0=657.4980  sbar_dark_T4b_mid+0=674.7297]: wrote checkpoint best_adam_iter_01000.npz
+wrote checkpoint csv: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/csv/param_01000.csv
+wrote checkpoint csv: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/csv/syn_strength_cell_01000.csv
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.20gb)
+1 trained set(s); costs min=40487.4883 max=40487.4883; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/png/spread_gt_v_01000.png: prep=0.3s  plot_s=0.1s  save=0.5s  elapsed_s=0.9s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/png/spread_all_v_01000.png: prep=0.0s  plot_s=0.2s  save=0.7s  elapsed_s=0.9s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/png/sbar_gt_v_01000.png: prep=0.7s  plot_s=0.2s  save=0.4s  elapsed_s=1.2s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/png/sbar_all_v_01000.png: prep=0.0s  plot_s=1.3s  save=2.2s  elapsed_s=3.5s
+wrote checkpoint png: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/png/*_01000.png
+wrote checkpoint best_param_iter_01000.npz (cost=40487.4883)
+100%|██████████| 1000/1000 [12:34<00:00,  1.03it/s] Cost: 40487.4883  [sbar_bright_T4a_mid+0=1288.9095  sbar_bright_T4b_mid+0=1765.8414  sbar_dark_T4a_mid+0=673.7829  sbar_dark_T4b_mid+0=695.7870]: 100%|██████████| 1000/1000 [12:34<00:00,  1.33it/s] Cost: 40487.4883  [sbar_bright_T4a_mid+0=1288.9095  sbar_bright_T4b_mid+0=1765.8414  sbar_dark_T4a_mid+0=673.7829  sbar_dark_T4b_mid+0=695.7870]: 
+
+Initl cost = 407934.8125  [sbar_bright_T4a_mid+0=79532.5547  sbar_bright_T4b_mid+0=80029.6484  sbar_dark_T4a_mid+0=3183.7439  sbar_dark_T4b_mid+0=3231.1958]
+Final cost = 40487.4883  [sbar_bright_T4a_mid+0=1288.9094  sbar_bright_T4b_mid+0=1765.8417  sbar_dark_T4a_mid+0=673.7828  sbar_dark_T4b_mid+0=695.7870]
+Best  cost = 40487.4883  [sbar_bright_T4a_mid+0=1288.9092  sbar_bright_T4b_mid+0=1765.8412  sbar_dark_T4a_mid+0=673.7829  sbar_dark_T4b_mid+0=695.7870]
+time needed  = 758.74  sec
+
+done in 0.21 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/param.csv (best run #0, cost=40487.4844)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/syn_strength_cell.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:855: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/cost.png: prep=0.0s  plot_s=0.2s  save=0.7s  elapsed_s=0.9s
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.20gb)
+1 trained set(s); costs min=40487.4844 max=40487.4844; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/spread_gt_v.png: prep=0.3s  plot_s=0.1s  save=0.4s  elapsed_s=0.8s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/spread_all_v.png: prep=0.0s  plot_s=0.3s  save=0.7s  elapsed_s=1.0s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/sbar_gt_v.png: prep=0.7s  plot_s=0.2s  save=0.4s  elapsed_s=1.3s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30223612-run-n_iter-1000-tasks-sbar-a_lsd-1/sbar_all_v.png: prep=0.0s  plot_s=1.4s  save=2.2s  elapsed_s=3.6s

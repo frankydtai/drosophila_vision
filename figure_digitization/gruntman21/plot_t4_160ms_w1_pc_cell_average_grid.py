@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/yitai/drosophila_vision/figure_digitization/.venv/bin/python
 """Plot aligned T4 cell-average traces for w1, 160-ms PC flashes.
 
 For each biological cell, the stored ``subData.baseSub`` trace is already the
@@ -6,7 +6,13 @@ repeat-averaged, baseline-subtracted response. Cells are aligned with the same
 RF-center / preferred-direction convention as ``Figure2Code.m``.
 """
 
+import os
+import sys
 from pathlib import Path
+
+_VENV_PYTHON = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
+if Path(sys.executable).parent.resolve() != _VENV_PYTHON.parent.resolve():
+    os.execv(_VENV_PYTHON, [str(_VENV_PYTHON), *sys.argv])
 
 import h5py
 import matplotlib

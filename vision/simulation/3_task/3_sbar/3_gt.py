@@ -2,13 +2,14 @@
 """Static-bar GT numbers from the original Gruntman recordings.
 
 Data sources:
-- T4/T5: ``t4_t5_w1_160ms_mean_std.csv`` generated directly from
+- T4/T5: ``t4_t5_w{1,2}_160ms_mean_std.csv`` generated directly from
   ``singleBarStT4.mat`` / ``singleBarStT5.mat``.  Each source trace is the
   repeat-average of one biological cell; mean and sample SD are then taken
   across biological cells.
 - Mi1/Mi4: ``gruntman21_mi1_position_traces.csv`` /
   ``gruntman21_mi4_position_traces.csv`` (three-source spatial decomposition
   contributions at the same nine flash positions; PC/NC from the T4 pathway).
+  These decomposition traces are available for w1 only.
 
 GT layout: each entry is one cell's response to a width-1 static bar
 placed at one spatial position on the motion axis.
@@ -16,10 +17,9 @@ placed at one spatial position on the motion axis.
 CRITICAL NUMBERS:
 - The raw T4/T5 CSV position indices are exactly the integers -4..+4.  They
   map directly to hex-axis mids by dividing by 2, giving -2..+2 in 0.5 steps.
-- It contains only width 1 and duration 160 ms.
-- T4/T5 ``trace_id`` encodes: {cell_prefix}_{PC|NC}_{posSIGN}_w1
-  after remapping, e.g. T4_PC_pos-2_w1, T5_NC_pos+0_w1,
-  T4_PC_pos+1.5_w1.
+- T4/T5 GT supports width 1 or 2 and duration 160 ms.
+- T4/T5 ``trace_id`` encodes: {cell_prefix}_{PC|NC}_{posSIGN}_w{1|2}
+  after remapping, e.g. T4_PC_pos-2_w2, T5_NC_pos+0_w1.
   PC = ON-pathway (T4 bright / T5 dark); NC = OFF-pathway (T4 dark / T5 bright).
 - Mi1/Mi4 keys use the full cell name: Mi1_PC_pos+0_w1, Mi4_NC_pos-1.5_w1.
   Bright → PC, dark → NC (same as T4; traces come from the T4 PC/NC fit).
@@ -64,7 +64,10 @@ _GRUNTMAN21 = (
     / "figure_digitization"
     / "gruntman21"
 )
-_T4_T5_CSV = _GRUNTMAN21 / "t4_t5_w1_160ms_mean_std.csv"
+_T4_T5_CSVS = {
+    width: _GRUNTMAN21 / f"t4_t5_w{width}_160ms_mean_std.csv"
+    for width in (1, 2)
+}
 _SOURCE_POSITION_CSVS = {
     "Mi1": _GRUNTMAN21 / "gruntman21_mi1_position_traces.csv",
     "Mi4": _GRUNTMAN21 / "gruntman21_mi4_position_traces.csv",
@@ -103,8 +106,20 @@ def position_label(position: float) -> str:
     )
 
 
-def gt_trace_key(cell: str, contrast: str, position: float) -> str:
+def _validate_gt_w(sbar_gt_w: int) -> int:
+    sbar_gt_w = int(sbar_gt_w)
+    if sbar_gt_w not in _T4_T5_CSVS:
+        raise ValueError(
+            f"sbar_gt_w must be one of {tuple(_T4_T5_CSVS)}, got {sbar_gt_w}"
+        )
+    return sbar_gt_w
+
+
+def gt_trace_key(
+    cell: str, contrast: str, position: float, sbar_gt_w: int = 1,
+) -> str:
     """Build GT dict key for one (cell, bright/dark contrast, position)."""
+    sbar_gt_w = _validate_gt_w(sbar_gt_w)
     if cell in ("Mi1", "Mi4"):
         prefix = cell
         pathway = "PC" if contrast == "bright" else "NC"
@@ -116,7 +131,7 @@ def gt_trace_key(cell: str, contrast: str, position: float) -> str:
         )
     else:
         raise ValueError(f"unknown sbar gt cell: {cell!r}")
-    return f"{prefix}_{pathway}_pos{position_label(position)}_w1"
+    return f"{prefix}_{pathway}_pos{position_label(position)}_w{sbar_gt_w}"
 
 
 def _interp_trace(t_axis: np.ndarray, time_ms, vm_mv) -> np.ndarray:
@@ -138,6 +153,7 @@ def load_gt_stats(
     ms_sti,
     delta_ms: float,
     ms_post=0.0,
+    sbar_gt_w: int = 1,
 ):
     """Return ``(means, stds)`` on the simulation time axis.
 
@@ -146,6 +162,7 @@ def load_gt_stats(
     mapped directly to mids -2..+2 by division by 2.  No spatial interpolation
     is performed.
     """
+    sbar_gt_w = _validate_gt_w(sbar_gt_w)
     ms_response = float(ms_response)
     if ms_sti is not None:
         ms_response = max(ms_response, float(ms_sti))
@@ -160,21 +177,22 @@ def load_gt_stats(
     t_axis = (np.arange(n_t, dtype=np.float64) - t_onset) * float(delta_ms)
     gts = {}
     gt_stds = {}
-    frame = pd.read_csv(_T4_T5_CSV)
-    if set(frame["width_led"].unique()) != {1} or set(
+    t4_t5_csv = _T4_T5_CSVS[sbar_gt_w]
+    frame = pd.read_csv(t4_t5_csv)
+    if set(frame["width_led"].unique()) != {sbar_gt_w} or set(
         frame["duration_ms"].unique()
     ) != {160}:
-        raise ValueError(f"unexpected width/duration in {_T4_T5_CSV}")
+        raise ValueError(f"unexpected width/duration in {t4_t5_csv}")
     raw_positions = set(frame["position"].unique())
     if raw_positions != set(range(-4, 5)):
         raise ValueError(
-            f"unexpected T4/T5 positions in {_T4_T5_CSV}: {raw_positions}"
+            f"unexpected T4/T5 positions in {t4_t5_csv}: {raw_positions}"
         )
     for _, grouped in frame.groupby("trace_id", sort=False):
         cell = str(grouped["cell_type"].iloc[0])
         pathway = str(grouped["contrast"].iloc[0])
         mid = float(grouped["position"].iloc[0]) / 2.0
-        key = f"{cell}_{pathway}_pos{position_label(mid)}_w1"
+        key = f"{cell}_{pathway}_pos{position_label(mid)}_w{sbar_gt_w}"
         gts[key] = _interp_trace(
             t_axis,
             grouped["time_ms"],
@@ -186,14 +204,18 @@ def load_gt_stats(
             grouped["vm_std_mv"],
         )
 
-    for cell, path in _SOURCE_POSITION_CSVS.items():
+    # The Mi1/Mi4 spatial decomposition was fitted only for width 1.
+    for cell, path in (_SOURCE_POSITION_CSVS.items() if sbar_gt_w == 1 else ()):
         # Mi4 CSV contribution is opposite the cell Vm used as sbar GT.
         gt_sign = -1.0 if cell == "Mi4" else 1.0
         for (pathway, position), grouped in pd.read_csv(path).groupby(
             ["contrast", "position"],
             sort=False,
         ):
-            key = f"{cell}_{pathway}_pos{position_label(float(position))}_w1"
+            key = (
+                f"{cell}_{pathway}_pos{position_label(float(position))}"
+                f"_w{sbar_gt_w}"
+            )
             gts[key] = gt_sign * _interp_trace(
                 t_axis,
                 grouped["time_ms"],

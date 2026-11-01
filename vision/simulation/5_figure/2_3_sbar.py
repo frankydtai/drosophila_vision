@@ -4,8 +4,9 @@ Each panel: one cell at one bar-position on the motion axis.
 Columns are bar ``mid`` positions from the cost pack; rows are cells
 (``plot_gt``: sbar ``gt_cells``; ``plot_all``: config ``sbar_figure_cells``).
 
-GT traces are Gruntman Fig.2 width-1 flash responses (T4/T5) plus Mi1/Mi4
-position contributions from ``task.sbar.gt``, using the same timing as the pack.
+GT traces are the configured Gruntman Fig.2 width-1/2 flash responses (T4/T5).
+Width-1 additionally supports Mi1/Mi4 position contributions from
+``task.sbar.gt``. Plotting uses the same GT width and timing as the pack.
 """
 
 from __future__ import annotations
@@ -144,12 +145,14 @@ def resolve_sbar_gts(sessions, gts=None, gt_stds=None):
         pack = session.primary_pack
         t_onset, n_t, n_t_gt, ms_sti, delta_ms = _session_task_timing(session)
         opts = dict((session.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
+        sbar_gt_w = int(opts.get("sbar_gt_w", 1))
         raw_gts, raw_gt_stds = load_gt_stats(
             t_onset=t_onset,
             ms_response=float(opts["ms_response"]),
             ms_sti=ms_sti,
             delta_ms=delta_ms,
             ms_post=float(opts.get("ms_post", 0.0)),
+            sbar_gt_w=sbar_gt_w,
         )
         by_cell_mid = {}
         std_by_cell_mid = {}
@@ -157,7 +160,9 @@ def resolve_sbar_gts(sessions, gts=None, gt_stds=None):
             if cell not in session.connectome.cells:
                 continue
             for mid in _sbar_mids_from_pack(pack):
-                key = gt_trace_key(cell, contrast, mid)
+                key = gt_trace_key(
+                    cell, contrast, mid, sbar_gt_w=sbar_gt_w,
+                )
                 if key not in raw_gts:
                     continue
                 gt = np.full(n_t, np.nan, dtype=np.float64)
@@ -178,11 +183,11 @@ def resolve_sbar_gts(sessions, gts=None, gt_stds=None):
 
 
 def _sbar_entry_hex_mask(
-    connectome, entry_nodes, cost_radius, *, cost_mid=None, at_x=None, at_y=None,
+    connectome, entry_nodes, cost_radius, *, at_x=None, at_y=None,
 ):
     """True for pack entries whose node sits on ``at_x``/``at_y`` cost hexes."""
     hexes = sti_hexes_at_xy(
-        cost_sti_hexes(connectome, cost_radius=cost_radius, cost_mid=cost_mid),
+        cost_sti_hexes(connectome, cost_radius=cost_radius, cost_mid=None),
         at_x=at_x,
         at_y=at_y,
     )
@@ -199,11 +204,11 @@ def _sbar_entry_hex_mask(
     )
 
 
-def _sbar_hex_uv_at_xy(connectome, cost_radius, *, cost_mid=None, at_x=None, at_y=None):
+def _sbar_hex_uv_at_xy(connectome, cost_radius, *, at_x=None, at_y=None):
     if at_x is None and at_y is None:
         return None
     hexes = sti_hexes_at_xy(
-        cost_sti_hexes(connectome, cost_radius=cost_radius, cost_mid=cost_mid),
+        cost_sti_hexes(connectome, cost_radius=cost_radius, cost_mid=None),
         at_x=at_x,
         at_y=at_y,
     )
@@ -339,12 +344,10 @@ def network_sbar_trace_readout(
     if filter_at_x is not None or filter_at_y is not None:
         entry_mask = _sbar_entry_hex_mask(
             connectome, entry_nodes, pack.cost_radius,
-            cost_mid=getattr(pack, "cost_mid", None),
             at_x=filter_at_x, at_y=filter_at_y,
         )
         hex_uv = _sbar_hex_uv_at_xy(
             connectome, pack.cost_radius,
-            cost_mid=getattr(pack, "cost_mid", None),
             at_x=filter_at_x, at_y=filter_at_y,
         )
 
@@ -362,7 +365,6 @@ def network_sbar_trace_readout(
         for label, slice_at_x, slice_at_y in pairs:
             slice_mask = _sbar_entry_hex_mask(
                 connectome, entry_nodes, pack.cost_radius,
-                cost_mid=getattr(pack, "cost_mid", None),
                 at_x=slice_at_x, at_y=slice_at_y,
             )
             if not np.any(slice_mask):
@@ -370,7 +372,6 @@ def network_sbar_trace_readout(
                 continue
             slice_hex_uv = _sbar_hex_uv_at_xy(
                 connectome, pack.cost_radius,
-                cost_mid=getattr(pack, "cost_mid", None),
                 at_x=slice_at_x, at_y=slice_at_y,
             )
             v_slice, _, _ = _sbar_build_v_readout(
@@ -769,12 +770,14 @@ def build_readout(session, z, contrast, **readout_kwargs):
 
 
 def figure_titles(session, suffix, token, *, contrast=None):
+    opts = dict((session.train_opts or {}).get("sbar_sti_opts") or {})
+    gt_width = f"w{int(opts.get('sbar_gt_w', 1))}"
     if contrast is None:
         return (
-            f"Static-bar {token}-gt ({suffix})",
-            f"Static-bar {token}-all ({suffix})",
+            f"Static-bar {gt_width} {token}-gt ({suffix})",
+            f"Static-bar {gt_width} {token}-all ({suffix})",
         )
     return (
-        f"sbar {contrast} {token}-gt ({suffix})",
-        f"sbar {contrast} {token}-all ({suffix})",
+        f"sbar {gt_width} {contrast} {token}-gt ({suffix})",
+        f"sbar {gt_width} {contrast} {token}-all ({suffix})",
     )
