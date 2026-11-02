@@ -185,6 +185,8 @@ val_from:
 # 4.3   train.cost
 # ---------------------------------------------------------------------------
 # Task keys apply to every fine part in that task; a full part key overrides it.
+# mbar_DSI scales all moving-bar DSI parts (target 1); exact keys override it.
+# Example DSI-only: {mbar: 0, mbar_DSI: 1}.
 # sbar: only mid=0; |mid| 0.5–2 scale 0 via task default.
 part_cost_scales:
   spread: 0
@@ -251,11 +253,11 @@ mbar_plot_direction: left
 # 5.4   figure.plot
 # ---------------------------------------------------------------------------
 # Tasks to plot after training or when re-plotting; independent of train `tasks`.
-figure_tasks: [spread, sbar]
+figure_tasks: [mbar]
 # Rows for sbar ``plot_all`` / ``*_all_v.png``.
 sbar_figure_cells: [R1-6, R7, R8, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a]
 html: false
-plot_right_only: true
+plot_right_only: false
 x: null
 y: null
 align_xy: null

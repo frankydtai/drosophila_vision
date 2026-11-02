@@ -64,7 +64,9 @@ def test_fig1_delta_uses_pre_stimulus_mean():
 def test_mbar_gaussian_preserves_drive_outside_bar_support():
     """Gaussian mbar width must not add baseline current outside STI nodes."""
     pack = SimpleNamespace(
-        bar_axis_distance=torch.tensor([[[float("inf"), 0.0, float("inf")]]]),
+        bar_axis_distance=torch.tensor([[[0.0]]]),  # (B, T_post, n_sti)
+        bar_axis_sti_nodes=torch.tensor([1]),
+        t_onset=0,
         i_sti_baseline=20.0,
         i_sti_peak=40.0,
     )
@@ -74,3 +76,22 @@ def test_mbar_gaussian_preserves_drive_outside_bar_support():
     drive = _mbar_gaussian_overlay(raw_drive, params, pack, t=0)
 
     torch.testing.assert_close(drive, torch.tensor([[0.0, 40.0, 0.0]]))
+
+
+def test_mbar_gaussian_skips_pre_onset_and_keeps_finite_grad():
+    pack = SimpleNamespace(
+        bar_axis_distance=torch.tensor([[[0.0]]], dtype=torch.float32),
+        bar_axis_sti_nodes=torch.tensor([0]),
+        t_onset=1,
+        i_sti_baseline=20.0,
+        i_sti_peak=40.0,
+    )
+    sigma = torch.tensor([1.0], dtype=torch.float32, requires_grad=True)
+    raw_drive = torch.tensor([[5.0]], dtype=torch.float32)
+
+    pre = _mbar_gaussian_overlay(raw_drive, {"a_sti_mid": sigma}, pack, t=0)
+    torch.testing.assert_close(pre, raw_drive)
+
+    post = _mbar_gaussian_overlay(raw_drive, {"a_sti_mid": sigma}, pack, t=1)
+    post.sum().backward()
+    assert torch.isfinite(sigma.grad).all()

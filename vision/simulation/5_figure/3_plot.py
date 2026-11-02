@@ -22,7 +22,6 @@ from train.implementation import (
     load_best_node_vals,
     load_stored_costs,
     resolve_run_dir,
-    save_best_param,
     session_z_from_node_vals,
 )
 from network.construction import cell_rows
@@ -539,12 +538,12 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
                    context_dir=None,
                    only_tasks=None, figure_tasks=None, session=None, *,
                    final_costs=None,
-                   save_data=True,
                    gts=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    file_suffix="", html=False, ms_shown=None,
                    calc_cost=False):
+    """Plot selected parameters without modifying saved training data."""
     os.makedirs(run_dir, exist_ok=True)
     ctx = context_dir or run_dir
     if model is None and session is not None:
@@ -609,10 +608,6 @@ def plot_rf_t(params, run_dir, model=None, model_all=True,
             plot_right_only=plot_right_only,
         )
 
-    if save_data:
-        os.makedirs(run_data_dir(os.path.abspath(run_dir)), exist_ok=True)
-        z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
-        save_best_param(run_dir, z_best, session)
     return best, best_cost
 
 
@@ -669,7 +664,7 @@ def plot_trained_run(
     delta_ms=None,
     delta_ms_pre=None,
 ):
-    """Re-plot one trained run (shared by Hydra ``figure.plot`` main)."""
+    """Re-plot a trained run; session/parameter overrides affect figures only."""
     param_vals = param_vals or {}
     session, z, best_cost = load_best(run_dir, verbose=True)
     session, z, ms_changed = override_session(
@@ -718,7 +713,6 @@ def plot_trained_run(
         session=session,
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
-        save_data=True,
         calc_cost=calc_cost,
         **figure_kwargs,
     )

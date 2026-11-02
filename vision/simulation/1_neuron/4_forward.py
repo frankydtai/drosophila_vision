@@ -45,11 +45,26 @@ def a_sti_mid_effective(params, pack):
 
 
 def _mbar_gaussian_overlay(drive, params, pack, *, t: int):
-    """Overlay Gaussian bar drive on sti nodes where ``bar_axis_distance`` is finite."""
+    """Overlay Gaussian bar drive on post-onset sti nodes only.
+
+    ``pack.bar_axis_distance`` is ``(B, T_post, n_sti)`` finite distances and
+    ``pack.bar_axis_sti_nodes`` indexes those sti nodes. Pre-onset times and
+    non-sti nodes keep the incoming drive unchanged—no ``inf`` sentinel.
+    """
     bar_axis_distance = getattr(pack, "bar_axis_distance", None)
-    if bar_axis_distance is None or "a_sti_mid" not in params:
+    sti_nodes = getattr(pack, "bar_axis_sti_nodes", None)
+    if (
+        bar_axis_distance is None
+        or sti_nodes is None
+        or "a_sti_mid" not in params
+    ):
         return drive
-    distance = bar_axis_distance[:, int(t)].to(device=drive.device, dtype=drive.dtype)
+    t_rel = int(t) - pack_t_onset(pack)
+    if t_rel < 0 or t_rel >= int(bar_axis_distance.shape[1]):
+        return drive
+    if sti_nodes.numel() == 0:
+        return drive
+    distance = bar_axis_distance[:, t_rel].to(device=drive.device, dtype=drive.dtype)
     sigma = params["a_sti_mid"].reshape(-1)[0].to(device=drive.device, dtype=drive.dtype)
     gain = torch.exp(-0.5 * (distance / sigma) ** 2)
     peak_b = getattr(pack, "i_sti_peak_b", None)
@@ -62,7 +77,9 @@ def _mbar_gaussian_overlay(drive, params, pack, *, t: int):
         i_base = drive.new_tensor(float(pack.i_sti_baseline))
         i_peak = drive.new_tensor(float(pack.i_sti_peak))
         gaussian = i_base + gain * (i_peak - i_base)
-    return torch.where(torch.isfinite(distance), gaussian, drive)
+    out = drive.clone()
+    out[:, sti_nodes.to(device=drive.device)] = gaussian
+    return out
 
 
 def _indexed_stimulus_delta(

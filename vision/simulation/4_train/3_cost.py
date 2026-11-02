@@ -1,4 +1,4 @@
-"""Cost assembly: per-part MSE and the scaled total.
+"""Cost assembly: per-part MSE / moving-bar DSI and the scaled total.
 
 Consumes a :class:`~train.session.TrainSession` and the model forward
 (``neuron.forward`` + ``neuron.readout``); produces each part's weighted-mean
@@ -35,6 +35,13 @@ The fixed manual config weight gives ``L_total = L_mean + a_lsd * L_band``;
 ``entry_sse`` is the legacy behavior that compares every entry separately
 before summing and does not use the distribution-level SD target.
 
+Moving-bar DSI adds one squared-error part per cell/contrast/width, target 1.
+PD and ND peaks use each hex's actual transit interval extended by one transit
+duration on each side. The effective GT baseline is subtracted before peaks;
+peaks are averaged over the selected nodes before
+``DSI = (R_pd - R_nd) / (R_pd + R_nd + eps)`` (``eps=1e-8``, NIPS2026-style).
+``part_cost_scales['mbar_DSI']`` controls all DSI parts, with exact-key overrides.
+
 Sparse cost time points (#4): ``pack.gts`` keeps the ``ms_response`` window length
 (task-specific ``ms_post`` handling lives in each pack) and the subsample is gathered from both v_readout
 trace and gt at cost time via ``pack.cost_ts`` (from ``cost_ms``: interval
@@ -70,6 +77,7 @@ from train.param import (
 )
 from train.session import TaskPack, TrainSession
 from task.spread.pack import CostPartPlotSpec
+from task.mbar.pack import dsi_cost_parts, dsi_groups
 
 
 COST_NORMS = ("gt_power", "a_gt2")
@@ -423,6 +431,8 @@ def _part_scale(session: TrainSession, part_key: str) -> float:
     scales = session.part_cost_scales or {}
     if part_key in scales:
         return float(scales[part_key])
+    if part_key.startswith("mbar_DSI_") and "mbar_DSI" in scales:
+        return float(scales["mbar_DSI"])
     for task in sorted(session.tasks, key=len, reverse=True):
         if part_key.startswith(f"{task}_") and task in scales:
             return float(scales[task])
@@ -478,6 +488,7 @@ def session_cost_part_keys(session: TrainSession) -> Tuple[str, ...]:
     part_keys: List[str] = []
     for pack in session.iter_packs():
         part_keys.extend(entries_by_part(pack)[1])
+        part_keys.extend(key for key, _pd, _nd in dsi_groups(pack))
     return tuple(part_keys)
 
 
@@ -522,8 +533,14 @@ def _slice_entry_part_keys(
 def _pack_has_active_cost(pack: TaskPack, session: TrainSession) -> bool:
     return any(
         _part_scale(session, part_key) != 0.0
-        for part_key in entries_by_part(pack)[1]
+        for part_key in (
+            entries_by_part(pack)[1] + [key for key, _pd, _nd in dsi_groups(pack)]
+        )
     )
+
+
+def _pack_has_active_dsi(pack: TaskPack, session: TrainSession) -> bool:
+    return any(_part_scale(session, key) != 0.0 for key, _pd, _nd in dsi_groups(pack))
 
 
 def _mse_entry_mask(pack: TaskPack, session: TrainSession) -> torch.Tensor:
@@ -532,6 +549,10 @@ def _mse_entry_mask(pack: TaskPack, session: TrainSession) -> torch.Tensor:
     for part_idx, part_key in enumerate(part_keys):
         if _part_scale(session, part_key) != 0.0:
             mask |= part_idxs == part_idx
+    # A nonzero DSI part needs both directions, even when their MSE scales are 0.
+    for key, pd, nd in dsi_groups(pack):
+        if _part_scale(session, key) != 0.0:
+            mask |= pd | nd
     return mask
 
 
@@ -576,11 +597,16 @@ def _pack_entry_fields(
     cost_scales = getattr(pack, "cost_scales", None)
     if cost_scales is not None:
         fields["cost_scales"] = cost_scales[sel]
-    for field in ("cost_t0s", "entry_radii", "cost_sti_us", "cost_sti_vs", "cost_pd_nds"):
+    for field in (
+        "cost_t0s", "entry_radii", "cost_sti_us", "cost_sti_vs", "cost_pd_nds",
+        "dsi_t0s", "dsi_n_ts",
+    ):
         if getattr(pack, field, None) is not None:
             fields[field] = getattr(pack, field)[sel]
     if pack.entry_part_keys:
         fields["entry_part_keys"] = _slice_entry_part_keys(pack.entry_part_keys, sel)
+    if getattr(pack, "entry_dsi_part_keys", ()):
+        fields["entry_dsi_part_keys"] = _slice_entry_part_keys(pack.entry_dsi_part_keys, sel)
     return fields
 
 
@@ -772,10 +798,11 @@ def _pack_cost_parts_from_v_readout(
     a_gt: torch.Tensor,
     bias_gt: torch.Tensor,
     v_readout: torch.Tensor,
+    *,
+    trace=None,
+    b_offset=0,
 ) -> Dict[str, torch.Tensor]:
     part_idxs, part_keys = entries_by_part(pack)
-    if not part_keys:
-        return {}
     gts = pack.gts
     gt_stds = getattr(pack, "gt_stds", None)
     if pack.cost_ts is not None:
@@ -785,7 +812,7 @@ def _pack_cost_parts_from_v_readout(
         if gt_stds is not None:
             gt_stds = gt_stds.index_select(1, cost_ts)
     cost_time_mask = getattr(pack, "cost_time_mask", None)
-    return _parts_from_entries(
+    parts = _parts_from_entries(
         a_gt, bias_gt, gts, _entry_cost_scales(pack), v_readout,
         part_idxs, part_keys, session,
         time_mask=(
@@ -795,6 +822,11 @@ def _pack_cost_parts_from_v_readout(
         gt_stds=gt_stds,
         gt_std_scales=getattr(pack, "gt_std_scales", None),
     )
+    if _pack_has_active_dsi(pack, session):
+        if trace is None:
+            raise ValueError("moving-bar DSI requires the full forward trace")
+        parts.update(dsi_cost_parts(pack, trace, bias_gt, b_offset=b_offset))
+    return parts
 
 
 def _pack_cost_parts_from_params(params, pack: TaskPack, session: TrainSession, b=None):
@@ -826,14 +858,14 @@ def _pack_cost_parts_from_params(params, pack: TaskPack, session: TrainSession, 
             )
         )
     else:
-        v_readout = pack_traces(
-            forward_pack(session, params, pack.i_sti, pack), pack,
-        )
+        trace = forward_pack(session, params, pack.i_sti, pack)
+        v_readout = pack_traces(trace, pack)
     return _pack_cost_parts_from_v_readout(
         pack,
         session,
         *gt_affine_from_pack(params, pack, session, b=b),
         v_readout,
+        trace=trace,
     )
 
 
@@ -912,6 +944,8 @@ def _calc_unscaled_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tenso
                     session,
                     *gt_affine_from_pack(params, pack, session),
                     pack_traces(trace, pack, b_offset=b_offset),
+                    trace=trace,
+                    b_offset=b_offset,
                 ).items():
                     if _part_scale(session, part_key) != 0.0:
                         parts[part_key] = part
@@ -933,7 +967,7 @@ def _calc_unscaled_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tenso
         active_bs = _pack_active_bs(pack, session)
         if not active_bs:
             continue
-        if session.sequential:
+        if session.sequential and not _pack_has_active_dsi(pack, session):
             pack_parts: Dict[str, torch.Tensor] = {}
             if _pack_has_active_cost(pack, session):
                 for b in active_bs:
@@ -1015,7 +1049,7 @@ def _iter_cost_bs(session: TrainSession):
         active_bs = _pack_active_bs(pack, session)
         if not active_bs:
             continue
-        if session.sequential:
+        if session.sequential and not _pack_has_active_dsi(pack, session):
             if _pack_has_active_cost(pack, session):
                 for b in active_bs:
                     active_pack = _active_cost_pack(pack, session, b=b)

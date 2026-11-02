@@ -39,5 +39,11 @@ pprint(params, sort_dicts=False, width=120)
 PY
 echo "==== end config ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py n_iter=200 tasks=[sbar] a_lsd=1 
+# DSI-only: turn off mbar waveform MSE, scale all mbar_DSI_* parts to 1.
+"${PYTHON}" -u run.py \
+  n_iter=200 \
+  tasks=[mbar] \
+  '~part_cost_scales' \
+  '+part_cost_scales={mbar:0,mbar_DSI:1}'
+
 

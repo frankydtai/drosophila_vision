@@ -206,6 +206,23 @@ def hex_first_sti_t(
     return int(idx[0])
 
 
+def hex_dsi_window(i_sti_hex: np.ndarray, i_baseline: float) -> Tuple[int, int]:
+    """DSI window: one transit duration before and after actual hex stimulation.
+
+    Returns ``(start, sample_count)`` with both outer endpoints included.
+    A transit spans the first through last non-baseline stimulus sample.
+    """
+    active = np.flatnonzero(~np.isclose(
+        np.asarray(i_sti_hex, dtype=np.float64).reshape(-1),
+        float(i_baseline), atol=1e-12, rtol=0.0,
+    ))
+    if not active.size:
+        raise ValueError("hex has no non-baseline sti sample")
+    first, last = int(active[0]), int(active[-1])
+    duration = last - first
+    return first - duration, 3 * duration + 1
+
+
 def _mbar_bar_center(spec: MbarSpec, bar_bound: float) -> float:
     """Bar centre on the motion axis (degrees) from the leading-edge ``bar_bound``."""
     bar_w_deg = float(spec.bar_w_deg)
@@ -226,17 +243,20 @@ def build_bar_axis_distance_hex(
     t_onset: int,
     delta_ms: float,
 ) -> np.ndarray:
-    """``(B, T, n_hex)`` axis distance (deg) from each hex to the nearest bar centre.
+    """``(B, T_post, n_hex)`` finite axis distance (deg) after stimulus onset.
 
-    Pre-onset samples stay ``inf`` (zero Gaussian gain in forward).  Simultaneous
-    bars contribute the minimum distance at each sample.
+    Only post-onset frames are stored. Simultaneous bars contribute the
+    minimum distance at each sample. Pre-onset is omitted so forward can
+    skip Gaussian overlay without an ``inf`` sentinel.
     """
     n_b = len(specs)
     n_hex = len(hexes)
-    if n_hex == 0 or n_b == 0:
-        return np.zeros((n_b, n_t, n_hex), dtype=np.float64)
+    n_post = max(int(n_t) - int(t_onset), 0)
+    if n_hex == 0 or n_b == 0 or n_post == 0:
+        return np.zeros((n_b, n_post, n_hex), dtype=np.float64)
 
-    dist_hex = np.full((n_b, n_t, n_hex), np.inf, dtype=np.float64)
+    dist_hex = np.zeros((n_b, n_post, n_hex), dtype=np.float64)
+    written = np.zeros((n_b, n_post), dtype=bool)
     view_deg = view_bounds(hexes)
     hex_axis_deg = np.empty((n_hex, 2), dtype=np.float64)
     for hex_idx, hex in enumerate(hexes):
@@ -256,7 +276,6 @@ def build_bar_axis_distance_hex(
         elif spec.direction not in ("right", "up"):
             raise ValueError(f"unknown direction {spec.direction!r}")
         axis_is_x = spec.direction in ("right", "left")
-        n_post = n_t - t_onset
         for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
             spec, view_deg, bar_dist, multi_bar=multi_bar,
         ):
@@ -270,10 +289,15 @@ def build_bar_axis_distance_hex(
                     np.abs(hex_axis_deg[:, 0] - center)
                     if axis_is_x else np.abs(hex_axis_deg[:, 1] - center)
                 )
-                sample = t_onset + t
                 for b in bs:
-                    dist_hex[b, sample] = np.minimum(dist_hex[b, sample], axis_dist)
+                    if written[b, t]:
+                        dist_hex[b, t] = np.minimum(dist_hex[b, t], axis_dist)
+                    else:
+                        dist_hex[b, t] = axis_dist
+                        written[b, t] = True
                 bar_bound += shift_deg
+    if not bool(written.all()):
+        raise ValueError("moving-bar axis distance missing post-onset samples")
     return dist_hex
 
 

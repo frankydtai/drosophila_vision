@@ -75,8 +75,8 @@ def materialize_pack(pack, *, device, sim_dtype):
     for field in (
         "entry_bs", "entry_nodes", "cost_ts", "entry_radii", "cost_sti_us",
         "cost_sti_vs", "sti_bs", "sti_nodes", "a_sti_radius_idxs",
-        "a_sti_mid_idxs",
-        "cost_t0s", "cost_pd_nds",
+        "a_sti_mid_idxs", "bar_axis_sti_nodes",
+        "cost_t0s", "cost_pd_nds", "dsi_t0s", "dsi_n_ts",
     ):
         if getattr(pack, field, None) is not None and not torch.is_tensor(getattr(pack, field)):
             fields[field] = torch.as_tensor(

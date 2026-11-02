@@ -101,6 +101,29 @@ def i_sti_nodes_from_hexes(i_sti_hex, hexes, n_node, *, fill=0.0):
     return i_sti
 
 
+def bar_axis_distance_sti_from_hexes(dist_hex, hexes):
+    """Pack finite hex distances onto sti nodes only.
+
+    Returns ``(distance, sti_nodes)`` with ``distance`` shaped
+    ``(B, T, n_sti)`` and ``sti_nodes`` ``(n_sti,)``. Non-sti nodes are
+    omitted instead of filled with a sentinel.
+    """
+    hex_idxs = []
+    nodes = []
+    for hex_idx, sti_hex in enumerate(hexes):
+        for node in np.asarray(sti_hex.nodes).ravel():
+            hex_idxs.append(hex_idx)
+            nodes.append(int(node))
+    sti_nodes = np.asarray(nodes, dtype=np.int64)
+    if not hex_idxs:
+        return (
+            np.zeros((dist_hex.shape[0], dist_hex.shape[1], 0), dtype=np.float64),
+            sti_nodes,
+        )
+    distance = np.asarray(dist_hex, dtype=np.float64)[:, :, np.asarray(hex_idxs, dtype=np.int64)]
+    return distance, sti_nodes
+
+
 def sbar_line_hex_mask(
     hexes: Sequence,
     direction: str,

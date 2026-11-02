@@ -34,7 +34,7 @@ from task.mbar.gt import (
     motion_preference,
 )
 from task.sbar.sti_geo import (
-    i_sti_nodes_from_hexes,
+    bar_axis_distance_sti_from_hexes,
     sti_hexes_at_xy,
     node_us_vs,
     sti_hexes,
@@ -49,6 +49,7 @@ from task.mbar.sti_spec import (
     build_mbar_signals,
     build_mbar_t0_grids,
     gruntman_mbar_specs,
+    hex_dsi_window,
     hex_first_sti_t,
 )
 
@@ -72,6 +73,10 @@ class MbarGt:
     cost_pd_nds: Optional[torch.Tensor] = None
     entry_part_keys: Tuple[str, ...] = ()
     bar_axis_distance_hex: Optional[np.ndarray] = None
+    t_onset: Optional[int] = None
+    dsi_t0s: Optional[np.ndarray] = None
+    dsi_n_ts: Optional[np.ndarray] = None
+    entry_dsi_part_keys: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -94,14 +99,71 @@ class MbarPack:
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
     t_onset: Optional[int] = None
     bar_axis_distance: Optional[torch.Tensor] = None
+    bar_axis_sti_nodes: Optional[torch.Tensor] = None
+    cost_zero_before_t_onset: bool = False
     i_sti_baseline: Optional[float] = None
     i_sti_peak: Optional[float] = None
     i_sti_baseline_b: Optional[torch.Tensor] = None
     i_sti_peak_b: Optional[torch.Tensor] = None
+    dsi_t0s: Optional[torch.Tensor] = None
+    dsi_n_ts: Optional[torch.Tensor] = None
+    entry_dsi_part_keys: Tuple[str, ...] = ()
 
 
 def cell_part_key(spec_token: str, cell: str, pd_nd_label: str) -> str:
     return f"mbar_{spec_token}_{cell}_{pd_nd_label}"
+
+
+def dsi_part_key(spec: MbarSpec, cell: str) -> str:
+    return f"mbar_DSI_{spec.contrast}_{cell}"
+
+
+def dsi_groups(pack):
+    """Complete PD/ND groups, sharing cell, contrast and width across hexes."""
+    keys = getattr(pack, "entry_dsi_part_keys", ())
+    if not keys:
+        return
+    valid = pack.cost_scales > 0
+    for key in dict.fromkeys(keys):
+        members = torch.tensor(
+            [entry_key == key for entry_key in keys],
+            dtype=torch.bool, device=pack.entry_nodes.device,
+        ) & valid
+        pd = members & (pack.cost_pd_nds == PD_IDX)
+        nd = members & (pack.cost_pd_nds == ND_IDX)
+        if bool(pd.any()) and bool(nd.any()):
+            yield key, pd, nd
+
+
+def dsi_cost_parts(pack, trace, bias_gt, *, b_offset=0, eps=1e-8):
+    """Peak baseline-relative PD/ND responses, DSI target 1, squared error.
+
+    Each entry uses its own expanded hex transit window. Peaks are averaged
+    across the selected nodes/hexes within each cell/contrast/width group.
+
+    DSI = (R_pd - R_nd) / (R_pd + R_nd + eps), matching NIPS2026
+    ``direction_selectivity_loss`` (eps keeps grads finite near zero response).
+    """
+    if pack.dsi_t0s is None or pack.dsi_n_ts is None:
+        raise ValueError("moving-bar DSI requires per-entry transit windows")
+    stops = pack.dsi_t0s + pack.dsi_n_ts
+    if bool((pack.dsi_t0s < 0).any()) or bool((stops > trace.shape[1]).any()):
+        raise ValueError("moving-bar DSI window is outside the simulated trace")
+    offsets = torch.arange(int(pack.dsi_n_ts.max()), device=trace.device)
+    valid = offsets[None, :] < pack.dsi_n_ts[:, None]
+    ts = pack.dsi_t0s[:, None] + offsets[None, :]
+    response = trace[
+        pack.entry_bs[:, None] + int(b_offset),
+        ts.clamp(max=trace.shape[1] - 1),
+        pack.entry_nodes[:, None],
+    ] - bias_gt[:, None]
+    peaks = response.masked_fill(~valid, -torch.inf).amax(dim=1)
+    parts = {}
+    for key, pd, nd in dsi_groups(pack):
+        r_pd, r_nd = peaks[pd].mean(), peaks[nd].mean()
+        dsi = (r_pd - r_nd) / (r_pd + r_nd + eps)
+        parts[key] = (dsi - 1.0).square()
+    return parts
 
 
 def _mbar_cost_part_plot_specs(
@@ -168,6 +230,37 @@ def nodes_from_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
             ),
         ),
     )[0].astype(np.int64)
+
+
+def mbar_cost_sti_hexes(
+    connectome,
+    specs: Sequence[MbarSpec],
+    *,
+    cost_radius=None,
+    cost_mid=None,
+):
+    """Cost hexes restricted along the moving-bar motion axis.
+
+    Horizontal motion keeps the vertical strip ``|x| <= mid``; vertical
+    motion keeps the horizontal strip ``|y| <= mid``. If both axes are
+    present, their union is a cross. ``None`` keeps all radius-selected hexes.
+    """
+    hexes = cost_sti_hexes(
+        connectome, cost_radius=cost_radius, cost_mid=None,
+    )
+    limit = standardize_cost_mid(cost_mid)
+    if limit is None:
+        return hexes
+    horizontal = any(spec.direction in ("right", "left") for spec in specs)
+    vertical = any(spec.direction in ("up", "down") for spec in specs)
+    return [
+        hex for hex in hexes
+        if (
+            horizontal and abs(float(hex.x)) <= limit
+        ) or (
+            vertical and abs(float(hex.y)) <= limit
+        )
+    ]
 
 
 def filter_requested_specs(
@@ -245,12 +338,11 @@ def _assemble_mbar_readouts(
                     if gt_trace is not None:
                         entry_gts.append(gt_trace)
                     entry_cost_scales.append(1.0)
-                    if waveform_mse:
-                        entry_cost_t0s.append(t0)
-                        entry_cost_pd_nds.append(pd_nd_idx)
-                        entry_part_keys.append(
-                            cell_part_key(spec.token, cell, PD_ND_LABELS[pd_nd_idx])
-                        )
+                    entry_cost_t0s.append(t0)
+                    entry_cost_pd_nds.append(pd_nd_idx)
+                    entry_part_keys.append(
+                        cell_part_key(spec.token, cell, PD_ND_LABELS[pd_nd_idx])
+                    )
     return (
         entry_bs, entry_nodes, entry_gts, entry_cost_scales,
         entry_cost_t0s, entry_cost_pd_nds, entry_part_keys,
@@ -270,7 +362,10 @@ def _pack_mbar_entries(
     if not waveform_mse:
         gts = np.zeros((n, 0), dtype=np.float64)
         power = 1.0
-        return gts, cost_scales, entry_bs, entry_nodes, None, None, power
+        return (
+            gts, cost_scales, entry_bs, entry_nodes, None,
+            np.asarray(entry_cost_pd_nds, dtype=np.int64), power,
+        )
     cost_pd_nds = np.asarray(entry_cost_pd_nds, dtype=np.int64)
     gts = np.asarray(entry_gts, dtype=np.float64)
     cost_t0s = np.asarray(entry_cost_t0s, dtype=np.int64)
@@ -309,15 +404,19 @@ def build_mbar_gt(
         bar_directions=bar_directions,
     )
     i_baseline_val = float(i_baseline)
-    sti = build_mbar_signals(
-        connectome, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
-        bar_dist=bar_dist, multi_bar=bool(multi_bar),
-        use_cache=use_cache,
-        network_json=getattr(connectome, "source_json", None),
-        i_baseline=i_baseline_val,
-        i_sti=float(i_sti),
-        use_a_sti_mid=bool(use_a_sti_mid),
-    )
+
+    def signals(onset, n_t=None):
+        return build_mbar_signals(
+            connectome, specs=specs, t_onset=onset, n_t=n_t, delta_ms=delta_ms,
+            bar_dist=bar_dist, multi_bar=bool(multi_bar),
+            use_cache=use_cache,
+            network_json=getattr(connectome, "source_json", None),
+            i_baseline=i_baseline_val,
+            i_sti=float(i_sti),
+            use_a_sti_mid=bool(use_a_sti_mid),
+        )
+
+    sti = signals(t_onset)
     n_t = int(sti.n_t)
     fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
     before_t = t_from_ms(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
@@ -332,11 +431,29 @@ def build_mbar_gt(
         (int(hex.u), int(hex.v)): hex_idx
         for hex_idx, hex in enumerate(sti_hexes(connectome))
     }
-    hexes = cost_sti_hexes(
-        connectome, cost_radius=cost_radius, cost_mid=cost_mid,
+    hexes = mbar_cost_sti_hexes(
+        connectome, specs, cost_radius=cost_radius, cost_mid=cost_mid,
     )
     cost_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
     hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_idxs)}
+
+    dsi_windows = {
+        (b, h): hex_dsi_window(sti.i_sti_hex[b, :, h], i_baseline_val)
+        for b in range(sti.n_b) for h in cost_hex_idxs
+    }
+    # Reserve actual baseline samples on both sides; never clip a DSI window.
+    pre_pad = max(0, -min((start for start, _ in dsi_windows.values()), default=0))
+    required_stop = max(
+        (start + length for start, length in dsi_windows.values()), default=n_t,
+    )
+    post_pad = max(0, required_stop - n_t)
+    if pre_pad or post_pad:
+        sti = signals(int(t_onset) + pre_pad, n_t=n_t + pre_pad + post_pad)
+        n_t = int(sti.n_t)
+        dsi_windows = {
+            key: (start + pre_pad, length)
+            for key, (start, length) in dsi_windows.items()
+        }
 
     def _nodes_from_hex_type(b, hex_idx, cell):
         hex = hex_by_idx[hex_idx]
@@ -372,6 +489,11 @@ def build_mbar_gt(
         )
     )
 
+    node_us, node_vs = node_us_vs(connectome)
+    entry_windows = [
+        dsi_windows[(int(b), hex_idx[(int(node_us[node]), int(node_vs[node]))])]
+        for b, node in zip(entry_bs, entry_nodes)
+    ]
     return MbarGt(
         i_sti=sti.i_sti,
         gts=gts,
@@ -389,6 +511,13 @@ def build_mbar_gt(
         spec_tokens=[spec.token for spec in sti.specs],
         entry_part_keys=tuple(entry_part_keys),
         bar_axis_distance_hex=sti.bar_axis_distance_hex,
+        t_onset=int(sti.t_onset),
+        dsi_t0s=np.asarray([start for start, _ in entry_windows], dtype=np.int64),
+        dsi_n_ts=np.asarray([length for _, length in entry_windows], dtype=np.int64),
+        entry_dsi_part_keys=tuple(
+            dsi_part_key(sti.specs[int(b)], str(cells[node]))
+            for b, node in zip(entry_bs, entry_nodes)
+        ),
     )
 
 
@@ -438,8 +567,8 @@ def mbar_session_t0_grids(
     i_baseline = i_baseline_from_i_sti(i_sti)
 
     side = connectome.meta.get('side', 'right')
-    hexes = cost_sti_hexes(
-        connectome, cost_radius=cost_radius, cost_mid=cost_mid,
+    hexes = mbar_cost_sti_hexes(
+        connectome, specs, cost_radius=cost_radius, cost_mid=cost_mid,
     )
     if at_x is not None or at_y is not None:
         filt_hexes = sti_hexes_at_xy(hexes, at_x=at_x, at_y=at_y)
@@ -599,6 +728,24 @@ def build_mbar_pack(
     ))
     i_baseline = i_baseline_from_i_sti(i_sti)
     i_sti_peak = float(i_sti[contrast])
+    # DSI target 1 needs no digitized waveform data when every MSE part is off.
+    scales = opts.get("part_cost_scales") or {}
+    cells = active_gt_cells(
+        gt_cells_from_opts(sti_opts), GT_CELLS, connectome.cells, context="mbar",
+    )
+    specs = gruntman_mbar_specs(
+        contrasts=(contrast,), bar_ws_deg=sti_opts["bar_ws_deg"],
+        bar_directions=sti_opts["bar_directions"],
+    )
+    waveform_mse = False
+    for cell in cells:
+        for spec in specs:
+            pref = motion_preference(
+                connectome.meta.get("side", "right"), cell, spec.direction, contrast,
+            )
+            if pref is not None:
+                key = cell_part_key(spec.token, cell, pref.pd_nd)
+                waveform_mse |= float(scales.get(key, scales.get("mbar", 1.0))) != 0.0
     mbar_gt = build_mbar_gt(
         connectome=connectome,
         t_onset=t_onset,
@@ -613,10 +760,12 @@ def build_mbar_pack(
         bar_ws_deg=sti_opts["bar_ws_deg"],
         bar_directions=sti_opts["bar_directions"],
         multi_bar=bool(sti_opts["multi_bar"]),
-        waveform_mse=True,
+        waveform_mse=waveform_mse,
         use_a_sti_mid=use_a_sti_mid,
     )
     sti_opts["n_t"] = int(mbar_gt.n_t)
+    t_onset = int(mbar_gt.t_onset)
+    sti_opts["ms_pre"] = t_onset * float(sti_opts["delta_ms_pre"])
     sti_opts["spec_tokens"] = list(mbar_gt.spec_tokens)
     if cost_radius is not None:
         sti_opts["cost_radius"] = int(cost_radius)
@@ -624,12 +773,11 @@ def build_mbar_pack(
         sti_opts["cost_mid"] = float(cost_mid)
     sti_opts["gt_cells"] = list(mbar_gt.active_gts)
     bar_axis_distance = None
+    bar_axis_sti_nodes = None
     if use_a_sti_mid and mbar_gt.bar_axis_distance_hex is not None:
-        bar_axis_distance = i_sti_nodes_from_hexes(
+        bar_axis_distance, bar_axis_sti_nodes = bar_axis_distance_sti_from_hexes(
             mbar_gt.bar_axis_distance_hex,
             sti_hexes(connectome),
-            connectome.n_node,
-            fill=np.inf,
         )
     pack = MbarPack(
         task="mbar",
@@ -645,9 +793,13 @@ def build_mbar_pack(
         cost_pd_nds=mbar_gt.cost_pd_nds,
         t_onset=t_onset,
         bar_axis_distance=bar_axis_distance,
+        bar_axis_sti_nodes=bar_axis_sti_nodes,
         i_sti_baseline=i_baseline if use_a_sti_mid else None,
         i_sti_peak=i_sti_peak if use_a_sti_mid else None,
         entry_part_keys=mbar_gt.entry_part_keys,
+        dsi_t0s=mbar_gt.dsi_t0s,
+        dsi_n_ts=mbar_gt.dsi_n_ts,
+        entry_dsi_part_keys=mbar_gt.entry_dsi_part_keys,
         cost_part_plot_specs=(
             _mbar_cost_part_plot_specs(
                 mbar_gt.entry_part_keys,
@@ -661,6 +813,17 @@ def build_mbar_pack(
             else None
         ),
     )
+    # DSI parts participate in the existing cost breakdown and analysis plots.
+    directions_by_key = {}
+    for key, pd_nd in zip(mbar_gt.entry_dsi_part_keys, mbar_gt.cost_pd_nds):
+        directions_by_key.setdefault(key, set()).add(int(pd_nd))
+    for key, directions in sorted(directions_by_key.items()):
+        if directions != {PD_IDX, ND_IDX}:
+            continue
+        cell = key.split("_")[-2]
+        pack.cost_part_plot_specs[key] = CostPartPlotSpec(
+            key, cell, ("mbar_pd_nd", "DSI"), key.removeprefix("mbar_"),
+        )
     return pack, sti_opts, (
         f"moving-bar {contrast} (B={mbar_gt.n_b} stis, "
         f"{int(mbar_gt.entry_bs.shape[0])} cost nodes, "

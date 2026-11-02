@@ -54,7 +54,6 @@ def run_train_and_plot(**kwargs):
                 png_dir,
                 session=session,
                 final_costs=np.array([cost_best]),
-                save_data=False,
                 **figure_kwargs,
                 file_suffix=f"{base_suffix}_{token}",
             )
@@ -80,7 +79,6 @@ def run_train_and_plot(**kwargs):
         run_dir,
         session=session,
         final_costs=result.final_costs,
-        save_data=False,
         **figure_kwargs,
     )
     if syn_sign:
