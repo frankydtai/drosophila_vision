@@ -214,3 +214,31 @@ def view_bounds(hexes: Sequence) -> Tuple[float, float, float, float]:
     )
 
 
+def cost_motion_view_deg(
+    full_view_deg: Tuple[float, float, float, float],
+    cost_hexes: Sequence,
+    directions: Sequence[str],
+    *,
+    margin_deg: float = 2.0 * float(DEG),
+) -> Tuple[float, float, float, float]:
+    """Restrict the motion-axis sweep to the cost-mid hexes plus margin.
+
+    Cost hex patches set the core span (``view_bounds``). Horizontal motion
+    clamps ``x``; vertical clamps ``y``. The orthogonal axis stays full-view
+    so the bar still covers that extent. Default margin is two hex steps
+    (``2 * DEG``): with ``cost_mid=0`` this is ``[-11.25, 11.25]``.
+    """
+    if not cost_hexes:
+        return tuple(float(v) for v in full_view_deg)
+    cost_view = view_bounds(cost_hexes)
+    x0, y0, x1, y1 = (float(v) for v in full_view_deg)
+    cx0, cy0, cx1, cy1 = (float(v) for v in cost_view)
+    margin = float(margin_deg)
+    dirs = {str(direction) for direction in directions}
+    if dirs & {"right", "left"}:
+        x0, x1 = cx0 - margin, cx1 + margin
+    if dirs & {"up", "down"}:
+        y0, y1 = cy0 - margin, cy1 + margin
+    return x0, y0, x1, y1
+
+

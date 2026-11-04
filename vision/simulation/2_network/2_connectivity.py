@@ -8,9 +8,9 @@ Interface (:class:`ScatterConn`):
     conn.n_node
     conn.node_cells
 
-``v_out`` is the presynaptic output already multiplied by the per-source a_out, i.e.
-``relu(v − v_th)·a_out`` (borst / hp_lp). The post-synaptic input
-``a_in`` is applied by the caller AFTER these calls.
+``v_out`` is the presynaptic output: ``relu(v − v_th)·a_out`` for
+borst / hp_lp, or a binary spike for shiu. The post-synaptic input ``a_in``
+is applied by the caller AFTER these calls.
 
 ``syn_strength`` multiplies each edge: length ``n_pair`` type→type
 (``syn_strength_cell``, ``--syn-mode per_cell``) or length ``n_edge`` per-edge

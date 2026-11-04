@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Parameter schemas for borst / hp_lp neuron models.
+"""Parameter schemas for borst / hp_lp / shiu neuron models.
 
 Numeric lo/hi/init/jit, leftover ``mode``, optional per-node ``inits`` /
 ``los`` / ``his`` / ``jits``, and optional ``modes`` (name lists keyed by
@@ -31,6 +31,9 @@ _I_H_REV_ONLY = frozenset({
 })
 _BORST_ONLY = frozenset({"v_mid_h_g", "v_mid_h_tau", "h_slope"}) | _I_H_REV_ONLY
 _CA_ONLY = frozenset({"v_th_ca", "a_ca", "tau_ca"})
+_SHIU_UNUSED = _HP_LP_ONLY | _BORST_ONLY | frozenset({
+    "a_out", "e_leak", "v_th", "a_h",
+})
 
 
 def param_from_entry(param, param_key, params):
@@ -313,6 +316,40 @@ def build_hp_lp_schema(
     )
 
 
+def build_shiu_schema(
+    n_cell,
+    cells=None,
+    n_pair=None,
+    *,
+    syn_mode: str,
+    params: dict,
+    pairs,
+    filter: str = "none",
+    n_edge=None,
+    a_sti_radii=(),
+    a_sti_mids=(),
+):
+    """Shiu LIF schema; its published biophysical constants are not trainable."""
+    if cells is None:
+        raise TypeError("shiu schema requires cells from network")
+    cells = list(cells)
+    skip = set(_SHIU_UNUSED)
+    if str(filter) != "ca":
+        skip |= _CA_ONLY
+    return _build_param_schema(
+        params,
+        skip=skip,
+        n_cell=n_cell,
+        cells=cells,
+        syn_mode=syn_mode,
+        n_pair=n_pair,
+        n_edge=n_edge,
+        pairs=pairs,
+        a_sti_radii=a_sti_radii,
+        a_sti_mids=a_sti_mids,
+    )
+
+
 def build_schema(
     model: str,
     connectome,
@@ -351,4 +388,6 @@ def build_schema(
         return build_hp_lp_schema(n, cells=cells, **kwargs)
     if model == "borst":
         return build_borst_schema(n, cells=cells, **kwargs)
-    raise ValueError(f"unknown model {model!r}; expected borst or hp_lp")
+    if model == "shiu":
+        return build_shiu_schema(n, cells=cells, **kwargs)
+    raise ValueError(f"unknown model {model!r}; expected borst, hp_lp, or shiu")

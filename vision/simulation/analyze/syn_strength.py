@@ -94,9 +94,10 @@ def main(argv: list[str] | None = None) -> int:
     opts = plot.load_train_opts(run_dir)
     if not opts:
         raise SystemExit(f"missing train_opts.json under {run_dir}")
-    if opts.get("model", "borst") not in ("borst", "hp_lp"):
+    if opts.get("model", "borst") not in ("borst", "hp_lp", "shiu"):
         raise SystemExit(
-            f"syn_strength_cell requires borst/hp_lp model, got {opts.get('model')!r}"
+            "syn_strength_cell requires borst/hp_lp/shiu model, "
+            f"got {opts.get('model')!r}"
         )
     network_json = opts.get("network_json")
     if not network_json:

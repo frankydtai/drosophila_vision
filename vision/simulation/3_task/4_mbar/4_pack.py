@@ -39,6 +39,7 @@ from task.sbar.sti_geo import (
     node_us_vs,
     sti_hexes,
 )
+from task.mbar.sti_geo import cost_motion_view_deg, view_bounds
 from task.mbar.sti_spec import (
     COST_ALIGNED_FIRST_STI_MS,
     COST_WINDOW_AFTER_MS,
@@ -72,7 +73,7 @@ class MbarGt:
     cost_t0s: Optional[torch.Tensor] = None
     cost_pd_nds: Optional[torch.Tensor] = None
     entry_part_keys: Tuple[str, ...] = ()
-    bar_axis_distance_hex: Optional[np.ndarray] = None
+    bar_axis_distance_hex: Optional[np.ndarray] = None  # mid units (1 mid = DEG degrees)
     t_onset: Optional[int] = None
     dsi_t0s: Optional[np.ndarray] = None
     dsi_n_ts: Optional[np.ndarray] = None
@@ -98,7 +99,7 @@ class MbarPack:
     entry_part_keys: Tuple[str, ...] = ()
     cost_part_plot_specs: Optional[Dict[str, CostPartPlotSpec]] = None
     t_onset: Optional[int] = None
-    bar_axis_distance: Optional[torch.Tensor] = None
+    bar_axis_distance: Optional[torch.Tensor] = None  # mid units, like a_sti_mid
     bar_axis_sti_nodes: Optional[torch.Tensor] = None
     cost_zero_before_t_onset: bool = False
     i_sti_baseline: Optional[float] = None
@@ -138,8 +139,10 @@ def dsi_groups(pack):
 def dsi_cost_parts(pack, trace, bias_gt, *, b_offset=0, eps=1e-8):
     """Peak baseline-relative PD/ND responses, DSI target 1, squared error.
 
-    Each entry uses its own expanded hex transit window. Peaks are averaged
-    across the selected nodes/hexes within each cell/contrast/width group.
+    Align entries to each hex's first stimulus, subtract baseline, and average
+    curves within each cell/contrast/width/direction group before taking peaks.
+    Use the intersection of the entries' expanded transit windows so every
+    averaged sample includes every node. Clamp the resulting peaks to zero.
 
     DSI = (R_pd - R_nd) / (R_pd + R_nd + eps), matching NIPS2026
     ``direction_selectivity_loss`` (eps keeps grads finite near zero response).
@@ -149,18 +152,27 @@ def dsi_cost_parts(pack, trace, bias_gt, *, b_offset=0, eps=1e-8):
     stops = pack.dsi_t0s + pack.dsi_n_ts
     if bool((pack.dsi_t0s < 0).any()) or bool((stops > trace.shape[1]).any()):
         raise ValueError("moving-bar DSI window is outside the simulated trace")
-    offsets = torch.arange(int(pack.dsi_n_ts.max()), device=trace.device)
-    valid = offsets[None, :] < pack.dsi_n_ts[:, None]
-    ts = pack.dsi_t0s[:, None] + offsets[None, :]
+    # hex_dsi_window has one transit duration before first stimulus and two
+    # after it: length = 3 * duration + 1 (both endpoints included).
+    before = (pack.dsi_n_ts - 1) // 3
+    first_sti = pack.dsi_t0s + before
+    offsets = torch.arange(
+        -int(before.max()), int((pack.dsi_n_ts - 1 - before).max()) + 1,
+        device=trace.device,
+    )
+    ts = first_sti[:, None] + offsets[None, :]
+    valid = (ts >= pack.dsi_t0s[:, None]) & (ts < stops[:, None])
     response = trace[
         pack.entry_bs[:, None] + int(b_offset),
-        ts.clamp(max=trace.shape[1] - 1),
+        ts.clamp(min=0, max=trace.shape[1] - 1),
         pack.entry_nodes[:, None],
     ] - bias_gt[:, None]
-    peaks = response.masked_fill(~valid, -torch.inf).amax(dim=1)
     parts = {}
     for key, pd, nd in dsi_groups(pack):
-        r_pd, r_nd = peaks[pd].mean(), peaks[nd].mean()
+        pd_mean = response[pd].mean(dim=0)
+        nd_mean = response[nd].mean(dim=0)
+        r_pd = pd_mean.masked_fill(~valid[pd].all(dim=0), -torch.inf).amax().clamp_min(0.0)
+        r_nd = nd_mean.masked_fill(~valid[nd].all(dim=0), -torch.inf).amax().clamp_min(0.0)
         dsi = (r_pd - r_nd) / (r_pd + r_nd + eps)
         parts[key] = (dsi - 1.0).square()
     return parts
@@ -404,6 +416,14 @@ def build_mbar_gt(
         bar_directions=bar_directions,
     )
     i_baseline_val = float(i_baseline)
+    hexes = mbar_cost_sti_hexes(
+        connectome, specs, cost_radius=cost_radius, cost_mid=cost_mid,
+    )
+    view_deg = cost_motion_view_deg(
+        view_bounds(sti_hexes(connectome)),
+        hexes,
+        [spec.direction for spec in specs],
+    )
 
     def signals(onset, n_t=None):
         return build_mbar_signals(
@@ -414,6 +434,7 @@ def build_mbar_gt(
             i_baseline=i_baseline_val,
             i_sti=float(i_sti),
             use_a_sti_mid=bool(use_a_sti_mid),
+            view_deg=view_deg,
         )
 
     sti = signals(t_onset)
@@ -431,9 +452,6 @@ def build_mbar_gt(
         (int(hex.u), int(hex.v)): hex_idx
         for hex_idx, hex in enumerate(sti_hexes(connectome))
     }
-    hexes = mbar_cost_sti_hexes(
-        connectome, specs, cost_radius=cost_radius, cost_mid=cost_mid,
-    )
     cost_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
     hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_idxs)}
 
@@ -584,6 +602,11 @@ def mbar_session_t0_grids(
             f"train opts i_sti missing contrast {contrast!r}"
         )
     mbar_sti_opts = (session.train_opts or {}).get("mbar_sti_opts") or {}
+    view_deg = cost_motion_view_deg(
+        view_bounds(sti_hexes(connectome)),
+        hexes,
+        [spec.direction for spec in specs],
+    )
     sti = build_mbar_signals(
         connectome, specs=specs, n_t=n_t,
         t_onset=mbar_sti_t_onset(session), delta_ms=delta_ms,
@@ -591,6 +614,7 @@ def mbar_session_t0_grids(
         multi_bar=bool(mbar_sti_opts["multi_bar"]),
         i_baseline=i_baseline,
         i_sti=float(i_sti[contrast]),
+        view_deg=view_deg,
     )
     hex_idx = {
         (int(hex.u), int(hex.v)): hex_idx

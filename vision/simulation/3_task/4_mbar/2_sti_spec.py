@@ -242,9 +242,12 @@ def build_bar_axis_distance_hex(
     multi_bar: bool = True,
     t_onset: int,
     delta_ms: float,
+    view_deg: Optional[Tuple[float, float, float, float]] = None,
 ) -> np.ndarray:
-    """``(B, T_post, n_hex)`` finite axis distance (deg) after stimulus onset.
+    """``(B, T_post, n_hex)`` finite axis distance (mid units) after onset.
 
+    One mid spans ``DEG`` degrees, matching the static-bar ``a_sti_mid`` sigma.
+    Motion geometry stays in degrees; convert distances before packing them.
     Only post-onset frames are stored. Simultaneous bars contribute the
     minimum distance at each sample. Pre-onset is omitted so forward can
     skip Gaussian overlay without an ``inf`` sentinel.
@@ -257,7 +260,8 @@ def build_bar_axis_distance_hex(
 
     dist_hex = np.zeros((n_b, n_post, n_hex), dtype=np.float64)
     written = np.zeros((n_b, n_post), dtype=bool)
-    view_deg = view_bounds(hexes)
+    if view_deg is None:
+        view_deg = view_bounds(hexes)
     hex_axis_deg = np.empty((n_hex, 2), dtype=np.float64)
     for hex_idx, hex in enumerate(hexes):
         hex_axis_deg[hex_idx, 0] = float(hex.x) * float(DEG)
@@ -288,7 +292,7 @@ def build_bar_axis_distance_hex(
                 axis_dist = (
                     np.abs(hex_axis_deg[:, 0] - center)
                     if axis_is_x else np.abs(hex_axis_deg[:, 1] - center)
-                )
+                ) / float(DEG)
                 for b in bs:
                     if written[b, t]:
                         dist_hex[b, t] = np.minimum(dist_hex[b, t], axis_dist)
@@ -312,6 +316,7 @@ def build_i_sti_hex(
     delta_ms: float,
     i_baseline: float,
     i_sti: float,
+    view_deg: Optional[Tuple[float, float, float, float]] = None,
 ) -> np.ndarray:
     """Multi-b hex currents ``(B, T, n_hex)``.
 
@@ -328,7 +333,8 @@ def build_i_sti_hex(
     for b in range(n_b):
         i_sti_hex[b, :t_onset] = i_baseline
 
-    view_deg = view_bounds(hexes)
+    if view_deg is None:
+        view_deg = view_bounds(hexes)
 
     by_geometry: dict[Tuple[str, float, float], List[int]] = {}
     for b, spec in enumerate(specs):
@@ -469,6 +475,7 @@ def _mbar_cache_digest(
     bar_dist: int,
     multi_bar: bool = True,
     i_sti: Optional[float] = None,
+    view_deg: Optional[Tuple[float, float, float, float]] = None,
 ) -> str:
     stat = network_json.stat()
     payload = {
@@ -478,6 +485,7 @@ def _mbar_cache_digest(
         "hex_uv": list(hex_uv),
         "bar_dist": int(bar_dist),
         "multi_bar": bool(multi_bar),
+        "view_deg": None if view_deg is None else [float(v) for v in view_deg],
         "specs": [
             {
                 "direction": spec.direction,
@@ -507,11 +515,14 @@ def _mbar_cache_path(
     bar_dist: int,
     multi_bar: bool = True,
     i_sti: Optional[float] = None,
+    view_deg: Optional[Tuple[float, float, float, float]] = None,
 ) -> Path:
     return (
         Path(network_json).resolve().parent
         / MBAR_CACHE_DIRNAME
-        / f"{_mbar_cache_digest(network_json, specs, hex_uv, n_t, t_onset, delta_ms, i_baseline, bar_dist, multi_bar, i_sti)}.npz"
+        / (
+            f"{_mbar_cache_digest(network_json, specs, hex_uv, n_t, t_onset, delta_ms, i_baseline, bar_dist, multi_bar, i_sti, view_deg)}.npz"
+        )
     )
 
 
@@ -547,11 +558,13 @@ def build_mbar_signals(
     use_cache: bool = True,
     refresh_cache: bool = False,
     network_json: Optional[Path] = None,
+    view_deg: Optional[Tuple[float, float, float, float]] = None,
 ) -> MbarSti:
     """Build sti current for moving-bar stis.
 
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
     Peak current ``i_sti`` is for this build (one contrast at a time).
+    Pass ``view_deg`` to restrict the motion-axis sweep (e.g. from cost mid).
     """
     bar_dist = int(bar_dist)
     multi_bar = bool(multi_bar)
@@ -559,7 +572,10 @@ def build_mbar_signals(
     i_sti = float(i_sti)
     i_baseline = float(i_baseline)
     sti = sti_hexes(connectome)
-    view_deg = view_bounds(sti)
+    if view_deg is None:
+        view_deg = view_bounds(sti)
+    else:
+        view_deg = tuple(float(v) for v in view_deg)
     if n_t is None:
         n_t = mbar_n_t(
             specs, view_deg, bar_dist, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
@@ -575,7 +591,7 @@ def build_mbar_signals(
     if source_json is not None:
         cache_path = _mbar_cache_path(
             source_json, specs, hex_uv, n_t, t_onset, delta_ms,
-            i_baseline, bar_dist, multi_bar, i_sti,
+            i_baseline, bar_dist, multi_bar, i_sti, view_deg,
         )
 
     i_sti_hex: Optional[np.ndarray] = None
@@ -596,7 +612,7 @@ def build_mbar_signals(
         i_sti_hex = build_i_sti_hex(
             sti, specs, n_t=n_t, bar_dist=bar_dist, multi_bar=multi_bar,
             t_onset=t_onset, delta_ms=delta_ms,
-            i_baseline=i_baseline, i_sti=i_sti,
+            i_baseline=i_baseline, i_sti=i_sti, view_deg=view_deg,
         )
         if cache_path is not None and use_cache:
             _save_mbar_hex_cache(cache_path, i_sti_hex)
@@ -605,7 +621,7 @@ def build_mbar_signals(
     if use_a_sti_mid:
         bar_axis_distance_hex = build_bar_axis_distance_hex(
             sti, specs, n_t=n_t, bar_dist=bar_dist, multi_bar=multi_bar,
-            t_onset=t_onset, delta_ms=delta_ms,
+            t_onset=t_onset, delta_ms=delta_ms, view_deg=view_deg,
         )
 
     return MbarSti(

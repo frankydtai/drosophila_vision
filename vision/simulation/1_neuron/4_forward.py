@@ -13,12 +13,14 @@ import torch
 
 import neuron.borst as _borst
 import neuron.hp_lp as _hp_lp
+import neuron.shiu as _shiu
 from neuron.filter_ca import filter_ca
 
 # Per-model dynamics for ``forward_v`` / ``forward_ca`` (pre_steady / step only).
 MODEL_DRIVERS = {
     "borst": _borst,
     "hp_lp": _hp_lp,
+    "shiu": _shiu,
 }
 MODELS = tuple(MODEL_DRIVERS)
 
@@ -47,7 +49,8 @@ def a_sti_mid_effective(params, pack):
 def _mbar_gaussian_overlay(drive, params, pack, *, t: int):
     """Overlay Gaussian bar drive on post-onset sti nodes only.
 
-    ``pack.bar_axis_distance`` is ``(B, T_post, n_sti)`` finite distances and
+    ``pack.bar_axis_distance`` is ``(B, T_post, n_sti)`` finite distances in
+    mid units, matching the static-bar ``a_sti_mid`` sigma, and
     ``pack.bar_axis_sti_nodes`` indexes those sti nodes. Pre-onset times and
     non-sti nodes keep the incoming drive unchanged—no ``inf`` sentinel.
     """

@@ -297,9 +297,10 @@ def save_syn_sign_figures(run_dir, *, post=False, bins=None) -> None:
     opts = plot.load_train_opts(run_dir)
     if not opts:
         raise SystemExit(f"missing train_opts.json under {run_dir}")
-    if opts.get("model", "borst") not in ("borst", "hp_lp"):
+    if opts.get("model", "borst") not in ("borst", "hp_lp", "shiu"):
         raise SystemExit(
-            f"syn_strength_cell requires borst/hp_lp, got {opts.get('model')!r}"
+            "syn_strength_cell requires borst/hp_lp/shiu, "
+            f"got {opts.get('model')!r}"
         )
     if opts.get("syn_mode", "per_cell") != "per_cell":
         raise SystemExit(

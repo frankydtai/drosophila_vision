@@ -1,8 +1,0 @@
-Job ID: 30220916
-Node:   spartan-gpgpu101
-GPU:    0
-GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-0491d1aa-46f1-dc6d-dd52-7880ec8f1f50)
-cuda: True NVIDIA A100 80GB PCIe
-Start:  Tue 08 Sep 2026 01:37:59 AEST
-==== config ====
-[2026-09-08T01:38:02.137] error: *** JOB 30220916 ON spartan-gpgpu101 CANCELLED AT 2026-09-08T01:38:02 DUE to SIGNAL Terminated ***

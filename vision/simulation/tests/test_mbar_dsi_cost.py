@@ -20,7 +20,9 @@ from task.mbar.pack import (  # noqa: E402
     MbarPack, build_mbar_gt, build_mbar_pack, dsi_cost_parts, dsi_groups,
     mbar_cost_sti_hexes,
 )
+from task.mbar.sti_geo import cost_motion_view_deg, view_bounds  # noqa: E402
 from task.mbar.sti_spec import MbarSpec, hex_dsi_window  # noqa: E402
+from task.sbar.sti_geo import sti_hexes  # noqa: E402
 from train.session import materialize_pack  # noqa: E402
 
 
@@ -95,7 +97,7 @@ def test_peaks_use_local_windows_baseline_and_subtype_pd():
     assert trace.grad[1, 5, 0] > 0  # Increasing ND increases loss.
 
 
-def test_dsi_averages_peaks_across_hexes_before_ratio():
+def test_dsi_averages_aligned_curves_before_taking_peaks():
     pack = make_pack()
     # Replicate each entry onto a second hex of the same cell subtype.
     fields = {
@@ -111,10 +113,15 @@ def test_dsi_averages_peaks_across_hexes_before_ratio():
     second_hex = torch.zeros_like(response_trace())
     second_hex[0, 2, 0] = 2
     second_hex[1, 4, 0] = 4
-    trace = torch.cat((response_trace(), second_hex), dim=2)
+    trace = torch.cat((response_trace(), second_hex), dim=2).requires_grad_()
     parts = dsi_cost_parts(pack, trace, torch.zeros(8))
-    # Mean PD peak = 3; mean ND peak = 2.5; DSI = 1/11.
-    torch.testing.assert_close(parts[KEY_A], trace.new_tensor((1 / 11 - 1) ** 2))
+    # Peaks occur at different relative times: mean-curve peaks are PD=2,
+    # ND=2, so DSI=0. Averaging individual peaks would give PD=3, ND=2.5.
+    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(1.0))
+    parts[KEY_A].backward()
+    assert torch.isfinite(trace.grad).all()
+    assert trace.grad[0, 3, 0] < 0
+    assert trace.grad[1, 4, 2] > 0
 
 
 def test_zero_response_has_finite_loss_and_gradients():
@@ -124,6 +131,53 @@ def test_zero_response_has_finite_loss_and_gradients():
     assert all(part == 1 for part in parts.values())
     sum(parts.values()).backward()
     assert torch.isfinite(trace.grad).all()
+
+
+@pytest.mark.parametrize("r_pd,r_nd,expected_loss", [
+    (-1.0, 1.0, 4.0),
+    (1.0, -1.0, 0.0),
+    (-1.0, -2.0, 1.0),
+    (-0.064524874, 0.054481506, 4.0),  # Previously produced DSI ~11.85.
+])
+def test_negative_mean_responses_are_clamped_before_dsi(r_pd, r_nd, expected_loss):
+    pack = make_pack()
+    baseline = torch.tensor([10.0, 20.0], dtype=torch.float64)
+    trace = baseline.expand(2, 12, 2).clone()
+    trace[0, :, 0] += r_pd
+    trace[1, :, 0] += r_nd
+    trace.requires_grad_()
+    parts = dsi_cost_parts(pack, trace, baseline[pack.entry_nodes])
+    # eps slightly shifts the ideal endpoint losses for small positive peaks.
+    torch.testing.assert_close(
+        parts[KEY_A], trace.new_tensor(expected_loss), atol=1e-6, rtol=1e-7,
+    )
+    sum(parts.values()).backward()
+    assert torch.isfinite(trace.grad).all()
+    if r_pd < 0:
+        assert torch.count_nonzero(trace.grad[0, :, 0]) == 0
+    if r_nd < 0:
+        assert torch.count_nonzero(trace.grad[1, :, 0]) == 0
+
+
+def test_dsi_clamps_group_mean_after_averaging_hexes():
+    pack = make_pack()
+    fields = {
+        name: torch.cat((getattr(pack, name), getattr(pack, name)))
+        for name in ("gts", "cost_scales", "entry_bs", "cost_pd_nds", "cost_t0s", "dsi_t0s", "dsi_n_ts")
+    }
+    pack = replace(
+        pack, **fields,
+        entry_nodes=torch.cat((pack.entry_nodes, pack.entry_nodes + 2)),
+        entry_part_keys=pack.entry_part_keys * 2,
+        entry_dsi_part_keys=pack.entry_dsi_part_keys * 2,
+    )
+    trace = torch.zeros((2, 12, 4), dtype=torch.float64)
+    trace[0, :, 0] = -4.0
+    trace[0, :, 2] = 2.0
+    trace[1, :, [0, 2]] = 1.0
+    # PD mean = -1 -> 0; ND mean = 1. Clamping per hex would give PD mean=1.
+    parts = dsi_cost_parts(pack, trace, torch.zeros(8))
+    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(4.0))
 
 
 def test_incomplete_direction_pair_does_not_add_dsi_part():
@@ -223,6 +277,24 @@ def test_mbar_cost_mid_uses_only_motion_axis_strip():
     assert len(horizontal_hexes) == 3
     assert all(hex.x == 0.0 for hex in horizontal_hexes)
     assert [(hex.x, hex.y) for hex in vertical_hexes] == [(0.0, 0.0)]
+
+
+def test_mbar_sweep_follows_cost_mid_strip():
+    cost_hexes = [
+        SimpleNamespace(x=0.0, y=-1.0),
+        SimpleNamespace(x=0.0, y=0.0),
+        SimpleNamespace(x=0.0, y=1.0),
+    ]
+    view = cost_motion_view_deg(
+        (-47.25, -47.25, 47.25, 47.25),
+        cost_hexes,
+        ["right", "left"],
+    )
+    # cost_mid=0 strip patch ±2.25°, plus 2*DEG margin -> ±11.25°.
+    assert view[0] == -11.25
+    assert view[2] == 11.25
+    assert view[1] == -47.25
+    assert view[3] == 47.25
 
 
 def test_real_stimulus_pack_uses_individual_hex_transits_and_pads_both_sides(tmp_path):

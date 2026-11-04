@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 34162483-run-n_iter-200-tasks-sbar-a_lsd-1
+ 30223811-run_init_from-n_iter-3000-tasks-sbar-a_lsd-1
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -48,8 +48,6 @@ params:
     #inits: {"Tm3:T4a": 0.0, "Mi4:T4a": 0.0, "Mi9:T4a": 0.0, "T4a:T4a": 0.0, "T4b:T4a": 0.0, "Tm2:T4a": 0.0, "T5a:T4a": 0.0, "C3:T4a": 0.0, "Mi10:T4a": 0.0, "TmY15:T4a": 0.0}
     jit: 0.1
     mode: "fixed"
-    modes:
-      indi: ["Mi4:T4a", "Mi4:T4b"]
       #fixed: ["Tm3:T4a", "Mi4:T4a", "Mi9:T4a", "T4a:T4a", "T4b:T4a", "Tm2:T4a", "T5a:T4a", "C3:T4a", "Mi10:T4a", "TmY15:T4a"]
   syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   a_in: {lo: 0.01, hi: 100.0, init: 1.0, jit: 0.1, mode: "shared"}
@@ -226,6 +224,10 @@ checkpoint_interval: 1000
 # 4.5   train.implementation
 # ---------------------------------------------------------------------------
 init_from: null
+# Adam under init_from: auto = resume only when train objective matches source;
+# true/false force resume or reset (objective = tasks/contrasts/i_sti/
+# part_cost_scales/cost_norm/a_lsd/cost_entry_reduce/cost_ms).
+resume_adam: auto
 
 # ---------------------------------------------------------------------------
 # 4.2   train.session
@@ -253,7 +255,7 @@ mbar_plot_direction: left
 # 5.4   figure.plot
 # ---------------------------------------------------------------------------
 # Tasks to plot after training or when re-plotting; independent of train `tasks`.
-figure_tasks: [mbar]
+figure_tasks: [mbar, sbar]
 # Rows for sbar ``plot_all`` / ``*_all_v.png``.
 sbar_figure_cells: [R1-6, R7, R8, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a]
 html: false

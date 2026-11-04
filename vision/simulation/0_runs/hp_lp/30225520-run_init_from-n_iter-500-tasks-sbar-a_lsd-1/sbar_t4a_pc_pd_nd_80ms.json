@@ -1,0 +1,55 @@
+{
+  "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/30225520-run_init_from-n_iter-500-tasks-sbar-a_lsd-1",
+  "cell": "T4a",
+  "contrast": "bright",
+  "source_gt_width_led": 2,
+  "flash_ms": 160.0,
+  "speed_deg_s": 56.25,
+  "degree_per_mid": 4.5,
+  "delay_per_mid_ms": 80.0,
+  "simulation_delta_ms": 2.0,
+  "original_onset_ms": 324.0,
+  "output_end_ms": 600.0,
+  "gt_affine_gain": 1.0,
+  "gt_affine_bias_mv": -6.393939971923828,
+  "model_baseline_window_ms": [
+    -100,
+    0
+  ],
+  "source_run_cost": 29700.96484375,
+  "sum_metrics": [
+    {
+      "source": "GT",
+      "direction": "PD",
+      "peak_mv": 40.65577604786,
+      "peak_time_ms": 324.0,
+      "trough_mv": -4.91316106728,
+      "trough_time_ms": 600.0
+    },
+    {
+      "source": "Trained T4a",
+      "direction": "PD",
+      "peak_mv": 36.78310167789459,
+      "peak_time_ms": 334.0,
+      "trough_mv": -5.258474588394167,
+      "trough_time_ms": 600.0
+    },
+    {
+      "source": "GT",
+      "direction": "ND",
+      "peak_mv": 26.3106735840852,
+      "peak_time_ms": 324.0,
+      "trough_mv": -1.453539483400001,
+      "trough_time_ms": 600.0
+    },
+    {
+      "source": "Trained T4a",
+      "direction": "ND",
+      "peak_mv": 29.65599551796913,
+      "peak_time_ms": 316.0,
+      "trough_mv": -2.2173101902008074,
+      "trough_time_ms": 600.0
+    }
+  ],
+  "tail_policy": "Stop totals at 600 ms; no post-recording extrapolation or padding."
+}

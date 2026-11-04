@@ -6,6 +6,10 @@ Usage (from ``simulation/``, project ``.venv``):
 
     ../.venv/bin/python run_init_from.py
     ../.venv/bin/python run_init_from.py n_iter=30
+    ../.venv/bin/python run_init_from.py resume_adam=false
+
+``resume_adam=auto`` (default) resumes Adam only when the source run shares the
+same train objective; otherwise params load and Adam resets.
 """
 from __future__ import annotations
 

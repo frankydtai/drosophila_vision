@@ -1,0 +1,9 @@
+{
+  "sigma": 0.8254744410514832,
+  "degree_per_mid": 4.5,
+  "speed_deg_s": 56.25,
+  "current_sigma_deg": 0.8254744410514832,
+  "corrected_sigma_deg": 3.714634984731674,
+  "current_fwhm_ms": 34.55722174714407,
+  "corrected_fwhm_ms": 155.50749786214828
+}

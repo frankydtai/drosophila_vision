@@ -532,6 +532,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         filter=filter,
         sequential=bool(TRAIN_SESSION["sequential"]),
         init_from=init_from,
+        resume_adam=config.get("resume_adam", "auto"),
         checkpoint_interval=TRAIN_OPTIMIZATION.get("checkpoint_interval"),
         syn_sign=bool(ANALYZE_SYN_SIGN.get("after_train", False)),
     )

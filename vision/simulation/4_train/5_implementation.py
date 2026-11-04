@@ -549,20 +549,139 @@ def load_stored_costs(run_dir):
     return final_costs, costs, costs_by_part, final_costs_by_part
 
 
-def load_init_z(init_from, session):
-    """Load per-param best params + adams; return ``(session, z, adam_init)``.
+# Loss-landscape identity for deciding whether to resume Adam across init_from.
+_OBJECTIVE_KEYS = (
+    "tasks",
+    "contrasts",
+    "i_sti",
+    "part_cost_scales",
+    "cost_norm",
+    "a_lsd",
+    "cost_entry_reduce",
+    "cost_ms",
+)
 
-    Trainable ``z`` comes from remapped node vals; fixed nodes are seeded via ``inits``
-    (still not in z); frozen nodes use ``carry``.
+
+def _json_safe(value):
+    """Normalize train_opts fragments for equality (lists/dicts/floats)."""
+    if value is None or isinstance(value, (bool, str)):
+        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe(val)
+            for key, val in sorted(value.items(), key=lambda item: str(item[0]))
+        }
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def objective_fingerprint(train_opts):
+    """Return comparable loss-objective bag from ``train_opts`` / sidecar JSON."""
+    opts = train_opts or {}
+    return {key: _json_safe(opts.get(key)) for key in _OBJECTIVE_KEYS}
+
+
+def objective_diff(src_opts, dst_opts):
+    """Return sorted keys that differ between two objective fingerprints."""
+    src = objective_fingerprint(src_opts)
+    dst = objective_fingerprint(dst_opts)
+    return [key for key in _OBJECTIVE_KEYS if src.get(key) != dst.get(key)]
+
+
+def same_train_objective(src_opts, dst_opts):
+    """True when init_from and current session share the same train objective."""
+    return not objective_diff(src_opts, dst_opts)
+
+
+def resolve_resume_adam(resume_adam, *, same_objective):
+    """Map ``resume_adam`` + objective match → ``(use_adam, mode)``.
+
+    ``mode`` is ``"auto"`` or ``"forced"``. Accepted values: ``auto`` / bool /
+    truthy strings (``true|false|on|off|yes|no|1|0``).
+    """
+    if resume_adam is None:
+        return bool(same_objective), "auto"
+    if isinstance(resume_adam, bool):
+        return resume_adam, "forced"
+    token = str(resume_adam).strip().lower()
+    if token in ("", "auto"):
+        return bool(same_objective), "auto"
+    if token in ("1", "true", "yes", "on"):
+        return True, "forced"
+    if token in ("0", "false", "no", "off"):
+        return False, "forced"
+    raise ValueError(
+        "resume_adam must be auto|true|false "
+        f"(or bool); got {resume_adam!r}"
+    )
+
+
+def _read_train_opts_json(run_dir):
+    path = os.path.join(run_data_dir(run_dir), "train_opts.json")
+    if not os.path.isfile(path):
+        return None
+    with open(path) as handle:
+        return json.load(handle)
+
+
+def load_init_z(init_from, session, resume_adam="auto"):
+    """Load per-param best params (+ Adam when appropriate).
+
+    Returns ``(session, z, adam_init)``. Trainable ``z`` comes from remapped node
+    vals; fixed nodes are seeded via ``inits`` (still not in z); frozen nodes use
+    ``carry``.
+
+    Adam resume policy (``resume_adam``):
+    - ``auto`` (default): resume only when source/current objectives match
+      (``tasks``, ``contrasts``, ``i_sti``, ``part_cost_scales``, ``cost_norm``,
+      ``a_lsd``, ``cost_entry_reduce``, ``cost_ms``).
+    - ``true`` / ``false``: force resume or reset regardless of objective.
     """
     try:
         run_dir = resolve_run_dir(init_from)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
     node_vals, cells, pairs = load_best_node_vals(run_dir)
-    adams_m, adams_v, adam_iter, _, _ = load_best_adam(run_dir)
     session, z = session_z_from_node_vals(node_vals, cells, pairs, session)
     schema = session.schema
+    n_z = train.schema_n_z(schema)
+
+    src_opts = _read_train_opts_json(run_dir)
+    if src_opts is None:
+        diffs = ["missing source train_opts.json"]
+        same_objective = False
+    else:
+        diffs = objective_diff(src_opts, session.train_opts)
+        same_objective = not diffs
+    use_adam, mode = resolve_resume_adam(
+        resume_adam, same_objective=same_objective,
+    )
+
+    if not use_adam:
+        if mode == "forced":
+            reason = "resume_adam=false"
+        elif src_opts is None:
+            reason = "missing source train_opts.json"
+        else:
+            reason = "objective changed: " + ", ".join(diffs)
+        print(
+            f'from {run_dir!r} -> {best_param_path(run_dir)!r} only '
+            f'({n_z} z, reset Adam, {reason})'
+        )
+        return session, z, None
+
+    adam_path = best_adam_path(run_dir)
+    if not os.path.isfile(adam_path):
+        print(
+            f'from {run_dir!r} -> {best_param_path(run_dir)!r} only '
+            f'({n_z} z, reset Adam, missing {adam_path!r})'
+        )
+        return session, z, None
+
+    adams_m, adams_v, adam_iter, _, _ = load_best_adam(run_dir)
     remapped_m = train.remap_node_vals_adams(
         adams_m, cells, pairs, schema, session.connectome,
     )
@@ -573,9 +692,14 @@ def load_init_z(init_from, session):
         remapped_m, remapped_v, schema,
         dtype=session.sim_dtype, device=session.device,
     )
+    note = (
+        "same objective"
+        if mode == "auto"
+        else "resume_adam=true"
+    )
     print(
-        f'from {run_dir!r} -> {best_param_path(run_dir)!r} + {best_adam_path(run_dir)!r} '
-        f'({train.schema_n_z(schema)} z, adam_iter={adam_iter})'
+        f'from {run_dir!r} -> {best_param_path(run_dir)!r} + {adam_path!r} '
+        f'({n_z} z, adam_iter={adam_iter}, {note})'
     )
     return session, z, {
         'exp_avg': exp_avg,
@@ -725,6 +849,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
                  val_from=None,
                  filter=NEURON_SCHEMA['filter'],
                  init_from=None,
+                 resume_adam="auto",
                  checkpoint_interval=None,
                  build_checkpoint_callback=build_checkpoint_callback,
                  checkpoint_on_png=None):
@@ -732,6 +857,9 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
 
     Plotting belongs in ``run.py``. Pass *checkpoint_on_png* from the run layer
     when ``--checkpoint-interval`` should also write PNGs.
+
+    ``resume_adam`` controls Adam inheritance under ``init_from`` (see
+    :func:`load_init_z`).
     """
     session = build_session(
         model,
@@ -782,7 +910,9 @@ def run_train(model, n_run, n_iter, lrs, fname=None, run_dir=None,
     z_init = None
     adam_init = None
     if init_from:
-        session, z_init, adam_init = load_init_z(init_from, session)
+        session, z_init, adam_init = load_init_z(
+            init_from, session, resume_adam=resume_adam,
+        )
     t0 = time.time()
     result = do_many_runs(
         session, n_run, n_iter, lrs=lrs, z_init=z_init, adam_init=adam_init,

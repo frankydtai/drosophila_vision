@@ -5,6 +5,7 @@ import sys
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 import torch
 
 
@@ -17,6 +18,8 @@ from neuron.forward import _mbar_gaussian_overlay, pack_t_onset  # noqa: E402
 from neuron.readout import pack_traces  # noqa: E402
 from task.mbar.gt import fig1_trace_delta  # noqa: E402
 from task.mbar.pack import MbarPack  # noqa: E402
+from task.mbar.sti_spec import MbarSpec, build_bar_axis_distance_hex  # noqa: E402
+from build_hex import DEG  # noqa: E402
 
 
 def test_mbar_aligned_window_keeps_real_pre_stimulus_samples():
@@ -95,3 +98,31 @@ def test_mbar_gaussian_skips_pre_onset_and_keeps_finite_grad():
     post = _mbar_gaussian_overlay(raw_drive, {"a_sti_mid": sigma}, pack, t=1)
     post.sum().backward()
     assert torch.isfinite(sigma.grad).all()
+
+
+@pytest.mark.parametrize("direction", ["right", "left", "up", "down"])
+@pytest.mark.parametrize("peak", [40.0, 0.0])
+def test_mbar_gaussian_one_mid_offset_matches_static_width(direction, peak):
+    """A 4.5-degree offset has gain exp(-1/2) for sigma=1 mid."""
+    hexes = [SimpleNamespace(x=x, y=y) for x, y in ((0, 0), (1, 0), (0, 1))]
+    distances = build_bar_axis_distance_hex(
+        hexes, [MbarSpec(direction, "bright" if peak else "dark", float(DEG))],
+        n_t=5, bar_dist=4, multi_bar=False, t_onset=1, delta_ms=40,
+        view_deg=(-float(DEG), -float(DEG), float(DEG), float(DEG)),
+    )
+    # The bar center reaches (0,0) at the final stored frame in all directions.
+    offsets = [0.0, 1.0, 0.0] if direction in ("right", "left") else [0.0, 0.0, 1.0]
+    np.testing.assert_allclose(distances[0, -1], offsets, atol=1e-12)
+    pack = SimpleNamespace(
+        bar_axis_distance=torch.tensor(distances, dtype=torch.float64),
+        bar_axis_sti_nodes=torch.tensor([0, 1, 2]), t_onset=1,
+        i_sti_baseline=20.0, i_sti_peak=peak,
+    )
+    sigma = torch.tensor([1.0], dtype=torch.float64, requires_grad=True)
+    raw = torch.tensor([[20.0, 20.0, 20.0, -7.0]], dtype=torch.float64)
+    drive = _mbar_gaussian_overlay(raw, {"a_sti_mid": sigma}, pack, t=4)
+    gain = np.exp(-0.5 * np.square(offsets))
+    expected = np.concatenate((20.0 + (peak - 20.0) * gain, [-7.0]))
+    torch.testing.assert_close(drive[0], torch.tensor(expected))
+    drive.sum().backward()
+    assert torch.isfinite(sigma.grad).all() and sigma.grad.abs().item() > 0
