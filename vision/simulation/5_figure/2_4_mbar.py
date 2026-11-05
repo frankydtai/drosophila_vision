@@ -18,6 +18,8 @@ from task.mbar.gt import (
 )
 from task.mbar.pack import (
     bar_specs_from_task,
+    dsi_groups,
+    dsi_values,
     nodes_from_hexes,
     mbar_specs_by_cell,
     mbar_session_t0_grids,
@@ -146,6 +148,8 @@ class MbarTraceReadout:
     t_onset: int | None = None
     gt_affine_by_cell: dict = field(default_factory=dict)
     ms_shown: tuple[float, float] | None = None
+    dsi_by_cell: dict = field(default_factory=dict)
+    dsi_window_ts: dict = field(default_factory=dict)
 
 
 def _mbar_figure(n_row, n_col, *, sharex='col'):
@@ -425,9 +429,23 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
     t_prep0 = time.perf_counter()
     pack = session.packs[task][contrast]
     params = train.params_from_z(z, session)
-    trace = as_numpy(train.forward_pack(session, params, pack.i_sti, pack))
+    trace = train.forward_pack(session, params, pack.i_sti, pack)
+    window_ts = {}
+    dsi_by_cell = {
+        key.removeprefix(f"mbar_DSI_{contrast}_"): float(value)
+        for key, value in dsi_values(
+            pack, trace, window_ts=window_ts,
+        ).items()
+    }
+    trace = as_numpy(trace)
     specs = bar_specs_from_task(session, task, contrast)
     spec_tokens = [spec.token for spec in specs]
+    dsi_window_ts = {}
+    for key, pd, nd in dsi_groups(pack):
+        cell = key.removeprefix(f"mbar_DSI_{contrast}_")
+        for label, members in (("PD", pd), ("ND", nd)):
+            for b in pack.entry_bs[members].unique():
+                dsi_window_ts[(cell, spec_tokens[int(b)])] = window_ts[key][label]
     n_t = int(session.n_t)
     connectome = session.connectome
     forward_at_x, forward_at_y = _mbar_primary_at_xy(
@@ -515,6 +533,8 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
         t_onset=int(t_onset),
         gt_affine_by_cell=gt_affine_by_cell,
         ms_shown=ms_shown,
+        dsi_by_cell=dsi_by_cell,
+        dsi_window_ts=dsi_window_ts,
     )
 
 
@@ -918,6 +938,7 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
         n_col = n_col_half
     n_row = len(gt_cells)
     fig, axes = _mbar_figure(n_row, n_col)
+    fig.set_figheight(2.4 * n_row + 0.8)
 
     def _plot_row(row, cell, specs, col_offset, row_readout, side):
         window_traces = row_readout.traces
@@ -937,6 +958,8 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
                 cost_parts=cost_parts,
                 cost_contrasts=cost_contrasts,
             )
+            if cell in row_readout.dsi_by_cell:
+                cell_title += f'\nDSI={row_readout.dsi_by_cell[cell]:.3f}'
             gt_trace = gt_trace_affine(
                 row_readout, cell, row_readout.gt_traces.get(key),
             )
@@ -992,6 +1015,24 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
                     delta_ms=delta_ms,
                     ms_shown=ms_shown,
                 )
+            if key in row_readout.dsi_window_ts:
+                start, stop = row_readout.dsi_window_ts[key]
+                ax.axvspan(
+                    before_t + start, before_t + stop,
+                    color='tab:blue', alpha=0.12, zorder=0.5,
+                )
+                for bound in (start, stop):
+                    if ax.get_xlim()[0] <= before_t + bound <= ax.get_xlim()[1]:
+                        ax.axvline(
+                            before_t + bound, color='tab:blue',
+                            linewidth=0.7, linestyle='--',
+                        )
+                ax.text(
+                    0.02, 0.03,
+                    f'DSI sum window\n[{start * delta_ms:g}, {stop * delta_ms:g}] ms',
+                    transform=ax.transAxes, ha='left', va='bottom',
+                    fontsize=6, color='tab:blue',
+                )
 
     for row, cell in enumerate(gt_cells):
         _plot_row(row, cell, row_specs[cell], 0, readout, readout.side)
@@ -1007,7 +1048,7 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
         title + f'  [{hexes_label}, t_first_sti-aligned trace]',
         fontsize=12,
     )
-    fig.subplots_adjust(top=0.90, bottom=0.08, hspace=0.50, wspace=0.35)
+    fig.subplots_adjust(top=0.80, bottom=0.08, hspace=0.90, wspace=0.35)
     timer.end_plot()
     save_figure(fig, path, dpi=MBAR_DPI, rasterize=True, timer=timer)
 

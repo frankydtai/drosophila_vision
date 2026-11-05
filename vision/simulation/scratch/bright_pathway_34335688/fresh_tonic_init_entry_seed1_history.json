@@ -1,0 +1,651 @@
+[
+  {
+    "total": 838976.375,
+    "parts": {
+      "spread_bright_L5": 111114.65625,
+      "spread_bright_Mi1": 81017.3984375,
+      "spread_bright_Mi4": 138432.609375,
+      "spread_bright_Tm3": 104563.953125,
+      "spread_dark_L1": 83599.7890625,
+      "spread_dark_L2": 80424.9296875,
+      "spread_dark_L3": 65262.25,
+      "spread_dark_L4": 93938.6640625,
+      "spread_dark_Mi9": 80622.125
+    },
+    "cells": {
+      "L1": {
+        "v_th": -57.0,
+        "baseline": -53.25159454345703,
+        "bright_peak": 2.6702880859375e-05,
+        "bright_trough": -3.6827774047851562,
+        "output_baseline": 3.6376190185546875,
+        "output_peak": 3.637643337249756
+      },
+      "L5": {
+        "v_th": -57.0,
+        "baseline": -52.23552322387695,
+        "bright_peak": 0.3296241760253906,
+        "bright_trough": -1.9073486328125e-05,
+        "output_baseline": 4.7250752449035645,
+        "output_peak": 5.051977157592773
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -52.248443603515625,
+        "bright_peak": 0.4169769287109375,
+        "bright_trough": -1.1444091796875e-05,
+        "output_baseline": 0.0,
+        "output_peak": 0.0
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.760772705078125,
+        "bright_peak": 0.017955780029296875,
+        "bright_trough": 0.0,
+        "output_baseline": 0.0,
+        "output_peak": 0.0
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -52.054290771484375,
+        "bright_peak": 0.25066375732421875,
+        "bright_trough": -3.814697265625e-06,
+        "output_baseline": 0.0,
+        "output_peak": 0.0
+      }
+    },
+    "iter": 0,
+    "temperature": 0.0,
+    "elapsed": 0.6513714790344238
+  },
+  {
+    "total": 432008.67041015625,
+    "parts": {
+      "spread_bright_L5": 9117.6005859375,
+      "spread_bright_Mi1": 81317.34375,
+      "spread_bright_Mi4": 123491.9765625,
+      "spread_bright_Tm3": 13530.9091796875,
+      "spread_dark_L1": 13717.271484375,
+      "spread_dark_L2": 19572.931640625,
+      "spread_dark_L3": 5905.55908203125,
+      "spread_dark_L4": 84788.234375,
+      "spread_dark_Mi9": 80566.84375
+    },
+    "cells": {
+      "L1": {
+        "v_th": -59.03367233276367,
+        "baseline": -52.02891159057617,
+        "bright_peak": 0.000274658203125,
+        "bright_trough": -17.621105194091797,
+        "output_baseline": 20.569686889648438,
+        "output_peak": 20.57050323486328
+      },
+      "L5": {
+        "v_th": -57.33339309692383,
+        "baseline": -58.96797561645508,
+        "bright_peak": 6.759056091308594,
+        "bright_trough": -0.000583648681640625,
+        "output_baseline": 0.2257673740386963,
+        "output_peak": 15.48747730255127
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -59.71324920654297,
+        "bright_peak": 9.64498519897461,
+        "bright_trough": -0.00066375732421875,
+        "output_baseline": 0.01191318966448307,
+        "output_peak": 0.011917246505618095
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.997718811035156,
+        "bright_peak": 2.181549072265625,
+        "bright_trough": -7.62939453125e-06,
+        "output_baseline": 0.0,
+        "output_peak": 0.0
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -56.49738311767578,
+        "bright_peak": 6.440578460693359,
+        "bright_trough": -0.000396728515625,
+        "output_baseline": 0.0,
+        "output_peak": 0.0
+      }
+    },
+    "iter": 20,
+    "temperature": 0.0,
+    "elapsed": 118.11353635787964
+  },
+  {
+    "total": 320693.31018066406,
+    "parts": {
+      "spread_bright_L5": 3069.983642578125,
+      "spread_bright_Mi1": 58122.19921875,
+      "spread_bright_Mi4": 94182.0390625,
+      "spread_bright_Tm3": 1897.1707763671875,
+      "spread_dark_L1": 6374.3701171875,
+      "spread_dark_L2": 13337.86328125,
+      "spread_dark_L3": 4118.12939453125,
+      "spread_dark_L4": 60575.6328125,
+      "spread_dark_Mi9": 79015.921875
+    },
+    "cells": {
+      "L1": {
+        "v_th": -60.604637145996094,
+        "baseline": -52.684329986572266,
+        "bright_peak": 0.000270843505859375,
+        "bright_trough": -14.172260284423828,
+        "output_baseline": 26.386444091796875,
+        "output_peak": 26.3873348236084
+      },
+      "L5": {
+        "v_th": -58.39799118041992,
+        "baseline": -59.63174057006836,
+        "bright_peak": 9.397418975830078,
+        "bright_trough": -0.000732421875,
+        "output_baseline": 0.5858907699584961,
+        "output_peak": 42.06620407104492
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -63.866207122802734,
+        "bright_peak": 18.024974822998047,
+        "bright_trough": -0.00086212158203125,
+        "output_baseline": 0.08899424970149994,
+        "output_peak": 2.2247488498687744
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.96329879760742,
+        "bright_peak": 7.0531005859375,
+        "bright_trough": -1.9073486328125e-05,
+        "output_baseline": 0.0,
+        "output_peak": 0.12606379389762878
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -58.90825653076172,
+        "bright_peak": 13.544151306152344,
+        "bright_trough": -0.000537872314453125,
+        "output_baseline": 0.0,
+        "output_peak": 2.464310884475708
+      }
+    },
+    "iter": 40,
+    "temperature": 0.0,
+    "elapsed": 164.81835293769836
+  },
+  {
+    "total": 271287.9587402344,
+    "parts": {
+      "spread_bright_L5": 4416.8251953125,
+      "spread_bright_Mi1": 54867.41796875,
+      "spread_bright_Mi4": 88414.09375,
+      "spread_bright_Tm3": 2445.182861328125,
+      "spread_dark_L1": 4367.6640625,
+      "spread_dark_L2": 7441.5771484375,
+      "spread_dark_L3": 2845.69580078125,
+      "spread_dark_L4": 29748.462890625,
+      "spread_dark_Mi9": 76741.0390625
+    },
+    "cells": {
+      "L1": {
+        "v_th": -61.34067916870117,
+        "baseline": -53.92793655395508,
+        "bright_peak": 0.0006103515625,
+        "bright_trough": -16.391246795654297,
+        "output_baseline": 25.477861404418945,
+        "output_peak": 25.479970932006836
+      },
+      "L5": {
+        "v_th": -58.48086166381836,
+        "baseline": -59.981380462646484,
+        "bright_peak": 10.811016082763672,
+        "bright_trough": -0.000553131103515625,
+        "output_baseline": 0.5430864691734314,
+        "output_peak": 56.08484649658203
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -65.79312896728516,
+        "bright_peak": 24.15102767944336,
+        "bright_trough": 0.0,
+        "output_baseline": 0.12170595675706863,
+        "output_peak": 10.556414604187012
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.97454071044922,
+        "bright_peak": 11.782146453857422,
+        "bright_trough": -3.0517578125e-05,
+        "output_baseline": 0.0,
+        "output_peak": 0.5375727415084839
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -59.169410705566406,
+        "bright_peak": 20.05850601196289,
+        "bright_trough": -0.00083160400390625,
+        "output_baseline": 0.0,
+        "output_peak": 4.101709842681885
+      }
+    },
+    "iter": 60,
+    "temperature": 0.0,
+    "elapsed": 210.80470657348633
+  },
+  {
+    "total": 226920.5780029297,
+    "parts": {
+      "spread_bright_L5": 3989.8056640625,
+      "spread_bright_Mi1": 43292.390625,
+      "spread_bright_Mi4": 86645.5859375,
+      "spread_bright_Tm3": 2190.41064453125,
+      "spread_dark_L1": 2897.331787109375,
+      "spread_dark_L2": 5785.3154296875,
+      "spread_dark_L3": 1948.6007080078125,
+      "spread_dark_L4": 8070.72314453125,
+      "spread_dark_Mi9": 72100.4140625
+    },
+    "cells": {
+      "L1": {
+        "v_th": -61.89549255371094,
+        "baseline": -53.23587417602539,
+        "bright_peak": 0.000667572021484375,
+        "bright_trough": -15.21004867553711,
+        "output_baseline": 25.71271324157715,
+        "output_peak": 25.713764190673828
+      },
+      "L5": {
+        "v_th": -58.39836883544922,
+        "baseline": -59.301544189453125,
+        "bright_peak": 12.01541519165039,
+        "bright_trough": -0.0011138916015625,
+        "output_baseline": 0.6989195942878723,
+        "output_peak": 73.05912780761719
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -67.67240905761719,
+        "bright_peak": 30.61077117919922,
+        "bright_trough": -0.00141143798828125,
+        "output_baseline": 0.0,
+        "output_peak": 31.7313175201416
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.89529037475586,
+        "bright_peak": 18.244632720947266,
+        "bright_trough": -8.0108642578125e-05,
+        "output_baseline": 0.0,
+        "output_peak": 1.1691118478775024
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -56.905677795410156,
+        "bright_peak": 27.981645584106445,
+        "bright_trough": -0.000965118408203125,
+        "output_baseline": 0.0,
+        "output_peak": 1.6205729246139526
+      }
+    },
+    "iter": 80,
+    "temperature": 0.0,
+    "elapsed": 256.483580827713
+  },
+  {
+    "total": 159416.94018554688,
+    "parts": {
+      "spread_bright_L5": 3114.302490234375,
+      "spread_bright_Mi1": 31706.791015625,
+      "spread_bright_Mi4": 84268.5,
+      "spread_bright_Tm3": 2389.4951171875,
+      "spread_dark_L1": 2961.06884765625,
+      "spread_dark_L2": 5875.6201171875,
+      "spread_dark_L3": 9683.64453125,
+      "spread_dark_L4": 7435.38037109375,
+      "spread_dark_Mi9": 11982.1376953125
+    },
+    "cells": {
+      "L1": {
+        "v_th": -62.38961410522461,
+        "baseline": -53.6371955871582,
+        "bright_peak": 0.0,
+        "bright_trough": -12.69479751586914,
+        "output_baseline": 22.560754776000977,
+        "output_peak": 22.560754776000977
+      },
+      "L5": {
+        "v_th": -58.23569869995117,
+        "baseline": -58.82658767700195,
+        "bright_peak": 10.77078628540039,
+        "bright_trough": -0.00127410888671875,
+        "output_baseline": 4.002695083618164,
+        "output_peak": 73.56178283691406
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -66.10786437988281,
+        "bright_peak": 28.962337493896484,
+        "bright_trough": -0.00128173828125,
+        "output_baseline": 2.182882070541382,
+        "output_peak": 46.921592712402344
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.90894317626953,
+        "bright_peak": 20.507965087890625,
+        "bright_trough": -6.4849853515625e-05,
+        "output_baseline": 0.0,
+        "output_peak": 1.3929418325424194
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -54.86369705200195,
+        "bright_peak": 30.55940818786621,
+        "bright_trough": -0.001007080078125,
+        "output_baseline": 0.0,
+        "output_peak": 2.0785651206970215
+      }
+    },
+    "iter": 100,
+    "temperature": 0.0,
+    "elapsed": 301.6993067264557
+  },
+  {
+    "total": 142620.94262695312,
+    "parts": {
+      "spread_bright_L5": 3401.6171875,
+      "spread_bright_Mi1": 29471.763671875,
+      "spread_bright_Mi4": 81746.8125,
+      "spread_bright_Tm3": 1466.08837890625,
+      "spread_dark_L1": 3631.88525390625,
+      "spread_dark_L2": 4936.1796875,
+      "spread_dark_L3": 1107.060302734375,
+      "spread_dark_L4": 7318.82373046875,
+      "spread_dark_Mi9": 9540.7119140625
+    },
+    "cells": {
+      "L1": {
+        "v_th": -62.736854553222656,
+        "baseline": -54.65171813964844,
+        "bright_peak": 0.000659942626953125,
+        "bright_trough": -12.121650695800781,
+        "output_baseline": 22.327638626098633,
+        "output_peak": 22.328388214111328
+      },
+      "L5": {
+        "v_th": -57.75745391845703,
+        "baseline": -58.689823150634766,
+        "bright_peak": 11.268875122070312,
+        "bright_trough": -0.0012359619140625,
+        "output_baseline": 0.6054921746253967,
+        "output_peak": 76.89140319824219
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -67.3901138305664,
+        "bright_peak": 31.922679901123047,
+        "bright_trough": -0.00093841552734375,
+        "output_baseline": 0.0,
+        "output_peak": 37.963233947753906
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.898868560791016,
+        "bright_peak": 21.48923683166504,
+        "bright_trough": -8.7738037109375e-05,
+        "output_baseline": 0.0,
+        "output_peak": 1.4898881912231445
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -54.86073303222656,
+        "bright_peak": 29.685487747192383,
+        "bright_trough": -0.001247406005859375,
+        "output_baseline": 0.0,
+        "output_peak": 1.9914183616638184
+      }
+    },
+    "iter": 120,
+    "temperature": 0.0,
+    "elapsed": 346.7260947227478
+  },
+  {
+    "total": 134248.18615722656,
+    "parts": {
+      "spread_bright_L5": 3273.212158203125,
+      "spread_bright_Mi1": 26956.037109375,
+      "spread_bright_Mi4": 79677.5234375,
+      "spread_bright_Tm3": 1134.456787109375,
+      "spread_dark_L1": 2695.947021484375,
+      "spread_dark_L2": 4669.328125,
+      "spread_dark_L3": 866.8021240234375,
+      "spread_dark_L4": 6411.16748046875,
+      "spread_dark_Mi9": 8563.7119140625
+    },
+    "cells": {
+      "L1": {
+        "v_th": -63.07048797607422,
+        "baseline": -54.2932243347168,
+        "bright_peak": 0.00066375732421875,
+        "bright_trough": -11.353084564208984,
+        "output_baseline": 23.38583755493164,
+        "output_peak": 23.38665199279785
+      },
+      "L5": {
+        "v_th": -57.3033447265625,
+        "baseline": -58.20854187011719,
+        "bright_peak": 11.185123443603516,
+        "bright_trough": -0.001239776611328125,
+        "output_baseline": 0.5165579319000244,
+        "output_peak": 79.10914611816406
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -68.00936889648438,
+        "bright_peak": 32.42559814453125,
+        "bright_trough": -0.00103759765625,
+        "output_baseline": 0.0,
+        "output_peak": 31.171459197998047
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.91986083984375,
+        "bright_peak": 21.04407501220703,
+        "bright_trough": -8.392333984375e-05,
+        "output_baseline": 0.0,
+        "output_peak": 1.444421648979187
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -55.085601806640625,
+        "bright_peak": 28.363231658935547,
+        "bright_trough": -0.0011444091796875,
+        "output_baseline": 0.0,
+        "output_peak": 1.8381669521331787
+      }
+    },
+    "iter": 140,
+    "temperature": 0.0,
+    "elapsed": 392.422660112381
+  },
+  {
+    "total": 127632.25115966797,
+    "parts": {
+      "spread_bright_L5": 3527.014404296875,
+      "spread_bright_Mi1": 24079.47265625,
+      "spread_bright_Mi4": 77463.78125,
+      "spread_bright_Tm3": 912.6570434570312,
+      "spread_dark_L1": 2598.010009765625,
+      "spread_dark_L2": 4556.27197265625,
+      "spread_dark_L3": 774.3690185546875,
+      "spread_dark_L4": 6180.63720703125,
+      "spread_dark_Mi9": 7540.03759765625
+    },
+    "cells": {
+      "L1": {
+        "v_th": -63.41495895385742,
+        "baseline": -54.51401901245117,
+        "bright_peak": 0.000640869140625,
+        "bright_trough": -10.411121368408203,
+        "output_baseline": 23.444896697998047,
+        "output_peak": 23.446571350097656
+      },
+      "L5": {
+        "v_th": -56.924312591552734,
+        "baseline": -57.78718566894531,
+        "bright_peak": 10.741466522216797,
+        "bright_trough": -0.00089263916015625,
+        "output_baseline": 0.4785600006580353,
+        "output_peak": 78.88111877441406
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -68.0506591796875,
+        "bright_peak": 32.01338195800781,
+        "bright_trough": -0.0006103515625,
+        "output_baseline": 0.0,
+        "output_peak": 25.47350311279297
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.9268798828125,
+        "bright_peak": 20.40386962890625,
+        "bright_trough": -8.0108642578125e-05,
+        "output_baseline": 0.0,
+        "output_peak": 1.3820068836212158
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -55.00006103515625,
+        "bright_peak": 26.678417205810547,
+        "bright_trough": -0.00113677978515625,
+        "output_baseline": 0.0,
+        "output_peak": 1.6797027587890625
+      }
+    },
+    "iter": 160,
+    "temperature": 0.0,
+    "elapsed": 448.9857506752014
+  },
+  {
+    "total": 120402.32897949219,
+    "parts": {
+      "spread_bright_L5": 3881.80029296875,
+      "spread_bright_Mi1": 21451.375,
+      "spread_bright_Mi4": 75264.6796875,
+      "spread_bright_Tm3": 744.5137939453125,
+      "spread_dark_L1": 2553.111083984375,
+      "spread_dark_L2": 4370.93603515625,
+      "spread_dark_L3": 757.23388671875,
+      "spread_dark_L4": 6072.14794921875,
+      "spread_dark_Mi9": 5306.53125
+    },
+    "cells": {
+      "L1": {
+        "v_th": -63.741981506347656,
+        "baseline": -54.68994140625,
+        "bright_peak": 0.000659942626953125,
+        "bright_trough": -9.441184997558594,
+        "output_baseline": 23.625328063964844,
+        "output_peak": 23.62704849243164
+      },
+      "L5": {
+        "v_th": -56.539512634277344,
+        "baseline": -57.361698150634766,
+        "bright_peak": 10.246063232421875,
+        "bright_trough": -0.000583648681640625,
+        "output_baseline": 0.43898293375968933,
+        "output_peak": 77.4723129272461
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -68.10022735595703,
+        "bright_peak": 31.17627716064453,
+        "bright_trough": -0.00012969970703125,
+        "output_baseline": 0.0,
+        "output_peak": 19.058937072753906
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.93582534790039,
+        "bright_peak": 19.376541137695312,
+        "bright_trough": -8.7738037109375e-05,
+        "output_baseline": 0.0,
+        "output_peak": 1.281873345375061
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -54.96152114868164,
+        "bright_peak": 24.70295524597168,
+        "bright_trough": -0.001117706298828125,
+        "output_baseline": 0.0,
+        "output_peak": 1.4889919757843018
+      }
+    },
+    "iter": 180,
+    "temperature": 0.0,
+    "elapsed": 503.4977192878723
+  },
+  {
+    "total": 113827.22290039062,
+    "parts": {
+      "spread_bright_L5": 4277.45556640625,
+      "spread_bright_Mi1": 19231.61328125,
+      "spread_bright_Mi4": 73238.78125,
+      "spread_bright_Tm3": 655.2034912109375,
+      "spread_dark_L1": 2347.48974609375,
+      "spread_dark_L2": 4072.405029296875,
+      "spread_dark_L3": 719.2818603515625,
+      "spread_dark_L4": 6006.61328125,
+      "spread_dark_Mi9": 3278.37939453125
+    },
+    "cells": {
+      "L1": {
+        "v_th": -64.05477905273438,
+        "baseline": -54.60482406616211,
+        "bright_peak": 0.000457763671875,
+        "bright_trough": -8.39654541015625,
+        "output_baseline": 24.51959991455078,
+        "output_peak": 24.520784378051758
+      },
+      "L5": {
+        "v_th": -56.117042541503906,
+        "baseline": -56.97939682006836,
+        "bright_peak": 9.823036193847656,
+        "bright_trough": -0.000965118408203125,
+        "output_baseline": 0.3354872763156891,
+        "output_peak": 75.2967529296875
+      },
+      "Mi1": {
+        "v_th": -45.0,
+        "baseline": -68.50588989257812,
+        "bright_peak": 30.031883239746094,
+        "bright_trough": -0.00106048583984375,
+        "output_baseline": 0.0,
+        "output_peak": 13.397768020629883
+      },
+      "Mi4": {
+        "v_th": -45.0,
+        "baseline": -51.982452392578125,
+        "bright_peak": 18.147151947021484,
+        "bright_trough": -0.000110626220703125,
+        "output_baseline": 0.0,
+        "output_peak": 1.1592532396316528
+      },
+      "Tm3": {
+        "v_th": -45.0,
+        "baseline": -55.05429458618164,
+        "bright_peak": 22.849254608154297,
+        "bright_trough": -0.00104522705078125,
+        "output_baseline": 0.0,
+        "output_peak": 1.2992373704910278
+      }
+    },
+    "iter": 200,
+    "temperature": 0.0,
+    "elapsed": 557.3953936100006
+  }
+]

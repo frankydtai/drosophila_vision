@@ -55,6 +55,17 @@ class ResumeAdamPolicyTest(unittest.TestCase):
         dst = objective_fingerprint(_opts(a_lsd=1.0, i_sti={"bright": 40.0}))
         self.assertEqual(src, dst)
 
+    def test_entry_baseline_changes_objective_but_explicit_legacy_scope_does_not(self):
+        legacy = _opts(val_from={"bias_gt": {"source": "v_onset", "enabled": True}})
+        cell = _opts(val_from={"bias_gt": {
+            "source": "v_onset", "enabled": True, "scope": "cell",
+        }})
+        entry = _opts(val_from={"bias_gt": {
+            "source": "v_onset", "enabled": True, "scope": "entry",
+        }})
+        self.assertTrue(same_train_objective(legacy, cell))
+        self.assertEqual(objective_diff(legacy, entry), ["bias_gt_scope"])
+
     def test_resolve_resume_adam_auto(self):
         self.assertEqual(
             resolve_resume_adam("auto", same_objective=True),

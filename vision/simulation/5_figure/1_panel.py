@@ -66,7 +66,7 @@ def cost_ylim(*costs, percentile=99.0, padding=1.1, floor=1.0, log=False):
         floor,
     )
     if not log:
-        return 0.0, ylim_high
+        return min(0.0, float(concatenated.min()) * padding), ylim_high
     positive = concatenated[concatenated > 0]
     if not positive.size:
         return floor, max(ylim_high, floor * 10.0)
@@ -77,6 +77,11 @@ def cost_ylim(*costs, percentile=99.0, padding=1.1, floor=1.0, log=False):
 
 
 def _cost_yscale(ax, *costs):
+    limits = cost_ylim(*costs)
+    if limits[0] < 0:
+        ax.set_yscale('symlog')
+        ax.set_ylim(*limits)
+        return
     ax.set_yscale('log')
     ax.set_ylim(*cost_ylim(*costs, log=True))
 

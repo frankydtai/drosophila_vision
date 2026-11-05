@@ -13,6 +13,9 @@ cost compares the readout to ``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when
 present and ``val_from`` bias_gt is off). When ``train_opts['val_from']['bias_gt']`` is
 enabled with source ``v_onset``, ``params['bias_gt']`` is written from ``v`` at ``t_onset``
 (or ``v_ca`` when ``filter=ca``), clamped to schema ``bias_gt`` ``lo``/``hi`` (always in graph).
+The optional ``val_from.bias_gt.scope=entry`` subtracts each supervised entry's
+own onset readout in the loss. The default ``cell`` retains the legacy full-cell
+mean baseline; plot/export baselines remain full-cell means in either mode.
 Same for ``v_th_ca`` / ``a_ca`` ``val_from`` entries:
 sources are written into ``params['v_th_ca']`` / ``params['a_ca']``
 (and ``param.csv``).
@@ -35,11 +38,12 @@ The fixed manual config weight gives ``L_total = L_mean + a_lsd * L_band``;
 ``entry_sse`` is the legacy behavior that compares every entry separately
 before summing and does not use the distribution-level SD target.
 
-Moving-bar DSI adds one squared-error part per cell/contrast/width, target 1.
-PD and ND peaks use each hex's actual transit interval extended by one transit
-duration on each side. The effective GT baseline is subtracted before peaks;
-peaks are averaged over the selected nodes before
-``DSI = (R_pd - R_nd) / (R_pd + R_nd + eps)`` (``eps=1e-8``, NIPS2026-style).
+Moving-bar DSI adds one negative voltage-sum difference per cell/contrast.
+Average raw PD and ND readout curves over their selected nodes after aligning
+each hex's first stimulus. Sum all samples in each group's common transit
+window, extended by one transit duration on each side, then subtract ND from
+PD. No baseline subtraction, rectification, division normalization or time-step
+scaling is applied. ``loss = -DSI`` maximizes the PD-minus-ND voltage sum.
 ``part_cost_scales['mbar_DSI']`` controls all DSI parts, with exact-key overrides.
 
 Sparse cost time points (#4): ``pack.gts`` keeps the ``ms_response`` window length
@@ -802,9 +806,31 @@ def _pack_cost_parts_from_v_readout(
     trace=None,
     b_offset=0,
 ) -> Dict[str, torch.Tensor]:
+    baseline_opts = ((session.train_opts or {}).get("val_from") or {}).get("bias_gt") or {}
+    entry_baseline = (
+        baseline_opts.get("enabled") and baseline_opts.get("scope", "cell") == "entry"
+    )
+    if entry_baseline:
+        if baseline_opts.get("source") != "v_onset":
+            raise ValueError("bias_gt scope=entry requires source=v_onset")
+        if trace is None:
+            raise ValueError("bias_gt scope=entry requires the full onset readout trace")
+        # Use the same neurons/batches for model and target. A baseline from
+        # other spatial locations can otherwise produce gradients even for a
+        # perfectly constant response on the supervised neurons.
+        bias_spec = session.schema["bias_gt"]
+        bias_gt = trace[
+            pack.entry_bs + int(b_offset), pack_t_onset(pack), pack.entry_nodes,
+        ].clamp(min=float(bias_spec["lo"]), max=float(bias_spec["hi"]))
     part_idxs, part_keys = entries_by_part(pack)
     gts = pack.gts
     gt_stds = getattr(pack, "gt_stds", None)
+    waveform_bias = bias_gt
+    if entry_baseline and gt_stds is not None:
+        # SD targets describe response dispersion, so constant spatial baseline
+        # differences must also be removed before calculating model variance.
+        v_readout = v_readout - bias_gt[:, None]
+        waveform_bias = torch.zeros_like(bias_gt)
     if pack.cost_ts is not None:
         cost_ts = pack.cost_ts.to(device=v_readout.device)
         v_readout = v_readout.index_select(1, cost_ts)
@@ -813,7 +839,7 @@ def _pack_cost_parts_from_v_readout(
             gt_stds = gt_stds.index_select(1, cost_ts)
     cost_time_mask = getattr(pack, "cost_time_mask", None)
     parts = _parts_from_entries(
-        a_gt, bias_gt, gts, _entry_cost_scales(pack), v_readout,
+        a_gt, waveform_bias, gts, _entry_cost_scales(pack), v_readout,
         part_idxs, part_keys, session,
         time_mask=(
             None if cost_time_mask is None else
@@ -825,7 +851,7 @@ def _pack_cost_parts_from_v_readout(
     if _pack_has_active_dsi(pack, session):
         if trace is None:
             raise ValueError("moving-bar DSI requires the full forward trace")
-        parts.update(dsi_cost_parts(pack, trace, bias_gt, b_offset=b_offset))
+        parts.update(dsi_cost_parts(pack, trace, b_offset=b_offset))
     return parts
 
 

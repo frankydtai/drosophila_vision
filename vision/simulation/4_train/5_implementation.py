@@ -559,6 +559,7 @@ _OBJECTIVE_KEYS = (
     "a_lsd",
     "cost_entry_reduce",
     "cost_ms",
+    "bias_gt_scope",
 )
 
 
@@ -581,7 +582,13 @@ def _json_safe(value):
 def objective_fingerprint(train_opts):
     """Return comparable loss-objective bag from ``train_opts`` / sidecar JSON."""
     opts = train_opts or {}
-    return {key: _json_safe(opts.get(key)) for key in _OBJECTIVE_KEYS}
+    fingerprint = {key: _json_safe(opts.get(key)) for key in _OBJECTIVE_KEYS}
+    bias = ((opts.get("val_from") or {}).get("bias_gt") or {})
+    fingerprint["bias_gt_scope"] = (
+        bias.get("scope", "cell")
+        if bias.get("enabled") and bias.get("source") == "v_onset" else "cell"
+    )
+    return fingerprint
 
 
 def objective_diff(src_opts, dst_opts):

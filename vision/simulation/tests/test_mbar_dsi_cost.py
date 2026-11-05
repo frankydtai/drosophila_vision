@@ -17,7 +17,7 @@ if SIMULATION_ROOT not in sys.path:
 import import_bootstrap  # noqa: E402,F401
 import train.cost as cost  # noqa: E402
 from task.mbar.pack import (  # noqa: E402
-    MbarPack, build_mbar_gt, build_mbar_pack, dsi_cost_parts, dsi_groups,
+    MbarPack, build_mbar_gt, build_mbar_pack, dsi_cost_parts, dsi_groups, dsi_values,
     mbar_cost_sti_hexes,
 )
 from task.mbar.sti_geo import cost_motion_view_deg, view_bounds  # noqa: E402
@@ -79,25 +79,34 @@ def test_hex_dsi_window_adds_one_actual_transit_on_each_side():
     assert hex_dsi_window(40 - stimulus, 20) == (6, 13)
 
 
-def test_peaks_use_local_windows_baseline_and_subtype_pd():
+def test_voltage_sums_use_local_windows_and_subtype_pd():
     pack = make_pack()
     baseline = torch.tensor([10.0, 20.0], dtype=torch.float64)
     trace = response_trace() + baseline
     trace[:, 0] = 1000  # Outside every local window.
     trace[:, 11] = 1000
     trace.requires_grad_()
-    parts = dsi_cost_parts(pack, trace, baseline[pack.entry_nodes])
+    window_ts = {}
+    values = dsi_values(pack, trace, window_ts=window_ts)
+    assert window_ts == {
+        KEY_A: {"PD": (0, 2), "ND": (0, 2)},
+        KEY_B: {"PD": (-1, 2), "ND": (-1, 2)},
+    }
+    torch.testing.assert_close(values[KEY_A], trace.new_tensor(3.0))
+    torch.testing.assert_close(values[KEY_B], trace.new_tensor(4.0))
+    parts = dsi_cost_parts(pack, trace)
 
-    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(0.16))
-    torch.testing.assert_close(parts[KEY_B], trace.new_tensor(0.25))
+    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(-3.0))
+    torch.testing.assert_close(parts[KEY_B], trace.new_tensor(-4.0))
     sum(parts.values()).backward()
     assert torch.isfinite(trace.grad).all()
     assert torch.count_nonzero(trace.grad[:, [0, 11]]) == 0
-    assert trace.grad[0, 3, 0] < 0  # Increasing PD reduces loss.
-    assert trace.grad[1, 5, 0] > 0  # Increasing ND increases loss.
+    # Every in-window sample contributes, including samples away from the peak.
+    torch.testing.assert_close(trace.grad[0, 2:5, 0], -torch.ones(3, dtype=trace.dtype))
+    torch.testing.assert_close(trace.grad[1, 4:7, 0], torch.ones(3, dtype=trace.dtype))
 
 
-def test_dsi_averages_aligned_curves_before_taking_peaks():
+def test_dsi_sums_aligned_mean_curves_over_window_intersection():
     pack = make_pack()
     # Replicate each entry onto a second hex of the same cell subtype.
     fields = {
@@ -114,52 +123,53 @@ def test_dsi_averages_aligned_curves_before_taking_peaks():
     second_hex[0, 2, 0] = 2
     second_hex[1, 4, 0] = 4
     trace = torch.cat((response_trace(), second_hex), dim=2).requires_grad_()
-    parts = dsi_cost_parts(pack, trace, torch.zeros(8))
-    # Peaks occur at different relative times: mean-curve peaks are PD=2,
-    # ND=2, so DSI=0. Averaging individual peaks would give PD=3, ND=2.5.
-    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(1.0))
+    parts = dsi_cost_parts(pack, trace)
+    # All PD samples sum to (4+2)/2=3; all ND samples to (1+4)/2=2.5.
+    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(-0.5))
     parts[KEY_A].backward()
     assert torch.isfinite(trace.grad).all()
     assert trace.grad[0, 3, 0] < 0
     assert trace.grad[1, 4, 2] > 0
 
+    # The common window excludes later samples absent from the second hex.
+    shortened = replace(pack, dsi_n_ts=pack.dsi_n_ts.clone())
+    shortened.dsi_n_ts[4] = 1
+    window_ts = {}
+    values = dsi_values(shortened, trace, window_ts=window_ts)
+    assert window_ts[KEY_A] == {"PD": (0, 0), "ND": (0, 2)}
+    torch.testing.assert_close(values[KEY_A], trace.new_tensor(-1.5))
 
-def test_zero_response_has_finite_loss_and_gradients():
+
+def test_zero_voltage_has_zero_loss_and_finite_gradients():
     pack = make_pack()
     trace = torch.zeros_like(pack.i_sti, requires_grad=True)
-    parts = dsi_cost_parts(pack, trace, torch.zeros(4))
-    assert all(part == 1 for part in parts.values())
+    parts = dsi_cost_parts(pack, trace)
+    assert all(part == 0 for part in parts.values())
     sum(parts.values()).backward()
     assert torch.isfinite(trace.grad).all()
 
 
-@pytest.mark.parametrize("r_pd,r_nd,expected_loss", [
-    (-1.0, 1.0, 4.0),
-    (1.0, -1.0, 0.0),
-    (-1.0, -2.0, 1.0),
-    (-0.064524874, 0.054481506, 4.0),  # Previously produced DSI ~11.85.
+@pytest.mark.parametrize("v_pd,v_nd,expected_loss", [
+    (-1.0, 1.0, 6.0),
+    (1.0, -1.0, -6.0),
+    (-1.0, -2.0, -3.0),
+    (-50.0, -52.0, -6.0),
 ])
-def test_negative_mean_responses_are_clamped_before_dsi(r_pd, r_nd, expected_loss):
+def test_raw_voltages_are_summed_without_rectification_or_normalization(v_pd, v_nd, expected_loss):
     pack = make_pack()
-    baseline = torch.tensor([10.0, 20.0], dtype=torch.float64)
-    trace = baseline.expand(2, 12, 2).clone()
-    trace[0, :, 0] += r_pd
-    trace[1, :, 0] += r_nd
+    trace = torch.zeros_like(pack.i_sti)
+    trace[0, :, 0] = v_pd
+    trace[1, :, 0] = v_nd
     trace.requires_grad_()
-    parts = dsi_cost_parts(pack, trace, baseline[pack.entry_nodes])
-    # eps slightly shifts the ideal endpoint losses for small positive peaks.
-    torch.testing.assert_close(
-        parts[KEY_A], trace.new_tensor(expected_loss), atol=1e-6, rtol=1e-7,
-    )
+    parts = dsi_cost_parts(pack, trace)
+    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(expected_loss))
     sum(parts.values()).backward()
     assert torch.isfinite(trace.grad).all()
-    if r_pd < 0:
-        assert torch.count_nonzero(trace.grad[0, :, 0]) == 0
-    if r_nd < 0:
-        assert torch.count_nonzero(trace.grad[1, :, 0]) == 0
+    assert trace.grad[0, 3, 0] == -1
+    assert trace.grad[1, 5, 0] == 1
 
 
-def test_dsi_clamps_group_mean_after_averaging_hexes():
+def test_dsi_preserves_negative_group_voltages_after_averaging_hexes():
     pack = make_pack()
     fields = {
         name: torch.cat((getattr(pack, name), getattr(pack, name)))
@@ -175,9 +185,9 @@ def test_dsi_clamps_group_mean_after_averaging_hexes():
     trace[0, :, 0] = -4.0
     trace[0, :, 2] = 2.0
     trace[1, :, [0, 2]] = 1.0
-    # PD mean = -1 -> 0; ND mean = 1. Clamping per hex would give PD mean=1.
-    parts = dsi_cost_parts(pack, trace, torch.zeros(8))
-    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(4.0))
+    # PD mean = -1; ND mean = 1; summing three time points gives DSI=-6.
+    parts = dsi_cost_parts(pack, trace)
+    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(6.0))
 
 
 def test_incomplete_direction_pair_does_not_add_dsi_part():
@@ -203,13 +213,13 @@ def test_dsi_only_forward_backward_and_fused_offsets(monkeypatch, sequential, re
 
     monkeypatch.setattr(cost, "forward_pack", forward)
     monkeypatch.setattr(cost, "gt_affine_from_pack", lambda _params, pack, _session, **_kw: (
-        torch.ones_like(pack.cost_scales), torch.zeros_like(pack.cost_scales),
+        torch.full_like(pack.cost_scales, 37.0), torch.full_like(pack.cost_scales, 123.0),
     ))
     z = torch.tensor(0.4, dtype=torch.float64, requires_grad=True)
     reference_parts = {}
     for pack in (first, second):
         trace = pack.i_sti + z * pack.i_sti.square()
-        reference_parts.update(dsi_cost_parts(pack, trace, torch.zeros(4)))
+        reference_parts.update(dsi_cost_parts(pack, trace))
     reference = sum(reference_parts.values()) / len(reference_parts)
     expected_grad, = torch.autograd.grad(reference, z)
 

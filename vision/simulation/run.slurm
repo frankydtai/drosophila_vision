@@ -41,9 +41,9 @@ echo "==== end config ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
 # DSI-only: turn off mbar waveform MSE, scale all mbar_DSI_* parts to 1.
 "${PYTHON}" -u run_init_from.py \
-  n_iter=50 \
+  n_iter=30 \
   tasks=[mbar] \
-  contrasts=[bright] \
+  'contrasts=[bright]' \
   '~part_cost_scales' \
   '+part_cost_scales={mbar:0,mbar_DSI:1}'
 

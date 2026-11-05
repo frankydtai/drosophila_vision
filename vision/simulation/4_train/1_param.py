@@ -544,6 +544,11 @@ def resolve_val_from(val_from=None):
     if not isinstance(val_from, dict):
         raise ValueError(f"val_from must be a config dict, got {type(val_from).__name__}")
     merged.update({target: dict(entry) for target, entry in val_from.items()})
+    bias = merged.get("bias_gt") or {}
+    if bias.get("scope", "cell") not in ("cell", "entry"):
+        raise ValueError("val_from.bias_gt.scope must be cell or entry")
+    if bias.get("enabled") and bias.get("scope") == "entry" and bias.get("source") != "v_onset":
+        raise ValueError("bias_gt scope=entry requires source=v_onset")
     return merged
 
 

@@ -47,15 +47,19 @@ def part_key(contrast: str, cell: str, radius) -> str:
 
 def _spot_cost_part_plot_specs(
     entry_part_keys: Sequence[str],
-    entry_radii: torch.Tensor,
-    entry_nodes: torch.Tensor,
-    cost_scales: torch.Tensor,
+    entry_radii,
+    entry_nodes,
+    cost_scales,
     connectome,
     contrast: str,
 ) -> Dict[str, CostPartPlotSpec]:
     specs: Dict[str, CostPartPlotSpec] = {}
-    radii = entry_radii.detach().cpu().numpy()
-    node_cells = connectome.node_cells[entry_nodes].detach().cpu().numpy()
+    radii = np.asarray(entry_radii, dtype=np.int64)
+    cost_scales = np.asarray(cost_scales, dtype=np.float64)
+    entry_nodes = np.asarray(entry_nodes, dtype=np.int64)
+    node_cells = connectome.node_cells[entry_nodes]
+    if torch.is_tensor(node_cells):
+        node_cells = node_cells.detach().cpu().numpy()
     cells = connectome.cells
     for entry, part_key in enumerate(entry_part_keys):
         if float(cost_scales[entry]) <= 0.0:
@@ -315,7 +319,7 @@ def build_spot_gt(
         for su, sv in spot_b.sti_uv:
             nodes = connectome.sti_nodes_at_uv(su, sv)
             if len(nodes):
-                i_sti[b, :, nodes] = drive[:, None]
+                i_sti[b, :, nodes] = drive[None, :]
 
     resp = slice(t_onset, n_t_gt)  # cost window: response only (no ms_post)
 

@@ -1,0 +1,66 @@
+[
+  {
+    "label": "a100",
+    "partition": "gpu-a100",
+    "gres": "gpu:1",
+    "returncode": 0,
+    "stdout": "34350230",
+    "stderr": "sbatch: You are submitting jobs from your home directory.\nsbatch: We recommend to submit jobs from your project directory to improve IO performance of your job."
+  },
+  {
+    "label": "a100_short",
+    "partition": "gpu-a100-short",
+    "gres": "gpu:1",
+    "returncode": 0,
+    "stdout": "34350231",
+    "stderr": "sbatch: You are submitting jobs from your home directory.\nsbatch: We recommend to submit jobs from your project directory to improve IO performance of your job."
+  },
+  {
+    "label": "h100",
+    "partition": "gpu-h100",
+    "gres": "gpu:1",
+    "returncode": 0,
+    "stdout": "34350232",
+    "stderr": "sbatch: You are submitting jobs from your home directory.\nsbatch: We recommend to submit jobs from your project directory to improve IO performance of your job."
+  },
+  {
+    "label": "l40s",
+    "partition": "gpu-l40s",
+    "gres": "gpu:1",
+    "returncode": 0,
+    "stdout": "34350233",
+    "stderr": "sbatch: You are submitting jobs from your home directory.\nsbatch: We recommend to submit jobs from your project directory to improve IO performance of your job."
+  },
+  {
+    "label": "mig10",
+    "partition": "gpu-a100-mig",
+    "gres": "gpu:1g.10gb:1",
+    "returncode": 0,
+    "stdout": "34350234",
+    "stderr": "sbatch: You are submitting jobs from your home directory.\nsbatch: We recommend to submit jobs from your project directory to improve IO performance of your job."
+  },
+  {
+    "label": "mig20",
+    "partition": "gpu-a100-mig",
+    "gres": "gpu:1g.20gb:1",
+    "returncode": 0,
+    "stdout": "34350235",
+    "stderr": "sbatch: You are submitting jobs from your home directory.\nsbatch: We recommend to submit jobs from your project directory to improve IO performance of your job."
+  },
+  {
+    "label": "a100_preempt",
+    "partition": "gpu-a100-preempt",
+    "gres": "gpu:1",
+    "returncode": 0,
+    "stdout": "34350236",
+    "stderr": "sbatch: You are submitting jobs from your home directory.\nsbatch: We recommend to submit jobs from your project directory to improve IO performance of your job."
+  },
+  {
+    "label": "l40s_preempt",
+    "partition": "gpu-l40s-preempt",
+    "gres": "gpu:1",
+    "returncode": 0,
+    "stdout": "34350237",
+    "stderr": "sbatch: You are submitting jobs from your home directory.\nsbatch: We recommend to submit jobs from your project directory to improve IO performance of your job."
+  }
+]

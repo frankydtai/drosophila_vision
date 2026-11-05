@@ -1,0 +1,8 @@
+34350230|gpu-a100|PENDING|Unknown|Unknown|None assigned|0:0
+34350231|gpu-a100-short|PENDING|Unknown|Unknown|None assigned|0:0
+34350232|gpu-h100|PENDING|Unknown|Unknown|None assigned|0:0
+34350233|gpu-l40s|PENDING|Unknown|Unknown|None assigned|0:0
+34350234|gpu-a100-mig|PENDING|Unknown|Unknown|None assigned|0:0
+34350235|gpu-a100-mig|PENDING|Unknown|Unknown|None assigned|0:0
+34350236|gpu-a100-preempt|COMPLETED|2026-11-05T01:47:26|2026-11-05T01:47:27|spartan-gpgpu131|0:0
+34350237|gpu-l40s-preempt|PENDING|Unknown|Unknown|None assigned|0:0

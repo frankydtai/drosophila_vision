@@ -880,10 +880,10 @@ def _plot_figure(
         delta_ms=delta_ms,
         filter=figure_filter,
     )
-    cell_idx = {cell: index for index, cell in enumerate(GT_CELLS)}
+    gt_cell_idx = {cell: index for index, cell in enumerate(GT_CELLS)}
 
     def _t_delay_from_cell(cell):
-        index = cell_idx.get(cell)
+        index = gt_cell_idx.get(cell)
         return 0 if index is None else int(t_delay[index])
 
     timer.end_prep()

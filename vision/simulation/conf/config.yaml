@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 30223811-run_init_from-n_iter-3000-tasks-sbar-a_lsd-1
+ 34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1
 run_path: hp_lp/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -34,7 +34,7 @@ h_cells: [L1, L2, L4, L5]
 params:
   a_gt:
     lo: 0.5
-    hi: 2.0
+    hi: 1.0
     init: 1.0
     jit: 0.1
     mode: "indi"
@@ -50,20 +50,30 @@ params:
     mode: "fixed"
       #fixed: ["Tm3:T4a", "Mi4:T4a", "Mi9:T4a", "T4a:T4a", "T4b:T4a", "Tm2:T4a", "T5a:T4a", "C3:T4a", "Mi10:T4a", "TmY15:T4a"]
   syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
-  a_in: {lo: 0.01, hi: 100.0, init: 1.0, jit: 0.1, mode: "shared"}
+  a_in: {lo: 0.01, hi: 100.0, init: 5.0, jit: 0.1, mode: "shared"}
   a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
-  e_leak: {lo: -50.0, hi: 50.0, init: 0.0, jit: 1.0, mode: "indi"}
-  v_th: {lo: -100.0, hi: 100.0, init: -25.0, jit: 0.0, mode: "indi"}
-  tau_lp: {lo: 10.0, hi: 100.0, init: 10.0, inits: {Mi4: 200}, jit: 2.0, mode: "indi"}
+  e_leak: {lo: -100.0, hi: 50.0, init: -52.0, jit: 1.0, mode: "fixed"}
+  v_th:
+    lo: -100.0
+    hi: 100.0
+    init: -45.0
+    inits: {L1: -60.0, L2: -60.0, L3: -60.0}
+    jit: 0.0
+    mode: "fixed"
+    modes:
+      indi: [L1, L2, L3]
+  tau_lp: {lo: 10.0, hi: 100.0, init: 10.0, jit: 2.0, mode: "indi"}
   tau_hp_rise: {lo: 100.0, hi: 500.0, init: 200.0, jit: 20.0, mode: "indi"}
   tau_hp_fall: {lo: 100.0, hi: 500.0, init: 200.0, jit: 20.0, mode: "indi"}
   a_h:
     lo: 0.0
     hi: 1.0
     init: 0.0
-    inits: {L1: 0.5, L2: 0.5, L4: 0.5, L5: 0.5}
+    inits: {L1: 0.5, L2: 0.5}
     jit: 0.1
-    mode: "indi"
+    mode: "fixed"
+    modes:
+      indi: [L1, L2]
   v_mid_h_g: {lo: -70.0, hi: -30.0, init: -50.0, jit: 5.0, mode: "shared"}
   v_mid_h_tau: {lo: -70.0, hi: -40.0, init: -50.0, jit: 5.0, mode: "shared"}
   h_slope: {lo: -0.4, hi: -0.2, init: -0.25, jit: 0.02, mode: "shared"}
@@ -156,7 +166,7 @@ bar_directions: [right,left]
 # ---------------------------------------------------------------------------
 tasks: [spread,sbar]
 gt_by_task:
-  spread: [L1, L2, L3, L4, L5, Mi9, Tm3]
+  spread: [L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a, T4b, T4c, T4d]
   sbar: [T4a,T4b,T4c,T4d]
   mbar: [T4a,T4b]
 cost_radius: null
@@ -255,7 +265,7 @@ mbar_plot_direction: left
 # 5.4   figure.plot
 # ---------------------------------------------------------------------------
 # Tasks to plot after training or when re-plotting; independent of train `tasks`.
-figure_tasks: [mbar, sbar]
+figure_tasks: [spread, mbar, sbar]
 # Rows for sbar ``plot_all`` / ``*_all_v.png``.
 sbar_figure_cells: [R1-6, R7, R8, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a]
 html: false

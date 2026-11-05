@@ -136,16 +136,14 @@ def dsi_groups(pack):
             yield key, pd, nd
 
 
-def dsi_cost_parts(pack, trace, bias_gt, *, b_offset=0, eps=1e-8):
-    """Peak baseline-relative PD/ND responses, DSI target 1, squared error.
+def dsi_values(pack, trace, *, b_offset=0, window_ts=None):
+    """Sum PD voltage minus sum ND voltage, keyed by cost part.
 
-    Align entries to each hex's first stimulus, subtract baseline, and average
-    curves within each cell/contrast/width/direction group before taking peaks.
-    Use the intersection of the entries' expanded transit windows so every
-    averaged sample includes every node. Clamp the resulting peaks to zero.
-
-    DSI = (R_pd - R_nd) / (R_pd + R_nd + eps), matching NIPS2026
-    ``direction_selectivity_loss`` (eps keeps grads finite near zero response).
+    Align entries to each hex's first stimulus and average curves within each
+    PD/ND group, then sum all samples in its expanded transit-window
+    intersection. Use raw readout voltages without baseline subtraction,
+    rectification, normalization, or multiplication by the sample duration.
+    ``window_ts`` receives inclusive sample offsets from first stimulus.
     """
     if pack.dsi_t0s is None or pack.dsi_n_ts is None:
         raise ValueError("moving-bar DSI requires per-entry transit windows")
@@ -162,20 +160,31 @@ def dsi_cost_parts(pack, trace, bias_gt, *, b_offset=0, eps=1e-8):
     )
     ts = first_sti[:, None] + offsets[None, :]
     valid = (ts >= pack.dsi_t0s[:, None]) & (ts < stops[:, None])
-    response = trace[
+    voltage = trace[
         pack.entry_bs[:, None] + int(b_offset),
         ts.clamp(min=0, max=trace.shape[1] - 1),
         pack.entry_nodes[:, None],
-    ] - bias_gt[:, None]
+    ]
     parts = {}
     for key, pd, nd in dsi_groups(pack):
-        pd_mean = response[pd].mean(dim=0)
-        nd_mean = response[nd].mean(dim=0)
-        r_pd = pd_mean.masked_fill(~valid[pd].all(dim=0), -torch.inf).amax().clamp_min(0.0)
-        r_nd = nd_mean.masked_fill(~valid[nd].all(dim=0), -torch.inf).amax().clamp_min(0.0)
-        dsi = (r_pd - r_nd) / (r_pd + r_nd + eps)
-        parts[key] = (dsi - 1.0).square()
+        pd_valid, nd_valid = valid[pd].all(dim=0), valid[nd].all(dim=0)
+        pd_sum = voltage[pd].mean(dim=0)[pd_valid].sum()
+        nd_sum = voltage[nd].mean(dim=0)[nd_valid].sum()
+        if window_ts is not None:
+            window_ts[key] = {
+                label: (int(offsets[mask][0]), int(offsets[mask][-1]))
+                for label, mask in (("PD", pd_valid), ("ND", nd_valid))
+            }
+        parts[key] = pd_sum - nd_sum
     return parts
+
+
+def dsi_cost_parts(pack, trace, *, b_offset=0):
+    """Negative PD-minus-ND voltage sum, minimized to maximize the difference."""
+    return {
+        key: -dsi
+        for key, dsi in dsi_values(pack, trace, b_offset=b_offset).items()
+    }
 
 
 def _mbar_cost_part_plot_specs(
@@ -752,7 +761,7 @@ def build_mbar_pack(
     ))
     i_baseline = i_baseline_from_i_sti(i_sti)
     i_sti_peak = float(i_sti[contrast])
-    # DSI target 1 needs no digitized waveform data when every MSE part is off.
+    # Voltage-sum DSI needs no digitized waveform data when every MSE part is off.
     scales = opts.get("part_cost_scales") or {}
     cells = active_gt_cells(
         gt_cells_from_opts(sti_opts), GT_CELLS, connectome.cells, context="mbar",
