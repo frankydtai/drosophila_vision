@@ -18,6 +18,7 @@ _ACTIVE: dict | None = None
 RUN_NAME: str = ""
 RUN_PATH: str = ""
 MODEL: Dict[str, object] = {}
+POINT_HH: Dict[str, object] = {}
 NEURON_SCHEMA: Dict[str, object] = {}
 NEURON_FORWARD: Dict[str, object] = {}
 NETWORK_PATH: Dict[str, object] = {}
@@ -98,7 +99,7 @@ def _float_list(value, *, key: str) -> List[float]:
 
 def _bind_config(config: dict) -> None:
     global RUN_NAME, RUN_PATH
-    global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
+    global MODEL, POINT_HH, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
     global SPREAD_INPUT_SPEC, SPREAD_GT, SPOT_INPUT_GEO, SPOT_PACK
     global SBAR_INPUT_GEO, SBAR_GT, SBAR_PACK, MBAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
@@ -111,6 +112,7 @@ def _bind_config(config: dict) -> None:
     RUN_PATH = str(config["run_path"]).strip()
 
     MODEL = {key: config[key] for key in _MODEL_KEYS}
+    POINT_HH = dict(config.get("point_hh") or {})
     NEURON_SCHEMA = {
         "model": model,
         "filter": config["filter"],
@@ -534,6 +536,7 @@ def resolve_run_kwargs(hydra_config, *, script_token: str = "run") -> dict:
         init_from=init_from,
         resume_adam=config.get("resume_adam", "auto"),
         checkpoint_interval=TRAIN_OPTIMIZATION.get("checkpoint_interval"),
+        point_hh=dict(POINT_HH),
         syn_sign=bool(ANALYZE_SYN_SIGN.get("after_train", False)),
     )
     train_kwargs["figure_kwargs"] = resolve_figure_kwargs(hydra_config)

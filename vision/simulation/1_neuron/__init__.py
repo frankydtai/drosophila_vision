@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Neuron models: ``model=borst``, ``model=hp_lp``, ``model=shiu``.
+"""Neuron models: ``model=borst``, ``model=hp_lp``, ``model=point_hh``, ``model=shiu``.
 
-Dynamics live in ``neuron.borst`` / ``neuron.hp_lp`` / ``neuron.shiu``.
+Dynamics live in ``neuron.borst`` / ``neuron.hp_lp`` /
+``neuron.point_hh`` / ``neuron.shiu``.
 Shared ``v`` / ``ca`` forward is ``neuron.forward``; the unused Ca filter
 lives in ``neuron.filter_ca``; pack readout selection in
 ``neuron.readout``. The ``train`` package owns session, cost, and the
@@ -10,6 +11,16 @@ CLI driver. Numeric defaults live in ``config``.
 from __future__ import annotations
 
 import neuron.borst as _borst
+from neuron.point_hh import (
+    detach_state as point_hh_detach_state,
+    gate_rates as point_hh_gate_rates,
+    initial_state as point_hh_initial_state,
+    pre_steady as point_hh_pre_steady,
+    release_steady as point_hh_release_steady,
+    stable_vtrap as point_hh_stable_vtrap,
+    steady_gates as point_hh_steady_gates,
+    step as point_hh_step,
+)
 from neuron.borst import (
     EULER_CLI,
     EULER_MODES,
@@ -26,6 +37,7 @@ from neuron.schema import (
     SYN_MODES,
     build_borst_schema,
     build_hp_lp_schema,
+    build_point_hh_schema,
     build_shiu_schema,
     build_schema,
 )
@@ -64,11 +76,20 @@ __all__ = [
     "build_schema",
     "build_borst_schema",
     "build_hp_lp_schema",
+    "build_point_hh_schema",
     "build_shiu_schema",
     "syn_strength",
     "update_v",
     "v_component_from_g",
     "filter_ca",
+    "point_hh_detach_state",
+    "point_hh_gate_rates",
+    "point_hh_initial_state",
+    "point_hh_pre_steady",
+    "point_hh_release_steady",
+    "point_hh_stable_vtrap",
+    "point_hh_steady_gates",
+    "point_hh_step",
     "forward_nodes",
     "forward_v",
     "forward_ca",

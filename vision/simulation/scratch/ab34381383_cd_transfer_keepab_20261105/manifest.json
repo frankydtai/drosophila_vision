@@ -1,0 +1,37 @@
+{
+  "source_run": "34381383",
+  "source_checkpoint": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381383-run_init_from-n_iter-300-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz",
+  "baseline_job": "34390292",
+  "training_job": "34390303",
+  "n_iter": 300,
+  "train_cells": [
+    "T4a",
+    "T4b",
+    "T4c",
+    "T4d"
+  ],
+  "bar_directions": [
+    "right",
+    "left",
+    "up",
+    "down"
+  ],
+  "contrasts": [
+    "bright"
+  ],
+  "cost_mid": 0,
+  "lrs": [
+    0.1
+  ],
+  "part_cost_scales": {
+    "mbar": 1,
+    "mbar_DSI": 0
+  },
+  "resume_adam": false,
+  "geometry_version": "fafb_y_ventral_v2",
+  "source_code_hashes": "code_hashes.json",
+  "baseline_device": "CPU with joint objective",
+  "training_device": "GPU L40S",
+  "evaluation": "Matched four-direction evaluation plus original horizontal AB evaluation",
+  "existing_checkpoints_overwritten": false
+}

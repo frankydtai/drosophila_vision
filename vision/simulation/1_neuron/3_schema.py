@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Parameter schemas for borst / hp_lp / shiu neuron models.
+"""Parameter schemas for borst / hp_lp / point_hh / shiu neuron models.
 
 Numeric lo/hi/init/jit, leftover ``mode``, optional per-node ``inits`` /
 ``los`` / ``his`` / ``jits``, and optional ``modes`` (name lists keyed by
@@ -350,6 +350,53 @@ def build_shiu_schema(
     )
 
 
+def build_point_hh_schema(
+    n_cell,
+    cells=None,
+    n_pair=None,
+    *,
+    syn_mode: str,
+    params: dict,
+    pairs,
+    filter: str = "none",
+    n_edge=None,
+    a_sti_radii=(),
+    a_sti_mids=(),
+):
+    """Readout/stimulus schema for fixed curated Point-HH parameters.
+
+    Membrane and per-edge synapse tensors are supplied by
+    ``network.point_hh_context`` and are intentionally absent from ``z``.
+    """
+    if cells is None:
+        raise TypeError("point_hh schema requires cells from network")
+    keep = {"a_gt", "bias_gt", "a_sti_radius", "a_sti_mid"}
+    if str(filter) == "ca":
+        keep |= _CA_ONLY
+    selected = {name: entry for name, entry in params.items() if name in keep}
+    missing = {"a_gt", "bias_gt"} - set(selected)
+    if missing:
+        raise KeyError(f"point_hh schema requires {sorted(missing)}")
+    return _build_param_schema(
+        selected,
+        skip=set(),
+        n_cell=n_cell,
+        cells=list(cells),
+        syn_mode=syn_mode,
+        n_pair=n_pair,
+        n_edge=n_edge,
+        pairs=pairs,
+        a_sti_radii=a_sti_radii,
+        # Keep the scalar Gaussian width available when a later figure task
+        # reconstructs mbar/sbar from a spread-only no-training run.
+        a_sti_mids=(
+            a_sti_mids
+            if a_sti_mids
+            else ((1.0,) if "a_sti_mid" in selected else ())
+        ),
+    )
+
+
 def build_schema(
     model: str,
     connectome,
@@ -390,4 +437,8 @@ def build_schema(
         return build_borst_schema(n, cells=cells, **kwargs)
     if model == "shiu":
         return build_shiu_schema(n, cells=cells, **kwargs)
-    raise ValueError(f"unknown model {model!r}; expected borst, hp_lp, or shiu")
+    if model == "point_hh":
+        return build_point_hh_schema(n, cells=cells, **kwargs)
+    raise ValueError(
+        f"unknown model {model!r}; expected borst, hp_lp, point_hh, or shiu"
+    )

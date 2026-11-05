@@ -56,6 +56,7 @@ from task.implementation import (
 from network.construction import (
     load_network, Network,
 )
+from network.point_hh_context import build_point_hh_context, PointHHContext
 
 RUN_DATA_SUBDIR = "data"
 TaskPack = Any
@@ -129,6 +130,9 @@ class TrainSession:
     pre_steady: str = "solve"
     pre_steady_n_iter: int = 60
     pre_steady_damp: float = 1.0
+    point_hh_v_min: float = -120.0
+    point_hh_v_max: float = 80.0
+    point_hh_context: Optional[PointHHContext] = None
     sim_dtype: torch.dtype = SIM_DTYPE
     train_opts: Optional[dict] = None
 
@@ -232,6 +236,7 @@ def resolve_train_opts(
     pre_grad=NEURON_FORWARD['pre_grad'],
     val_from=None,
     filter=NEURON_SCHEMA['filter'],
+    point_hh=None,
 ):
     """Canonical train opts for :func:`open_session`."""
     if network is None and network_json is None:
@@ -305,6 +310,7 @@ def resolve_train_opts(
         "pre_grad": pre_grad,
         "val_from": copy.deepcopy(val_from),
         "filter": filter,
+        "point_hh": copy.deepcopy(point_hh),
         "spread_gt_mode": str(SPREAD_GT["spread_gt_mode"]),
         "fp": fp,
         "packs": None,
@@ -381,6 +387,7 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
     train_opts["pre_grad"] = opts.get("pre_grad", NEURON_FORWARD['pre_grad'])
     train_opts["val_from"] = copy.deepcopy(opts.get("val_from", VAL_FROM))
     train_opts["filter"] = str(opts.get("filter", NEURON_SCHEMA['filter']))
+    train_opts["point_hh"] = copy.deepcopy(opts.get("point_hh"))
     train_opts["spread_gt_mode"] = str(opts["spread_gt_mode"])
     train_opts["fp"] = int(opts.get("fp", TRAIN_SESSION['fp']))
     return train_opts
@@ -435,6 +442,7 @@ def _build_session(
     train_opts=None,
     schema: Optional[dict] = None,
     sim_dtype=SIM_DTYPE,
+    point_hh_context: Optional[PointHHContext] = None,
 ) -> TrainSession:
     device = device or active_device()
     sequential = False if sequential is None else bool(sequential)
@@ -490,6 +498,13 @@ def _build_session(
         pre_steady=pre_steady,
         pre_steady_n_iter=pre_steady_n_iter,
         pre_steady_damp=pre_steady_damp,
+        point_hh_v_min=float(
+            ((train_opts or {}).get("point_hh") or {}).get("v_min_mV", -120.0)
+        ),
+        point_hh_v_max=float(
+            ((train_opts or {}).get("point_hh") or {}).get("v_max_mV", 80.0)
+        ),
+        point_hh_context=point_hh_context,
         sim_dtype=sim_dtype,
         train_opts=train_opts,
     )
@@ -535,6 +550,27 @@ def open_session(
         connectome = net
     elif connectome is not net:
         raise ValueError("connectome must be opts['network']")
+    point_hh_context = None
+    if model == "point_hh":
+        point_hh = opts.get("point_hh")
+        if not isinstance(point_hh, dict):
+            raise ValueError("point_hh model requires train_opts['point_hh']")
+        cache_key = json.dumps(point_hh, sort_keys=True)
+        point_hh_context = getattr(connectome, "_point_hh_context", None)
+        if (
+            point_hh_context is None
+            or getattr(connectome, "_point_hh_context_key", None) != cache_key
+        ):
+            point_hh_context = build_point_hh_context(
+                connectome,
+                ion_rules_path=point_hh.get("ion_rules"),
+                synapse_rules_path=point_hh.get("synapse_rules"),
+                connections_path=point_hh.get("connections"),
+                area_um2=point_hh.get("area_um2", 100.0),
+                capacitance_uF_cm2=point_hh.get("capacitance_uF_cm2", 1.0),
+            )
+            connectome._point_hh_context = point_hh_context
+            connectome._point_hh_context_key = cache_key
     pack_kwargs = dict(
         connectome=connectome,
         i_sti=i_sti,
@@ -571,6 +607,7 @@ def open_session(
         train_opts=train_opts,
         schema=schema,
         sim_dtype=sim_dtype,
+        point_hh_context=point_hh_context,
     )
 
 

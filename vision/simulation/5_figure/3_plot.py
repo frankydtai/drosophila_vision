@@ -169,7 +169,11 @@ def resolve_model(run_dir, model=None):
 def select_best(params, session, *, final_costs=None, verbose=True):
     """Pick the best parameter row via ``argmin`` of costs; ``calc_cost`` only when not supplied."""
     params = np.atleast_2d(params)
-    valid_mask = np.any(params != 0, axis=1)
+    valid_mask = (
+        np.ones(params.shape[0], dtype=bool)
+        if params.shape[1] == 0
+        else np.any(params != 0, axis=1)
+    )
     valid = params[valid_mask]
     if len(valid) == 0:
         raise SystemExit('no trained parameter sets found (file all zeros)')

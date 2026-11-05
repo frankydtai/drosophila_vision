@@ -1,0 +1,29 @@
+{
+  "scope": "manual-curated HH intrinsic-current diagnostic; not measured physiology",
+  "amplitude_uA_per_cm2": [
+    10.0,
+    20.0,
+    40.0
+  ],
+  "pulse_on_off_ms": [
+    20.0,
+    60.0
+  ],
+  "dt_ms": 0.025,
+  "duration_ms": 100.0,
+  "capacitance_uF_per_cm2": 1.0,
+  "synapse_count": 0,
+  "max_difference_original_1x_mV": 0.0,
+  "all_voltages_and_gates_finite": true,
+  "gates_in_0_1": true,
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/point_hh_dt_20261105/intensity_sweep.py": "8b1f290806974a360b4593b730c67738bd8ef13d6077d7eb0de393e857791791",
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/point_hh_dt_20261105/all_types.py": "4a8cc6655f32980241584bfc3a30791235c594451556bedc7fa4a3fce870bc4a",
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/point_hh_dt_20261105/sweep.py": "852a49476b655244d21a28643d9ea18adbec70a0382d319968263724b1841dae",
+    "/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv": "f8677ebc64cc7df6485007e88211bf747ed2c6e6ecfed9537ef2a322766ca1b6",
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/point_hh_dt_20261105/all-types-results-34388803/traces.npz": "671efb38ac5ed3912e6c937f536760d67a0f3121327d6b299647d8f825a03b69",
+    "/home/yitai/Ripple/src/ripple/biophysics/channels.py": "c01a6d3a21ac206ef011708d141c4432660961d02ad59fa06c4c4b7432ae7747"
+  },
+  "job_id": "34390219"
+}
+COMPLETED intensity-results-34390219

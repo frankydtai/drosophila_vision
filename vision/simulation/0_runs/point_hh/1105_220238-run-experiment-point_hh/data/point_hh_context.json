@@ -1,0 +1,40 @@
+{
+  "mapping_version": "point_hh_curated_v1",
+  "units": {
+    "time": "ms",
+    "voltage": "mV",
+    "current": "pA",
+    "capacitance": "pF",
+    "conductance": "nS"
+  },
+  "area_um2": 100.0,
+  "capacitance_uF_cm2": 1.0,
+  "internal_delta_ms": 0.025,
+  "contact_scaling": "gS_nS = curated_gS_uS * 1000 * network_n_syn",
+  "ion_fallbacks": {
+    "L2": "L3",
+    "T4b/T4c/T4d": "T4a"
+  },
+  "unresolved_synapse_policy": "gS=0",
+  "resolution_counts": {
+    "same_pre_transmitter_fallback": 9428,
+    "exact": 15087,
+    "unresolved_zero": 3309
+  },
+  "n_edge": 27824,
+  "sources": {
+    "ion_rules": {
+      "path": "/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv",
+      "sha256": "f8677ebc64cc7df6485007e88211bf747ed2c6e6ecfed9537ef2a322766ca1b6"
+    },
+    "synapse_rules": {
+      "path": "/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv",
+      "sha256": "8a74cee6f1bc27229b7d6004de41694368c1ff04cba4c24da644b344c88f4660"
+    },
+    "connections": {
+      "path": "/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz",
+      "sha256": "83ecacad62a94dae93268925c992740ce49dd5e10b5cf09fb506d2e1cbc857ff"
+    },
+    "network": "/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json"
+  }
+}

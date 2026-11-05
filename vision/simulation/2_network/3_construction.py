@@ -85,6 +85,9 @@ class Network:
     is_sti: np.ndarray             # (N,) bool sti (photoreceptor) node
     node_ids: list[int]              # (N,) original node ids in node order
     node_from_id: dict[int, int]   # node id -> node
+    edge_n_syn: torch.Tensor       # (E,) original anatomical contact count
+    edge_source_cells: tuple[str, ...]
+    edge_target_cells: tuple[str, ...]
     device: str = "cpu"
     meta: dict = field(default_factory=dict)
     source_json: Path | None = None
@@ -245,9 +248,15 @@ def load_network(
     source_idxs = np.empty(len(edges), dtype=np.int64)
     target_idxs = np.empty(len(edges), dtype=np.int64)
     edge_weights = np.empty(len(edges), dtype=np.float64)
+    edge_n_syn = np.empty(len(edges), dtype=np.float64)
+    edge_source_cells: list[str] = []
+    edge_target_cells: list[str] = []
     for edge_idx, edge in enumerate(edges):
         source_idxs[edge_idx] = node_from_id[int(edge["src"])]
         target_idxs[edge_idx] = node_from_id[int(edge["tar"])]
+        edge_n_syn[edge_idx] = float(edge["n_syn"])
+        edge_source_cells.append(str(edge["source_cell"]))
+        edge_target_cells.append(str(edge["target_cell"]))
         edge_weights[edge_idx] = (
             float(edge["syn_sign"]) if syn_mode == "per_edge"
             else float(edge["syn_sign"]) * float(edge["n_syn"])
@@ -276,6 +285,9 @@ def load_network(
         is_sti=is_sti,
         node_ids=node_ids,
         node_from_id=node_from_id,
+        edge_n_syn=torch.as_tensor(edge_n_syn, dtype=dtype, device=device),
+        edge_source_cells=tuple(edge_source_cells),
+        edge_target_cells=tuple(edge_target_cells),
         device=device,
         meta=meta,
         source_json=path.resolve(),

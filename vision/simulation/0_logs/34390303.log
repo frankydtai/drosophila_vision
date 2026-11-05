@@ -1,0 +1,261 @@
+Experiment source hashes verified.
+Job 34390303; iterations=300; run=34390303-ab34381383-cd-transfer-keepab-iter-300
+[2026-11-05 21:08:42,158][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9f2ae76724db7cba.npz
+param_modes:
+  a_gt               indi=10/shared=0/fixed=4/frozen=0 (10)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=14 (0)
+  syn_strength_cell  indi=0/shared=0/fixed=101/frozen=0 (0)
+  a_in               indi=0/shared=14/fixed=0/frozen=0 (1)
+  a_out              indi=14/shared=0/fixed=0/frozen=0 (14)
+  e_leak             indi=0/shared=0/fixed=14/frozen=0 (0)
+  v_th               indi=3/shared=0/fixed=11/frozen=0 (3)
+  tau_lp             indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_rise        indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_fall        indi=14/shared=0/fixed=0/frozen=0 (14)
+  a_h                indi=2/shared=0/fixed=12/frozen=0 (2)
+  a_sti_mid          indi=0/shared=1/fixed=0/frozen=0 (1)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, a_lsd=1.0, cost_entry_reduce=mean_trace, n_run=1, n_iter=300, lrs=[0.1], n_z=73, fname=train_hp_lp.npy
+checkpoint_interval=1000
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381383-run_init_from-n_iter-300-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381383-run_init_from-n_iter-300-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz' only (73 z, reset Adam, resume_adam=false)
+
+round 0
+
+  0%|          | 0/300 [00:00<?, ?it/s] Cost: 97871.5703  [mbar_right_bright_w1_T4a_PD=23421.5723  mbar_right_bright_w1_T4b_ND=1415.9502  mbar_left_bright_w1_T4a_ND=15546.3701  mbar_left_bright_w1_T4b_PD=4201.9771  mbar_up_bright_w1_T4c_PD=8542.6777  mbar_up_bright_w1_T4d_ND=12079.6006  mbar_down_bright_w1_T4c_ND=18766.2285  mbar_down_bright_w1_T4d_PD=13897.1973]  3%|▎         | 10/300 [00:14<07:13,  1.50s/it] Cost: 230059.2031  [mbar_right_bright_w1_T4a_PD=5171.6553  mbar_right_bright_w1_T4b_ND=54174.6719  mbar_left_bright_w1_T4a_ND=48365.8398  mbar_left_bright_w1_T4b_PD=8611.0947  mbar_up_bright_w1_T4c_PD=9951.8887  mbar_up_bright_w1_T4d_ND=25494.2344  mbar_down_bright_w1_T4c_ND=62968.1484  mbar_down_bright_w1_T4d_PD=15321.6650]:   7%|▋         | 20/300 [00:29<06:58,  1.49s/it] Cost: 201943.1562  [mbar_right_bright_w1_T4a_PD=37029.5234  mbar_right_bright_w1_T4b_ND=29676.0332  mbar_left_bright_w1_T4a_ND=28337.6992  mbar_left_bright_w1_T4b_PD=19121.0430  mbar_up_bright_w1_T4c_PD=18656.0000  mbar_up_bright_w1_T4d_ND=12196.5684  mbar_down_bright_w1_T4c_ND=31227.8242  mbar_down_bright_w1_T4d_PD=25698.4766]:  10%|█         | 30/300 [00:44<06:43,  1.50s/it] Cost: 174200.3906  [mbar_right_bright_w1_T4a_PD=12849.1152  mbar_right_bright_w1_T4b_ND=42235.1680  mbar_left_bright_w1_T4a_ND=39859.0664  mbar_left_bright_w1_T4b_PD=3417.0498  mbar_up_bright_w1_T4c_PD=4651.3857  mbar_up_bright_w1_T4d_ND=15215.3535  mbar_down_bright_w1_T4c_ND=42502.3203  mbar_down_bright_w1_T4d_PD=13470.9600]:    13%|█▎        | 40/300 [00:59<06:29,  1.50s/it] Cost: 142535.0000  [mbar_right_bright_w1_T4a_PD=14417.9746  mbar_right_bright_w1_T4b_ND=30388.3477  mbar_left_bright_w1_T4a_ND=27356.7734  mbar_left_bright_w1_T4b_PD=4896.5679  mbar_up_bright_w1_T4c_PD=4311.0913  mbar_up_bright_w1_T4d_ND=11781.4531  mbar_down_bright_w1_T4c_ND=34842.3047  mbar_down_bright_w1_T4d_PD=14540.4834]:  17%|█▋        | 50/300 [01:14<06:13,  1.49s/it] Cost: 89710.7969  [mbar_right_bright_w1_T4a_PD=13315.9590  mbar_right_bright_w1_T4b_ND=13607.5234  mbar_left_bright_w1_T4a_ND=13254.7383  mbar_left_bright_w1_T4b_PD=4455.8218  mbar_up_bright_w1_T4c_PD=2868.5425  mbar_up_bright_w1_T4d_ND=7813.5967  mbar_down_bright_w1_T4c_ND=24898.1113  mbar_down_bright_w1_T4d_PD=9496.5039]:     20%|██        | 60/300 [01:29<05:58,  1.50s/it] Cost: 80815.5703  [mbar_right_bright_w1_T4a_PD=18144.9316  mbar_right_bright_w1_T4b_ND=4768.9385  mbar_left_bright_w1_T4a_ND=11526.9863  mbar_left_bright_w1_T4b_PD=9676.8867  mbar_up_bright_w1_T4c_PD=5984.3945  mbar_up_bright_w1_T4d_ND=5236.7954  mbar_down_bright_w1_T4c_ND=17577.1953  mbar_down_bright_w1_T4d_PD=7899.4365]:   23%|██▎       | 70/300 [01:44<05:43,  1.50s/it] Cost: 74147.7969  [mbar_right_bright_w1_T4a_PD=13215.8086  mbar_right_bright_w1_T4b_ND=8207.7881  mbar_left_bright_w1_T4a_ND=8799.7842  mbar_left_bright_w1_T4b_PD=4220.3340  mbar_up_bright_w1_T4c_PD=2324.6785  mbar_up_bright_w1_T4d_ND=8002.6797  mbar_down_bright_w1_T4c_ND=21867.2461  mbar_down_bright_w1_T4d_PD=7509.4717]:   27%|██▋       | 80/300 [01:59<05:28,  1.49s/it] Cost: 69227.9219  [mbar_right_bright_w1_T4a_PD=12735.7012  mbar_right_bright_w1_T4b_ND=5299.8926  mbar_left_bright_w1_T4a_ND=9147.1201  mbar_left_bright_w1_T4b_PD=6668.6055  mbar_up_bright_w1_T4c_PD=3706.2214  mbar_up_bright_w1_T4d_ND=6060.9570  mbar_down_bright_w1_T4c_ND=19463.6055  mbar_down_bright_w1_T4d_PD=6145.8154]:  30%|███       | 90/300 [02:14<05:13,  1.50s/it] Cost: 65220.3164  [mbar_right_bright_w1_T4a_PD=10333.1191  mbar_right_bright_w1_T4b_ND=6679.8838  mbar_left_bright_w1_T4a_ND=8162.9585  mbar_left_bright_w1_T4b_PD=4450.5254  mbar_up_bright_w1_T4c_PD=2475.9495  mbar_up_bright_w1_T4d_ND=6825.7002  mbar_down_bright_w1_T4c_ND=20563.8652  mbar_down_bright_w1_T4d_PD=5728.3169]:  33%|███▎      | 100/300 [02:29<04:59,  1.50s/it] Cost: 62241.5859  [mbar_right_bright_w1_T4a_PD=9542.4424  mbar_right_bright_w1_T4b_ND=5453.9341  mbar_left_bright_w1_T4a_ND=7556.5820  mbar_left_bright_w1_T4b_PD=6257.5703  mbar_up_bright_w1_T4c_PD=2832.0981  mbar_up_bright_w1_T4d_ND=6299.2124  mbar_down_bright_w1_T4c_ND=18922.5273  mbar_down_bright_w1_T4d_PD=5377.2188]:  37%|███▋      | 110/300 [02:44<04:44,  1.50s/it] Cost: 59190.2578  [mbar_right_bright_w1_T4a_PD=8088.0703  mbar_right_bright_w1_T4b_ND=5817.2964  mbar_left_bright_w1_T4a_ND=6813.1675  mbar_left_bright_w1_T4b_PD=5245.8789  mbar_up_bright_w1_T4c_PD=2522.0386  mbar_up_bright_w1_T4d_ND=6148.9829  mbar_down_bright_w1_T4c_ND=19596.2441  mbar_down_bright_w1_T4d_PD=4958.5771]:  40%|████      | 120/300 [02:59<04:29,  1.50s/it] Cost: 54498.8281  [mbar_right_bright_w1_T4a_PD=6729.4360  mbar_right_bright_w1_T4b_ND=4833.2637  mbar_left_bright_w1_T4a_ND=5331.7837  mbar_left_bright_w1_T4b_PD=6415.5449  mbar_up_bright_w1_T4c_PD=2179.6724  mbar_up_bright_w1_T4d_ND=5992.6230  mbar_down_bright_w1_T4c_ND=18148.1543  mbar_down_bright_w1_T4d_PD=4868.3516]:  43%|████▎     | 130/300 [03:14<04:14,  1.50s/it] Cost: 48344.2109  [mbar_right_bright_w1_T4a_PD=5309.7744  mbar_right_bright_w1_T4b_ND=4240.0425  mbar_left_bright_w1_T4a_ND=4525.7534  mbar_left_bright_w1_T4b_PD=6146.7754  mbar_up_bright_w1_T4c_PD=1284.0576  mbar_up_bright_w1_T4d_ND=4975.9038  mbar_down_bright_w1_T4c_ND=16971.7969  mbar_down_bright_w1_T4d_PD=4890.1104]:  47%|████▋     | 140/300 [03:29<03:59,  1.50s/it] Cost: 45208.7031  [mbar_right_bright_w1_T4a_PD=4496.9893  mbar_right_bright_w1_T4b_ND=3502.5457  mbar_left_bright_w1_T4a_ND=4279.0225  mbar_left_bright_w1_T4b_PD=5855.2490  mbar_up_bright_w1_T4c_PD=1937.0872  mbar_up_bright_w1_T4d_ND=5213.1816  mbar_down_bright_w1_T4c_ND=16647.5195  mbar_down_bright_w1_T4d_PD=3277.1099]:  50%|█████     | 150/300 [03:44<03:44,  1.50s/it] Cost: 43885.6641  [mbar_right_bright_w1_T4a_PD=4660.9409  mbar_right_bright_w1_T4b_ND=3193.6069  mbar_left_bright_w1_T4a_ND=4098.9116  mbar_left_bright_w1_T4b_PD=5663.4365  mbar_up_bright_w1_T4c_PD=1637.2039  mbar_up_bright_w1_T4d_ND=4608.0093  mbar_down_bright_w1_T4c_ND=16310.8965  mbar_down_bright_w1_T4d_PD=3712.6587]:  53%|█████▎    | 160/300 [03:59<03:29,  1.50s/it] Cost: 42938.6211  [mbar_right_bright_w1_T4a_PD=4230.4531  mbar_right_bright_w1_T4b_ND=2996.1421  mbar_left_bright_w1_T4a_ND=4150.3550  mbar_left_bright_w1_T4b_PD=5673.3242  mbar_up_bright_w1_T4c_PD=1985.0897  mbar_up_bright_w1_T4d_ND=4626.7051  mbar_down_bright_w1_T4c_ND=16113.9668  mbar_down_bright_w1_T4d_PD=3162.5864]:  57%|█████▋    | 170/300 [04:14<03:14,  1.50s/it] Cost: 42106.1953  [mbar_right_bright_w1_T4a_PD=4030.4541  mbar_right_bright_w1_T4b_ND=2994.5264  mbar_left_bright_w1_T4a_ND=4169.7480  mbar_left_bright_w1_T4b_PD=5389.3818  mbar_up_bright_w1_T4c_PD=1765.0881  mbar_up_bright_w1_T4d_ND=4579.8193  mbar_down_bright_w1_T4c_ND=16009.6807  mbar_down_bright_w1_T4d_PD=3167.4985]:  60%|██████    | 180/300 [04:29<02:59,  1.50s/it] Cost: 41316.8398  [mbar_right_bright_w1_T4a_PD=4005.7600  mbar_right_bright_w1_T4b_ND=2912.1494  mbar_left_bright_w1_T4a_ND=4018.7729  mbar_left_bright_w1_T4b_PD=5477.1982  mbar_up_bright_w1_T4c_PD=1749.7130  mbar_up_bright_w1_T4d_ND=4455.9629  mbar_down_bright_w1_T4c_ND=15579.7852  mbar_down_bright_w1_T4d_PD=3117.5017]:  63%|██████▎   | 190/300 [04:44<02:44,  1.50s/it] Cost: 40638.6289  [mbar_right_bright_w1_T4a_PD=3935.1326  mbar_right_bright_w1_T4b_ND=2908.7661  mbar_left_bright_w1_T4a_ND=3883.8328  mbar_left_bright_w1_T4b_PD=5416.5117  mbar_up_bright_w1_T4c_PD=1716.3870  mbar_up_bright_w1_T4d_ND=4357.5688  mbar_down_bright_w1_T4c_ND=15331.1279  mbar_down_bright_w1_T4d_PD=3089.3008]:  67%|██████▋   | 200/300 [04:59<02:29,  1.50s/it] Cost: 40026.8477  [mbar_right_bright_w1_T4a_PD=3911.0791  mbar_right_bright_w1_T4b_ND=2873.9128  mbar_left_bright_w1_T4a_ND=3765.6191  mbar_left_bright_w1_T4b_PD=5400.1001  mbar_up_bright_w1_T4c_PD=1658.0542  mbar_up_bright_w1_T4d_ND=4208.8921  mbar_down_bright_w1_T4c_ND=15063.0625  mbar_down_bright_w1_T4d_PD=3146.1294]:  70%|███████   | 210/300 [05:14<02:14,  1.50s/it] Cost: 39442.9062  [mbar_right_bright_w1_T4a_PD=3863.0464  mbar_right_bright_w1_T4b_ND=2813.0559  mbar_left_bright_w1_T4a_ND=3638.1084  mbar_left_bright_w1_T4b_PD=5352.9155  mbar_up_bright_w1_T4c_PD=1619.6094  mbar_up_bright_w1_T4d_ND=4147.5220  mbar_down_bright_w1_T4c_ND=14896.7480  mbar_down_bright_w1_T4d_PD=3111.8989]:  73%|███████▎  | 220/300 [05:29<01:59,  1.50s/it] Cost: 38888.3867  [mbar_right_bright_w1_T4a_PD=3873.4702  mbar_right_bright_w1_T4b_ND=2740.0500  mbar_left_bright_w1_T4a_ND=3509.7793  mbar_left_bright_w1_T4b_PD=5390.0918  mbar_up_bright_w1_T4c_PD=1591.5743  mbar_up_bright_w1_T4d_ND=4032.0229  mbar_down_bright_w1_T4c_ND=14611.0781  mbar_down_bright_w1_T4d_PD=3140.3179]:  77%|███████▋  | 230/300 [05:44<01:44,  1.50s/it] Cost: 38355.9258  [mbar_right_bright_w1_T4a_PD=3803.6860  mbar_right_bright_w1_T4b_ND=2730.4473  mbar_left_bright_w1_T4a_ND=3401.9834  mbar_left_bright_w1_T4b_PD=5270.4883  mbar_up_bright_w1_T4c_PD=1581.9177  mbar_up_bright_w1_T4d_ND=3969.8809  mbar_down_bright_w1_T4c_ND=14482.3555  mbar_down_bright_w1_T4d_PD=3115.1680]:  80%|████████  | 240/300 [05:59<01:29,  1.50s/it] Cost: 37849.3203  [mbar_right_bright_w1_T4a_PD=3812.7520  mbar_right_bright_w1_T4b_ND=2670.1587  mbar_left_bright_w1_T4a_ND=3274.8140  mbar_left_bright_w1_T4b_PD=5264.0791  mbar_up_bright_w1_T4c_PD=1552.0972  mbar_up_bright_w1_T4d_ND=3909.4146  mbar_down_bright_w1_T4c_ND=14250.5869  mbar_down_bright_w1_T4d_PD=3115.4180]:  83%|████████▎ | 250/300 [06:14<01:14,  1.50s/it] Cost: 37357.5938  [mbar_right_bright_w1_T4a_PD=3770.2422  mbar_right_bright_w1_T4b_ND=2621.7100  mbar_left_bright_w1_T4a_ND=3183.8291  mbar_left_bright_w1_T4b_PD=5192.1279  mbar_up_bright_w1_T4c_PD=1530.9392  mbar_up_bright_w1_T4d_ND=3877.6931  mbar_down_bright_w1_T4c_ND=14086.6631  mbar_down_bright_w1_T4d_PD=3094.3896]:  87%|████████▋ | 260/300 [06:29<00:59,  1.50s/it] Cost: 36876.3984  [mbar_right_bright_w1_T4a_PD=3773.3037  mbar_right_bright_w1_T4b_ND=2577.4568  mbar_left_bright_w1_T4a_ND=3066.8723  mbar_left_bright_w1_T4b_PD=5174.7964  mbar_up_bright_w1_T4c_PD=1530.1116  mbar_up_bright_w1_T4d_ND=3838.3042  mbar_down_bright_w1_T4c_ND=13848.7402  mbar_down_bright_w1_T4d_PD=3066.8115]:  90%|█████████ | 270/300 [06:44<00:44,  1.50s/it] Cost: 36409.5664  [mbar_right_bright_w1_T4a_PD=3753.3928  mbar_right_bright_w1_T4b_ND=2554.4209  mbar_left_bright_w1_T4a_ND=2965.3994  mbar_left_bright_w1_T4b_PD=5115.4531  mbar_up_bright_w1_T4c_PD=1511.8268  mbar_up_bright_w1_T4d_ND=3785.0229  mbar_down_bright_w1_T4c_ND=13647.6885  mbar_down_bright_w1_T4d_PD=3076.3650]:  93%|█████████▎| 280/300 [06:59<00:29,  1.50s/it] Cost: 35958.0820  [mbar_right_bright_w1_T4a_PD=3737.4414  mbar_right_bright_w1_T4b_ND=2532.9653  mbar_left_bright_w1_T4a_ND=2869.2607  mbar_left_bright_w1_T4b_PD=5072.8906  mbar_up_bright_w1_T4c_PD=1495.4160  mbar_up_bright_w1_T4d_ND=3759.8984  mbar_down_bright_w1_T4c_ND=13429.9551  mbar_down_bright_w1_T4d_PD=3060.2527]:  97%|█████████▋| 290/300 [07:14<00:14,  1.50s/it] Cost: 35517.6016  [mbar_right_bright_w1_T4a_PD=3726.5352  mbar_right_bright_w1_T4b_ND=2500.3579  mbar_left_bright_w1_T4a_ND=2790.3894  mbar_left_bright_w1_T4b_PD=5065.6108  mbar_up_bright_w1_T4c_PD=1494.2150  mbar_up_bright_w1_T4d_ND=3724.2017  mbar_down_bright_w1_T4c_ND=13168.5293  mbar_down_bright_w1_T4d_PD=3047.7629]: 100%|██████████| 300/300 [07:29<00:00,  1.50s/it] Cost: 35086.9688  [mbar_right_bright_w1_T4a_PD=3724.4451  mbar_right_bright_w1_T4b_ND=2467.6128  mbar_left_bright_w1_T4a_ND=2702.1807  mbar_left_bright_w1_T4b_PD=5034.6431  mbar_up_bright_w1_T4c_PD=1482.4642  mbar_up_bright_w1_T4d_ND=3685.7148  mbar_down_bright_w1_T4c_ND=12937.8848  mbar_down_bright_w1_T4d_PD=3052.0271]: 100%|██████████| 300/300 [07:29<00:00,  1.50s/it] Cost: 35086.9688  [mbar_right_bright_w1_T4a_PD=3724.4451  mbar_right_bright_w1_T4b_ND=2467.6128  mbar_left_bright_w1_T4a_ND=2702.1807  mbar_left_bright_w1_T4b_PD=5034.6431  mbar_up_bright_w1_T4c_PD=1482.4642  mbar_up_bright_w1_T4d_ND=3685.7148  mbar_down_bright_w1_T4c_ND=12937.8848  mbar_down_bright_w1_T4d_PD=3052.0271]: 
+
+Initl cost = 97871.5703  [mbar_right_bright_w1_T4a_PD=23421.5723  mbar_right_bright_w1_T4b_ND=1415.9502  mbar_left_bright_w1_T4a_ND=15546.3701  mbar_left_bright_w1_T4b_PD=4201.9771  mbar_up_bright_w1_T4c_PD=8542.6777  mbar_up_bright_w1_T4d_ND=12079.6006  mbar_down_bright_w1_T4c_ND=18766.2285  mbar_down_bright_w1_T4d_PD=13897.1973]
+Final cost = 35044.5469  [mbar_right_bright_w1_T4a_PD=3712.0615  mbar_right_bright_w1_T4b_ND=2474.0405  mbar_left_bright_w1_T4a_ND=2697.1953  mbar_left_bright_w1_T4b_PD=5008.5078  mbar_up_bright_w1_T4c_PD=1485.9323  mbar_up_bright_w1_T4d_ND=3687.4158  mbar_down_bright_w1_T4c_ND=12936.8398  mbar_down_bright_w1_T4d_PD=3042.5552]
+Best  cost = 35044.5469  [mbar_right_bright_w1_T4a_PD=3712.0615  mbar_right_bright_w1_T4b_ND=2474.0405  mbar_left_bright_w1_T4a_ND=2697.1953  mbar_left_bright_w1_T4b_PD=5008.5078  mbar_up_bright_w1_T4c_PD=1485.9323  mbar_up_bright_w1_T4d_ND=3687.4158  mbar_down_bright_w1_T4c_ND=12936.8398  mbar_down_bright_w1_T4d_PD=3042.5552]
+time needed  = 453.15  sec
+
+done in 0.13 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34390303-ab34381383-cd-transfer-keepab-iter-300/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34390303-ab34381383-cd-transfer-keepab-iter-300/param.csv (best run #0, cost=35044.5352)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34390303-ab34381383-cd-transfer-keepab-iter-300/syn_strength_cell.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:85: UserWarning: Data has no positive values, and therefore cannot be log-scaled.
+  ax.set_yscale('log')
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:860: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34390303-ab34381383-cd-transfer-keepab-iter-300/cost.png: prep=0.0s  plot_s=0.2s  save=0.8s  elapsed_s=1.0s
+plot device=cuda (NVIDIA L40S)
+1 trained set(s); costs min=35044.5352 max=35044.5352; selected #0 (from saved final costs)
+[2026-11-05 21:16:17,505][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9f2ae76724db7cba.npz
+[2026-11-05 21:16:18,265][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9f2ae76724db7cba.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34390303-ab34381383-cd-transfer-keepab-iter-300/mbar_gt_v.png: prep=0.8s  plot_s=0.1s  save=0.3s  elapsed_s=1.2s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34390303-ab34381383-cd-transfer-keepab-iter-300/mbar_all_v.png: prep=0.0s  plot_s=0.6s  save=1.6s  elapsed_s=2.2s
+Experiment source hashes verified.
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+{
+  "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34390303-ab34381383-cd-transfer-keepab-iter-300",
+  "iterations": 300,
+  "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381383-run_init_from-n_iter-300-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "geometry": "fafb_y_ventral_v2",
+  "evaluation": {
+    "cost": 35044.541259765625,
+    "cells": {
+      "T4a": {
+        "rmse_mv": 1.354143566386758,
+        "peaks_mv": {
+          "PD": 14.306537628173828,
+          "ND": 6.956428527832031
+        },
+        "gt_peaks_mv": {
+          "PD": 15.931808471679688,
+          "ND": 6.797676086425781
+        },
+        "peak_DSI": 0.34567656489758897,
+        "raw_PD_minus_ND_sum": 275.58984375
+      },
+      "T4b": {
+        "rmse_mv": 1.463138263657924,
+        "peaks_mv": {
+          "ND": 5.404205322265625,
+          "PD": 14.438865661621094
+        },
+        "gt_peaks_mv": {
+          "ND": 6.7976531982421875,
+          "PD": 15.931766510009766
+        },
+        "peak_DSI": 0.455305549563973,
+        "raw_PD_minus_ND_sum": 276.447265625
+      },
+      "T4c": {
+        "rmse_mv": 2.0649307073716687,
+        "peaks_mv": {
+          "PD": 17.4071044921875,
+          "ND": 9.346649169921875
+        },
+        "gt_peaks_mv": {
+          "PD": 15.931781768798828,
+          "ND": 6.7976531982421875
+        },
+        "peak_DSI": 0.3012831554056443,
+        "raw_PD_minus_ND_sum": 263.8330078125
+      },
+      "T4d": {
+        "rmse_mv": 1.4105477928439698,
+        "peaks_mv": {
+          "ND": 6.552165985107422,
+          "PD": 13.576461791992188
+        },
+        "gt_peaks_mv": {
+          "ND": 6.797657012939453,
+          "PD": 15.931774139404297
+        },
+        "peak_DSI": 0.3489704258367937,
+        "raw_PD_minus_ND_sum": 246.7861328125
+      }
+    },
+    "groups": [
+      {
+        "cell": "T4a",
+        "pd_nd": "PD",
+        "n_entries": 31,
+        "rmse_mv": 1.4574164152145386,
+        "response_rmse_mv": 1.6964404582977295,
+        "peak_delta_mv": 14.306537628173828,
+        "gt_peak_delta_mv": 15.931808471679688
+      },
+      {
+        "cell": "T4b",
+        "pd_nd": "ND",
+        "n_entries": 31,
+        "rmse_mv": 1.1898137331008911,
+        "response_rmse_mv": 1.4498690366744995,
+        "peak_delta_mv": 5.404205322265625,
+        "gt_peak_delta_mv": 6.7976531982421875
+      },
+      {
+        "cell": "T4a",
+        "pd_nd": "ND",
+        "n_entries": 31,
+        "rmse_mv": 1.2423151731491089,
+        "response_rmse_mv": 1.4972920417785645,
+        "peak_delta_mv": 6.956428527832031,
+        "gt_peak_delta_mv": 6.797676086425781
+      },
+      {
+        "cell": "T4b",
+        "pd_nd": "PD",
+        "n_entries": 31,
+        "rmse_mv": 1.6928941011428833,
+        "response_rmse_mv": 1.8611105680465698,
+        "peak_delta_mv": 14.438865661621094,
+        "gt_peak_delta_mv": 15.931766510009766
+      },
+      {
+        "cell": "T4c",
+        "pd_nd": "PD",
+        "n_entries": 30,
+        "rmse_mv": 0.9373359084129333,
+        "response_rmse_mv": 1.1198371648788452,
+        "peak_delta_mv": 17.4071044921875,
+        "gt_peak_delta_mv": 15.931781768798828
+      },
+      {
+        "cell": "T4d",
+        "pd_nd": "ND",
+        "n_entries": 30,
+        "rmse_mv": 1.47658109664917,
+        "response_rmse_mv": 1.4970650672912598,
+        "peak_delta_mv": 6.552165985107422,
+        "gt_peak_delta_mv": 6.797657012939453
+      },
+      {
+        "cell": "T4c",
+        "pd_nd": "ND",
+        "n_entries": 30,
+        "rmse_mv": 2.765733003616333,
+        "response_rmse_mv": 3.3567779064178467,
+        "peak_delta_mv": 9.346649169921875,
+        "gt_peak_delta_mv": 6.7976531982421875
+      },
+      {
+        "cell": "T4d",
+        "pd_nd": "PD",
+        "n_entries": 30,
+        "rmse_mv": 1.341267466545105,
+        "response_rmse_mv": 1.5686880350112915,
+        "peak_delta_mv": 13.576461791992188,
+        "gt_peak_delta_mv": 15.931774139404297
+      }
+    ],
+    "saved_cost": 35044.53515625,
+    "best_iteration": 300,
+    "native_AB": {
+      "cost": 45972.671630859375,
+      "cells": {
+        "T4a": {
+          "rmse_mv": 2.7428683571549826,
+          "peaks_mv": {
+            "PD": 13.419242858886719,
+            "ND": 8.603206634521484
+          },
+          "gt_peaks_mv": {
+            "PD": 15.931804656982422,
+            "ND": 6.7976531982421875
+          },
+          "peak_DSI": 0.21868758176999242,
+          "raw_PD_minus_ND_sum": 124.1875
+        },
+        "T4b": {
+          "rmse_mv": 1.4780962695116495,
+          "peaks_mv": {
+            "ND": 6.3922576904296875,
+            "PD": 15.721477508544922
+          },
+          "gt_peaks_mv": {
+            "ND": 6.797660827636719,
+            "PD": 15.931781768798828
+          },
+          "peak_DSI": 0.4218744474496475,
+          "raw_PD_minus_ND_sum": 288.375
+        }
+      },
+      "groups": [
+        {
+          "cell": "T4a",
+          "pd_nd": "PD",
+          "n_entries": 21,
+          "rmse_mv": 2.3567657470703125,
+          "response_rmse_mv": 2.5360093116760254,
+          "peak_delta_mv": 13.419242858886719,
+          "gt_peak_delta_mv": 15.931804656982422
+        },
+        {
+          "cell": "T4b",
+          "pd_nd": "ND",
+          "n_entries": 21,
+          "rmse_mv": 1.276361346244812,
+          "response_rmse_mv": 1.4354764223098755,
+          "peak_delta_mv": 6.3922576904296875,
+          "gt_peak_delta_mv": 6.797660827636719
+        },
+        {
+          "cell": "T4a",
+          "pd_nd": "ND",
+          "n_entries": 21,
+          "rmse_mv": 3.0809590816497803,
+          "response_rmse_mv": 3.170311689376831,
+          "peak_delta_mv": 8.603206634521484,
+          "gt_peak_delta_mv": 6.7976531982421875
+        },
+        {
+          "cell": "T4b",
+          "pd_nd": "PD",
+          "n_entries": 21,
+          "rmse_mv": 1.655427098274231,
+          "response_rmse_mv": 1.6259089708328247,
+          "peak_delta_mv": 15.721477508544922,
+          "gt_peak_delta_mv": 15.931781768798828
+        }
+      ]
+    }
+  }
+}

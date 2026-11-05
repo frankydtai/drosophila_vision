@@ -13,6 +13,7 @@ import torch
 
 import neuron.borst as _borst
 import neuron.hp_lp as _hp_lp
+import neuron.point_hh as _point_hh
 import neuron.shiu as _shiu
 from neuron.filter_ca import filter_ca
 
@@ -20,6 +21,7 @@ from neuron.filter_ca import filter_ca
 MODEL_DRIVERS = {
     "borst": _borst,
     "hp_lp": _hp_lp,
+    "point_hh": _point_hh,
     "shiu": _shiu,
 }
 MODELS = tuple(MODEL_DRIVERS)
@@ -286,7 +288,16 @@ def forward_v(session, params, i_sti, *, pack=None):
         return _mbar_gaussian_overlay(drive, params, pack, t=int(t))
 
     pre_i_sti = drive_at(0).unsqueeze(1)
-    if session.model == "hp_lp":
+    point_state = None
+    model_params = params
+    if session.model == "point_hh":
+        model_params = drv.prepare_params(params, pre_i_sti[:, 0], session)
+        point_state = drv.pre_steady(
+            session, model_params, n_b, i_sti=pre_i_sti,
+        )
+        v = point_state["v"]
+        v_slow = u = u_rev = None
+    elif session.model == "hp_lp":
         v_slow, v = drv.pre_steady(session, params, n_b, i_sti=pre_i_sti)
         u = u_rev = None
     else:
@@ -296,8 +307,14 @@ def forward_v(session, params, i_sti, *, pack=None):
     trace[:, 0] = v
 
     def take(t):
-        nonlocal v_slow, u, u_rev, v
-        if session.model == "hp_lp":
+        nonlocal point_state, v_slow, u, u_rev, v
+        if session.model == "point_hh":
+            point_state = drv.step(
+                point_state, model_params, drive_at(t - 1), session,
+                delta_ms=step_delta_ms(session, t, t_onset),
+            )
+            v = point_state["v"]
+        elif session.model == "hp_lp":
             v_slow, v = drv.step(v_slow, v, params, drive_at(t - 1), session, delta_ms=step_delta_ms(session, t, t_onset))
         else:
             u, u_rev, v = drv.step(u, u_rev, v, params, drive_at(t - 1), session, delta_ms=step_delta_ms(session, t, t_onset))
@@ -310,7 +327,10 @@ def forward_v(session, params, i_sti, *, pack=None):
     with torch.no_grad():
         for t in range(1, t_onset):
             take(t)
-    if session.model == "hp_lp":
+    if session.model == "point_hh":
+        point_state = drv.detach_state(point_state)
+        v = point_state["v"]
+    elif session.model == "hp_lp":
         v_slow = v_slow.detach()
     else:
         u = u.detach()

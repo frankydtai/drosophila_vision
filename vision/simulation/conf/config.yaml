@@ -8,8 +8,8 @@ run_path: hp_lp/${run_name}
 # ---------------------------------------------------------------------------
 # 1.1.1   neuron.borst / MODEL (session scalars; not packed into z)
 # ---------------------------------------------------------------------------
-delta_ms: 2.0
-delta_ms_pre: 2.0
+delta_ms: 1.0
+delta_ms_pre: 1.0
 cap: 40.0
 g_leak: 1.0
 e_exc: 10.0
@@ -99,6 +99,16 @@ params:
 # 1.4   neuron.forward (model booleans; not packed into z)
 # ---------------------------------------------------------------------------
 pre_grad: true
+
+# Fixed curated Point-HH context (used only when model=point_hh).
+point_hh:
+  ion_rules: /home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv
+  synapse_rules: /home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv
+  connections: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz
+  area_um2: 100.0
+  capacitance_uF_cm2: 1.0
+  v_min_mV: -120.0
+  v_max_mV: 80.0
 
 # ---------------------------------------------------------------------------
 # 2.1   network.path

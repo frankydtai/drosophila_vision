@@ -1,0 +1,34 @@
+# @package _global_
+# Fixed curated Point-HH forward run; n_iter=0 performs no optimization.
+model: point_hh
+run_path: point_hh/${run_name}
+filter: none
+syn_mode: per_edge
+tasks: [spread]
+contrasts: [bright, dark]
+figure_tasks: [spread, mbar, sbar]
+init_from: null
+n_run: 1
+n_iter: 0
+lrs: [0.1]
+checkpoint_interval: null
+fp: 64
+pre_grad: false
+pre_steady: solve
+pre_steady_n_iter: 200
+pre_steady_damp: 0.1
+delta_ms: 1.0
+delta_ms_pre: 1.0
+run_name: point_hh_curated_v1_forward
+
+params:
+  a_gt: {lo: 1.0, hi: 1.0, init: 1.0, jit: 0.0, mode: fixed}
+  bias_gt: {lo: -200.0, hi: 200.0, init: 0.0, jit: 0.0, mode: fixed}
+  a_sti_mid: {lo: 1.0, hi: 1.0, init: 1.0, jit: 0.0, mode: fixed}
+
+val_from:
+  bias_gt:
+    source: v_onset
+    enabled: true
+    scope: cell
+

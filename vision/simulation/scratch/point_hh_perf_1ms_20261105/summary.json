@@ -1,0 +1,74 @@
+[
+  {
+    "device": "cpu",
+    "label": "baseline",
+    "median_s": 1.7680508038029075,
+    "vs_baseline_x": 1.0,
+    "vs_prev_x": 1.0,
+    "delta_vs_baseline_pct": 0.0,
+    "trace_sha256": "e1806d1d61623c75f852ccaee7c01038c7b2ebd13ddaaba9f97d02a425270cb0"
+  },
+  {
+    "device": "cpu",
+    "label": "opt1_prepared_params",
+    "median_s": 1.2822574442252517,
+    "vs_baseline_x": 1.378857897659682,
+    "vs_prev_x": 1.378857897659682,
+    "delta_vs_baseline_pct": 27.476210442186442,
+    "trace_sha256": "e1806d1d61623c75f852ccaee7c01038c7b2ebd13ddaaba9f97d02a425270cb0"
+  },
+  {
+    "device": "cpu",
+    "label": "opt2_single_edge_parse",
+    "median_s": 1.3043625066056848,
+    "vs_baseline_x": 1.3554903601176556,
+    "vs_prev_x": 0.9830529762481777,
+    "delta_vs_baseline_pct": 26.225960034625345,
+    "trace_sha256": "e1806d1d61623c75f852ccaee7c01038c7b2ebd13ddaaba9f97d02a425270cb0"
+  },
+  {
+    "device": "cpu",
+    "label": "opt3_skip_i_syn",
+    "median_s": 1.1815297361463308,
+    "vs_baseline_x": 1.4964082153104075,
+    "vs_prev_x": 1.1039607948082495,
+    "delta_vs_baseline_pct": 33.17331529133813,
+    "trace_sha256": "e1806d1d61623c75f852ccaee7c01038c7b2ebd13ddaaba9f97d02a425270cb0"
+  },
+  {
+    "device": "gpu",
+    "label": "baseline",
+    "median_s": 1.5788715556263924,
+    "vs_baseline_x": 1.0,
+    "vs_prev_x": 1.0,
+    "delta_vs_baseline_pct": 0.0,
+    "trace_sha256": "8dc2c380da173c6c7d594cb8eca0cc0f56e8067ba579a6f5c593964bf9a56ee9"
+  },
+  {
+    "device": "gpu",
+    "label": "opt1_prepared_params",
+    "median_s": 1.1562399435788393,
+    "vs_baseline_x": 1.365522411152314,
+    "vs_prev_x": 1.365522411152314,
+    "delta_vs_baseline_pct": 26.767954020166044,
+    "trace_sha256": "4e213399a2262453e079218d7810cd9afe6c38eb3d878e81dd9f3dc9d3d70b06"
+  },
+  {
+    "device": "gpu",
+    "label": "opt2_single_edge_parse",
+    "median_s": 1.181760424748063,
+    "vs_baseline_x": 1.336033533161333,
+    "vs_prev_x": 0.9784046913107075,
+    "delta_vs_baseline_pct": 25.151579269586733,
+    "trace_sha256": "a9942967e399c070bdfc5934fc315ad547cc4eee9211c583552ff9e72d86b106"
+  },
+  {
+    "device": "gpu",
+    "label": "opt3_skip_i_syn",
+    "median_s": 1.093927476555109,
+    "vs_baseline_x": 1.4433055110732043,
+    "vs_prev_x": 1.0802913813533135,
+    "delta_vs_baseline_pct": 30.714599762289684,
+    "trace_sha256": "dd278bf0d51721924d43eec8cccc25d5699a3021770e59c7b9d5d6a454b26b86"
+  }
+]

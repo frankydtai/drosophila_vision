@@ -1,0 +1,62 @@
+[
+  {
+    "model": "hp_lp",
+    "task": "spread",
+    "session_s": 0.31518406327813864,
+    "figure_total_s": 3.2612536940723658,
+    "paths": [
+      "scratch/model_runtime_1ms_20261105/hp_lp/spread_gt_v.png",
+      "scratch/model_runtime_1ms_20261105/hp_lp/spread_all_v.png"
+    ]
+  },
+  {
+    "model": "hp_lp",
+    "task": "mbar",
+    "session_s": 1.0180419739335775,
+    "figure_total_s": 9.7499874336645,
+    "paths": [
+      "scratch/model_runtime_1ms_20261105/hp_lp/mbar_gt_v.png",
+      "scratch/model_runtime_1ms_20261105/hp_lp/mbar_all_v.png"
+    ]
+  },
+  {
+    "model": "hp_lp",
+    "task": "sbar",
+    "session_s": 0.8713950989767909,
+    "figure_total_s": 8.2407571291551,
+    "paths": [
+      "scratch/model_runtime_1ms_20261105/hp_lp/sbar_gt_v.png",
+      "scratch/model_runtime_1ms_20261105/hp_lp/sbar_all_v.png"
+    ]
+  },
+  {
+    "model": "point_hh",
+    "task": "spread",
+    "session_s": 2.2907272297888994,
+    "figure_total_s": 126.72283018846065,
+    "paths": [
+      "scratch/model_runtime_1ms_20261105/point_hh/spread_gt_v.png",
+      "scratch/model_runtime_1ms_20261105/point_hh/spread_all_v.png"
+    ]
+  },
+  {
+    "model": "point_hh",
+    "task": "mbar",
+    "session_s": 2.768219267949462,
+    "figure_total_s": 619.5985937993973,
+    "paths": [
+      "scratch/model_runtime_1ms_20261105/point_hh/mbar_gt_v.png",
+      "scratch/model_runtime_1ms_20261105/point_hh/mbar_all_v.png"
+    ]
+  },
+  {
+    "model": "point_hh",
+    "task": "sbar",
+    "session_s": 2.6466562133282423,
+    "figure_total_s": 365.7226349292323,
+    "paths": [
+      "scratch/model_runtime_1ms_20261105/point_hh/sbar_gt_v.png",
+      "scratch/model_runtime_1ms_20261105/point_hh/sbar_all_v.png"
+    ]
+  }
+]

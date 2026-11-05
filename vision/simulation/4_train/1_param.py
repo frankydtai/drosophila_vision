@@ -467,9 +467,13 @@ def override_val_from(params, session, *, onset_trace=None, t_onset=None):
 
 def params_from_z(z, session):
     """Bind :func:`assign_params` to a session's schema + connectome; apply ``val_from``."""
-    return override_val_from(
-        assign_params(z, schema_copy(session.schema), session.connectome), session,
-    )
+    params = assign_params(z, schema_copy(session.schema), session.connectome)
+    if session.model == "point_hh":
+        context = getattr(session, "point_hh_context", None)
+        if context is None:
+            raise ValueError("point_hh session has no fixed parameter context")
+        params.update(context.params)
+    return override_val_from(params, session)
 
 
 def schema_clamps(schema, sim_dtype=SIM_DTYPE):
