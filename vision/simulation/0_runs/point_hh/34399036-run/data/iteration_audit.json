@@ -1,0 +1,59 @@
+{
+  "training_job": 34399036,
+  "training_iteration_completed": true,
+  "optimizer_steps_completed": 1,
+  "verification_optimizer_steps": 0,
+  "n_trainable": 7,
+  "parameter_order": [
+    "gNa",
+    "gK",
+    "gLeak",
+    "gS",
+    "v_th_syn",
+    "delta_syn",
+    "k_minus_syn"
+  ],
+  "nodes": 5789,
+  "edges": 27824,
+  "syn_mode": "per_cell",
+  "initial_cost": 10293115.366108818,
+  "saved_best_cost": 10293115.366108825,
+  "saved_best_is_initial": true,
+  "all_gradients_finite_nonzero": true,
+  "all_seven_parameters_changed_in_optimizer_step": true,
+  "gradient_update_evidence": "The original GPU audit passed these assertions before failing only the exact floating-point checkpoint comparison. Raw gradients were not persisted.",
+  "checkpoint_round_trip": true,
+  "checkpoint_max_z_error": 4.440892098500626e-16,
+  "original_postcheck_error": "Exact exp/log round-trip comparison; corrected to rtol=atol=1e-14. No model rerun.",
+  "original_audit_source_sha256": "e2b6e2fd3793d3af56fed8717166a1f7ed6c53ee3de77a0ce6fb454e0d5117f0",
+  "physical_parameters": {
+    "gNa": {
+      "initial": 3.0000000000000004,
+      "saved_best": 3.0000000000000004
+    },
+    "gK": {
+      "initial": 1.0,
+      "saved_best": 1.0
+    },
+    "gLeak": {
+      "initial": 1.2,
+      "saved_best": 1.1999999999999997
+    },
+    "gS": {
+      "initial": 0.3,
+      "saved_best": 0.3
+    },
+    "v_th_syn": {
+      "initial": -45.0,
+      "saved_best": -45.0
+    },
+    "delta_syn": {
+      "initial": 4.0,
+      "saved_best": 4.0
+    },
+    "k_minus_syn": {
+      "initial": 0.10000000000000002,
+      "saved_best": 0.09999999999999998
+    }
+  }
+}

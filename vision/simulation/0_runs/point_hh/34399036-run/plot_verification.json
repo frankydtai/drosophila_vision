@@ -1,0 +1,54 @@
+{
+  "run_dir": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34399036-run",
+  "source_training_job": 34399036,
+  "plot_job": "34399858",
+  "optimizer_steps": 0,
+  "all_existing_run_files_unchanged": true,
+  "required_figure_count": 6,
+  "figure_dimensions": {
+    "spread_gt_v.png": [
+      2159,
+      1000
+    ],
+    "spread_all_v.png": [
+      2102,
+      1295
+    ],
+    "mbar_gt_v.png": [
+      868,
+      326
+    ],
+    "mbar_all_v.png": [
+      870,
+      2303
+    ],
+    "sbar_gt_v.png": [
+      860,
+      405
+    ],
+    "sbar_all_v.png": [
+      860,
+      1830
+    ]
+  },
+  "source_files_sha256": {
+    "param.csv": "26b9b890a38e24b5f90f959beb151f1cdb64b878f1fcdf207018583e3f863630",
+    "point_hh_synapse_params.csv": "102b1bc3db94ba6affa442687f85e07b6c5ee6e6a87f45e843332966d69d76c7",
+    "data/best_param_iter_00001.npz": "d8e92e0348bf18a8201e0ec92fbe8a487b2a09025e61e6d4a47999b635bf6229",
+    "data/best_adam_iter_00001.npz": "e93a775fe8567c59ca3e90cab513aa0daa67c1591e51376e6dae8ef2b2e7ac1e",
+    "data/train_opts.json": "3617eec1a58c8961478d504cb04fab988db2ad2a7a73ad2e00e3b2e743f8bc3d",
+    "data/point_hh_context.json": "83df829094b5db6951dcaae2f93b6c62f0e05f119d0b8321052a38dad7d18e8e",
+    "data/point_hh_type_params.csv": "21f48121fc453714cd4f448e7a56eff6b6d3495aea91d91b44444cc6667c5018",
+    "data/point_hh_edge_params.csv": "5dbaad263d4bd735ea1808ce695414c38753bab757a4781ba5d6266f39116167",
+    "data/train_point_hh.npy": "845a9d3dc43fab422728f6b3196ba7bb44d30aa064a2317684cc4163f1842cf2",
+    "data/best_costs.npy": "db05dcb68cc1d55051a65d8ffab326e85c5349bdbe78a28dd510b79b582043a2",
+    "data/costs.npy": "3519b9203674dfdf3a179c0797b3d7f1e65671e41d3eaa59bba58020d0919a9c",
+    "data/best_costs_by_part.npz": "885a6b58f8ff8cc6d6539be7952a489840f870b36fbb22e0c6c380b552441c4a",
+    "data/costs_by_part.npz": "11a12a50a169cfecddaca0cd70b8bd447d196f84ac9e282d0d2e1b005f18fa75",
+    "data/best_param.npz": "d8e92e0348bf18a8201e0ec92fbe8a487b2a09025e61e6d4a47999b635bf6229",
+    "data/best_adam.npz": "e93a775fe8567c59ca3e90cab513aa0daa67c1591e51376e6dae8ef2b2e7ac1e",
+    "data/iteration_audit.json": "02a077a167d8b18ec52df1735a5a51d7f44084b8905583cd2a3f31adcccd90bc",
+    "csv/param_00001.csv": "26b9b890a38e24b5f90f959beb151f1cdb64b878f1fcdf207018583e3f863630",
+    "csv/point_hh_synapse_params_00001.csv": "102b1bc3db94ba6affa442687f85e07b6c5ee6e6a87f45e843332966d69d76c7"
+  }
+}

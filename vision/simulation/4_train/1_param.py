@@ -164,9 +164,9 @@ def _param_names(param, spec, connectome):
         names = [str(radius) for radius in spec["radii"]]
     elif spec.get("mids") is not None:
         names = [str(mid) for mid in spec["mids"]]
-    elif param == "syn_strength_cell":
+    elif param == "syn_strength_cell" or spec.get("axis") == "pair":
         names = pairs_from_connectome(connectome)
-    elif param == "syn_strength_edge":
+    elif param == "syn_strength_edge" or spec.get("axis") == "edge":
         names = edges_from_connectome(connectome)
     else:
         names = cells_from_connectome(connectome)
@@ -323,7 +323,8 @@ def _remap_node_vals(node_vals, cells, pairs, schema, connectome, *, fill):
     connectome_cells = cells_from_connectome(connectome)
     connectome_pairs = (
         pairs_from_connectome(connectome)
-        if "syn_strength_cell" in schema
+        if any(p == "syn_strength_cell" or s.get("axis") == "pair"
+               for p, s in schema.items())
         else []
     )
     cell_idx = dict(zip(cells, range(len(cells))))
@@ -341,7 +342,7 @@ def _remap_node_vals(node_vals, cells, pairs, schema, connectome, *, fill):
         if node_vals.get(param) is None:
             continue
         n_node = spec['n_node']
-        if param == "syn_strength_cell":
+        if param == "syn_strength_cell" or spec.get("axis") == "pair":
             for pair in connectome_pairs:
                 if pair in pair_idx and pair_idx[pair] < len(node_vals[param]):
                     node_vals_remapped[param][connectome_pair_idx[pair]] = float(
@@ -349,7 +350,7 @@ def _remap_node_vals(node_vals, cells, pairs, schema, connectome, *, fill):
                             pair_idx[pair]
                         ],
                     )
-        elif param == "syn_strength_edge":
+        elif param == "syn_strength_edge" or spec.get("axis") == "edge":
             if len(np.asarray(node_vals[param], dtype=np.float64).reshape(-1)) == n_node:
                 node_vals_remapped[param][:] = np.asarray(
                     node_vals[param], dtype=np.float64,
@@ -413,6 +414,10 @@ def _expand_param(param, spec, node_vals, connectome):
     ``a_gt`` / ``bias_gt`` stay ``(n_cell,)``; syn / indexed sti params stay full-w.
     """
     device = connectome.conn.node_cells.device
+    if spec.get("axis") == "pair":
+        return node_vals.to(device).index_select(0, connectome.conn.pair_idxs)
+    if spec.get("axis") == "edge":
+        return node_vals.to(device)
     if (
         param in ("a_gt", "bias_gt", "syn_strength_cell", "syn_strength_edge")
         or spec.get("radii") is not None
@@ -472,7 +477,17 @@ def params_from_z(z, session):
         context = getattr(session, "point_hh_context", None)
         if context is None:
             raise ValueError("point_hh session has no fixed parameter context")
-        params.update(context.params)
+        # The trainable schema overrides the curated tensors, never vice versa.
+        decoded = params
+        params = dict(context.params)
+        params.update(decoded)
+        if "gS" in decoded:
+            # Schema gS is nS/contact; kernel gS is total nS per network edge.
+            # Keep unresolved/disabled curated edges disabled.
+            params["gS"] = (
+                decoded["gS"] * session.connectome.edge_n_syn
+                * (context.params["gS"] > 0).to(decoded["gS"].dtype)
+            )
     return override_val_from(params, session)
 
 

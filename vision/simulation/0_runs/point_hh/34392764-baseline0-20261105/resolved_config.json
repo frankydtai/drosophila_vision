@@ -1,0 +1,451 @@
+{
+  "run_name": "34392764-baseline0-20261105",
+  "run_path": "point_hh/34392764-baseline0-20261105",
+  "delta_ms": 1.0,
+  "delta_ms_pre": 1.0,
+  "cap": 40.0,
+  "g_leak": 1.0,
+  "e_exc": 10.0,
+  "e_inh": -70.0,
+  "e_h": 50.0,
+  "h_g_max": 100.0,
+  "gt_amp": 20.0,
+  "v_clamp": 100.0,
+  "a_syn_exc": 0.001,
+  "a_syn_inh": 0.001,
+  "euler": "im",
+  "model": "point_hh",
+  "filter": "none",
+  "syn_mode": "per_edge",
+  "a_lo": 0.1,
+  "a_hi": 10.0,
+  "h_cells": [
+    "L1",
+    "L2",
+    "L4",
+    "L5"
+  ],
+  "params": {
+    "a_gt": {
+      "lo": 1.0,
+      "hi": 1.0,
+      "init": 1.0,
+      "jit": 0.0,
+      "mode": "fixed",
+      "modes": {
+        "fixed": [
+          "T4a",
+          "T4b",
+          "T4c",
+          "T4d"
+        ]
+      }
+    },
+    "bias_gt": {
+      "lo": -200.0,
+      "hi": 200.0,
+      "init": 0.0,
+      "jit": 0.0,
+      "mode": "fixed"
+    },
+    "syn_strength_cell": {
+      "lo": 0.1,
+      "hi": 10.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "fixed"
+    },
+    "syn_strength_edge": {
+      "lo": 0.1,
+      "hi": 10.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "indi"
+    },
+    "a_in": {
+      "lo": 0.01,
+      "hi": 100.0,
+      "init": 5.0,
+      "jit": 0.1,
+      "mode": "shared"
+    },
+    "a_out": {
+      "lo": 0.1,
+      "hi": 10.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "indi"
+    },
+    "e_leak": {
+      "lo": -100.0,
+      "hi": 50.0,
+      "init": -52.0,
+      "jit": 1.0,
+      "mode": "fixed"
+    },
+    "v_th": {
+      "lo": -100.0,
+      "hi": 100.0,
+      "init": -45.0,
+      "inits": {
+        "L1": -60.0,
+        "L2": -60.0,
+        "L3": -60.0
+      },
+      "jit": 0.0,
+      "mode": "fixed",
+      "modes": {
+        "indi": [
+          "L1",
+          "L2",
+          "L3"
+        ]
+      }
+    },
+    "tau_lp": {
+      "lo": 10.0,
+      "hi": 100.0,
+      "init": 10.0,
+      "jit": 2.0,
+      "mode": "indi"
+    },
+    "tau_hp_rise": {
+      "lo": 100.0,
+      "hi": 500.0,
+      "init": 200.0,
+      "jit": 20.0,
+      "mode": "indi"
+    },
+    "tau_hp_fall": {
+      "lo": 100.0,
+      "hi": 500.0,
+      "init": 200.0,
+      "jit": 20.0,
+      "mode": "indi"
+    },
+    "a_h": {
+      "lo": 0.0,
+      "hi": 1.0,
+      "init": 0.0,
+      "inits": {
+        "L1": 0.5,
+        "L2": 0.5
+      },
+      "jit": 0.1,
+      "mode": "fixed",
+      "modes": {
+        "indi": [
+          "L1",
+          "L2"
+        ]
+      }
+    },
+    "v_mid_h_g": {
+      "lo": -70.0,
+      "hi": -30.0,
+      "init": -50.0,
+      "jit": 5.0,
+      "mode": "shared"
+    },
+    "v_mid_h_tau": {
+      "lo": -70.0,
+      "hi": -40.0,
+      "init": -50.0,
+      "jit": 5.0,
+      "mode": "shared"
+    },
+    "h_slope": {
+      "lo": -0.4,
+      "hi": -0.2,
+      "init": -0.25,
+      "jit": 0.02,
+      "mode": "shared"
+    },
+    "a_h_rev": {
+      "lo": 0.0,
+      "hi": 1.0,
+      "init": 0.0,
+      "jit": 0.1,
+      "mode": "fixed",
+      "modes": {
+        "indi": "${h_cells}"
+      }
+    },
+    "v_mid_h_g_rev": {
+      "lo": -70.0,
+      "hi": -30.0,
+      "init": -50.0,
+      "jit": 5.0,
+      "mode": "shared"
+    },
+    "v_mid_h_tau_rev": {
+      "lo": -70.0,
+      "hi": -40.0,
+      "init": -50.0,
+      "jit": 5.0,
+      "mode": "shared"
+    },
+    "h_slope_rev": {
+      "lo": -0.4,
+      "hi": -0.2,
+      "init": -0.25,
+      "jit": 0.02,
+      "mode": "shared"
+    },
+    "v_th_ca": {
+      "lo": -100.0,
+      "hi": 100.0,
+      "init": -50.0,
+      "jit": 0.0,
+      "mode": "indi"
+    },
+    "a_ca": {
+      "lo": 0.1,
+      "hi": 10.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "indi"
+    },
+    "tau_ca": {
+      "lo": 100.0,
+      "hi": 1000.0,
+      "init": 350.0,
+      "jit": 10.0,
+      "mode": "indi"
+    },
+    "a_sti_radius": {
+      "lo": 0.0,
+      "hi": 1.0,
+      "init": 0.0,
+      "jit": 0.05,
+      "mode": "indi"
+    },
+    "a_sti_mid": {
+      "lo": 1.0,
+      "hi": 1.0,
+      "init": 1.0,
+      "jit": 0.0,
+      "mode": "fixed"
+    }
+  },
+  "pre_grad": false,
+  "point_hh": {
+    "ion_rules": "/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv",
+    "synapse_rules": "/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv",
+    "connections": "/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz",
+    "area_um2": 100.0,
+    "capacitance_uF_cm2": 1.0,
+    "v_min_mV": -120.0,
+    "v_max_mV": 80.0
+  },
+  "network": "right_min_neuron1_r10_filtered",
+  "i_sti": {
+    "bright": 40.0,
+    "dark": 0.0,
+    "baseline": 0.0
+  },
+  "contrasts": [
+    "bright",
+    "dark"
+  ],
+  "ms_pre": 324.0,
+  "ms_sti": 160.0,
+  "ms_response": 600.0,
+  "ms_post": 0.0,
+  "spread_gt_mode": "pos",
+  "spot_radius": 1.0,
+  "fully_inside": true,
+  "multi_spot": true,
+  "shift_radius": 1.0,
+  "spot_cost_radii": [
+    0,
+    1,
+    2
+  ],
+  "a_sti_radii": [
+    1,
+    2
+  ],
+  "spot_cost_radius_scale": {
+    "0": 1.0,
+    "1": 0.3333333333333333,
+    "2": 0.3333333333333333
+  },
+  "multi_bar": false,
+  "bar_dist": 4,
+  "shift_mid": 2,
+  "sbar_gt_w": 2,
+  "a_sti_mids": [
+    0.5,
+    1,
+    1.5,
+    2
+  ],
+  "bar_ws_deg": [
+    2.25
+  ],
+  "bar_directions": [
+    "right",
+    "left"
+  ],
+  "tasks": [
+    "spread"
+  ],
+  "gt_by_task": {
+    "spread": [
+      "L1",
+      "L2",
+      "L3",
+      "L4",
+      "L5",
+      "Mi1",
+      "Mi4",
+      "Mi9",
+      "Tm3",
+      "T4a",
+      "T4b",
+      "T4c",
+      "T4d"
+    ],
+    "sbar": [
+      "T4a",
+      "T4b",
+      "T4c",
+      "T4d"
+    ],
+    "mbar": [
+      "T4a"
+    ]
+  },
+  "cost_radius": null,
+  "cost_mid": null,
+  "param_vals": {},
+  "val_from": {
+    "bias_gt": {
+      "source": "v_onset",
+      "enabled": true,
+      "scope": "cell"
+    },
+    "v_th_ca": {
+      "source": "v_th",
+      "enabled": false
+    },
+    "a_ca": {
+      "source": "a_out",
+      "enabled": false
+    },
+    "a_h_rev": {
+      "source": "a_h",
+      "enabled": false
+    },
+    "v_mid_h_g_rev": {
+      "source": "v_mid_h_g",
+      "enabled": false
+    },
+    "h_slope_rev": {
+      "source": "h_slope",
+      "enabled": false
+    },
+    "v_mid_h_tau_rev": {
+      "source": "v_mid_h_tau",
+      "enabled": false
+    }
+  },
+  "part_cost_scales": {
+    "spread": 0,
+    "sbar": 0,
+    "sbar_bright_T4a_mid+0": 0,
+    "sbar_bright_T4a_mid-1": 0,
+    "sbar_bright_T4a_mid-2": 0,
+    "sbar_bright_T4a_mid+1": 0,
+    "sbar_bright_T4a_mid+2": 1
+  },
+  "cost_norm": "a_gt2",
+  "a_lsd": 1.0,
+  "cost_entry_reduce": "mean_trace",
+  "cost_ms": null,
+  "pre_steady": "solve",
+  "pre_steady_n_iter": 200,
+  "pre_steady_damp": 0.1,
+  "n_run": 1,
+  "n_iter": 0,
+  "lrs": [
+    0.1
+  ],
+  "checkpoint_interval": null,
+  "init_from": null,
+  "resume_adam": "auto",
+  "fp": 64,
+  "sequential": false,
+  "spot_radii": [
+    0.5,
+    1.0,
+    1.5,
+    2.0
+  ],
+  "spot_plot_output": null,
+  "mbar_plot_output": null,
+  "mbar_plot_gif": false,
+  "mbar_plot_gif_output": null,
+  "mbar_plot_t_stride": 2,
+  "mbar_plot_t": null,
+  "mbar_plot_direction": "left",
+  "figure_tasks": [
+    "spread",
+    "mbar",
+    "sbar"
+  ],
+  "sbar_figure_cells": [
+    "R1-6",
+    "R7",
+    "R8",
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5",
+    "Mi1",
+    "Mi4",
+    "Mi9",
+    "Tm3",
+    "T4a"
+  ],
+  "html": false,
+  "plot_right_only": false,
+  "x": null,
+  "y": null,
+  "align_xy": null,
+  "ms_shown": null,
+  "analyze_runs": null,
+  "cells": null,
+  "spec": null,
+  "mid": null,
+  "node": null,
+  "radius": 0,
+  "t_rel_start": null,
+  "t_rel_stop": null,
+  "analyze_figure": true,
+  "analyze_json": false,
+  "post": false,
+  "check": null,
+  "baseline_ms_shown": null,
+  "part": null,
+  "analyze_cost_norm": null,
+  "stride": 1,
+  "per_node": false,
+  "cost_part_csv": null,
+  "print_parts": false,
+  "bins": 20,
+  "after_train": false,
+  "trace_osc_min_f": 0.5,
+  "trace_osc_max_f": 20.0,
+  "trace_osc_peak_threshold": 0.5,
+  "trace_osc_z_threshold": 2.0,
+  "trace_osc_snr_min": 2.0,
+  "trace_drift_min_slope_mv_over_s": 1.0,
+  "trace_drift_min_r": 0.5,
+  "trace_baseline_ms": 200.0,
+  "trace_flat_max_abs": 0.5,
+  "trace_flat_v_peak_to_peak_max": 1.0,
+  "trace_flat_abs_mean": 0.2
+}

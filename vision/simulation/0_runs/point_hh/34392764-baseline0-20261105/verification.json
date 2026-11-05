@@ -1,0 +1,22 @@
+{
+  "source_run": "34392764-run-experiment-point_hh",
+  "baseline_pA": 0,
+  "bright_pA": 40,
+  "dark_pA": 0,
+  "figure_tasks": [
+    "spread",
+    "mbar",
+    "sbar"
+  ],
+  "figures": [
+    "spread_gt_v.png",
+    "spread_all_v.png",
+    "mbar_gt_v.png",
+    "mbar_all_v.png",
+    "sbar_gt_v.png",
+    "sbar_all_v.png"
+  ],
+  "original_config_sha256": "11800c5fb121a6542bf0f04bf8148567902ec8a0be24e6f7e9e081e249ebe2f9",
+  "original_config_unchanged": true,
+  "dark_mbar_timing": "virtual bar for geometry only; actual simulation current is zero"
+}

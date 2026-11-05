@@ -16,6 +16,9 @@ from __future__ import annotations
 
 SYN_MODES = ("per_cell", "per_edge")
 PARAM_MODES = ("indi", "shared", "fixed", "frozen")
+POINT_HH_MEMBRANE_PARAMS = ("gNa", "gK", "gLeak")
+POINT_HH_SYNAPSE_PARAMS = ("gS", "v_th_syn", "delta_syn", "k_minus_syn")
+_POINT_HH_ONLY = frozenset((*POINT_HH_MEMBRANE_PARAMS, *POINT_HH_SYNAPSE_PARAMS))
 _PARAM_ENTRY_KEYS = frozenset({
     "lo", "hi", "init", "jit", "mode", "inits", "los", "his", "jits", "modes",
     "z_mode",
@@ -265,7 +268,7 @@ def build_borst_schema(
     if cells is None:
         raise TypeError("borst schema requires cells from network")
     cells = list(cells)
-    skip = set(_HP_LP_ONLY)
+    skip = set(_HP_LP_ONLY | _POINT_HH_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
     return _build_param_schema(
@@ -299,7 +302,7 @@ def build_hp_lp_schema(
     if cells is None:
         raise TypeError("hp_lp schema requires cells from network")
     cells = list(cells)
-    skip = set(_BORST_ONLY)
+    skip = set(_BORST_ONLY | _POINT_HH_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
     return _build_param_schema(
@@ -333,7 +336,7 @@ def build_shiu_schema(
     if cells is None:
         raise TypeError("shiu schema requires cells from network")
     cells = list(cells)
-    skip = set(_SHIU_UNUSED)
+    skip = set(_SHIU_UNUSED | _POINT_HH_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
     return _build_param_schema(
@@ -363,10 +366,12 @@ def build_point_hh_schema(
     a_sti_radii=(),
     a_sti_mids=(),
 ):
-    """Readout/stimulus schema for fixed curated Point-HH parameters.
+    """Point-HH physical parameters plus the common readout/stimulus schema.
 
-    Membrane and per-edge synapse tensors are supplied by
-    ``network.point_hh_context`` and are intentionally absent from ``z``.
+    Membrane conductances are nS per cell type. ``gS`` is nS per anatomical
+    contact; its contact-count conversion happens once in ``params_from_z``.
+    Synapse parameters use type-pairs for per_cell, edges for per_edge.
+    Missing entries retain the curated context, including legacy saved runs.
     """
     if cells is None:
         raise TypeError("point_hh schema requires cells from network")
@@ -377,7 +382,7 @@ def build_point_hh_schema(
     missing = {"a_gt", "bias_gt"} - set(selected)
     if missing:
         raise KeyError(f"point_hh schema requires {sorted(missing)}")
-    return _build_param_schema(
+    schema = _build_param_schema(
         selected,
         skip=set(),
         n_cell=n_cell,
@@ -395,6 +400,23 @@ def build_point_hh_schema(
             else ((1.0,) if "a_sti_mid" in selected else ())
         ),
     )
+    for param in POINT_HH_MEMBRANE_PARAMS:
+        if param in params:
+            schema[param] = build_param_spec(
+                param, n_cell, params[param], cells=list(cells),
+            )
+    for param in POINT_HH_SYNAPSE_PARAMS:
+        if param not in params:
+            continue
+        axis = "edge" if syn_mode == "per_edge" else "pair"
+        names = [f"e{i}" for i in range(int(n_edge))] if axis == "edge" else list(pairs)
+        spec = build_param_spec(
+            param, len(names), params[param],
+            **({"edges": names} if axis == "edge" else {"pairs": names}),
+        )
+        spec["axis"] = axis
+        schema[param] = spec
+    return schema
 
 
 def build_schema(

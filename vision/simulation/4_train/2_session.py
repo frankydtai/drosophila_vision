@@ -191,8 +191,8 @@ def load_train_connectome(
     print(f"network: {network_json}")
     print(f"  n_node={connectome.n_node}, n_cell={connectome.n_cell}, "
           f"n_pair={connectome.conn.n_pair}, n_edge={connectome.conn.n_edge}, "
-          f"syn_mode={mode}, "
-          f"n_z={schema_n_z(build_schema('borst', connectome, syn_mode=mode, params=params, a_sti_radii=()))}")
+          f"syn_mode={mode}")
+    # The actual model/schema is assembled later; run_train prints its n_z.
     return connectome
 
 

@@ -88,6 +88,7 @@ def decompose_params(z, session):
     for param, spec in schema.items():
         if (
             param in ("syn_strength_cell", "syn_strength_edge")
+            or spec.get("axis") in ("pair", "edge")
             or spec.get("radii") is not None
             or spec.get("mids") is not None
         ):
@@ -336,6 +337,31 @@ def save_syn_strength_edge_table(z, session, table_path):
 
 def save_syn_table(z, session, run_dir, *, token=None):
     """Write ``syn_strength_cell.csv`` or ``syn_strength_edge.csv`` for the active syn mode."""
+    hh_specs = {
+        param: spec for param, spec in session.schema.items()
+        if spec.get("axis") in ("pair", "edge")
+    }
+    if session.model == "point_hh" and hh_specs:
+        path = os.path.join(
+            run_dir, "point_hh_synapse_params.csv" if token is None
+            else f"point_hh_synapse_params_{token}.csv",
+        )
+        values = train.node_vals_from_z(z, session.schema)
+        first_spec = next(iter(hh_specs.values()))
+        if first_spec["axis"] == "pair":
+            labels = train.pairs_from_connectome(session.connectome)
+        else:
+            labels = train.edges_from_connectome(session.connectome)
+        import csv
+        with open(path, "w", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["axis", "id", *hh_specs])
+            for i, label in enumerate(labels):
+                writer.writerow([
+                    first_spec["axis"], label,
+                    *(float(values[param][i]) for param in hh_specs),
+                ])
+        return path
     return save_syn_strength_cell_table(
         z, session, os.path.join(
             run_dir,
@@ -367,7 +393,8 @@ def save_node_vals(run_dir, z, session, filename):
     node_vals = train.node_vals_from_z(z, schema)
     payload = {k: np.asarray(v, dtype=np.float64) for k, v in node_vals.items()}
     payload['cells'] = np.asarray(train.cells_from_connectome(session.connectome), dtype=object)
-    if "syn_strength_cell" in schema:
+    if any(p == "syn_strength_cell" or s.get("axis") == "pair"
+           for p, s in schema.items()):
         payload['pairs'] = np.asarray(train.pairs_from_connectome(session.connectome), dtype=object)
     os.makedirs(run_data_dir(run_dir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(run_dir), filename), **payload)
@@ -379,7 +406,8 @@ def save_adam(run_dir, exp_avg, exp_avg_sq, iter, session, filename):
     adams_m, adams_v = train.adams_from_z(exp_avg, exp_avg_sq, schema)
     payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
     payload['cells'] = np.asarray(train.cells_from_connectome(session.connectome), dtype=object)
-    if "syn_strength_cell" in schema:
+    if any(p == "syn_strength_cell" or s.get("axis") == "pair"
+           for p, s in schema.items()):
         payload['pairs'] = np.asarray(train.pairs_from_connectome(session.connectome), dtype=object)
     for param, adam in adams_m.items():
         payload[f'm_{param}'] = np.asarray(adam, dtype=np.float64)

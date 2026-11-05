@@ -1,0 +1,256 @@
+Job ID: 34400204
+Node:   spartan-gpgpu099
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+  MIG 1g.10gb     Device  0: (UUID: MIG-cc28d0fd-ba38-5597-8fc5-c03fa23567bd)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+cuda: True NVIDIA A100 80GB PCIe MIG 1g.10gb
+Start:  Fri 06 Nov 2026 00:56:57 AEDT
+==== config ====
+{'RUN_NAME': '34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1',
+ 'RUN_PATH': 'hp_lp/34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1',
+ 'MODEL': {'delta_ms': 1.0,
+           'delta_ms_pre': 1.0,
+           'cap': 40.0,
+           'g_leak': 1.0,
+           'e_exc': 10.0,
+           'e_inh': -70.0,
+           'e_h': 50.0,
+           'h_g_max': 100.0,
+           'gt_amp': 20.0,
+           'v_clamp': 100.0,
+           'a_syn_exc': 0.001,
+           'a_syn_inh': 0.001,
+           'euler': 'im'},
+ 'POINT_HH': {'ion_rules': '/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv',
+              'synapse_rules': '/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv',
+              'connections': '/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz',
+              'area_um2': 100.0,
+              'capacitance_uF_cm2': 1.0,
+              'v_min_mV': -120.0,
+              'v_max_mV': 80.0},
+ 'NEURON_SCHEMA': {'model': 'point_hh',
+                   'filter': 'none',
+                   'syn_mode': 'per_cell',
+                   'a_lo': 0.1,
+                   'a_hi': 10.0,
+                   'h_cells': ['L1', 'L2', 'L4', 'L5'],
+                   'params': {'a_gt': {'lo': 0.5,
+                                       'hi': 1.0,
+                                       'init': 1.0,
+                                       'jit': 0.1,
+                                       'mode': 'indi',
+                                       'modes': {'fixed': ['T4a', 'T4b', 'T4c', 'T4d']}},
+                              'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'syn_strength_cell': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'fixed'},
+                              'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'gNa': {'lo': 0.001, 'hi': 30.0, 'init': 3.0, 'jit': 0.0, 'mode': 'indi'},
+                              'gK': {'lo': 0.001, 'hi': 20.0, 'init': 1.0, 'jit': 0.0, 'mode': 'indi'},
+                              'gLeak': {'lo': 0.001, 'hi': 10.0, 'init': 1.2, 'jit': 0.0, 'mode': 'indi'},
+                              'gS': {'lo': 0.0001, 'hi': 3.0, 'init': 0.3, 'jit': 0.0, 'mode': 'indi'},
+                              'v_th_syn': {'lo': -80.0, 'hi': -20.0, 'init': -45.0, 'jit': 0.0, 'mode': 'shared'},
+                              'delta_syn': {'lo': 0.5, 'hi': 20.0, 'init': 4.0, 'jit': 0.0, 'mode': 'fixed'},
+                              'k_minus_syn': {'lo': 0.005, 'hi': 2.0, 'init': 0.1, 'jit': 0.0, 'mode': 'fixed'},
+                              'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 5.0, 'jit': 0.1, 'mode': 'shared'},
+                              'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'e_leak': {'lo': -100.0, 'hi': 50.0, 'init': -52.0, 'jit': 1.0, 'mode': 'fixed'},
+                              'v_th': {'lo': -100.0,
+                                       'hi': 100.0,
+                                       'init': -45.0,
+                                       'inits': {'L1': -60.0, 'L2': -60.0, 'L3': -60.0},
+                                       'jit': 0.0,
+                                       'mode': 'fixed',
+                                       'modes': {'indi': ['L1', 'L2', 'L3']}},
+                              'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 10.0, 'jit': 2.0, 'mode': 'indi'},
+                              'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'a_h': {'lo': 0.0,
+                                      'hi': 1.0,
+                                      'init': 0.0,
+                                      'inits': {'L1': 0.5, 'L2': 0.5},
+                                      'jit': 0.1,
+                                      'mode': 'fixed',
+                                      'modes': {'indi': ['L1', 'L2']}},
+                              'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'a_h_rev': {'lo': 0.0,
+                                          'hi': 1.0,
+                                          'init': 0.0,
+                                          'jit': 0.1,
+                                          'mode': 'fixed',
+                                          'modes': {'indi': ['L1', 'L2', 'L4', 'L5']}},
+                              'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau_rev': {'lo': -70.0,
+                                                  'hi': -40.0,
+                                                  'init': -50.0,
+                                                  'jit': 5.0,
+                                                  'mode': 'shared'},
+                              'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'},
+                              'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'},
+                              'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'},
+                              'a_sti_mid': {'lo': 0.5, 'hi': 2.0, 'init': 1, 'jit': 0.05, 'mode': 'shared'}}},
+ 'NEURON_FORWARD': {'pre_grad': True},
+ 'NETWORK_PATH': {'network': 'right_min_neuron1_r10_filtered'},
+ 'SPREAD_INPUT_SPEC': {'ms_pre': 324.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0},
+ 'SPREAD_GT': {'spread_gt_mode': 'pos'},
+ 'SPOT_INPUT_GEO': {'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0},
+ 'SPOT_PACK': {'spot_cost_radii': [0, 1, 2],
+               'a_sti_radii': [1, 2],
+               'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}},
+ 'SBAR_INPUT_GEO': {'multi_bar': False, 'bar_dist': 4, 'shift_mid': 2},
+ 'SBAR_GT': {'sbar_gt_w': 2},
+ 'SBAR_PACK': {'a_sti_mids': [0.5, 1.0, 1.5, 2.0]},
+ 'MBAR_INPUT_SPEC': {'ms_pre': 324.0, 'bar_ws_deg': [2.25], 'bar_directions': ['right', 'left']},
+ 'TRAIN_CONFIG': {'tasks': ['spread', 'sbar'],
+                  'contrasts': ['bright', 'dark'],
+                  'i_sti': {'bright': 40.0, 'dark': 0.0},
+                  'gt_by_task': {'spread': ['L1',
+                                            'L2',
+                                            'L3',
+                                            'L4',
+                                            'L5',
+                                            'Mi1',
+                                            'Mi4',
+                                            'Mi9',
+                                            'Tm3',
+                                            'T4a',
+                                            'T4b',
+                                            'T4c',
+                                            'T4d'],
+                                 'sbar': ['T4a', 'T4b', 'T4c', 'T4d'],
+                                 'mbar': ['T4a']},
+                  'cost_radius': None,
+                  'cost_mid': None},
+ 'VAL_FROM': {'bias_gt': {'source': 'v_onset', 'enabled': True},
+              'v_th_ca': {'source': 'v_th', 'enabled': False},
+              'a_ca': {'source': 'a_out', 'enabled': False},
+              'a_h_rev': {'source': 'a_h', 'enabled': False},
+              'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False},
+              'h_slope_rev': {'source': 'h_slope', 'enabled': False},
+              'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}},
+ 'TRAIN_OPTIMIZATION': {'part_cost_scales': {'spread': 0,
+                                             'sbar': 0,
+                                             'sbar_bright_T4a_mid+0': 0,
+                                             'sbar_bright_T4a_mid-1': 0,
+                                             'sbar_bright_T4a_mid-2': 0,
+                                             'sbar_bright_T4a_mid+1': 0,
+                                             'sbar_bright_T4a_mid+2': 1},
+                        'cost_norm': 'a_gt2',
+                        'a_lsd': 1.0,
+                        'cost_entry_reduce': 'mean_trace',
+                        'cost_ms': None,
+                        'pre_steady': 'solve',
+                        'pre_steady_n_iter': 50,
+                        'pre_steady_damp': 0.1,
+                        'n_run': 1,
+                        'n_iter': 0,
+                        'lrs': [0.1],
+                        'checkpoint_interval': 1000},
+ 'TRAIN_SESSION': {'fp': 32, 'sequential': False},
+ 'FIGURE_PLOT': {'tasks': ['spread', 'mbar', 'sbar'],
+                 'sbar_figure_cells': ['R1-6',
+                                       'R7',
+                                       'R8',
+                                       'L1',
+                                       'L2',
+                                       'L3',
+                                       'L4',
+                                       'L5',
+                                       'Mi1',
+                                       'Mi4',
+                                       'Mi9',
+                                       'Tm3',
+                                       'T4a'],
+                 'html': False,
+                 'plot_right_only': False,
+                 'x': None,
+                 'y': None,
+                 'align_xy': None,
+                 'ms_shown': None},
+ 'FIGURE_PLOT_STI_SPOT': {'spot_radii': [0.5, 1.0, 1.5, 2.0], 'output': None},
+ 'FIGURE_PLOT_STI_MBAR': {'output': None,
+                          'gif': False,
+                          'gif_output': None,
+                          't_stride': 2,
+                          't': None,
+                          'direction': 'left'},
+ 'ANALYZE_RUNS': ['hp_lp/34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1'],
+ 'ANALYZE_CELL_DYNAMICS': {'cells': None,
+                           'spec': None,
+                           'mid': None,
+                           'node': None,
+                           'radius': 0,
+                           't_rel_start': None,
+                           't_rel_stop': None,
+                           'figure': True,
+                           'json': False,
+                           'a_mid': None},
+ 'ANALYZE_SYN_SIGN': {'bins': 20, 'after_train': False, 'post': False},
+ 'ANALYZE_TRACE': {'trace_osc_min_f': 0.5,
+                   'trace_osc_max_f': 20.0,
+                   'trace_osc_peak_threshold': 0.5,
+                   'trace_osc_z_threshold': 2.0,
+                   'trace_osc_snr_min': 2.0,
+                   'trace_drift_min_slope_mv_over_s': 1.0,
+                   'trace_drift_min_r': 0.5,
+                   'trace_baseline_ms': 200.0,
+                   'trace_flat_max_abs': 0.5,
+                   'trace_flat_v_peak_to_peak_max': 1.0,
+                   'trace_flat_abs_mean': 0.2,
+                   'check': None,
+                   'baseline_ms_shown': None},
+ 'ANALYZE_COST_PART': {'part': None,
+                       'cost_norm': None,
+                       'stride': 1,
+                       'per_node': False,
+                       'csv': None,
+                       'print_parts': False}}
+==== end config ====
+config: {'run_name': '34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1', 'run_path': 'hp_lp/${run_name}', 'delta_ms': 1.0, 'delta_ms_pre': 1.0, 'cap': 40.0, 'g_leak': 1.0, 'e_exc': 10.0, 'e_inh': -70.0, 'e_h': 50.0, 'h_g_max': 100.0, 'gt_amp': 20.0, 'v_clamp': 100.0, 'a_syn_exc': 0.001, 'a_syn_inh': 0.001, 'euler': 'im', 'model': 'point_hh', 'filter': 'none', 'syn_mode': 'per_cell', 'a_lo': 0.1, 'a_hi': 10.0, 'h_cells': ['L1', 'L2', 'L4', 'L5'], 'params': {'a_gt': {'lo': 0.5, 'hi': 1.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi', 'modes': {'fixed': ['T4a', 'T4b', 'T4c', 'T4d']}}, 'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'}, 'syn_strength_cell': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'fixed'}, 'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'gNa': {'lo': 0.001, 'hi': 30.0, 'init': 3.0, 'jit': 0.0, 'mode': 'indi'}, 'gK': {'lo': 0.001, 'hi': 20.0, 'init': 1.0, 'jit': 0.0, 'mode': 'indi'}, 'gLeak': {'lo': 0.001, 'hi': 10.0, 'init': 1.2, 'jit': 0.0, 'mode': 'indi'}, 'gS': {'lo': 0.0001, 'hi': 3.0, 'init': 0.3, 'jit': 0.0, 'mode': 'indi'}, 'v_th_syn': {'lo': -80.0, 'hi': -20.0, 'init': -45.0, 'jit': 0.0, 'mode': 'shared'}, 'delta_syn': {'lo': 0.5, 'hi': 20.0, 'init': 4.0, 'jit': 0.0, 'mode': 'fixed'}, 'k_minus_syn': {'lo': 0.005, 'hi': 2.0, 'init': 0.1, 'jit': 0.0, 'mode': 'fixed'}, 'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 5.0, 'jit': 0.1, 'mode': 'shared'}, 'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'e_leak': {'lo': -100.0, 'hi': 50.0, 'init': -52.0, 'jit': 1.0, 'mode': 'fixed'}, 'v_th': {'lo': -100.0, 'hi': 100.0, 'init': -45.0, 'inits': {'L1': -60.0, 'L2': -60.0, 'L3': -60.0}, 'jit': 0.0, 'mode': 'fixed', 'modes': {'indi': ['L1', 'L2', 'L3']}}, 'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 10.0, 'jit': 2.0, 'mode': 'indi'}, 'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'}, 'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'}, 'a_h': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'inits': {'L1': 0.5, 'L2': 0.5}, 'jit': 0.1, 'mode': 'fixed', 'modes': {'indi': ['L1', 'L2']}}, 'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'}, 'a_h_rev': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.1, 'mode': 'fixed', 'modes': {'indi': '${h_cells}'}}, 'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'v_mid_h_tau_rev': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'}, 'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'}, 'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'}, 'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'}, 'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'}, 'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'}, 'a_sti_mid': {'lo': 0.5, 'hi': 2.0, 'init': 1, 'jit': 0.05, 'mode': 'shared'}}, 'pre_grad': True, 'point_hh': {'ion_rules': '/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv', 'synapse_rules': '/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv', 'connections': '/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz', 'area_um2': 100.0, 'capacitance_uF_cm2': 1.0, 'v_min_mV': -120.0, 'v_max_mV': 80.0}, 'network': 'right_min_neuron1_r10_filtered', 'i_sti': {'bright': 40.0, 'dark': 0.0}, 'contrasts': ['bright', 'dark'], 'ms_pre': 324.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0, 'spread_gt_mode': 'pos', 'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0, 'spot_cost_radii': [0, 1, 2], 'a_sti_radii': [1, 2], 'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}, 'multi_bar': False, 'bar_dist': 4, 'shift_mid': 2, 'sbar_gt_w': 2, 'a_sti_mids': [0.5, 1, 1.5, 2], 'bar_ws_deg': [2.25], 'bar_directions': ['right', 'left'], 'tasks': ['spread'], 'gt_by_task': {'spread': ['L1', 'L2', 'L3', 'L4', 'L5', 'Mi1', 'Mi4', 'Mi9', 'Tm3', 'T4a', 'T4b', 'T4c', 'T4d'], 'sbar': ['T4a', 'T4b', 'T4c', 'T4d'], 'mbar': ['T4a']}, 'cost_radius': None, 'cost_mid': None, 'param_vals': {}, 'val_from': {'bias_gt': {'source': 'v_onset', 'enabled': True}, 'v_th_ca': {'source': 'v_th', 'enabled': False}, 'a_ca': {'source': 'a_out', 'enabled': False}, 'a_h_rev': {'source': 'a_h', 'enabled': False}, 'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False}, 'h_slope_rev': {'source': 'h_slope', 'enabled': False}, 'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}}, 'cost_norm': 'a_gt2', 'a_lsd': 1.0, 'cost_entry_reduce': 'mean_trace', 'cost_ms': None, 'pre_steady': 'solve', 'pre_steady_n_iter': 50, 'pre_steady_damp': 0.1, 'n_run': 1, 'n_iter': 100, 'lrs': [0.1], 'checkpoint_interval': 1000, 'init_from': None, 'resume_adam': 'auto', 'fp': 32, 'sequential': False, 'spot_radii': [0.5, 1.0, 1.5, 2.0], 'spot_plot_output': None, 'mbar_plot_output': None, 'mbar_plot_gif': False, 'mbar_plot_gif_output': None, 'mbar_plot_t_stride': 2, 'mbar_plot_t': None, 'mbar_plot_direction': 'left', 'figure_tasks': ['spread', 'mbar', 'sbar'], 'sbar_figure_cells': ['R1-6', 'R7', 'R8', 'L1', 'L2', 'L3', 'L4', 'L5', 'Mi1', 'Mi4', 'Mi9', 'Tm3', 'T4a'], 'html': False, 'plot_right_only': False, 'x': None, 'y': None, 'align_xy': None, 'ms_shown': None, 'analyze_runs': None, 'cells': None, 'spec': None, 'mid': None, 'node': None, 'radius': 0, 't_rel_start': None, 't_rel_stop': None, 'analyze_figure': True, 'analyze_json': False, 'post': False, 'check': None, 'baseline_ms_shown': None, 'part': None, 'analyze_cost_norm': None, 'stride': 1, 'per_node': False, 'cost_part_csv': None, 'print_parts': False, 'bins': 20, 'after_train': False, 'trace_osc_min_f': 0.5, 'trace_osc_max_f': 20.0, 'trace_osc_peak_threshold': 0.5, 'trace_osc_z_threshold': 2.0, 'trace_osc_snr_min': 2.0, 'trace_drift_min_slope_mv_over_s': 1.0, 'trace_drift_min_r': 0.5, 'trace_baseline_ms': 200.0, 'trace_flat_max_abs': 0.5, 'trace_flat_v_peak_to_peak_max': 1.0, 'trace_flat_abs_mean': 0.2, 'part_cost_scales': {'mbar': 1, 'mbar_DSI': 0}}
+param_modes:
+  a_gt         indi=10/shared=0/fixed=4/frozen=0 (10)
+  bias_gt      indi=0/shared=0/fixed=0/frozen=14 (0)
+  a_sti_mid    indi=0/shared=1/fixed=0/frozen=0 (1)
+  gNa          indi=14/shared=0/fixed=0/frozen=0 (14)
+  gK           indi=14/shared=0/fixed=0/frozen=0 (14)
+  gLeak        indi=14/shared=0/fixed=0/frozen=0 (14)
+  gS           indi=101/shared=0/fixed=0/frozen=0 (101)
+  v_th_syn     indi=0/shared=101/fixed=0/frozen=0 (1)
+  delta_syn    indi=0/shared=0/fixed=101/frozen=0 (0)
+  k_minus_syn  indi=0/shared=0/fixed=101/frozen=0 (0)
+device=cuda, model=point_hh, syn_mode=per_cell, euler=implicit, pre_steady=solve, a_lsd=1.0, cost_entry_reduce=mean_trace, n_run=1, n_iter=100, lrs=[0.1], n_z=155, fname=train_point_hh.npy
+checkpoint_interval=1000
+
+round 0
+
+  0%|          | 0/100 [00:00<?, ?it/s] Cost: 10248918.0000  [spread_bright_L5=699597.0000  spread_bright_Mi1=963779.0625  spread_bright_Mi4=1947297.6250  spread_bright_Tm3=763598.5000  spread_bright_T4a=572501.0000  spread_bright_T4b=610341.1875  spread_bright_T4c=577520.8750  spread_bright_T4d=609564.3750  spread_dark_L1=455133.8750  spread_dark_L2=447525.0312  spread_dark_L3=301749.6562  spread_dark_L4=1484177.6250  spread_dark_Mi9=816131.7500] 10%|█         | 10/100 [00:36<05:29,  3.66s/it] Cost: 9544521.0000  [spread_bright_L5=825976.1875  spread_bright_Mi1=880889.9375  spread_bright_Mi4=1501973.7500  spread_bright_Tm3=521913.6250  spread_bright_T4a=540033.6250  spread_bright_T4b=536761.5000  spread_bright_T4c=582479.6250  spread_bright_T4d=547046.1250  spread_dark_L1=470140.6562  spread_dark_L2=439473.1562  spread_dark_L3=291202.7188  spread_dark_L4=1459377.8750  spread_dark_Mi9=947253.0625]:  20%|██        | 20/100 [01:13<04:53,  3.67s/it] Cost: 16182179.0000  [spread_bright_L5=1682328.3750  spread_bright_Mi1=1236479.7500  spread_bright_Mi4=1974863.5000  spread_bright_Tm3=1549103.8750  spread_bright_T4a=1213033.6250  spread_bright_T4b=1233334.1250  spread_bright_T4c=1230005.2500  spread_bright_T4d=1226714.7500  spread_dark_L1=1521041.6250  spread_dark_L2=426350.5938  spread_dark_L3=282273.6562  spread_dark_L4=1449969.8750  spread_dark_Mi9=1156679.0000]:  30%|███       | 30/100 [01:49<04:16,  3.66s/it] Cost: 16165038.0000  [spread_bright_L5=1682383.7500  spread_bright_Mi1=1236471.8750  spread_bright_Mi4=1966279.7500  spread_bright_Tm3=1542914.8750  spread_bright_T4a=1208963.7500  spread_bright_T4b=1229252.7500  spread_bright_T4c=1229105.0000  spread_bright_T4d=1227771.8750  spread_dark_L1=1532201.0000  spread_dark_L2=419884.2812  spread_dark_L3=276967.0938  spread_dark_L4=1448164.3750  spread_dark_Mi9=1164677.6250]:  40%|████      | 40/100 [02:25<03:38,  3.63s/it] Cost: 16159142.0000  [spread_bright_L5=1682385.0000  spread_bright_Mi1=1236482.2500  spread_bright_Mi4=1961248.8750  spread_bright_Tm3=1542714.8750  spread_bright_T4a=1209313.2500  spread_bright_T4b=1230896.5000  spread_bright_T4c=1228551.0000  spread_bright_T4d=1228331.0000  spread_dark_L1=1533555.5000  spread_dark_L2=419237.4375  spread_dark_L3=274544.2500  spread_dark_L4=1446970.0000  spread_dark_Mi9=1164913.3750]:  50%|█████     | 50/100 [03:01<03:01,  3.63s/it] Cost: 16123602.0000  [spread_bright_L5=1682384.5000  spread_bright_Mi1=1236481.2500  spread_bright_Mi4=1962962.1250  spread_bright_Tm3=1543143.5000  spread_bright_T4a=1207342.8750  spread_bright_T4b=1229143.8750  spread_bright_T4c=1226966.8750  spread_bright_T4d=1225937.0000  spread_dark_L1=1533967.8750  spread_dark_L2=418941.7188  spread_dark_L3=273523.6562  spread_dark_L4=1446683.6250  spread_dark_Mi9=1136122.2500]:  60%|██████    | 60/100 [03:37<02:24,  3.61s/it] Cost: 16037652.0000  [spread_bright_L5=1682385.6250  spread_bright_Mi1=1236483.0000  spread_bright_Mi4=1963400.7500  spread_bright_Tm3=1543181.8750  spread_bright_T4a=1203470.8750  spread_bright_T4b=1226407.8750  spread_bright_T4c=1224755.6250  spread_bright_T4d=1222242.2500  spread_dark_L1=1534086.6250  spread_dark_L2=418413.5625  spread_dark_L3=273522.5625  spread_dark_L4=1446781.5000  spread_dark_Mi9=1062517.7500]:  70%|███████   | 70/100 [04:13<01:48,  3.61s/it] Cost: 15869435.0000  [spread_bright_L5=1682385.2500  spread_bright_Mi1=1236481.6250  spread_bright_Mi4=1962635.8750  spread_bright_Tm3=1542567.0000  spread_bright_T4a=1195837.6250  spread_bright_T4b=1221582.7500  spread_bright_T4c=1220306.3750  spread_bright_T4d=1217096.3750  spread_dark_L1=1533967.1250  spread_dark_L2=418129.0938  spread_dark_L3=273511.8438  spread_dark_L4=1446817.6250  spread_dark_Mi9=918117.0625]:   80%|████████  | 80/100 [04:49<01:12,  3.60s/it] Cost: 15121560.0000  [spread_bright_L5=1682386.2500  spread_bright_Mi1=1236486.8750  spread_bright_Mi4=1956959.5000  spread_bright_Tm3=1538366.2500  spread_bright_T4a=1145647.1250  spread_bright_T4b=1192203.6250  spread_bright_T4c=1221192.2500  spread_bright_T4d=1195766.2500  spread_dark_L1=1529057.0000  spread_dark_L2=417606.5000  spread_dark_L3=273452.0312  spread_dark_L4=1446831.5000  spread_dark_Mi9=285603.9688]:  90%|█████████ | 90/100 [05:25<00:35,  3.60s/it] Cost: 14887528.0000  [spread_bright_L5=1682388.5000  spread_bright_Mi1=1236483.7500  spread_bright_Mi4=1941156.3750  spread_bright_Tm3=1537422.5000  spread_bright_T4a=1103201.6250  spread_bright_T4b=1084916.0000  spread_bright_T4c=1191851.2500  spread_bright_T4d=1151034.2500  spread_dark_L1=1527703.6250  spread_dark_L2=417190.2500  spread_dark_L3=273457.1250  spread_dark_L4=1446836.6250  spread_dark_Mi9=293887.3750]: 100%|██████████| 100/100 [06:01<00:00,  3.60s/it] Cost: 14591373.0000  [spread_bright_L5=1682388.1250  spread_bright_Mi1=1236482.8750  spread_bright_Mi4=1927673.2500  spread_bright_Tm3=1537488.0000  spread_bright_T4a=1060289.3750  spread_bright_T4b=954742.8125  spread_bright_T4c=1158999.2500  spread_bright_T4d=1047922.6250  spread_dark_L1=1528025.2500  spread_dark_L2=416997.5938  spread_dark_L3=273451.1562  spread_dark_L4=1446838.8750  spread_dark_Mi9=320074.1250]: 100%|██████████| 100/100 [06:01<00:00,  3.62s/it] Cost: 14591373.0000  [spread_bright_L5=1682388.1250  spread_bright_Mi1=1236482.8750  spread_bright_Mi4=1927673.2500  spread_bright_Tm3=1537488.0000  spread_bright_T4a=1060289.3750  spread_bright_T4b=954742.8125  spread_bright_T4c=1158999.2500  spread_bright_T4d=1047922.6250  spread_dark_L1=1528025.2500  spread_dark_L2=416997.5938  spread_dark_L3=273451.1562  spread_dark_L4=1446838.8750  spread_dark_Mi9=320074.1250]: 
+
+Initl cost = 10248918.0000  [spread_bright_L5=699597.0000  spread_bright_Mi1=963779.0625  spread_bright_Mi4=1947297.6250  spread_bright_Tm3=763598.5000  spread_bright_T4a=572501.0000  spread_bright_T4b=610341.1875  spread_bright_T4c=577520.8750  spread_bright_T4d=609564.3750  spread_dark_L1=455133.8750  spread_dark_L2=447525.0312  spread_dark_L3=301749.6562  spread_dark_L4=1484177.6250  spread_dark_Mi9=816131.7500]
+Final cost = 14572641.0000  [spread_bright_L5=1682387.6250  spread_bright_Mi1=1236483.0000  spread_bright_Mi4=1927729.2500  spread_bright_Tm3=1537505.8750  spread_bright_T4a=1055803.2500  spread_bright_T4b=949365.4375  spread_bright_T4c=1155789.1250  spread_bright_T4d=1044919.2500  spread_dark_L1=1528046.0000  spread_dark_L2=416963.1562  spread_dark_L3=273450.3750  spread_dark_L4=1446838.8750  spread_dark_Mi9=317360.7812]
+Best  cost = 8226558.5000  [spread_bright_L5=639901.3125  spread_bright_Mi1=819676.9375  spread_bright_Mi4=700482.8125  spread_bright_Tm3=817452.8125  spread_bright_T4a=483056.1562  spread_bright_T4b=530878.1250  spread_bright_T4c=445174.0938  spread_bright_T4d=471607.5625  spread_dark_L1=435814.0938  spread_dark_L2=604390.4375  spread_dark_L3=282395.1562  spread_dark_L4=1469438.2500  spread_dark_Mi9=526291.5000]
+time needed  = 367.73  sec
+
+done in 0.10 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/param.csv (best run #0, cost=8226785.5000)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/point_hh_synapse_params.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:860: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/cost.png: prep=0.0s  plot_s=0.3s  save=2.2s  elapsed_s=2.6s
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.10gb)
+1 trained set(s); costs min=8226785.5000 max=8226785.5000; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/spread_gt_v.png: prep=2.2s  plot_s=0.2s  save=0.6s  elapsed_s=3.0s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/spread_all_v.png: prep=0.0s  plot_s=0.2s  save=0.7s  elapsed_s=0.9s
+[2026-11-06 01:03:25,476][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
+[2026-11-06 01:03:29,774][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
+[2026-11-06 01:03:30,435][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/3e2737b0a261f218.npz
+[2026-11-06 01:03:34,735][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/3e2737b0a261f218.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/mbar_gt_v.png: prep=8.9s  plot_s=0.1s  save=0.2s  elapsed_s=9.1s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/mbar_all_v.png: prep=0.0s  plot_s=0.9s  save=2.3s  elapsed_s=3.2s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/sbar_gt_v.png: prep=3.9s  plot_s=0.2s  save=0.5s  elapsed_s=4.6s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0/sbar_all_v.png: prep=0.0s  plot_s=1.2s  save=2.1s  elapsed_s=3.4s
