@@ -1,0 +1,85 @@
+{
+  "scope": "isolated single-cell numerical diagnostic, not biological/task accuracy",
+  "solver": "actual Jaxley bwd_euler, exponential gates; no hidden substeps",
+  "reference": "SciPy DOP853, piecewise at 20/60 ms, rtol=1e-10 atol=1e-12 max_step=.02 ms",
+  "common_grid_error": "linear interpolation of coarse output to uniform .005 ms grid; includes undersampling",
+  "node_error": "coarse voltages compared to dense adaptive solution at identical solver times",
+  "reference_checks": {
+    "paper1_T4a": {
+      "max_tight_reference_difference_mV": 4.973799150320701e-14,
+      "initial_state": [
+        -60.42460309774924,
+        0.08935930978301694,
+        0.43294677814180815,
+        0.38950050976348943
+      ],
+      "parameters": {
+        "gNa": 0.0065,
+        "gK": 0.002,
+        "gLeak": 0.0016,
+        "eLeak": -60.0,
+        "eNa": 50.0,
+        "eK": -80.0
+      },
+      "input_uA_per_cm2": 20.0,
+      "reference_spike_times_ms": []
+    },
+    "paper1_Mi1": {
+      "max_tight_reference_difference_mV": 6.394884621840902e-14,
+      "initial_state": [
+        -58.3676906820643,
+        0.11174533679884655,
+        0.36311811447255143,
+        0.4222983950939899
+      ],
+      "parameters": {
+        "gNa": 0.007,
+        "gK": 0.0012,
+        "gLeak": 0.0012,
+        "eLeak": -58.0,
+        "eNa": 50.0,
+        "eK": -80.0
+      },
+      "input_uA_per_cm2": 20.0,
+      "reference_spike_times_ms": []
+    },
+    "classical_HH_stress": {
+      "max_tight_reference_difference_mV": 9.001055900625943e-09,
+      "initial_state": [
+        -64.97405245162668,
+        0.053094651784847305,
+        0.5952130171676474,
+        0.3180746172375899
+      ],
+      "parameters": {
+        "gNa": 0.12,
+        "gK": 0.036,
+        "gLeak": 0.0003,
+        "eNa": 50.0,
+        "eK": -77.0,
+        "eLeak": -54.3
+      },
+      "input_uA_per_cm2": 10.0,
+      "reference_spike_times_ms": [
+        21.899836915563217,
+        36.80670527512931,
+        51.441827641126736
+      ]
+    }
+  },
+  "backend": "cpu",
+  "versions": {
+    "jax": "0.6.2",
+    "jaxlib": "0.6.2",
+    "jaxley": "0.13.0",
+    "numpy": "1.26.3",
+    "scipy": "1.15.3"
+  },
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/point_hh_dt_20261105/sweep.py": "852a49476b655244d21a28643d9ea18adbec70a0382d319968263724b1841dae",
+    "/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv": "f8677ebc64cc7df6485007e88211bf747ed2c6e6ecfed9537ef2a322766ca1b6",
+    "/home/yitai/Ripple/src/ripple/biophysics/channels.py": "c01a6d3a21ac206ef011708d141c4432660961d02ad59fa06c4c4b7432ae7747"
+  },
+  "slurm_job_id": "34382548",
+  "host": "spartan-bm175.hpc.unimelb.edu.au"
+}

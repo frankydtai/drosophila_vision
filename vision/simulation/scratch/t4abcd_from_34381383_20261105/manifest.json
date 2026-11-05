@@ -1,0 +1,55 @@
+{
+  "source_run": "34381383",
+  "baseline_job": "34382310",
+  "train_job": "34382311",
+  "analysis_job": "34382325",
+  "source": "best_param.npz",
+  "iterations": [
+    0,
+    300
+  ],
+  "learning_rate": 0.1,
+  "resume_adam": false,
+  "tasks": [
+    "mbar"
+  ],
+  "contrasts": [
+    "bright"
+  ],
+  "gt_cells": [
+    "T4a",
+    "T4b",
+    "T4c",
+    "T4d"
+  ],
+  "bar_directions": [
+    "right",
+    "left",
+    "up",
+    "down"
+  ],
+  "cost_mid": 0,
+  "spatial_selection_note": "Existing pack implementation selects union of x=0 and y=0 strips across four directions (31 stimulus hexes); center-hex diagnostics are also exported.",
+  "code_sha256": {
+    "vision/simulation/conf/config.yaml": "8a976c9314316f53ef1893f8c75d7af5bff7c56dc1f2274d704e34c3916d6039",
+    "vision/simulation/1_neuron/2_filter_ca.py": "85a4d59a8f06703eca4c66d8f94c17e9c64a30510bb794f41a79b138f007851d",
+    "vision/simulation/1_neuron/4_forward.py": "bbf6753f378b11723a13585ca3db416f6943f103ee468bd57c5bfd261ea75da5",
+    "vision/simulation/1_neuron/3_schema.py": "9a18a7629d233789d254397653c1026a15ba5752e060883c501e7d9c1d1074a9",
+    "vision/simulation/1_neuron/5_readout.py": "f14afcd7d9d959197b4d07525d52d7134263060fd8212d090726fcfcd11d914a",
+    "vision/simulation/1_neuron/__init__.py": "b7411d63d285a242fd2b82e597ea9382748d14f86b596353bf7a78a5ffa90381",
+    "vision/simulation/1_neuron/1_3_shiu.py": "6f03a071b54e1d20138b1846c85d7e81d03b49ce308ac80a047331f73e292005",
+    "vision/simulation/1_neuron/1_1_borst.py": "1afc79d5060e09aa5c7776e4478d51c52f134513a902d90a335a6672383f239d",
+    "vision/simulation/1_neuron/1_2_hp_lp.py": "ef2803ecafbc7679d200fb5ae491d2bd3e840d820d75cc491e0a12df10c9fbfe",
+    "vision/simulation/3_task/4_mbar/__init__.py": "b80efe6694e57f15692051979d0e928add8499383bc2b5026774b6e644bce2e2",
+    "vision/simulation/3_task/4_mbar/4_pack.py": "52da14e40e67170e5bd154e3f2b9a26f1238fb01615145ff7bb5a62e1368933b",
+    "vision/simulation/3_task/4_mbar/1_sti_geo.py": "3800a10bf5be182436acaad57ae25d4908fef695da1aa3d350f06b6e6234eb55",
+    "vision/simulation/3_task/4_mbar/3_gt.py": "8e022f0f1271690708ccd238b22ab5350d0df4e26d6d01687a85b6f300a9826c",
+    "vision/simulation/3_task/4_mbar/2_sti_spec.py": "0151ff4e8e5198773b1070ec677bf8afd4ae5e922e429adc2de69e4e639b8de6",
+    "vision/simulation/4_train/__init__.py": "962aa1e87395a7de36f0722ab23998951d9c372d360f0ef9adf3ff4454bc11dd",
+    "vision/simulation/4_train/2_session.py": "14c145d19bc05dcc90174667d6d4ba31e0579d2317c305628a16761d5013fe04",
+    "vision/simulation/4_train/3_cost.py": "bbaf5e7569d432f7be72b53c6b081747a7fc2557a04bee582f0690ec7ce36596",
+    "vision/simulation/4_train/1_param.py": "f1395a8351b9fdd92c071f83509ae0fc34b211ddd0e1ef7833ab4ce3527d751b",
+    "vision/simulation/4_train/5_implementation.py": "beb19ea7d52ae805bae8e6cb735e81ff8f09ad6e9bde59e6d1c5e9ea49c5c206",
+    "vision/simulation/4_train/4_optimization.py": "833888819a23443bffe1d6b2385dae579efe5a68e8aed36a356679f1acdc910b"
+  }
+}

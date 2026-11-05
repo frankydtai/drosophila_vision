@@ -41,7 +41,7 @@ before summing and does not use the distribution-level SD target.
 Moving-bar DSI adds one negative voltage-sum difference per cell/contrast.
 Average raw PD and ND readout curves over their selected nodes after aligning
 each hex's first stimulus. Sum all samples in each group's common transit
-window, extended by one transit duration on each side, then subtract ND from
+window, extended by one transit before and two transits after stimulation, then subtract ND from
 PD. No baseline subtraction, rectification, division normalization or time-step
 scaling is applied. ``loss = -DSI`` maximizes the PD-minus-ND voltage sum.
 ``part_cost_scales['mbar_DSI']`` controls all DSI parts, with exact-key overrides.

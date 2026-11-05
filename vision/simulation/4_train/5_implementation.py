@@ -560,6 +560,7 @@ _OBJECTIVE_KEYS = (
     "cost_entry_reduce",
     "cost_ms",
     "bias_gt_scope",
+    "mbar_geometry_version",
 )
 
 
@@ -583,6 +584,10 @@ def objective_fingerprint(train_opts):
     """Return comparable loss-objective bag from ``train_opts`` / sidecar JSON."""
     opts = train_opts or {}
     fingerprint = {key: _json_safe(opts.get(key)) for key in _OBJECTIVE_KEYS}
+    fingerprint["mbar_geometry_version"] = (
+        (opts.get("mbar_sti_opts") or {}).get("geometry_version", "legacy_y_up_v1")
+        if "mbar" in (opts.get("tasks") or []) else None
+    )
     bias = ((opts.get("val_from") or {}).get("bias_gt") or {})
     fingerprint["bias_gt_scope"] = (
         bias.get("scope", "cell")
@@ -595,7 +600,12 @@ def objective_diff(src_opts, dst_opts):
     """Return sorted keys that differ between two objective fingerprints."""
     src = objective_fingerprint(src_opts)
     dst = objective_fingerprint(dst_opts)
-    return [key for key in _OBJECTIVE_KEYS if src.get(key) != dst.get(key)]
+    keys = _OBJECTIVE_KEYS
+    # A task switch already resets Adam; compare mbar geometry only when
+    # both objectives actually include moving bars.
+    if not all("mbar" in ((opts or {}).get("tasks") or []) for opts in (src_opts, dst_opts)):
+        keys = tuple(key for key in keys if key != "mbar_geometry_version")
+    return [key for key in keys if src.get(key) != dst.get(key)]
 
 
 def same_train_objective(src_opts, dst_opts):

@@ -1,0 +1,20 @@
+{
+  "saved_cost": 161822.8125,
+  "recalculated_cost": 161822.97875976562,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 23421.654296875,
+    "mbar_right_bright_w1_T4b_ND": 1415.953369140625,
+    "mbar_left_bright_w1_T4a_ND": 15546.4658203125,
+    "mbar_left_bright_w1_T4b_PD": 4201.9873046875,
+    "mbar_up_bright_w1_T4c_PD": 18457.83984375,
+    "mbar_up_bright_w1_T4d_ND": 28847.908203125,
+    "mbar_down_bright_w1_T4c_ND": 40743.5390625,
+    "mbar_down_bright_w1_T4d_PD": 29187.630859375
+  },
+  "raw_pd_minus_nd_sum": {
+    "mbar_DSI_bright_T4a": 272.83203125,
+    "mbar_DSI_bright_T4b": 395.583984375,
+    "mbar_DSI_bright_T4c": -120.873046875,
+    "mbar_DSI_bright_T4d": -372.8349609375
+  }
+}

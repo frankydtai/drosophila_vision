@@ -1,0 +1,105 @@
+{
+  "source": "34376877 spread100",
+  "AB_training_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381383-run_init_from-n_iter-300-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "ABCD_training_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300",
+  "AB_parameter_identity_verified": true,
+  "evaluation": "Same four directions, bright, cost_mid=0 cross union; no parameter updates.",
+  "models": {
+    "AB300": {
+      "saved_cost": 161822.8125,
+      "recalculated_cost": 161822.97875976562,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 23421.654296875,
+        "mbar_right_bright_w1_T4b_ND": 1415.953369140625,
+        "mbar_left_bright_w1_T4a_ND": 15546.4658203125,
+        "mbar_left_bright_w1_T4b_PD": 4201.9873046875,
+        "mbar_up_bright_w1_T4c_PD": 18457.83984375,
+        "mbar_up_bright_w1_T4d_ND": 28847.908203125,
+        "mbar_down_bright_w1_T4c_ND": 40743.5390625,
+        "mbar_down_bright_w1_T4d_PD": 29187.630859375
+      },
+      "raw_pd_minus_nd_sum": {
+        "mbar_DSI_bright_T4a": 272.83203125,
+        "mbar_DSI_bright_T4b": 395.583984375,
+        "mbar_DSI_bright_T4c": -120.873046875,
+        "mbar_DSI_bright_T4d": -372.8349609375
+      },
+      "best_training_iteration": 300
+    },
+    "ABCD300": {
+      "saved_cost": 93479.375,
+      "recalculated_cost": 93479.38037109375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 18680.62109375,
+        "mbar_right_bright_w1_T4b_ND": 3766.998046875,
+        "mbar_left_bright_w1_T4a_ND": 6722.59521484375,
+        "mbar_left_bright_w1_T4b_PD": 10502.2646484375,
+        "mbar_up_bright_w1_T4c_PD": 8998.380859375,
+        "mbar_up_bright_w1_T4d_ND": 12736.09375,
+        "mbar_down_bright_w1_T4c_ND": 16549.4296875,
+        "mbar_down_bright_w1_T4d_PD": 15522.9970703125
+      },
+      "raw_pd_minus_nd_sum": {
+        "mbar_DSI_bright_T4a": 5.5703125,
+        "mbar_DSI_bright_T4b": 202.8515625,
+        "mbar_DSI_bright_T4c": 45.345703125,
+        "mbar_DSI_bright_T4d": -90.59765625
+      },
+      "best_training_iteration": 277
+    }
+  },
+  "cells": [
+    {
+      "cell": "T4a",
+      "AB300_rmse_mv": 3.3389937556378926,
+      "AB300_PD_peak_mv": 11.914474487304688,
+      "AB300_ND_peak_mv": 7.1009979248046875,
+      "AB300_peak_DSI": 0.2531347346087861,
+      "AB300_raw_PD_minus_ND_sum": 272.83203125,
+      "ABCD300_rmse_mv": 2.6959100908874096,
+      "ABCD300_PD_peak_mv": 10.056198120117188,
+      "ABCD300_ND_peak_mv": 9.674827575683594,
+      "ABCD300_peak_DSI": 0.019328470314381997,
+      "ABCD300_raw_PD_minus_ND_sum": 5.5703125
+    },
+    {
+      "cell": "T4b",
+      "AB300_rmse_mv": 1.2677965201000907,
+      "AB300_ND_peak_mv": 6.17535400390625,
+      "AB300_PD_peak_mv": 13.319923400878906,
+      "AB300_peak_DSI": 0.36647692918793795,
+      "AB300_raw_PD_minus_ND_sum": 395.583984375,
+      "ABCD300_rmse_mv": 2.0205131020741156,
+      "ABCD300_ND_peak_mv": 9.1534423828125,
+      "ABCD300_PD_peak_mv": 11.933673858642578,
+      "ABCD300_peak_DSI": 0.13184503011200896,
+      "ABCD300_raw_PD_minus_ND_sum": 202.8515625
+    },
+    {
+      "cell": "T4c",
+      "AB300_rmse_mv": 4.183569847249858,
+      "AB300_PD_peak_mv": 12.021778106689453,
+      "AB300_ND_peak_mv": 16.63100814819336,
+      "AB300_peak_DSI": -0.16086498536310523,
+      "AB300_raw_PD_minus_ND_sum": -120.873046875,
+      "ABCD300_rmse_mv": 2.748261368232212,
+      "ABCD300_PD_peak_mv": 12.182910919189453,
+      "ABCD300_ND_peak_mv": 13.311126708984375,
+      "ABCD300_peak_DSI": -0.04425410389086876,
+      "ABCD300_raw_PD_minus_ND_sum": 45.345703125
+    },
+    {
+      "cell": "T4d",
+      "AB300_rmse_mv": 4.1421722007688,
+      "AB300_ND_peak_mv": 12.64923095703125,
+      "AB300_PD_peak_mv": 7.101539611816406,
+      "AB300_peak_DSI": -0.2808848052726137,
+      "AB300_raw_PD_minus_ND_sum": -372.8349609375,
+      "ABCD300_rmse_mv": 2.8904147498431105,
+      "ABCD300_ND_peak_mv": 10.413082122802734,
+      "ABCD300_PD_peak_mv": 9.34615707397461,
+      "ABCD300_peak_DSI": -0.05399626160718457,
+      "ABCD300_raw_PD_minus_ND_sum": -90.59765625
+    }
+  ]
+}

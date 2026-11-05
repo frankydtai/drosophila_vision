@@ -47,7 +47,7 @@ def make_pack():
         ),
         entry_dsi_part_keys=(KEY_A, KEY_B, KEY_A, KEY_B),
         dsi_t0s=torch.tensor([2, 3, 4, 5]),
-        dsi_n_ts=torch.tensor([3, 4, 3, 4]),
+        dsi_n_ts=torch.tensor([5, 5, 5, 5]),
         t_onset=0,
     )
 
@@ -71,12 +71,12 @@ def make_session(packs, *, sequential=False, reduction="entry_sse", scales=None)
     )
 
 
-def test_hex_dsi_window_adds_one_actual_transit_on_each_side():
+def test_hex_dsi_window_adds_one_transit_before_and_two_after():
     stimulus = np.full(30, 20.0)
     stimulus[10:15] = [21, 30, 40, 30, 21]
-    # Actual [10,14] -> [6,18], independent of the 900 ms GT window.
-    assert hex_dsi_window(stimulus, 20) == (6, 13)
-    assert hex_dsi_window(40 - stimulus, 20) == (6, 13)
+    # Actual [10,14] -> [6,22], independent of the 900 ms GT window.
+    assert hex_dsi_window(stimulus, 20) == (6, 17)
+    assert hex_dsi_window(40 - stimulus, 20) == (6, 17)
 
 
 def test_voltage_sums_use_local_windows_and_subtype_pd():
@@ -89,8 +89,8 @@ def test_voltage_sums_use_local_windows_and_subtype_pd():
     window_ts = {}
     values = dsi_values(pack, trace, window_ts=window_ts)
     assert window_ts == {
-        KEY_A: {"PD": (0, 2), "ND": (0, 2)},
-        KEY_B: {"PD": (-1, 2), "ND": (-1, 2)},
+        KEY_A: {"PD": (-1, 3), "ND": (-1, 3)},
+        KEY_B: {"PD": (-1, 3), "ND": (-1, 3)},
     }
     torch.testing.assert_close(values[KEY_A], trace.new_tensor(3.0))
     torch.testing.assert_close(values[KEY_B], trace.new_tensor(4.0))
@@ -102,8 +102,8 @@ def test_voltage_sums_use_local_windows_and_subtype_pd():
     assert torch.isfinite(trace.grad).all()
     assert torch.count_nonzero(trace.grad[:, [0, 11]]) == 0
     # Every in-window sample contributes, including samples away from the peak.
-    torch.testing.assert_close(trace.grad[0, 2:5, 0], -torch.ones(3, dtype=trace.dtype))
-    torch.testing.assert_close(trace.grad[1, 4:7, 0], torch.ones(3, dtype=trace.dtype))
+    torch.testing.assert_close(trace.grad[0, 2:7, 0], -torch.ones(5, dtype=trace.dtype))
+    torch.testing.assert_close(trace.grad[1, 4:9, 0], torch.ones(5, dtype=trace.dtype))
 
 
 def test_dsi_sums_aligned_mean_curves_over_window_intersection():
@@ -132,12 +132,13 @@ def test_dsi_sums_aligned_mean_curves_over_window_intersection():
     assert trace.grad[1, 4, 2] > 0
 
     # The common window excludes later samples absent from the second hex.
-    shortened = replace(pack, dsi_n_ts=pack.dsi_n_ts.clone())
+    shortened = replace(pack, dsi_n_ts=pack.dsi_n_ts.clone(), dsi_t0s=pack.dsi_t0s.clone())
     shortened.dsi_n_ts[4] = 1
+    shortened.dsi_t0s[4] += 1  # Preserve the first-stimulus alignment.
     window_ts = {}
     values = dsi_values(shortened, trace, window_ts=window_ts)
-    assert window_ts[KEY_A] == {"PD": (0, 0), "ND": (0, 2)}
-    torch.testing.assert_close(values[KEY_A], trace.new_tensor(-1.5))
+    assert window_ts[KEY_A] == {"PD": (0, 0), "ND": (-1, 3)}
+    torch.testing.assert_close(values[KEY_A], trace.new_tensor(-0.5))
 
 
 def test_zero_voltage_has_zero_loss_and_finite_gradients():
@@ -150,10 +151,10 @@ def test_zero_voltage_has_zero_loss_and_finite_gradients():
 
 
 @pytest.mark.parametrize("v_pd,v_nd,expected_loss", [
-    (-1.0, 1.0, 6.0),
-    (1.0, -1.0, -6.0),
-    (-1.0, -2.0, -3.0),
-    (-50.0, -52.0, -6.0),
+    (-1.0, 1.0, 10.0),
+    (1.0, -1.0, -10.0),
+    (-1.0, -2.0, -5.0),
+    (-50.0, -52.0, -10.0),
 ])
 def test_raw_voltages_are_summed_without_rectification_or_normalization(v_pd, v_nd, expected_loss):
     pack = make_pack()
@@ -185,9 +186,9 @@ def test_dsi_preserves_negative_group_voltages_after_averaging_hexes():
     trace[0, :, 0] = -4.0
     trace[0, :, 2] = 2.0
     trace[1, :, [0, 2]] = 1.0
-    # PD mean = -1; ND mean = 1; summing three time points gives DSI=-6.
+    # PD mean = -1; ND mean = 1; summing five time points gives DSI=-10.
     parts = dsi_cost_parts(pack, trace)
-    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(6.0))
+    torch.testing.assert_close(parts[KEY_A], trace.new_tensor(10.0))
 
 
 def test_incomplete_direction_pair_does_not_add_dsi_part():
@@ -245,7 +246,7 @@ def test_dsi_scale_zero_keeps_mse_and_exact_key_overrides():
 
 
 def test_materialize_converts_dsi_window_arrays():
-    pack = replace(make_pack(), dsi_t0s=np.array([2, 3, 4, 5]), dsi_n_ts=np.array([3, 4, 3, 4]))
+    pack = replace(make_pack(), dsi_t0s=np.array([2, 3, 4, 5]), dsi_n_ts=np.array([5, 5, 5, 5]))
     converted = materialize_pack(pack, device="cpu", sim_dtype=torch.float64)
     assert converted.dsi_t0s.dtype == torch.long
     assert converted.dsi_n_ts.dtype == torch.long
@@ -328,7 +329,7 @@ def test_real_stimulus_pack_uses_individual_hex_transits_and_pads_both_sides(tmp
         active = np.flatnonzero(~np.isclose(gt.i_sti[b, :, (node // 3) * 3], 20))
         first, last = int(active[0]), int(active[-1])
         assert start == first - (last - first)
-        assert start + length - 1 == last + (last - first)
+        assert start + length - 1 == last + 2 * (last - first)
 
 
 def test_dsi_only_pack_needs_no_digitized_gt_and_preserves_windows():

@@ -1,0 +1,66 @@
+[
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/spread_gt_v.png",
+    "bytes": 197884
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/spread_all_v.png",
+    "bytes": 214627
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/sbar_gt_v.png",
+    "bytes": 134195
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/sbar_all_v.png",
+    "bytes": 333827
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/spread_gt_v.png",
+    "bytes": 199141
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/spread_all_v.png",
+    "bytes": 214710
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/sbar_gt_v.png",
+    "bytes": 143993
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/sbar_all_v.png",
+    "bytes": 346041
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/spread_gt_v.png",
+    "bytes": 203578
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/spread_all_v.png",
+    "bytes": 217862
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/sbar_gt_v.png",
+    "bytes": 136842
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/sbar_all_v.png",
+    "bytes": 326615
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/spread_gt_v.png",
+    "bytes": 208621
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/spread_all_v.png",
+    "bytes": 225514
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/sbar_gt_v.png",
+    "bytes": 140571
+  },
+  {
+    "path": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/sbar_all_v.png",
+    "bytes": 359461
+  }
+]

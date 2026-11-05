@@ -1,0 +1,49 @@
+Backfilling /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+loaded best_param.npz (cost=161822.8125)
+params=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/data/best_param.npz
+model=hp_lp (73 params)
+plot device=cpu
+1 trained set(s); costs min=161822.8125 max=161822.8125; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/spread_gt_v.png: prep=0.2s  plot_s=0.1s  save=0.7s  elapsed_s=1.0s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/spread_all_v.png: prep=0.0s  plot_s=0.1s  save=0.7s  elapsed_s=0.8s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/sbar_gt_v.png: prep=1.2s  plot_s=0.6s  save=1.1s  elapsed_s=2.9s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/sbar_all_v.png: prep=0.0s  plot_s=3.4s  save=4.0s  elapsed_s=7.3s
+Backfilling /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+loaded best_param.npz (cost=88198.0469)
+params=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/data/best_param.npz
+model=hp_lp (73 params)
+plot device=cpu
+1 trained set(s); costs min=88198.0469 max=88198.0469; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/spread_gt_v.png: prep=0.2s  plot_s=0.1s  save=0.6s  elapsed_s=0.9s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/spread_all_v.png: prep=0.0s  plot_s=0.2s  save=0.6s  elapsed_s=0.8s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/sbar_gt_v.png: prep=1.2s  plot_s=0.6s  save=1.0s  elapsed_s=2.8s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300/sbar_all_v.png: prep=0.0s  plot_s=3.3s  save=3.9s  elapsed_s=7.3s
+Backfilling /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+loaded best_param.npz (cost=298485.6562)
+params=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/data/best_param.npz
+model=hp_lp (73 params)
+plot device=cpu
+1 trained set(s); costs min=298485.6562 max=298485.6562; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/spread_gt_v.png: prep=0.2s  plot_s=0.1s  save=0.8s  elapsed_s=1.1s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/spread_all_v.png: prep=0.0s  plot_s=0.1s  save=0.7s  elapsed_s=0.8s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/sbar_gt_v.png: prep=1.2s  plot_s=0.6s  save=1.1s  elapsed_s=2.9s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/sbar_all_v.png: prep=0.0s  plot_s=3.4s  save=3.9s  elapsed_s=7.3s
+Backfilling /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+loaded best_param.npz (cost=93479.3750)
+params=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/data/best_param.npz
+model=hp_lp (73 params)
+plot device=cpu
+1 trained set(s); costs min=93479.3750 max=93479.3750; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/spread_gt_v.png: prep=0.2s  plot_s=0.3s  save=0.6s  elapsed_s=1.1s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/spread_all_v.png: prep=0.0s  plot_s=0.1s  save=0.8s  elapsed_s=0.9s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/sbar_gt_v.png: prep=1.2s  plot_s=0.6s  save=1.1s  elapsed_s=2.9s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/sbar_all_v.png: prep=0.0s  plot_s=3.3s  save=4.1s  elapsed_s=7.4s
+Verified 16 new figures; existing training data and mbar plots unchanged.

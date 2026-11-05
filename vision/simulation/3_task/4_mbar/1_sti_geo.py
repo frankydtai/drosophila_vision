@@ -11,9 +11,26 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from build_hex import DEG, HEX_AREA, HEX_PATCH_RADIUS
 
 
+MBAR_GEOMETRY_VERSION = "fafb_y_ventral_v2"
+
+
 class Bar(Protocol):
     direction: str
     bar_w_deg: float
+
+
+def bar_motion_sign(direction: str) -> int:
+    """Sign along the FAFB motion axis: right/down positive, left/up negative.
+
+    ``uv_from_pq`` and ``xy_from_uv`` give y=-(p+q)/2 for both eyes;
+    positive y is ventral. The optic chiasm mirrors the horizontal axis,
+    while the dorsal/ventral ordering is preserved.
+    """
+    if direction in ("right", "down"):
+        return 1
+    if direction in ("left", "up"):
+        return -1
+    raise ValueError(f"unknown direction {direction!r}")
 
 
 def _vertex_from_fill(
@@ -131,14 +148,12 @@ def bar_bounds(
     x_deg0, y_deg0, x_deg1, y_deg1 = view_deg
     bar_w_deg = float(bar.bar_w_deg)
     direction = bar.direction
-    if direction in ("right", "up"):
+    if bar_motion_sign(direction) > 0:
         bar_bound0 = max(float(bar_bound), float(bar_bound0))
         bar_bound1 = min(float(bar_bound) + bar_w_deg, float(bar_bound1))
-    elif direction in ("left", "down"):
+    else:
         bar_bound0 = max(float(bar_bound) - bar_w_deg, float(bar_bound0))
         bar_bound1 = min(float(bar_bound), float(bar_bound1))
-    else:
-        raise ValueError(f"unknown direction {direction!r}")
     if bar_bound0 >= bar_bound1 - 1e-12:
         return None
     if direction in ("right", "left"):
@@ -167,7 +182,7 @@ def bar_bound0_bar_bound1s(
     elif bar.direction in ("up", "down"):
         if not bool(multi_bar):
             return [(float(y_deg0), float(y_deg1))]
-        if bar.direction == "up":
+        if bar_motion_sign(bar.direction) > 0:
             view_bar_bound0, view_bar_bound1 = float(y_deg0), float(y_deg1)
         else:
             view_bar_bound0, view_bar_bound1 = float(y_deg1), float(y_deg0)

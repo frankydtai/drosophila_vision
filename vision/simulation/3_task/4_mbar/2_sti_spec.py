@@ -17,6 +17,8 @@ from neuron.borst import t_from_ms
 from build_hex import DEG, hex_vertices
 from task.mbar.sti_geo import (
     bar_bound0_bar_bound1s,
+    bar_motion_sign,
+    MBAR_GEOMETRY_VERSION,
     _fill,
     bar_bounds,
     view_bounds,
@@ -89,10 +91,7 @@ def t_from_bar_bound(
     n_t: Optional[int] = None,
 ) -> int:
     shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
-    if spec.direction in ("left", "down"):
-        shift_deg = -shift_deg
-    elif spec.direction not in ("right", "up"):
-        raise ValueError(f"unknown direction {spec.direction!r}")
+    shift_deg *= bar_motion_sign(spec.direction)
     if abs(shift_deg) < 1e-15:
         return t_onset
     t = t_onset + max(0, int(round((bar_bound_end - bar_bound) / shift_deg)))
@@ -118,12 +117,10 @@ def mbar_sweep_end_t(
         for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
             spec, view_deg, bar_dist, multi_bar=multi_bar,
         ):
-            if spec.direction in ("right", "up"):
+            if bar_motion_sign(spec.direction) > 0:
                 bar_bound, bar_bound_end = float(bar_bound0) - float(spec.bar_w_deg), float(bar_bound1)
-            elif spec.direction in ("left", "down"):
-                bar_bound, bar_bound_end = float(bar_bound1) + float(spec.bar_w_deg), float(bar_bound0)
             else:
-                raise ValueError(f"unknown direction {spec.direction!r}")
+                bar_bound, bar_bound_end = float(bar_bound1) + float(spec.bar_w_deg), float(bar_bound0)
             t_exit = max(
                 t_exit,
                 t_from_bar_bound(spec, bar_bound, bar_bound_end, t_onset, delta_ms),
@@ -163,11 +160,8 @@ def mbar_transit_times(
     )[0]
     bar_w_deg = float(spec.bar_w_deg)
     shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
-    if spec.direction in ("left", "down"):
-        shift_deg = -shift_deg
-    elif spec.direction not in ("right", "up"):
-        raise ValueError(f"unknown direction {spec.direction!r}")
-    if spec.direction in ("right", "up"):
+    shift_deg *= bar_motion_sign(spec.direction)
+    if bar_motion_sign(spec.direction) > 0:
         bar_bound, bar_bound_end = float(bar_bound0) - bar_w_deg, float(bar_bound1)
     else:
         bar_bound, bar_bound_end = float(bar_bound1) + bar_w_deg, float(bar_bound0)
@@ -207,7 +201,7 @@ def hex_first_sti_t(
 
 
 def hex_dsi_window(i_sti_hex: np.ndarray, i_baseline: float) -> Tuple[int, int]:
-    """DSI window: one transit duration before and after actual hex stimulation.
+    """DSI window: one transit before and two transits after hex stimulation.
 
     Returns ``(start, sample_count)`` with both outer endpoints included.
     A transit spans the first through last non-baseline stimulus sample.
@@ -220,17 +214,13 @@ def hex_dsi_window(i_sti_hex: np.ndarray, i_baseline: float) -> Tuple[int, int]:
         raise ValueError("hex has no non-baseline sti sample")
     first, last = int(active[0]), int(active[-1])
     duration = last - first
-    return first - duration, 3 * duration + 1
+    return first - duration, 4 * duration + 1
 
 
 def _mbar_bar_center(spec: MbarSpec, bar_bound: float) -> float:
     """Bar centre on the motion axis (degrees) from the leading-edge ``bar_bound``."""
     bar_w_deg = float(spec.bar_w_deg)
-    if spec.direction in ("right", "up"):
-        return float(bar_bound) + 0.5 * bar_w_deg
-    if spec.direction in ("left", "down"):
-        return float(bar_bound) - 0.5 * bar_w_deg
-    raise ValueError(f"unknown direction {spec.direction!r}")
+    return float(bar_bound) + bar_motion_sign(spec.direction) * 0.5 * bar_w_deg
 
 
 def build_bar_axis_distance_hex(
@@ -275,15 +265,12 @@ def build_bar_axis_distance_hex(
     for bs in by_geometry.values():
         spec = specs[bs[0]]
         shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
-        if spec.direction in ("left", "down"):
-            shift_deg = -shift_deg
-        elif spec.direction not in ("right", "up"):
-            raise ValueError(f"unknown direction {spec.direction!r}")
+        shift_deg *= bar_motion_sign(spec.direction)
         axis_is_x = spec.direction in ("right", "left")
         for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
             spec, view_deg, bar_dist, multi_bar=multi_bar,
         ):
-            if spec.direction in ("right", "up"):
+            if bar_motion_sign(spec.direction) > 0:
                 bar_bound = float(bar_bound0) - float(spec.bar_w_deg)
             else:
                 bar_bound = float(bar_bound1) + float(spec.bar_w_deg)
@@ -344,16 +331,13 @@ def build_i_sti_hex(
     for bs in by_geometry.values():
         spec = specs[bs[0]]
         shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
-        if spec.direction in ("left", "down"):
-            shift_deg = -shift_deg
-        elif spec.direction not in ("right", "up"):
-            raise ValueError(f"unknown direction {spec.direction!r}")
+        shift_deg *= bar_motion_sign(spec.direction)
         n_post = n_t - t_onset
         fills = np.zeros((n_post, n_hex), dtype=np.float64)
         for bar_bound0, bar_bound1 in bar_bound0_bar_bound1s(
             spec, view_deg, bar_dist, multi_bar=multi_bar,
         ):
-            if spec.direction in ("right", "up"):
+            if bar_motion_sign(spec.direction) > 0:
                 bar_bound = float(bar_bound0) - float(spec.bar_w_deg)
             else:
                 bar_bound = float(bar_bound1) + float(spec.bar_w_deg)
@@ -479,6 +463,7 @@ def _mbar_cache_digest(
 ) -> str:
     stat = network_json.stat()
     payload = {
+        "geometry_version": MBAR_GEOMETRY_VERSION,
         "network": str(network_json.resolve()),
         "network_mtime_ns": stat.st_mtime_ns,
         "network_size": stat.st_size,

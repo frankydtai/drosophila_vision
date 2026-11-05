@@ -1,0 +1,49 @@
+{
+  "job_id": "34382547",
+  "source_checkpoint": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1/data/best_param.npz",
+  "source_sha256": "7b67a040cfabd2bae401c3d8835a695c995fa56769247a18e9200c4a67228259",
+  "source_to_initial_max_abs_diffs": {
+    "a_gt": 0.0,
+    "bias_gt": 0.0,
+    "syn_strength_cell": 0.0,
+    "a_in": 0.0,
+    "a_out": 0.0,
+    "e_leak": 0.0,
+    "v_th": 0.0,
+    "tau_lp": 0.0,
+    "tau_hp_rise": 0.0,
+    "tau_hp_fall": 0.0,
+    "a_h": 0.0
+  },
+  "new_schema_parameters": {
+    "a_sti_mid": [
+      1.0
+    ]
+  },
+  "n_iter": 300,
+  "lrs": [
+    0.1
+  ],
+  "resume_adam": false,
+  "gt_cells": [
+    "T4a",
+    "T4b",
+    "T4c",
+    "T4d"
+  ],
+  "contrasts": [
+    "bright"
+  ],
+  "bar_directions": [
+    "right",
+    "left",
+    "up",
+    "down"
+  ],
+  "cost_mid": 0,
+  "part_cost_scales": {
+    "mbar": 1,
+    "mbar_DSI": 0
+  },
+  "previous_staged_run": "34382311"
+}

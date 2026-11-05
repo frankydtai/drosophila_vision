@@ -65,7 +65,7 @@ def _fmt_cost_parts(parts, *, summary_only=False):
     if summary_only:
         parts = {
             k: v for k, v in parts.items()
-            if k.startswith("spread_") or k.endswith("mid+0")
+            if k.startswith(("spread_", "mbar_")) or k.endswith("mid+0")
         }
     return "  [" + "  ".join(f"{k}={v:.4f}" for k, v in parts.items()) + "]"
 

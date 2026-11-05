@@ -1,0 +1,12 @@
+Job ID: 34382292; iterations: 0; run: 34382292-t4abcd-from-34381383-iter-0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+  MIG 1g.20gb     Device  0: (UUID: MIG-87d91dc3-6e7d-5d27-b88d-9d741e27be9e)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+Ambiguous value for argument 'init_from=hp_lp/34381383-run_init_from-n_iter-300-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0'
+1. To use it as a list, use key=[value1,value2]
+2. To use it as string, quote the value: key=\'value1,value2\'
+3. To sweep over it, add --multirun to your command line
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.

@@ -1,0 +1,398 @@
+Job ID: 34382547; iterations: 0; run: 34382547-t4abcd-direct-from-34376877-iter-0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+  MIG 1g.20gb     Device  0: (UUID: MIG-87d91dc3-6e7d-5d27-b88d-9d741e27be9e)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+[2026-11-05 19:28:05,744][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+param_modes:
+  a_gt               indi=10/shared=0/fixed=4/frozen=0 (10)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=14 (0)
+  syn_strength_cell  indi=0/shared=0/fixed=101/frozen=0 (0)
+  a_in               indi=0/shared=14/fixed=0/frozen=0 (1)
+  a_out              indi=14/shared=0/fixed=0/frozen=0 (14)
+  e_leak             indi=0/shared=0/fixed=14/frozen=0 (0)
+  v_th               indi=3/shared=0/fixed=11/frozen=0 (3)
+  tau_lp             indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_rise        indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_fall        indi=14/shared=0/fixed=0/frozen=0 (14)
+  a_h                indi=2/shared=0/fixed=12/frozen=0 (2)
+  a_sti_mid          indi=0/shared=1/fixed=0/frozen=0 (1)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, a_lsd=1.0, cost_entry_reduce=mean_trace, n_run=1, n_iter=0, lrs=[0.1], n_z=73, fname=train_hp_lp.npy
+checkpoint_interval=1000
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1/data/best_param.npz' only (73 z, reset Adam, resume_adam=false)
+
+round 0
+
+  0%|          | 0/0 [00:00<?, ?it/s] Cost: 298485.6562  [mbar_right_bright_w1_T4a_PD=8727.5615  mbar_right_bright_w1_T4b_ND=47742.1719  mbar_left_bright_w1_T4a_ND=51617.0859  mbar_left_bright_w1_T4b_PD=11579.7598  mbar_up_bright_w1_T4c_PD=74642.0156  mbar_up_bright_w1_T4d_ND=5305.2124  mbar_down_bright_w1_T4c_ND=23498.8535  mbar_down_bright_w1_T4d_PD=75372.9844]  0%|          | 0/0 [00:00<?, ?it/s] Cost: 298485.6562  [mbar_right_bright_w1_T4a_PD=8727.5615  mbar_right_bright_w1_T4b_ND=47742.1719  mbar_left_bright_w1_T4a_ND=51617.0859  mbar_left_bright_w1_T4b_PD=11579.7598  mbar_up_bright_w1_T4c_PD=74642.0156  mbar_up_bright_w1_T4d_ND=5305.2124  mbar_down_bright_w1_T4c_ND=23498.8535  mbar_down_bright_w1_T4d_PD=75372.9844]
+
+Initl cost = 298485.6562  [mbar_right_bright_w1_T4a_PD=8727.5615  mbar_right_bright_w1_T4b_ND=47742.1719  mbar_left_bright_w1_T4a_ND=51617.0859  mbar_left_bright_w1_T4b_PD=11579.7598  mbar_up_bright_w1_T4c_PD=74642.0156  mbar_up_bright_w1_T4d_ND=5305.2124  mbar_down_bright_w1_T4c_ND=23498.8535  mbar_down_bright_w1_T4d_PD=75372.9844]
+Final cost = 298485.6562  [mbar_right_bright_w1_T4a_PD=8727.5625  mbar_right_bright_w1_T4b_ND=47742.1719  mbar_left_bright_w1_T4a_ND=51617.0859  mbar_left_bright_w1_T4b_PD=11579.7598  mbar_up_bright_w1_T4c_PD=74642.0234  mbar_up_bright_w1_T4d_ND=5305.2134  mbar_down_bright_w1_T4c_ND=23498.8535  mbar_down_bright_w1_T4d_PD=75372.9766]
+Best  cost = 298485.6562  [mbar_right_bright_w1_T4a_PD=8727.5615  mbar_right_bright_w1_T4b_ND=47742.1719  mbar_left_bright_w1_T4a_ND=51617.0859  mbar_left_bright_w1_T4b_PD=11579.7598  mbar_up_bright_w1_T4c_PD=74642.0156  mbar_up_bright_w1_T4d_ND=5305.2124  mbar_down_bright_w1_T4c_ND=23498.8535  mbar_down_bright_w1_T4d_PD=75372.9844]
+time needed  = 5.89  sec
+
+done in 0.00 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/param.csv (best run #0, cost=298485.6562)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/syn_strength_cell.csv
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.20gb)
+1 trained set(s); costs min=298485.6562 max=298485.6562; selected #0 (from saved final costs)
+[2026-11-05 19:28:13,635][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+[2026-11-05 19:28:14,837][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/mbar_gt_v.png: prep=1.3s  plot_s=0.1s  save=0.5s  elapsed_s=2.0s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0/mbar_all_v.png: prep=0.0s  plot_s=0.8s  save=2.4s  elapsed_s=3.2s
+Job ID: 34382547; iterations: 300; run: 34382547-t4abcd-direct-from-34376877-iter-300
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+  MIG 1g.20gb     Device  0: (UUID: MIG-87d91dc3-6e7d-5d27-b88d-9d741e27be9e)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+[2026-11-05 19:28:27,445][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+param_modes:
+  a_gt               indi=10/shared=0/fixed=4/frozen=0 (10)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=14 (0)
+  syn_strength_cell  indi=0/shared=0/fixed=101/frozen=0 (0)
+  a_in               indi=0/shared=14/fixed=0/frozen=0 (1)
+  a_out              indi=14/shared=0/fixed=0/frozen=0 (14)
+  e_leak             indi=0/shared=0/fixed=14/frozen=0 (0)
+  v_th               indi=3/shared=0/fixed=11/frozen=0 (3)
+  tau_lp             indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_rise        indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_fall        indi=14/shared=0/fixed=0/frozen=0 (14)
+  a_h                indi=2/shared=0/fixed=12/frozen=0 (2)
+  a_sti_mid          indi=0/shared=1/fixed=0/frozen=0 (1)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, a_lsd=1.0, cost_entry_reduce=mean_trace, n_run=1, n_iter=300, lrs=[0.1], n_z=73, fname=train_hp_lp.npy
+checkpoint_interval=1000
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34376877-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-0,mbar_DSI-1/data/best_param.npz' only (73 z, reset Adam, resume_adam=false)
+
+round 0
+
+  0%|          | 0/300 [00:00<?, ?it/s] Cost: 298485.6562  [mbar_right_bright_w1_T4a_PD=8727.5625  mbar_right_bright_w1_T4b_ND=47742.1719  mbar_left_bright_w1_T4a_ND=51617.0898  mbar_left_bright_w1_T4b_PD=11579.7598  mbar_up_bright_w1_T4c_PD=74642.0234  mbar_up_bright_w1_T4d_ND=5305.2134  mbar_down_bright_w1_T4c_ND=23498.8555  mbar_down_bright_w1_T4d_PD=75372.9766]  3%|▎         | 10/300 [00:25<12:33,  2.60s/it] Cost: 257422.6250  [mbar_right_bright_w1_T4a_PD=24892.5391  mbar_right_bright_w1_T4b_ND=32461.2070  mbar_left_bright_w1_T4a_ND=30426.4902  mbar_left_bright_w1_T4b_PD=23208.5430  mbar_up_bright_w1_T4c_PD=65421.2812  mbar_up_bright_w1_T4d_ND=1118.8002  mbar_down_bright_w1_T4c_ND=7134.3730  mbar_down_bright_w1_T4d_PD=72759.3906]:   7%|▋         | 20/300 [00:51<12:05,  2.59s/it] Cost: 224029.6875  [mbar_right_bright_w1_T4a_PD=22329.7500  mbar_right_bright_w1_T4b_ND=28843.6035  mbar_left_bright_w1_T4a_ND=29514.5195  mbar_left_bright_w1_T4b_PD=18294.7461  mbar_up_bright_w1_T4c_PD=52446.5898  mbar_up_bright_w1_T4d_ND=1446.4062  mbar_down_bright_w1_T4c_ND=10678.5273  mbar_down_bright_w1_T4d_PD=60475.5352]:  10%|█         | 30/300 [01:17<11:40,  2.60s/it] Cost: 171428.3125  [mbar_right_bright_w1_T4a_PD=33063.9062  mbar_right_bright_w1_T4b_ND=12854.8281  mbar_left_bright_w1_T4a_ND=19325.4492  mbar_left_bright_w1_T4b_PD=16809.9863  mbar_up_bright_w1_T4c_PD=32820.6211  mbar_up_bright_w1_T4d_ND=3485.6755  mbar_down_bright_w1_T4c_ND=11667.4434  mbar_down_bright_w1_T4d_PD=41400.4062]:  13%|█▎        | 40/300 [01:43<11:15,  2.60s/it] Cost: 149268.3750  [mbar_right_bright_w1_T4a_PD=33205.1875  mbar_right_bright_w1_T4b_ND=8499.6953  mbar_left_bright_w1_T4a_ND=14754.3594  mbar_left_bright_w1_T4b_PD=15081.3770  mbar_up_bright_w1_T4c_PD=25403.7793  mbar_up_bright_w1_T4d_ND=4706.4185  mbar_down_bright_w1_T4c_ND=11704.7500  mbar_down_bright_w1_T4d_PD=35912.8125]:   17%|█▋        | 50/300 [02:09<10:48,  2.59s/it] Cost: 139735.0000  [mbar_right_bright_w1_T4a_PD=30030.8516  mbar_right_bright_w1_T4b_ND=7926.4658  mbar_left_bright_w1_T4a_ND=13652.9912  mbar_left_bright_w1_T4b_PD=14806.0762  mbar_up_bright_w1_T4c_PD=19838.4570  mbar_up_bright_w1_T4d_ND=5943.2397  mbar_down_bright_w1_T4c_ND=16546.6680  mbar_down_bright_w1_T4d_PD=30990.2520]:  20%|██        | 60/300 [02:35<10:21,  2.59s/it] Cost: 125591.4219  [mbar_right_bright_w1_T4a_PD=27920.3047  mbar_right_bright_w1_T4b_ND=5819.0469  mbar_left_bright_w1_T4a_ND=11518.6387  mbar_left_bright_w1_T4b_PD=12344.8359  mbar_up_bright_w1_T4c_PD=16132.6152  mbar_up_bright_w1_T4d_ND=7619.3623  mbar_down_bright_w1_T4c_ND=17629.5117  mbar_down_bright_w1_T4d_PD=26607.1133]:  23%|██▎       | 70/300 [03:01<09:55,  2.59s/it] Cost: 116960.2734  [mbar_right_bright_w1_T4a_PD=28951.6348  mbar_right_bright_w1_T4b_ND=4058.4932  mbar_left_bright_w1_T4a_ND=9222.0293  mbar_left_bright_w1_T4b_PD=13200.5059  mbar_up_bright_w1_T4c_PD=12330.3398  mbar_up_bright_w1_T4d_ND=7453.2344  mbar_down_bright_w1_T4c_ND=18545.1758  mbar_down_bright_w1_T4d_PD=23198.8672]:   27%|██▋       | 80/300 [03:27<09:29,  2.59s/it] Cost: 122680.4453  [mbar_right_bright_w1_T4a_PD=32931.2812  mbar_right_bright_w1_T4b_ND=3411.2812  mbar_left_bright_w1_T4a_ND=7736.9189  mbar_left_bright_w1_T4b_PD=18176.3535  mbar_up_bright_w1_T4c_PD=14989.8555  mbar_up_bright_w1_T4d_ND=5768.3955  mbar_down_bright_w1_T4c_ND=13476.5244  mbar_down_bright_w1_T4d_PD=26189.8359]:  30%|███       | 90/300 [03:53<09:04,  2.59s/it] Cost: 124909.6641  [mbar_right_bright_w1_T4a_PD=16908.1953  mbar_right_bright_w1_T4b_ND=7228.3003  mbar_left_bright_w1_T4a_ND=17895.1016  mbar_left_bright_w1_T4b_PD=6340.8423  mbar_up_bright_w1_T4c_PD=10786.5781  mbar_up_bright_w1_T4d_ND=15532.8281  mbar_down_bright_w1_T4c_ND=37770.8398  mbar_down_bright_w1_T4d_PD=12446.9785]:  33%|███▎      | 100/300 [04:19<08:38,  2.59s/it] Cost: 109640.9609  [mbar_right_bright_w1_T4a_PD=22282.4102  mbar_right_bright_w1_T4b_ND=3254.9307  mbar_left_bright_w1_T4a_ND=8408.2422  mbar_left_bright_w1_T4b_PD=15949.2285  mbar_up_bright_w1_T4c_PD=9642.9980  mbar_up_bright_w1_T4d_ND=11612.2744  mbar_down_bright_w1_T4c_ND=22833.5781  mbar_down_bright_w1_T4d_PD=15657.2988]:  37%|███▋      | 110/300 [04:45<08:12,  2.59s/it] Cost: 107311.4766  [mbar_right_bright_w1_T4a_PD=22975.3242  mbar_right_bright_w1_T4b_ND=2639.8794  mbar_left_bright_w1_T4a_ND=7846.0571  mbar_left_bright_w1_T4b_PD=17386.6797  mbar_up_bright_w1_T4c_PD=9990.6895  mbar_up_bright_w1_T4d_ND=10946.7480  mbar_down_bright_w1_T4c_ND=20467.1895  mbar_down_bright_w1_T4d_PD=15058.9092]:  40%|████      | 120/300 [05:10<07:46,  2.59s/it] Cost: 103175.4219  [mbar_right_bright_w1_T4a_PD=18817.3477  mbar_right_bright_w1_T4b_ND=2564.4771  mbar_left_bright_w1_T4a_ND=9318.4980  mbar_left_bright_w1_T4b_PD=12989.7881  mbar_up_bright_w1_T4c_PD=7966.7480  mbar_up_bright_w1_T4d_ND=14269.1816  mbar_down_bright_w1_T4c_ND=24503.2324  mbar_down_bright_w1_T4d_PD=12746.1504]:  43%|████▎     | 130/300 [05:36<07:20,  2.59s/it] Cost: 102005.5859  [mbar_right_bright_w1_T4a_PD=17395.1680  mbar_right_bright_w1_T4b_ND=2886.5679  mbar_left_bright_w1_T4a_ND=10394.9688  mbar_left_bright_w1_T4b_PD=11721.5361  mbar_up_bright_w1_T4c_PD=7249.5742  mbar_up_bright_w1_T4d_ND=14766.1172  mbar_down_bright_w1_T4c_ND=26197.4023  mbar_down_bright_w1_T4d_PD=11394.2490]:  47%|████▋     | 140/300 [06:02<06:54,  2.59s/it] Cost: 100903.2578  [mbar_right_bright_w1_T4a_PD=19208.5938  mbar_right_bright_w1_T4b_ND=2335.1455  mbar_left_bright_w1_T4a_ND=9502.4785  mbar_left_bright_w1_T4b_PD=12389.7920  mbar_up_bright_w1_T4c_PD=7806.7632  mbar_up_bright_w1_T4d_ND=13456.9062  mbar_down_bright_w1_T4c_ND=23723.0312  mbar_down_bright_w1_T4d_PD=12480.5527]:   50%|█████     | 150/300 [06:28<06:27,  2.59s/it] Cost: 99785.9375  [mbar_right_bright_w1_T4a_PD=20306.8828  mbar_right_bright_w1_T4b_ND=2328.5642  mbar_left_bright_w1_T4a_ND=8562.8545  mbar_left_bright_w1_T4b_PD=14686.1641  mbar_up_bright_w1_T4c_PD=9095.1699  mbar_up_bright_w1_T4d_ND=11709.8154  mbar_down_bright_w1_T4c_ND=19801.9609  mbar_down_bright_w1_T4d_PD=13294.5312]:   53%|█████▎    | 160/300 [06:54<06:01,  2.58s/it] Cost: 98606.1016  [mbar_right_bright_w1_T4a_PD=19159.4746  mbar_right_bright_w1_T4b_ND=2383.5591  mbar_left_bright_w1_T4a_ND=8854.7949  mbar_left_bright_w1_T4b_PD=13736.3398  mbar_up_bright_w1_T4c_PD=8643.5684  mbar_up_bright_w1_T4d_ND=12384.6084  mbar_down_bright_w1_T4c_ND=20791.1562  mbar_down_bright_w1_T4d_PD=12652.6016]:  57%|█████▋    | 170/300 [07:20<05:35,  2.58s/it] Cost: 97414.9219  [mbar_right_bright_w1_T4a_PD=18906.5723  mbar_right_bright_w1_T4b_ND=1994.4585  mbar_left_bright_w1_T4a_ND=8658.5215  mbar_left_bright_w1_T4b_PD=12139.6406  mbar_up_bright_w1_T4c_PD=8366.3857  mbar_up_bright_w1_T4d_ND=13666.7480  mbar_down_bright_w1_T4c_ND=20788.2109  mbar_down_bright_w1_T4d_PD=12894.3828]:  60%|██████    | 180/300 [07:46<05:10,  2.59s/it] Cost: 96943.6562  [mbar_right_bright_w1_T4a_PD=18332.7969  mbar_right_bright_w1_T4b_ND=2278.9160  mbar_left_bright_w1_T4a_ND=8820.0986  mbar_left_bright_w1_T4b_PD=13347.8613  mbar_up_bright_w1_T4c_PD=8521.5742  mbar_up_bright_w1_T4d_ND=12737.7129  mbar_down_bright_w1_T4c_ND=20489.6602  mbar_down_bright_w1_T4d_PD=12415.0293]:  63%|██████▎   | 190/300 [08:12<04:44,  2.59s/it] Cost: 96128.3672  [mbar_right_bright_w1_T4a_PD=18232.6562  mbar_right_bright_w1_T4b_ND=2100.7148  mbar_left_bright_w1_T4a_ND=8678.5400  mbar_left_bright_w1_T4b_PD=11886.3818  mbar_up_bright_w1_T4c_PD=8022.7842  mbar_up_bright_w1_T4d_ND=14103.8418  mbar_down_bright_w1_T4c_ND=20242.1309  mbar_down_bright_w1_T4d_PD=12861.3105]:  67%|██████▋   | 200/300 [08:38<04:19,  2.59s/it] Cost: 96620.1250  [mbar_right_bright_w1_T4a_PD=17034.1484  mbar_right_bright_w1_T4b_ND=2326.7930  mbar_left_bright_w1_T4a_ND=8444.1650  mbar_left_bright_w1_T4b_PD=13196.4961  mbar_up_bright_w1_T4c_PD=8291.9502  mbar_up_bright_w1_T4d_ND=13959.0762  mbar_down_bright_w1_T4c_ND=20969.6094  mbar_down_bright_w1_T4d_PD=12397.8926]:  70%|███████   | 210/300 [09:03<03:53,  2.59s/it] Cost: 95440.1094  [mbar_right_bright_w1_T4a_PD=16820.9805  mbar_right_bright_w1_T4b_ND=1955.3014  mbar_left_bright_w1_T4a_ND=8191.6958  mbar_left_bright_w1_T4b_PD=11968.1924  mbar_up_bright_w1_T4c_PD=7625.7607  mbar_up_bright_w1_T4d_ND=14625.0605  mbar_down_bright_w1_T4c_ND=21914.0469  mbar_down_bright_w1_T4d_PD=12339.0742]:  73%|███████▎  | 220/300 [09:29<03:27,  2.59s/it] Cost: 96700.7109  [mbar_right_bright_w1_T4a_PD=19647.0098  mbar_right_bright_w1_T4b_ND=2565.6997  mbar_left_bright_w1_T4a_ND=7663.4429  mbar_left_bright_w1_T4b_PD=12478.7656  mbar_up_bright_w1_T4c_PD=8748.1523  mbar_up_bright_w1_T4d_ND=12779.3613  mbar_down_bright_w1_T4c_ND=17922.8516  mbar_down_bright_w1_T4d_PD=14895.4316]:  77%|███████▋  | 230/300 [09:55<03:01,  2.59s/it] Cost: 94514.5859  [mbar_right_bright_w1_T4a_PD=16512.0195  mbar_right_bright_w1_T4b_ND=2367.1968  mbar_left_bright_w1_T4a_ND=7957.6450  mbar_left_bright_w1_T4b_PD=11952.9873  mbar_up_bright_w1_T4c_PD=7686.4873  mbar_up_bright_w1_T4d_ND=14017.8242  mbar_down_bright_w1_T4c_ND=21695.2383  mbar_down_bright_w1_T4d_PD=12325.1865]:  80%|████████  | 240/300 [10:21<02:35,  2.59s/it] Cost: 95005.8672  [mbar_right_bright_w1_T4a_PD=16822.2168  mbar_right_bright_w1_T4b_ND=2437.7153  mbar_left_bright_w1_T4a_ND=7574.7910  mbar_left_bright_w1_T4b_PD=12581.6152  mbar_up_bright_w1_T4c_PD=8280.0576  mbar_up_bright_w1_T4d_ND=14010.4570  mbar_down_bright_w1_T4c_ND=20351.2969  mbar_down_bright_w1_T4d_PD=12947.7168]:  83%|████████▎ | 250/300 [10:47<02:09,  2.59s/it] Cost: 94382.9297  [mbar_right_bright_w1_T4a_PD=18246.3516  mbar_right_bright_w1_T4b_ND=2317.1892  mbar_left_bright_w1_T4a_ND=7121.8730  mbar_left_bright_w1_T4b_PD=11970.5693  mbar_up_bright_w1_T4c_PD=8545.2988  mbar_up_bright_w1_T4d_ND=13015.4453  mbar_down_bright_w1_T4c_ND=19585.2910  mbar_down_bright_w1_T4d_PD=13580.9150]:  87%|████████▋ | 260/300 [11:13<01:43,  2.59s/it] Cost: 94716.1641  [mbar_right_bright_w1_T4a_PD=16263.6924  mbar_right_bright_w1_T4b_ND=3514.6953  mbar_left_bright_w1_T4a_ND=8008.2651  mbar_left_bright_w1_T4b_PD=9064.2422  mbar_up_bright_w1_T4c_PD=7119.1011  mbar_up_bright_w1_T4d_ND=15678.0264  mbar_down_bright_w1_T4c_ND=22071.3164  mbar_down_bright_w1_T4d_PD=12996.8203]:   90%|█████████ | 270/300 [11:39<01:17,  2.59s/it] Cost: 93823.4375  [mbar_right_bright_w1_T4a_PD=18764.0078  mbar_right_bright_w1_T4b_ND=3497.1206  mbar_left_bright_w1_T4a_ND=6575.4321  mbar_left_bright_w1_T4b_PD=10741.3105  mbar_up_bright_w1_T4c_PD=8987.7070  mbar_up_bright_w1_T4d_ND=12970.2520  mbar_down_bright_w1_T4c_ND=16912.9336  mbar_down_bright_w1_T4d_PD=15374.6719]:  93%|█████████▎| 280/300 [12:04<00:51,  2.59s/it] Cost: 94463.0625  [mbar_right_bright_w1_T4a_PD=19666.8281  mbar_right_bright_w1_T4b_ND=4243.5630  mbar_left_bright_w1_T4a_ND=6702.2852  mbar_left_bright_w1_T4b_PD=11600.3945  mbar_up_bright_w1_T4c_PD=10272.6035  mbar_up_bright_w1_T4d_ND=11070.3789  mbar_down_bright_w1_T4c_ND=14325.9648  mbar_down_bright_w1_T4d_PD=16581.0508]:  97%|█████████▋| 290/300 [12:30<00:25,  2.58s/it] Cost: 101247.7656  [mbar_right_bright_w1_T4a_PD=15773.2119  mbar_right_bright_w1_T4b_ND=9513.3477  mbar_left_bright_w1_T4a_ND=8968.4980  mbar_left_bright_w1_T4b_PD=12291.1445  mbar_up_bright_w1_T4c_PD=10244.1855  mbar_up_bright_w1_T4d_ND=13180.9746  mbar_down_bright_w1_T4c_ND=15312.6406  mbar_down_bright_w1_T4d_PD=15963.7686]: 100%|██████████| 300/300 [12:56<00:00,  2.58s/it] Cost: 125380.1562  [mbar_right_bright_w1_T4a_PD=25738.4004  mbar_right_bright_w1_T4b_ND=1632.1790  mbar_left_bright_w1_T4a_ND=3084.1045  mbar_left_bright_w1_T4b_PD=17519.6035  mbar_up_bright_w1_T4c_PD=23491.1699  mbar_up_bright_w1_T4d_ND=8390.5371  mbar_down_bright_w1_T4c_ND=23461.6211  mbar_down_bright_w1_T4d_PD=22062.5312]:  100%|██████████| 300/300 [12:56<00:00,  2.59s/it] Cost: 125380.1562  [mbar_right_bright_w1_T4a_PD=25738.4004  mbar_right_bright_w1_T4b_ND=1632.1790  mbar_left_bright_w1_T4a_ND=3084.1045  mbar_left_bright_w1_T4b_PD=17519.6035  mbar_up_bright_w1_T4c_PD=23491.1699  mbar_up_bright_w1_T4d_ND=8390.5371  mbar_down_bright_w1_T4c_ND=23461.6211  mbar_down_bright_w1_T4d_PD=22062.5312]: 
+
+Initl cost = 298485.6562  [mbar_right_bright_w1_T4a_PD=8727.5625  mbar_right_bright_w1_T4b_ND=47742.1719  mbar_left_bright_w1_T4a_ND=51617.0898  mbar_left_bright_w1_T4b_PD=11579.7598  mbar_up_bright_w1_T4c_PD=74642.0234  mbar_up_bright_w1_T4d_ND=5305.2134  mbar_down_bright_w1_T4c_ND=23498.8555  mbar_down_bright_w1_T4d_PD=75372.9766]
+Final cost = 136864.6094  [mbar_right_bright_w1_T4a_PD=11283.5400  mbar_right_bright_w1_T4b_ND=9191.7441  mbar_left_bright_w1_T4a_ND=13901.9951  mbar_left_bright_w1_T4b_PD=7024.5239  mbar_up_bright_w1_T4c_PD=13492.1895  mbar_up_bright_w1_T4d_ND=18286.5234  mbar_down_bright_w1_T4c_ND=40097.3047  mbar_down_bright_w1_T4d_PD=23586.7852]
+Best  cost = 93479.1250  [mbar_right_bright_w1_T4a_PD=18680.6445  mbar_right_bright_w1_T4b_ND=3766.9849  mbar_left_bright_w1_T4a_ND=6722.5630  mbar_left_bright_w1_T4b_PD=10502.2490  mbar_up_bright_w1_T4c_PD=8998.3955  mbar_up_bright_w1_T4d_ND=12736.0762  mbar_down_bright_w1_T4c_ND=16549.5039  mbar_down_bright_w1_T4d_PD=15522.7012]
+time needed  = 782.09  sec
+
+done in 0.22 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/param.csv (best run #0, cost=93479.3750)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/syn_strength_cell.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:85: UserWarning: Data has no positive values, and therefore cannot be log-scaled.
+  ax.set_yscale('log')
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:860: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/cost.png: prep=0.0s  plot_s=0.2s  save=1.2s  elapsed_s=1.4s
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.20gb)
+1 trained set(s); costs min=93479.3750 max=93479.3750; selected #0 (from saved final costs)
+[2026-11-05 19:41:33,027][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+[2026-11-05 19:41:34,241][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/mbar_gt_v.png: prep=1.3s  plot_s=0.1s  save=0.4s  elapsed_s=1.8s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300/mbar_all_v.png: prep=0.0s  plot_s=0.9s  save=2.5s  elapsed_s=3.4s
+Evaluating 0: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-0
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+{
+  "saved_cost": 298485.65625,
+  "recalculated_cost": 298485.63818359375,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 8727.5625,
+    "mbar_right_bright_w1_T4b_ND": 47742.171875,
+    "mbar_left_bright_w1_T4a_ND": 51617.0859375,
+    "mbar_left_bright_w1_T4b_PD": 11579.759765625,
+    "mbar_up_bright_w1_T4c_PD": 74642.015625,
+    "mbar_up_bright_w1_T4d_ND": 5305.21240234375,
+    "mbar_down_bright_w1_T4c_ND": 23498.853515625,
+    "mbar_down_bright_w1_T4d_PD": 75372.9765625
+  },
+  "raw_pd_minus_nd_sum": {
+    "mbar_DSI_bright_T4a": 6.0078125,
+    "mbar_DSI_bright_T4b": 19.001953125,
+    "mbar_DSI_bright_T4c": -55.865234375,
+    "mbar_DSI_bright_T4d": -44.5439453125
+  },
+  "best_adam_iteration": 0
+}
+Evaluating 300: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382547-t4abcd-direct-from-34376877-iter-300
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+{
+  "saved_cost": 93479.375,
+  "recalculated_cost": 93478.94897460938,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 18680.646484375,
+    "mbar_right_bright_w1_T4b_ND": 3766.978759765625,
+    "mbar_left_bright_w1_T4a_ND": 6722.55029296875,
+    "mbar_left_bright_w1_T4b_PD": 10502.189453125,
+    "mbar_up_bright_w1_T4c_PD": 8998.41015625,
+    "mbar_up_bright_w1_T4d_ND": 12736.056640625,
+    "mbar_down_bright_w1_T4c_ND": 16549.51953125,
+    "mbar_down_bright_w1_T4d_PD": 15522.59765625
+  },
+  "raw_pd_minus_nd_sum": {
+    "mbar_DSI_bright_T4a": 5.568359375,
+    "mbar_DSI_bright_T4b": 202.8515625,
+    "mbar_DSI_bright_T4c": 45.34375,
+    "mbar_DSI_bright_T4d": -90.5908203125
+  },
+  "best_adam_iteration": 277
+}
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell, n_z=54
+SUMMARY {
+  "0": {
+    "saved_cost": 298485.65625,
+    "recalculated_cost": 298485.63818359375,
+    "parts": {
+      "mbar_right_bright_w1_T4a_PD": 8727.5625,
+      "mbar_right_bright_w1_T4b_ND": 47742.171875,
+      "mbar_left_bright_w1_T4a_ND": 51617.0859375,
+      "mbar_left_bright_w1_T4b_PD": 11579.759765625,
+      "mbar_up_bright_w1_T4c_PD": 74642.015625,
+      "mbar_up_bright_w1_T4d_ND": 5305.21240234375,
+      "mbar_down_bright_w1_T4c_ND": 23498.853515625,
+      "mbar_down_bright_w1_T4d_PD": 75372.9765625
+    },
+    "raw_pd_minus_nd_sum": {
+      "mbar_DSI_bright_T4a": 6.0078125,
+      "mbar_DSI_bright_T4b": 19.001953125,
+      "mbar_DSI_bright_T4c": -55.865234375,
+      "mbar_DSI_bright_T4d": -44.5439453125
+    },
+    "best_adam_iteration": 0,
+    "cells": {
+      "T4a": {
+        "contribution": 60344.6484375,
+        "rmse_mv": 4.155089299394477,
+        "response_rmse_mv": 4.947291761149479,
+        "response_correlation": {
+          "PD": 0.9944145568269759,
+          "ND": -0.06523067771542333
+        },
+        "peak_delta_mv": {
+          "PD": 12.294933319091797,
+          "ND": 14.396343231201172
+        }
+      },
+      "T4b": {
+        "contribution": 59321.931640625,
+        "rmse_mv": 4.119727814133355,
+        "response_rmse_mv": 4.968432085110191,
+        "response_correlation": {
+          "ND": -0.008567838199287366,
+          "PD": 0.97494373319698
+        },
+        "peak_delta_mv": {
+          "ND": 12.791862487792969,
+          "PD": 10.482856750488281
+        }
+      },
+      "T4c": {
+        "contribution": 98140.869140625,
+        "rmse_mv": 5.386493287312344,
+        "response_rmse_mv": 6.4775309796388605,
+        "response_correlation": {
+          "PD": 0.440566978853779,
+          "ND": 0.9510723130990688
+        },
+        "peak_delta_mv": {
+          "PD": 13.25375747680664,
+          "ND": 11.845211029052734
+        }
+      },
+      "T4d": {
+        "contribution": 80678.18896484375,
+        "rmse_mv": 4.883815422568255,
+        "response_rmse_mv": 5.629630083812358,
+        "response_correlation": {
+          "ND": 0.9838913938338953,
+          "PD": 0.3595563718885796
+        },
+        "peak_delta_mv": {
+          "ND": 9.783042907714844,
+          "PD": 11.272640228271484
+        }
+      }
+    }
+  },
+  "300": {
+    "saved_cost": 93479.375,
+    "recalculated_cost": 93478.94897460938,
+    "parts": {
+      "mbar_right_bright_w1_T4a_PD": 18680.646484375,
+      "mbar_right_bright_w1_T4b_ND": 3766.978759765625,
+      "mbar_left_bright_w1_T4a_ND": 6722.55029296875,
+      "mbar_left_bright_w1_T4b_PD": 10502.189453125,
+      "mbar_up_bright_w1_T4c_PD": 8998.41015625,
+      "mbar_up_bright_w1_T4d_ND": 12736.056640625,
+      "mbar_down_bright_w1_T4c_ND": 16549.51953125,
+      "mbar_down_bright_w1_T4d_PD": 15522.59765625
+    },
+    "raw_pd_minus_nd_sum": {
+      "mbar_DSI_bright_T4a": 5.568359375,
+      "mbar_DSI_bright_T4b": 202.8515625,
+      "mbar_DSI_bright_T4c": 45.34375,
+      "mbar_DSI_bright_T4d": -90.5908203125
+    },
+    "best_adam_iteration": 277,
+    "cells": {
+      "T4a": {
+        "contribution": 25403.19677734375,
+        "rmse_mv": 2.6959087179106276,
+        "response_rmse_mv": 3.097623079824466,
+        "response_correlation": {
+          "PD": 0.9946936927392631,
+          "ND": 0.9489083399188724
+        },
+        "peak_delta_mv": {
+          "PD": 10.056205749511719,
+          "ND": 9.674583435058594
+        }
+      },
+      "T4b": {
+        "contribution": 14269.168212890625,
+        "rmse_mv": 2.020504458289343,
+        "response_rmse_mv": 2.2650478040075743,
+        "response_correlation": {
+          "ND": 0.9674216803167213,
+          "PD": 0.993356241591073
+        },
+        "peak_delta_mv": {
+          "ND": 9.153366088867188,
+          "PD": 11.933624267578125
+        }
+      },
+      "T4c": {
+        "contribution": 25547.9296875,
+        "rmse_mv": 2.7482674536185963,
+        "response_rmse_mv": 3.181275425117688,
+        "response_correlation": {
+          "PD": 0.9871895266532563,
+          "ND": 0.9937940228481983
+        },
+        "peak_delta_mv": {
+          "PD": 12.18289566040039,
+          "ND": 13.310455322265625
+        }
+      },
+      "T4d": {
+        "contribution": 28258.654296875,
+        "rmse_mv": 2.8903930132472317,
+        "response_rmse_mv": 3.291019461536098,
+        "response_correlation": {
+          "ND": 0.9847656388098055,
+          "PD": 0.9880443860566689
+        },
+        "peak_delta_mv": {
+          "ND": 10.413101196289062,
+          "PD": 9.345401763916016
+        }
+      }
+    }
+  },
+  "max_parameter_difference_source_to_0iter": {
+    "a_gt": 0.0,
+    "bias_gt": 0.0,
+    "syn_strength_cell": 0.0,
+    "a_in": 0.0,
+    "a_out": 0.0,
+    "e_leak": 0.0,
+    "v_th": 0.0,
+    "tau_lp": 0.0,
+    "tau_hp_rise": 0.0,
+    "tau_hp_fall": 0.0,
+    "a_h": 0.0
+  },
+  "parameter_families": {
+    "a_gt": {
+      "n_changed": 0,
+      "max_abs_delta": 0.0
+    },
+    "bias_gt": {
+      "n_changed": 0,
+      "max_abs_delta": 0.0
+    },
+    "syn_strength_cell": {
+      "n_changed": 0,
+      "max_abs_delta": 0.0
+    },
+    "a_in": {
+      "n_changed": 14,
+      "max_abs_delta": 0.2059040069580078
+    },
+    "a_out": {
+      "n_changed": 13,
+      "max_abs_delta": 9.899999998509884
+    },
+    "e_leak": {
+      "n_changed": 0,
+      "max_abs_delta": 0.0
+    },
+    "v_th": {
+      "n_changed": 3,
+      "max_abs_delta": 8.93221664428711
+    },
+    "tau_lp": {
+      "n_changed": 13,
+      "max_abs_delta": 10.401455879211426
+    },
+    "tau_hp_rise": {
+      "n_changed": 2,
+      "max_abs_delta": 2.99774169921875
+    },
+    "tau_hp_fall": {
+      "n_changed": 2,
+      "max_abs_delta": 14.784103393554688
+    },
+    "a_h": {
+      "n_changed": 2,
+      "max_abs_delta": 0.7679076250642538
+    },
+    "a_sti_mid": {
+      "n_changed": 1,
+      "max_abs_delta": 0.48502862453460693
+    }
+  },
+  "previous_staged_comparison": {
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382311-t4abcd-from-34381383-iter-300",
+    "saved_cost": 88198.046875,
+    "cells": [
+      {
+        "cell": "T4a",
+        "direct300_rmse_mv": 2.6959087179106276,
+        "staged_rmse_mv": 1.9077003668558226,
+        "direct300_cost_contribution": 25403.19677734375,
+        "staged_cost_contribution": 12720.337890625,
+        "direct300_pd_minus_nd_sum": 5.568359375,
+        "staged_pd_minus_nd_sum": 100.00390625
+      },
+      {
+        "cell": "T4b",
+        "direct300_rmse_mv": 2.020504458289343,
+        "staged_rmse_mv": 1.9590688135876007,
+        "direct300_cost_contribution": 14269.168212890625,
+        "staged_cost_contribution": 13414.59716796875,
+        "direct300_pd_minus_nd_sum": 202.8515625,
+        "staged_pd_minus_nd_sum": 144.23828125
+      },
+      {
+        "cell": "T4c",
+        "direct300_rmse_mv": 2.7482674536185963,
+        "staged_rmse_mv": 3.005676066341134,
+        "direct300_cost_contribution": 25547.9296875,
+        "staged_cost_contribution": 30557.81103515625,
+        "direct300_pd_minus_nd_sum": 45.34375,
+        "staged_pd_minus_nd_sum": -118.58984375
+      },
+      {
+        "cell": "T4d",
+        "direct300_rmse_mv": 2.8903930132472317,
+        "staged_rmse_mv": 3.0519174019963526,
+        "direct300_cost_contribution": 28258.654296875,
+        "staged_cost_contribution": 31505.32421875,
+        "direct300_pd_minus_nd_sum": -90.5908203125,
+        "staged_pd_minus_nd_sum": -130.2255859375
+      }
+    ]
+  }
+}

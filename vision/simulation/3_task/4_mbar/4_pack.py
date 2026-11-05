@@ -42,6 +42,7 @@ from task.sbar.sti_geo import (
 from task.mbar.sti_geo import cost_motion_view_deg, view_bounds
 from task.mbar.sti_spec import (
     COST_ALIGNED_FIRST_STI_MS,
+    MBAR_GEOMETRY_VERSION,
     COST_WINDOW_AFTER_MS,
     MbarSpec,
     ND_IDX,
@@ -150,9 +151,9 @@ def dsi_values(pack, trace, *, b_offset=0, window_ts=None):
     stops = pack.dsi_t0s + pack.dsi_n_ts
     if bool((pack.dsi_t0s < 0).any()) or bool((stops > trace.shape[1]).any()):
         raise ValueError("moving-bar DSI window is outside the simulated trace")
-    # hex_dsi_window has one transit duration before first stimulus and two
-    # after it: length = 3 * duration + 1 (both endpoints included).
-    before = (pack.dsi_n_ts - 1) // 3
+    # hex_dsi_window spans [-T, 3T] from first stimulus:
+    # length = 4 * duration + 1 (both endpoints included).
+    before = (pack.dsi_n_ts - 1) // 4
     first_sti = pack.dsi_t0s + before
     offsets = torch.arange(
         -int(before.max()), int((pack.dsi_n_ts - 1 - before).max()) + 1,
@@ -796,6 +797,7 @@ def build_mbar_pack(
         waveform_mse=waveform_mse,
         use_a_sti_mid=use_a_sti_mid,
     )
+    sti_opts["geometry_version"] = MBAR_GEOMETRY_VERSION
     sti_opts["n_t"] = int(mbar_gt.n_t)
     t_onset = int(mbar_gt.t_onset)
     sti_opts["ms_pre"] = t_onset * float(sti_opts["delta_ms_pre"])

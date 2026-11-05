@@ -1,0 +1,43 @@
+Job ID: 34382310; iterations: 0; run: 34382310-t4abcd-from-34381383-iter-0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+  MIG 1g.20gb     Device  0: (UUID: MIG-87d91dc3-6e7d-5d27-b88d-9d741e27be9e)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+[2026-11-05 19:10:46,837][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+param_modes:
+  a_gt               indi=10/shared=0/fixed=4/frozen=0 (10)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=14 (0)
+  syn_strength_cell  indi=0/shared=0/fixed=101/frozen=0 (0)
+  a_in               indi=0/shared=14/fixed=0/frozen=0 (1)
+  a_out              indi=14/shared=0/fixed=0/frozen=0 (14)
+  e_leak             indi=0/shared=0/fixed=14/frozen=0 (0)
+  v_th               indi=3/shared=0/fixed=11/frozen=0 (3)
+  tau_lp             indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_rise        indi=14/shared=0/fixed=0/frozen=0 (14)
+  tau_hp_fall        indi=14/shared=0/fixed=0/frozen=0 (14)
+  a_h                indi=2/shared=0/fixed=12/frozen=0 (2)
+  a_sti_mid          indi=0/shared=1/fixed=0/frozen=0 (1)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, a_lsd=1.0, cost_entry_reduce=mean_trace, n_run=1, n_iter=0, lrs=[0.1], n_z=73, fname=train_hp_lp.npy
+checkpoint_interval=1000
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381383-run_init_from-n_iter-300-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381383-run_init_from-n_iter-300-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz' only (73 z, reset Adam, resume_adam=false)
+
+round 0
+
+  0%|          | 0/0 [00:00<?, ?it/s] Cost: 161822.8438  [mbar_right_bright_w1_T4a_PD=23421.5898  mbar_right_bright_w1_T4b_ND=1415.9528  mbar_left_bright_w1_T4a_ND=15546.4004  mbar_left_bright_w1_T4b_PD=4201.9873  mbar_up_bright_w1_T4c_PD=18457.7891  mbar_up_bright_w1_T4d_ND=28847.9688  mbar_down_bright_w1_T4c_ND=40743.5078  mbar_down_bright_w1_T4d_PD=29187.6484]  0%|          | 0/0 [00:00<?, ?it/s] Cost: 161822.8438  [mbar_right_bright_w1_T4a_PD=23421.5898  mbar_right_bright_w1_T4b_ND=1415.9528  mbar_left_bright_w1_T4a_ND=15546.4004  mbar_left_bright_w1_T4b_PD=4201.9873  mbar_up_bright_w1_T4c_PD=18457.7891  mbar_up_bright_w1_T4d_ND=28847.9688  mbar_down_bright_w1_T4c_ND=40743.5078  mbar_down_bright_w1_T4d_PD=29187.6484]
+
+Initl cost = 161822.8438  [mbar_right_bright_w1_T4a_PD=23421.5898  mbar_right_bright_w1_T4b_ND=1415.9528  mbar_left_bright_w1_T4a_ND=15546.4004  mbar_left_bright_w1_T4b_PD=4201.9873  mbar_up_bright_w1_T4c_PD=18457.7891  mbar_up_bright_w1_T4d_ND=28847.9688  mbar_down_bright_w1_T4c_ND=40743.5078  mbar_down_bright_w1_T4d_PD=29187.6484]
+Final cost = 161822.7500  [mbar_right_bright_w1_T4a_PD=23421.5703  mbar_right_bright_w1_T4b_ND=1415.9543  mbar_left_bright_w1_T4a_ND=15546.3467  mbar_left_bright_w1_T4b_PD=4201.9727  mbar_up_bright_w1_T4c_PD=18457.7734  mbar_up_bright_w1_T4d_ND=28847.9785  mbar_down_bright_w1_T4c_ND=40743.5000  mbar_down_bright_w1_T4d_PD=29187.6523]
+Best  cost = 161822.7500  [mbar_right_bright_w1_T4a_PD=23421.5703  mbar_right_bright_w1_T4b_ND=1415.9543  mbar_left_bright_w1_T4a_ND=15546.3467  mbar_left_bright_w1_T4b_PD=4201.9727  mbar_up_bright_w1_T4c_PD=18457.7734  mbar_up_bright_w1_T4d_ND=28847.9785  mbar_down_bright_w1_T4c_ND=40743.5000  mbar_down_bright_w1_T4d_PD=29187.6523]
+time needed  = 6.26  sec
+
+done in 0.00 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/param.csv (best run #0, cost=161822.8125)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/syn_strength_cell.csv
+plot device=cuda (NVIDIA A100 80GB PCIe MIG 1g.20gb)
+1 trained set(s); costs min=161822.8125 max=161822.8125; selected #0 (from saved final costs)
+[2026-11-05 19:10:55,113][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+[2026-11-05 19:10:56,335][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/1addb78bb648ced7.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/mbar_gt_v.png: prep=1.3s  plot_s=0.1s  save=0.5s  elapsed_s=2.0s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34382310-t4abcd-from-34381383-iter-0/mbar_all_v.png: prep=0.0s  plot_s=0.8s  save=2.9s  elapsed_s=3.7s

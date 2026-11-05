@@ -168,9 +168,9 @@ tasks: [spread,sbar]
 gt_by_task:
   spread: [L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a, T4b, T4c, T4d]
   sbar: [T4a,T4b,T4c,T4d]
-  mbar: [T4a,T4b]
+  mbar: [T4a]
 cost_radius: null
-cost_mid: 0
+cost_mid: null
 
 # ---------------------------------------------------------------------------
 # 4.1   train.param (plot/analyze live vals; Hydra param_vals.a_h.L1=0.8)
