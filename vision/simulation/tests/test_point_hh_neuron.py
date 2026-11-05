@@ -5,7 +5,7 @@ import torch
 
 import neuron.forward as neuron_forward
 import neuron.point_hh as point_hh
-from network.point_hh_context import build_point_hh_context
+from neuron.point_hh import build_point_hh_context
 
 
 DTYPE = torch.float64

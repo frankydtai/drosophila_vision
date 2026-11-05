@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 run_name: |-
  34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0
-run_path: hp_lp/${run_name}
+run_path: point_hh/${run_name}
 
 # ---------------------------------------------------------------------------
 # 1.1.1   neuron.borst / MODEL (session scalars; not packed into z)
@@ -118,6 +118,65 @@ point_hh:
   capacitance_uF_cm2: 1.0
   v_min_mV: -120.0
   v_max_mV: 80.0
+  # Off: train the existing G entries; On: train shared V6 gene coefficients.
+  gene_mode: "on"
+  gene:
+    version: "v6"
+    expression: /home/yitai/Ripple/3_T4T5_mcHH_model/gene_2_param/expr_matrix_subset_all_curated.csv
+    # null fits the feature scaler on the current network types.
+    training_types: null
+    max_fold_changes: {gNa: 4.0, gK: 3.5, gLeak: 3.0, gS: 6.0}
+    params:
+      # One scalar per gene link, shared across all neuron types.
+      gene_gNa_para: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_tipE: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_Teh1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_Teh2: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_Teh3: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_Teh4: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Sh: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Shal: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Shab: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Shaw: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_eag: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_sei: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Elk: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_Ork1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_Irk1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_Irk2: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_Irk3: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_ClC-a: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_pHCl-1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_brp: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Rim: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Liprin-alpha: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syt1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syt7: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Sytbeta: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_nSyb: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syx1A: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Snap25: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Csp: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_cpx: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_shi: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syn: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syp: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Vap33: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_ChAT: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_VAChT: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_nAChRalpha1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_nAChRalpha2: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_nAChRbeta1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Gad1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_VGAT: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Rdl: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Lcch3: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Grd: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Hdc: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_ort: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_HisCl1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_VGlut: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_GluClalpha: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
 
 # ---------------------------------------------------------------------------
 # 2.1   network.path
@@ -178,7 +237,7 @@ sbar_gt_w: 2
 # ---------------------------------------------------------------------------
 a_sti_mids: [0.5, 1, 1.5, 2]
 bar_ws_deg: [2.25]
-bar_directions: [right,left]
+bar_directions: [right,left,up,down]
 
 # ---------------------------------------------------------------------------
 # 4.2   train.session
@@ -187,7 +246,7 @@ tasks: [spread,sbar]
 gt_by_task:
   spread: [L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a, T4b, T4c, T4d]
   sbar: [T4a,T4b,T4c,T4d]
-  mbar: [T4a]
+  mbar: [T4a,T4b,T4c,T4d]
 cost_radius: null
 cost_mid: null
 

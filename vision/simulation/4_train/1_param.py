@@ -23,6 +23,7 @@ from config import (
 import numpy as np
 import torch
 
+from neuron.forward import MODEL_DRIVERS
 from neuron.schema import (
     PARAM_MODES,
     param_from_entry,
@@ -473,21 +474,9 @@ def override_val_from(params, session, *, onset_trace=None, t_onset=None):
 def params_from_z(z, session):
     """Bind :func:`assign_params` to a session's schema + connectome; apply ``val_from``."""
     params = assign_params(z, schema_copy(session.schema), session.connectome)
-    if session.model == "point_hh":
-        context = getattr(session, "point_hh_context", None)
-        if context is None:
-            raise ValueError("point_hh session has no fixed parameter context")
-        # The trainable schema overrides the curated tensors, never vice versa.
-        decoded = params
-        params = dict(context.params)
-        params.update(decoded)
-        if "gS" in decoded:
-            # Schema gS is nS/contact; kernel gS is total nS per network edge.
-            # Keep unresolved/disabled curated edges disabled.
-            params["gS"] = (
-                decoded["gS"] * session.connectome.edge_n_syn
-                * (context.params["gS"] > 0).to(decoded["gS"].dtype)
-            )
+    prepare_params = getattr(MODEL_DRIVERS[session.model], "prepare_training_params", None)
+    if prepare_params is not None:
+        params = prepare_params(params, session)
     return override_val_from(params, session)
 
 

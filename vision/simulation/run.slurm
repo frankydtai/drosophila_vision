@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=run
 #SBATCH --account=punim0477
-#SBATCH --partition=gpu-a100-mig
+#SBATCH --partition=gpu-a100-short
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
@@ -41,7 +41,7 @@ echo "==== end config ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
 # DSI-only: turn off mbar waveform MSE, scale all mbar_DSI_* parts to 1.
 "${PYTHON}" -u run_init_from.py \
-  n_iter=100 \
+  n_iter=20 \
   tasks=[mbar] \
   'contrasts=[bright]' \
   '~part_cost_scales' \

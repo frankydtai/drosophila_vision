@@ -29,6 +29,7 @@ import numpy as np
 import torch
 
 from neuron import (
+    MODEL_DRIVERS,
     build_schema,
     expand_euler,
 )
@@ -56,7 +57,6 @@ from task.implementation import (
 from network.construction import (
     load_network, Network,
 )
-from network.point_hh_context import build_point_hh_context, PointHHContext
 
 RUN_DATA_SUBDIR = "data"
 TaskPack = Any
@@ -132,7 +132,7 @@ class TrainSession:
     pre_steady_damp: float = 1.0
     point_hh_v_min: float = -120.0
     point_hh_v_max: float = 80.0
-    point_hh_context: Optional[PointHHContext] = None
+    model_context: Optional[Any] = None
     sim_dtype: torch.dtype = SIM_DTYPE
     train_opts: Optional[dict] = None
 
@@ -395,8 +395,12 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
 
 def resolve_schema(model, connectome, schema, train_opts):
     """Build the train schema from sidecar / YAML ``params``."""
+    prepare_schema = getattr(MODEL_DRIVERS[model], "prepare_training_schema", None)
     if schema is not None:
-        return schema_copy(schema)
+        schema = schema_copy(schema)
+        if prepare_schema is not None:
+            schema = prepare_schema(schema, connectome, train_opts or {})
+        return schema
     filter = NEURON_SCHEMA['filter']
     if train_opts:
         filter = str(train_opts.get("filter", NEURON_SCHEMA['filter']))
@@ -413,6 +417,8 @@ def resolve_schema(model, connectome, schema, train_opts):
             (train_opts or {}).get("sbar_sti_opts") or {},
         ) if ("sbar" in tasks or "mbar" in tasks) else (),
     )
+    if prepare_schema is not None:
+        schema = prepare_schema(schema, connectome, train_opts or {})
     val_from = (train_opts or {}).get("val_from") or {}
     schema = schema_copy(schema)
     for target, entry in val_from.items():
@@ -442,7 +448,7 @@ def _build_session(
     train_opts=None,
     schema: Optional[dict] = None,
     sim_dtype=SIM_DTYPE,
-    point_hh_context: Optional[PointHHContext] = None,
+    model_context: Optional[Any] = None,
 ) -> TrainSession:
     device = device or active_device()
     sequential = False if sequential is None else bool(sequential)
@@ -504,7 +510,7 @@ def _build_session(
         point_hh_v_max=float(
             ((train_opts or {}).get("point_hh") or {}).get("v_max_mV", 80.0)
         ),
-        point_hh_context=point_hh_context,
+        model_context=model_context,
         sim_dtype=sim_dtype,
         train_opts=train_opts,
     )
@@ -550,27 +556,8 @@ def open_session(
         connectome = net
     elif connectome is not net:
         raise ValueError("connectome must be opts['network']")
-    point_hh_context = None
-    if model == "point_hh":
-        point_hh = opts.get("point_hh")
-        if not isinstance(point_hh, dict):
-            raise ValueError("point_hh model requires train_opts['point_hh']")
-        cache_key = json.dumps(point_hh, sort_keys=True)
-        point_hh_context = getattr(connectome, "_point_hh_context", None)
-        if (
-            point_hh_context is None
-            or getattr(connectome, "_point_hh_context_key", None) != cache_key
-        ):
-            point_hh_context = build_point_hh_context(
-                connectome,
-                ion_rules_path=point_hh.get("ion_rules"),
-                synapse_rules_path=point_hh.get("synapse_rules"),
-                connections_path=point_hh.get("connections"),
-                area_um2=point_hh.get("area_um2", 100.0),
-                capacitance_uF_cm2=point_hh.get("capacitance_uF_cm2", 1.0),
-            )
-            connectome._point_hh_context = point_hh_context
-            connectome._point_hh_context_key = cache_key
+    build_context = getattr(MODEL_DRIVERS[model], "build_context", None)
+    model_context = build_context(connectome, opts) if build_context is not None else None
     pack_kwargs = dict(
         connectome=connectome,
         i_sti=i_sti,
@@ -607,7 +594,7 @@ def open_session(
         train_opts=train_opts,
         schema=schema,
         sim_dtype=sim_dtype,
-        point_hh_context=point_hh_context,
+        model_context=model_context,
     )
 
 

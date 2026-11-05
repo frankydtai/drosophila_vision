@@ -33,7 +33,7 @@ from config import (
 )
 from task.spread.sti_spec import t_sti_end
 from neuron.schema import param_from_entry
-from network.point_hh_context import save_point_hh_context
+from neuron.forward import MODEL_DRIVERS
 from train import do_many_runs
 import train
 from train.session import run_data_dir
@@ -762,8 +762,10 @@ def save_train_data(fname, run_dir, session, result):
         with open(os.path.join(run_data_dir(run_dir), "train_opts.json"), 'w') as f:
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
-    if session.model == "point_hh" and session.point_hh_context is not None:
-        save_point_hh_context(session.point_hh_context, run_data_dir(run_dir))
+    save_context = getattr(MODEL_DRIVERS[session.model], "save_context", None)
+    model_context = getattr(session, "model_context", None)
+    if save_context is not None and model_context is not None:
+        save_context(model_context, run_data_dir(run_dir))
     np.save(_data_file(run_dir, fname), result.run_params)
     np.save(_data_file(run_dir, 'best_costs.npy'), result.costs)
     np.save(_data_file(run_dir, 'costs.npy'), result.final_costs)
