@@ -1,0 +1,51 @@
+{
+  "hardware": "spartan-bm174.hpc.unimelb.edu.au",
+  "sequential": true,
+  "case": {
+    "run": "34401153",
+    "lr": 0.1,
+    "iterations": 20,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 6,
+  "device": "cpu",
+  "limit": 20,
+  "label": "screen",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "cebab45f11f68681cbcdfa18d5252b05b0b10973d699fdf2913f7760367e5370",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 2056932.4921875,
+      "grad_max": 67824911384576.0,
+      "grad_norm64": 114884813327898.67,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 5006806745088.0,
+      "adam_finite": true,
+      "adam_v_max": 4.600218772912192e+24,
+      "forward_s": 18.96512563340366,
+      "train_elapsed_s": 50.983266388997436,
+      "iteration_s": 50.982415203005075
+    },
+    {
+      "iteration": 1,
+      "cost": 9948168.6875,
+      "grad_max": null,
+      "grad_norm64": null,
+      "z_finite": true,
+      "grad_finite": false,
+      "sampled_state_grad_max": 5.2583363842043175e+36,
+      "nonfinite_state_gradient": true,
+      "forward_s": 19.89306292682886,
+      "train_elapsed_s": 110.13352553918958,
+      "iteration_s": 59.01823397539556
+    }
+  ],
+  "stop_reason": "nonfinite_grad",
+  "elapsed_s": 110.18285392038524,
+  "source_files_unchanged": true,
+  "excluded_from_ranking": "Original sequential readout zeroed baseline unlike full-pack objective."
+}

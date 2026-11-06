@@ -70,6 +70,7 @@ from neuron.forward import (
 )
 from neuron.readout import (
     pack_traces,
+    pack_cost_window_t_min,
     window_time_traces,
 )
 
@@ -880,7 +881,7 @@ def _pack_cost_parts_from_params(params, pack: TaskPack, session: TrainSession, 
                 entry_nodes,
                 cost_t0s[entry_mask],
                 n_t,
-                t_onset=t_onset,
+                t_onset=pack_cost_window_t_min(pack),
             )
         )
     else:

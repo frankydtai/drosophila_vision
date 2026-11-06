@@ -2,7 +2,7 @@
 # 0.0   run (RUN_NAME / RUN_PATH)
 # ---------------------------------------------------------------------------
 run_name: |-
- 34400204-run-n_iter-100-tasks-spread-contrasts-bright,dark-part_cost_scales-mbar-1,mbar_DSI-0
+ 34425425-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0
 run_path: point_hh/${run_name}
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ params:
   gS: {lo: 0.0001, hi: 3.0, init: 0.3, jit: 0.0, mode: "indi"}
   v_th_syn: {lo: -80.0, hi: -20.0, init: -45.0, jit: 0.0, mode: "shared"}
   delta_syn: {lo: 0.5, hi: 20.0, init: 4.0, jit: 0.0, mode: "fixed"}
-  k_minus_syn: {lo: 0.005, hi: 2.0, init: 0.1, jit: 0.0, mode: "fixed"}
+  k_minus_syn: {lo: 0.001, hi: 2.0, init: 0.01, jit: 0.0, mode: "shared"}
   a_in: {lo: 0.01, hi: 100.0, init: 5.0, jit: 0.1, mode: "shared"}
   a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
   e_leak: {lo: -100.0, hi: 50.0, init: -52.0, jit: 1.0, mode: "fixed"}
@@ -237,7 +237,7 @@ sbar_gt_w: 2
 # ---------------------------------------------------------------------------
 a_sti_mids: [0.5, 1, 1.5, 2]
 bar_ws_deg: [2.25]
-bar_directions: [right,left,up,down]
+bar_directions: [right,left]
 
 # ---------------------------------------------------------------------------
 # 4.2   train.session
@@ -246,7 +246,7 @@ tasks: [spread,sbar]
 gt_by_task:
   spread: [L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a, T4b, T4c, T4d]
   sbar: [T4a,T4b,T4c,T4d]
-  mbar: [T4a,T4b,T4c,T4d]
+  mbar: [T4a,T4b]
 cost_radius: null
 cost_mid: null
 
@@ -305,7 +305,7 @@ pre_steady_damp: 0.1
 # ---------------------------------------------------------------------------
 n_run: 1
 n_iter: 0
-lrs: [0.1]
+lrs: [0.003]
 checkpoint_interval: 1000
 
 # ---------------------------------------------------------------------------

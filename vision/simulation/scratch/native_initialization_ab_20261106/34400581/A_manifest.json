@@ -1,0 +1,33 @@
+{
+  "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "method": "saved-project pre_steady -> original forward_v pre-period",
+  "pre_steady": "solve",
+  "n_iter": 50,
+  "damping": 0.1,
+  "dt_ms": 1.0,
+  "physical_pre_steps": 324,
+  "physical_pre_ms": 324,
+  "observation_steps": 1200,
+  "fp": 32,
+  "nodes": 5789,
+  "edges": 27824,
+  "native_calls": [
+    "neuron.point_hh.pre_steady",
+    "neuron.forward.forward_v",
+    "neuron.point_hh.step"
+  ],
+  "no_function_replacement": true,
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "/home/yitai/drosophila_vision/vision/simulation/4_train/1_param.py": "87084c855e1e20b5323fec854781280ce0eb3f1ec320fc219b0a5cbc534f4fd3",
+    "/home/yitai/drosophila_vision/vision/simulation/4_train/2_session.py": "b6145bb07de7a52ba6ac40924c2b819a6890ac392b4a1afdb4ca1080e359b775",
+    "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml": "ad1be28125f0132f7262ba12fc3856c43c686ab2da31d0d6b63e1848f135bd1c"
+  },
+  "saved_inputs_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": "ca6f8f484cd4b3c1d2e420b0f13215c0591157bb0acb58e4d1c3e4359a5790c1",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "43f0a403902d4935eae0cba52a24927b096ba6b4c206e0a57e9edecdfdf8266b"
+  },
+  "source_unchanged": true,
+  "elapsed_s": 6.869107306003571
+}

@@ -1,0 +1,31 @@
+{
+  "microbatch": 2,
+  "hardware": "NVIDIA A100 80GB PCIe MIG 1g.10gb",
+  "sequential": true,
+  "case": {
+    "run": "34401153",
+    "lr": 0.003,
+    "iterations": 20,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 9,
+  "device": "cuda",
+  "limit": 5,
+  "label": "seq_pair_probe",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "cebab45f11f68681cbcdfa18d5252b05b0b10973d699fdf2913f7760367e5370",
+  "iterations": [
+    {
+      "iteration": 0,
+      "error": "CUDA out of memory. Tried to allocate 2.00 MiB. GPU 0 has a total capacity of 9.50 GiB of which 768.00 KiB is free. Process 161651 has 792.00 MiB memory in use. Process 146654 has 1.85 GiB memory in use. Process 146626 has 5.79 GiB memory in use. Process 146655 has 5.79 GiB memory in use. Process 146656 has 1.85 GiB memory in use. Process 149398 has 9.44 GiB memory in use. Including non-PyTorch memory, this process has 9.47 GiB memory in use. Of the allocated memory 9.22 GiB is allocated by PyTorch, and 153.45 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)",
+      "forward_s": 0.0,
+      "train_elapsed_s": 5.853930350393057,
+      "iteration_s": 5.853062799200416
+    }
+  ],
+  "stop_reason": "runtime_error",
+  "elapsed_s": 5.957861553877592,
+  "source_files_unchanged": true
+}

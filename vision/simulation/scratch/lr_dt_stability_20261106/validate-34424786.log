@@ -1,0 +1,9 @@
+network: /home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/inputs/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+full 1869947.0 53560586797056.0
+sequential 1869951.4609375 67875914121216.0
+{'costs': {'full': 1869947.0, 'sequential': 1869951.4609375}, 'cost_relative_difference': 2.3855956880061305e-06, 'gradient_relative_l2_difference': 0.26727565260683267, 'synthetic_readout_regression': True, 'cost_pass': True, 'gradient_pass': False, 'formal_edits': False}
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/validate.py", line 31, in <module>
+    assert result['cost_pass'] and result['gradient_pass']
+AssertionError

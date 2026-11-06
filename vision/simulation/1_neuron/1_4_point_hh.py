@@ -573,16 +573,18 @@ def _synaptic_terms(
     s: torch.Tensor,
     params: Mapping[str, torch.Tensor],
     session,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Return node ``sum(g)``, ``sum(gE)`` and inward synaptic current."""
+    *,
+    return_current: bool = True,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    """Return node ``sum(g)``, ``sum(gE)`` and optional inward synaptic current."""
     source, target = _edge_indices(session, v.device, params)
     n_edge = int(source.numel())
     syn_params = _edge_params(params, v, n_edge)
-    zeros = torch.zeros_like(v)
     if syn_params is None or n_edge == 0:
+        zeros = torch.zeros_like(v)
         if s.shape[-1] != n_edge:
             raise ValueError(f"point_hh s has {s.shape[-1]} edges, expected {n_edge}")
-        return zeros, zeros, zeros
+        return zeros, zeros, zeros if return_current else None
     g_s, e_syn, _v_th, _delta, _k_minus = syn_params
     if s.shape != v.shape[:-1] + (n_edge,):
         raise ValueError(
@@ -594,6 +596,8 @@ def _synaptic_terms(
     target_b = target.expand(edge_g.shape)
     sum_g.scatter_add_(-1, target_b, edge_g)
     sum_g_e.scatter_add_(-1, target_b, edge_g * e_syn)
+    if not return_current:
+        return sum_g, sum_g_e, None
     post_v = v.index_select(-1, target)
     edge_i_in = edge_g * (e_syn - post_v)
     i_syn = torch.zeros_like(v)
@@ -672,7 +676,9 @@ def step(
 
     g_na_open = g_na * m_new.pow(3) * h_new
     g_k_open = g_k * n_new.pow(4)
-    syn_g, syn_g_e, _ = _synaptic_terms(v, s_new, params, session)
+    syn_g, syn_g_e, _ = _synaptic_terms(
+        v, s_new, params, session, return_current=False,
+    )
     sum_g = g_na_open + g_k_open + g_leak + syn_g
     sum_g_e = (
         g_na_open * e_na + g_k_open * e_k + g_leak * e_leak + syn_g_e
@@ -737,7 +743,9 @@ def _dc_state_from_v(
     state = {"v": v, "m": m, "h": h, "n": n, "s": s}
     g_na_open = g_na * m.pow(3) * h
     g_k_open = g_k * n.pow(4)
-    syn_g, syn_g_e, _ = _synaptic_terms(v, s, params, session)
+    syn_g, syn_g_e, _ = _synaptic_terms(
+        v, s, params, session, return_current=False,
+    )
     sum_g = g_na_open + g_k_open + g_leak + syn_g
     if bool((sum_g <= 0).any()):
         raise ValueError("point_hh DC balance requires positive total conductance")

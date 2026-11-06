@@ -1,0 +1,12 @@
+{
+  "costs": {
+    "full": 1869947.0,
+    "sequential": 1869951.4609375
+  },
+  "cost_relative_difference": 2.3855956880061305e-06,
+  "gradient_relative_l2_difference": 0.26727565260683267,
+  "synthetic_readout_regression": true,
+  "cost_pass": true,
+  "gradient_pass": false,
+  "formal_edits": false
+}

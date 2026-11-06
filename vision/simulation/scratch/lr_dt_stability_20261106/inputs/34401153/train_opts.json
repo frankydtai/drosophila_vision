@@ -1,0 +1,780 @@
+{
+  "tasks": [
+    "mbar"
+  ],
+  "contrasts": [
+    "bright"
+  ],
+  "i_sti": {
+    "bright": 40.0,
+    "dark": 0.0
+  },
+  "part_cost_scales": {
+    "mbar": 1.0,
+    "mbar_DSI": 0.0
+  },
+  "cost_norm": "a_gt2",
+  "a_lsd": 1.0,
+  "cost_entry_reduce": "mean_trace",
+  "cost_ms": null,
+  "pre_steady": "solve",
+  "pre_steady_n_iter": 50,
+  "pre_steady_damp": 0.1,
+  "sequential": false,
+  "network_json": "/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json",
+  "spread_sti_opts": {
+    "ms_pre": 324.0,
+    "ms_response": 600.0,
+    "ms_post": 0.0,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0,
+    "ms_sti": 160.0,
+    "gt_cells": [
+      "L1",
+      "L2",
+      "L3",
+      "L4",
+      "L5",
+      "Mi1",
+      "Mi4",
+      "Mi9",
+      "Tm3",
+      "T4a",
+      "T4b",
+      "T4c",
+      "T4d"
+    ]
+  },
+  "spot_sti_opts": {
+    "ms_pre": 324.0,
+    "ms_response": 600.0,
+    "ms_post": 0.0,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0,
+    "shift_radius": 1.0,
+    "spot_radius": 1.0,
+    "multi_spot": true,
+    "fully_inside": true,
+    "ms_sti": 160.0
+  },
+  "mbar_sti_opts": {
+    "ms_pre": 324.0,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0,
+    "bar_dist": 4,
+    "bar_ws_deg": [
+      2.25
+    ],
+    "bar_directions": [
+      "right",
+      "left",
+      "up",
+      "down"
+    ],
+    "multi_bar": false,
+    "gt_cells": [
+      "T4a",
+      "T4b",
+      "T4c",
+      "T4d"
+    ],
+    "geometry_version": "fafb_y_ventral_v2",
+    "n_t": 2991,
+    "spec_tokens": [
+      "right_bright_w1",
+      "left_bright_w1",
+      "up_bright_w1",
+      "down_bright_w1"
+    ]
+  },
+  "sbar_sti_opts": {
+    "ms_pre": 324.0,
+    "ms_response": 600.0,
+    "ms_post": 0.0,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0,
+    "bar_dist": 4,
+    "bar_directions": [
+      "right",
+      "left",
+      "up",
+      "down"
+    ],
+    "multi_bar": false,
+    "shift_mid": 2,
+    "a_sti_mids": [
+      0.5,
+      1.0,
+      1.5,
+      2.0
+    ],
+    "sbar_gt_w": 2,
+    "ms_sti": 160.0,
+    "gt_cells": [
+      "T4a",
+      "T4b",
+      "T4c",
+      "T4d"
+    ]
+  },
+  "params": {
+    "a_gt": {
+      "lo": 0.5,
+      "hi": 1.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "indi",
+      "modes": {
+        "fixed": [
+          "T4a",
+          "T4b",
+          "T4c",
+          "T4d"
+        ]
+      }
+    },
+    "bias_gt": {
+      "lo": -200.0,
+      "hi": 200.0,
+      "init": 0.0,
+      "jit": 1.0,
+      "mode": "indi"
+    },
+    "syn_strength_cell": {
+      "lo": 0.1,
+      "hi": 10.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "fixed"
+    },
+    "syn_strength_edge": {
+      "lo": 0.1,
+      "hi": 10.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "indi"
+    },
+    "gNa": {
+      "lo": 0.001,
+      "hi": 30.0,
+      "init": 3.0,
+      "jit": 0.0,
+      "mode": "indi"
+    },
+    "gK": {
+      "lo": 0.001,
+      "hi": 20.0,
+      "init": 1.0,
+      "jit": 0.0,
+      "mode": "indi"
+    },
+    "gLeak": {
+      "lo": 0.001,
+      "hi": 10.0,
+      "init": 1.2,
+      "jit": 0.0,
+      "mode": "indi"
+    },
+    "gS": {
+      "lo": 0.0001,
+      "hi": 3.0,
+      "init": 0.3,
+      "jit": 0.0,
+      "mode": "indi"
+    },
+    "v_th_syn": {
+      "lo": -80.0,
+      "hi": -20.0,
+      "init": -45.0,
+      "jit": 0.0,
+      "mode": "shared"
+    },
+    "delta_syn": {
+      "lo": 0.5,
+      "hi": 20.0,
+      "init": 4.0,
+      "jit": 0.0,
+      "mode": "fixed"
+    },
+    "k_minus_syn": {
+      "lo": 0.005,
+      "hi": 2.0,
+      "init": 0.01,
+      "jit": 0.0,
+      "mode": "shared"
+    },
+    "a_in": {
+      "lo": 0.01,
+      "hi": 100.0,
+      "init": 5.0,
+      "jit": 0.1,
+      "mode": "shared"
+    },
+    "a_out": {
+      "lo": 0.1,
+      "hi": 10.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "indi"
+    },
+    "e_leak": {
+      "lo": -100.0,
+      "hi": 50.0,
+      "init": -52.0,
+      "jit": 1.0,
+      "mode": "fixed"
+    },
+    "v_th": {
+      "lo": -100.0,
+      "hi": 100.0,
+      "init": -45.0,
+      "inits": {
+        "L1": -60.0,
+        "L2": -60.0,
+        "L3": -60.0
+      },
+      "jit": 0.0,
+      "mode": "fixed",
+      "modes": {
+        "indi": [
+          "L1",
+          "L2",
+          "L3"
+        ]
+      }
+    },
+    "tau_lp": {
+      "lo": 10.0,
+      "hi": 100.0,
+      "init": 10.0,
+      "jit": 2.0,
+      "mode": "indi"
+    },
+    "tau_hp_rise": {
+      "lo": 100.0,
+      "hi": 500.0,
+      "init": 200.0,
+      "jit": 20.0,
+      "mode": "indi"
+    },
+    "tau_hp_fall": {
+      "lo": 100.0,
+      "hi": 500.0,
+      "init": 200.0,
+      "jit": 20.0,
+      "mode": "indi"
+    },
+    "a_h": {
+      "lo": 0.0,
+      "hi": 1.0,
+      "init": 0.0,
+      "inits": {
+        "L1": 0.5,
+        "L2": 0.5
+      },
+      "jit": 0.1,
+      "mode": "fixed",
+      "modes": {
+        "indi": [
+          "L1",
+          "L2"
+        ]
+      }
+    },
+    "v_mid_h_g": {
+      "lo": -70.0,
+      "hi": -30.0,
+      "init": -50.0,
+      "jit": 5.0,
+      "mode": "shared"
+    },
+    "v_mid_h_tau": {
+      "lo": -70.0,
+      "hi": -40.0,
+      "init": -50.0,
+      "jit": 5.0,
+      "mode": "shared"
+    },
+    "h_slope": {
+      "lo": -0.4,
+      "hi": -0.2,
+      "init": -0.25,
+      "jit": 0.02,
+      "mode": "shared"
+    },
+    "a_h_rev": {
+      "lo": 0.0,
+      "hi": 1.0,
+      "init": 0.0,
+      "jit": 0.1,
+      "mode": "fixed",
+      "modes": {
+        "indi": [
+          "L1",
+          "L2",
+          "L4",
+          "L5"
+        ]
+      }
+    },
+    "v_mid_h_g_rev": {
+      "lo": -70.0,
+      "hi": -30.0,
+      "init": -50.0,
+      "jit": 5.0,
+      "mode": "shared"
+    },
+    "v_mid_h_tau_rev": {
+      "lo": -70.0,
+      "hi": -40.0,
+      "init": -50.0,
+      "jit": 5.0,
+      "mode": "shared"
+    },
+    "h_slope_rev": {
+      "lo": -0.4,
+      "hi": -0.2,
+      "init": -0.25,
+      "jit": 0.02,
+      "mode": "shared"
+    },
+    "v_th_ca": {
+      "lo": -100.0,
+      "hi": 100.0,
+      "init": -50.0,
+      "jit": 0.0,
+      "mode": "indi"
+    },
+    "a_ca": {
+      "lo": 0.1,
+      "hi": 10.0,
+      "init": 1.0,
+      "jit": 0.1,
+      "mode": "indi"
+    },
+    "tau_ca": {
+      "lo": 100.0,
+      "hi": 1000.0,
+      "init": 350.0,
+      "jit": 10.0,
+      "mode": "indi"
+    },
+    "a_sti_radius": {
+      "lo": 0.0,
+      "hi": 1.0,
+      "init": 0.0,
+      "jit": 0.05,
+      "mode": "indi"
+    },
+    "a_sti_mid": {
+      "lo": 0.5,
+      "hi": 2.0,
+      "init": 1,
+      "jit": 0.05,
+      "mode": "shared"
+    }
+  },
+  "euler": "im",
+  "syn_mode": "per_cell",
+  "pre_grad": true,
+  "val_from": {
+    "bias_gt": {
+      "source": "v_onset",
+      "enabled": true
+    },
+    "v_th_ca": {
+      "source": "v_th",
+      "enabled": false
+    },
+    "a_ca": {
+      "source": "a_out",
+      "enabled": false
+    },
+    "a_h_rev": {
+      "source": "a_h",
+      "enabled": false
+    },
+    "v_mid_h_g_rev": {
+      "source": "v_mid_h_g",
+      "enabled": false
+    },
+    "h_slope_rev": {
+      "source": "h_slope",
+      "enabled": false
+    },
+    "v_mid_h_tau_rev": {
+      "source": "v_mid_h_tau",
+      "enabled": false
+    }
+  },
+  "filter": "none",
+  "point_hh": {
+    "ion_rules": "/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv",
+    "synapse_rules": "/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv",
+    "connections": "/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz",
+    "area_um2": 100.0,
+    "capacitance_uF_cm2": 1.0,
+    "v_min_mV": -120.0,
+    "v_max_mV": 80.0,
+    "gene_mode": "on",
+    "gene": {
+      "version": "v6",
+      "expression": "/home/yitai/Ripple/3_T4T5_mcHH_model/gene_2_param/expr_matrix_subset_all_curated.csv",
+      "training_types": null,
+      "max_fold_changes": {
+        "gNa": 4.0,
+        "gK": 3.5,
+        "gLeak": 3.0,
+        "gS": 6.0
+      },
+      "params": {
+        "gene_gNa_para": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gNa_tipE": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gNa_Teh1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gNa_Teh2": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gNa_Teh3": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gNa_Teh4": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gK_Sh": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gK_Shal": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gK_Shab": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gK_Shaw": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gK_eag": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gK_sei": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gK_Elk": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gLeak_Ork1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gLeak_Irk1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gLeak_Irk2": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gLeak_Irk3": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gLeak_ClC-a": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gLeak_pHCl-1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_brp": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Rim": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Liprin-alpha": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Syt1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Syt7": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Sytbeta": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_nSyb": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Syx1A": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Snap25": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Csp": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_cpx": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_shi": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Syn": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Syp": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Vap33": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_ChAT": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_VAChT": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_nAChRalpha1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_nAChRalpha2": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_nAChRbeta1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Gad1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_VGAT": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Rdl": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Lcch3": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Grd": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_Hdc": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_ort": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_HisCl1": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_VGlut": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        },
+        "gene_gS_GluClalpha": {
+          "lo": -2.0,
+          "hi": 2.0,
+          "init": 0.0,
+          "jit": 0.0,
+          "mode": "shared"
+        }
+      }
+    }
+  },
+  "spread_gt_mode": "pos",
+  "fp": 32,
+  "model": "point_hh"
+}

@@ -1,0 +1,20 @@
+{
+  "formal_file": "/home/yitai/drosophila_vision/vision/simulation/4_train/3_cost.py",
+  "formal_change": "Import existing pack_cost_window_t_min and use it for sequential aligned readout; no other edits to this file.",
+  "regression_before": "Original code failed: expected in-window SSE 9346.666015625, actual 400.0.",
+  "tests_after": {
+    "passed": 72,
+    "suite": "32 temporary window loss/gradient cases plus existing moving-bar alignment, DSI and onset-baseline tests"
+  },
+  "window_checks": [
+    "before/at/after onset",
+    "outside-window loss and gradient exclusion",
+    "sparse sampling",
+    "aligned and non-aligned packs",
+    "legacy zeroing policy",
+    "float32/float64",
+    "mean_trace/entry_sse",
+    "batched vs sequential cost and readout gradient"
+  ],
+  "sha256": "d9dfd20cb031d8ec1fa1e47524134276b28a4dfef58c3035dd8f80d7e86cfa14"
+}

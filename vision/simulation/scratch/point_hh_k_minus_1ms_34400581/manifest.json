@@ -1,0 +1,527 @@
+{
+  "delta_ms": 1.0,
+  "delta_ms_pre": 1.0,
+  "light_on_ms": 0,
+  "light_off_ms": 160,
+  "hh_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "hp_lp_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml": "3e868705a3917bc1aff0a7d2486ea24df9ccd7458e3813210b3ca2c22bddb6b2",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "43f0a403902d4935eae0cba52a24927b096ba6b4c206e0a57e9edecdfdf8266b",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "889b9a1f789b952c4feff1175b0bc900b9b4257aee1c6e1813faa3aafe2bd94b"
+  },
+  "source_unchanged": true,
+  "hh_k_minus_values": [
+    0.1,
+    0.02,
+    0.01
+  ],
+  "metrics": [
+    {
+      "model": "HH k=0.1",
+      "cell": "R1-6",
+      "on_min_mV": 0.0,
+      "on_max_mV": 13.525108337402344,
+      "opposite_off_peak_mV": 1.1827964782714844,
+      "opposite_off_fwhm_ms": 6.0,
+      "opposite_off_delay_ms": 4.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "L1",
+      "on_min_mV": -17.267929077148438,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 2.634990692138672,
+      "opposite_off_fwhm_ms": 15.0,
+      "opposite_off_delay_ms": 14.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "L2",
+      "on_min_mV": -15.019859313964844,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 0.043582916259765625,
+      "opposite_off_fwhm_ms": 10.0,
+      "opposite_off_delay_ms": 345.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "L3",
+      "on_min_mV": -11.85995101928711,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 0.015354156494140625,
+      "opposite_off_fwhm_ms": 8.0,
+      "opposite_off_delay_ms": 882.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "L4",
+      "on_min_mV": -0.04976654052734375,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 3.814697265625e-06,
+      "opposite_off_fwhm_ms": 6.0,
+      "opposite_off_delay_ms": 113.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "L5",
+      "on_min_mV": 0.0,
+      "on_max_mV": 11.201339721679688,
+      "opposite_off_peak_mV": 1.7882118225097656,
+      "opposite_off_fwhm_ms": 17.0,
+      "opposite_off_delay_ms": 25.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "Mi1",
+      "on_min_mV": 0.0,
+      "on_max_mV": 16.96928596496582,
+      "opposite_off_peak_mV": 2.4396018981933594,
+      "opposite_off_fwhm_ms": 16.0,
+      "opposite_off_delay_ms": 26.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "Tm3",
+      "on_min_mV": 0.0,
+      "on_max_mV": 9.645652770996094,
+      "opposite_off_peak_mV": 0.9823799133300781,
+      "opposite_off_fwhm_ms": 12.0,
+      "opposite_off_delay_ms": 25.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "Mi4",
+      "on_min_mV": 0.0,
+      "on_max_mV": 15.579145431518555,
+      "opposite_off_peak_mV": 1.4432945251464844,
+      "opposite_off_fwhm_ms": 7.0,
+      "opposite_off_delay_ms": 49.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "Mi9",
+      "on_min_mV": -0.000152587890625,
+      "on_max_mV": 2.9865264892578125,
+      "opposite_off_peak_mV": 0.3428192138671875,
+      "opposite_off_fwhm_ms": 10.0,
+      "opposite_off_delay_ms": 49.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "T4a",
+      "on_min_mV": 0.0,
+      "on_max_mV": 16.983762741088867,
+      "opposite_off_peak_mV": 0.6059608459472656,
+      "opposite_off_fwhm_ms": 11.0,
+      "opposite_off_delay_ms": 336.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "T4b",
+      "on_min_mV": 0.0,
+      "on_max_mV": 14.573918342590332,
+      "opposite_off_peak_mV": 1.338968276977539,
+      "opposite_off_fwhm_ms": 7.0,
+      "opposite_off_delay_ms": 49.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "T4c",
+      "on_min_mV": 0.0,
+      "on_max_mV": 10.423173904418945,
+      "opposite_off_peak_mV": 1.479745864868164,
+      "opposite_off_fwhm_ms": 8.0,
+      "opposite_off_delay_ms": 48.0
+    },
+    {
+      "model": "HH k=0.1",
+      "cell": "T4d",
+      "on_min_mV": 0.0,
+      "on_max_mV": 12.735511779785156,
+      "opposite_off_peak_mV": 1.2853870391845703,
+      "opposite_off_fwhm_ms": 7.0,
+      "opposite_off_delay_ms": 49.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "R1-6",
+      "on_min_mV": 0.0,
+      "on_max_mV": 13.742660522460938,
+      "opposite_off_peak_mV": 1.2190170288085938,
+      "opposite_off_fwhm_ms": 6.0,
+      "opposite_off_delay_ms": 4.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "L1",
+      "on_min_mV": -14.649131774902344,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 1.8686332702636719,
+      "opposite_off_fwhm_ms": 62.0,
+      "opposite_off_delay_ms": 76.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "L2",
+      "on_min_mV": -14.488296508789062,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 0.01151275634765625,
+      "opposite_off_fwhm_ms": 25.0,
+      "opposite_off_delay_ms": 701.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "L3",
+      "on_min_mV": -11.539779663085938,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 0.00335693359375,
+      "opposite_off_fwhm_ms": 55.0,
+      "opposite_off_delay_ms": 651.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "L4",
+      "on_min_mV": -0.04891204833984375,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 3.814697265625e-06,
+      "opposite_off_fwhm_ms": 7.0,
+      "opposite_off_delay_ms": 474.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "L5",
+      "on_min_mV": 0.0,
+      "on_max_mV": 9.01662826538086,
+      "opposite_off_peak_mV": 1.9653968811035156,
+      "opposite_off_fwhm_ms": 79.0,
+      "opposite_off_delay_ms": 115.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "Mi1",
+      "on_min_mV": 0.0,
+      "on_max_mV": 15.487102508544922,
+      "opposite_off_peak_mV": 2.4306411743164062,
+      "opposite_off_fwhm_ms": 76.0,
+      "opposite_off_delay_ms": 128.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "Tm3",
+      "on_min_mV": 0.0,
+      "on_max_mV": 7.6941070556640625,
+      "opposite_off_peak_mV": 0.9385490417480469,
+      "opposite_off_fwhm_ms": 75.0,
+      "opposite_off_delay_ms": 116.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "Mi4",
+      "on_min_mV": 0.0,
+      "on_max_mV": 16.221588134765625,
+      "opposite_off_peak_mV": 0.8146324157714844,
+      "opposite_off_fwhm_ms": 49.0,
+      "opposite_off_delay_ms": 207.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "Mi9",
+      "on_min_mV": -2.288818359375e-05,
+      "on_max_mV": 3.0892105102539062,
+      "opposite_off_peak_mV": 0.2952728271484375,
+      "opposite_off_fwhm_ms": 98.0,
+      "opposite_off_delay_ms": 165.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "T4a",
+      "on_min_mV": 0.0,
+      "on_max_mV": 14.045984268188477,
+      "opposite_off_peak_mV": 0.1038970947265625,
+      "opposite_off_fwhm_ms": 10.0,
+      "opposite_off_delay_ms": 940.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "T4b",
+      "on_min_mV": 0.0,
+      "on_max_mV": 14.765053749084473,
+      "opposite_off_peak_mV": 0.7493953704833984,
+      "opposite_off_fwhm_ms": 59.0,
+      "opposite_off_delay_ms": 195.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "T4c",
+      "on_min_mV": 0.0,
+      "on_max_mV": 10.630868911743164,
+      "opposite_off_peak_mV": 0.9566211700439453,
+      "opposite_off_fwhm_ms": 55.0,
+      "opposite_off_delay_ms": 195.0
+    },
+    {
+      "model": "HH k=0.02",
+      "cell": "T4d",
+      "on_min_mV": 0.0,
+      "on_max_mV": 13.071712493896484,
+      "opposite_off_peak_mV": 0.7936534881591797,
+      "opposite_off_fwhm_ms": 53.0,
+      "opposite_off_delay_ms": 195.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "R1-6",
+      "on_min_mV": 0.0,
+      "on_max_mV": 13.78866195678711,
+      "opposite_off_peak_mV": 1.222076416015625,
+      "opposite_off_fwhm_ms": 6.0,
+      "opposite_off_delay_ms": 4.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "L1",
+      "on_min_mV": -13.505115509033203,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 2.4630355834960938,
+      "opposite_off_fwhm_ms": 132.0,
+      "opposite_off_delay_ms": 122.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "L2",
+      "on_min_mV": -14.3770751953125,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 0.00635528564453125,
+      "opposite_off_fwhm_ms": 41.0,
+      "opposite_off_delay_ms": 810.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "L3",
+      "on_min_mV": -11.499553680419922,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 0.0,
+      "opposite_off_fwhm_ms": 0.0,
+      "opposite_off_delay_ms": 0.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "L4",
+      "on_min_mV": -0.048809051513671875,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 0.0,
+      "opposite_off_fwhm_ms": 0.0,
+      "opposite_off_delay_ms": 0.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "L5",
+      "on_min_mV": 0.0,
+      "on_max_mV": 8.399402618408203,
+      "opposite_off_peak_mV": 2.0177040100097656,
+      "opposite_off_fwhm_ms": 175.0,
+      "opposite_off_delay_ms": 184.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "Mi1",
+      "on_min_mV": 0.0,
+      "on_max_mV": 15.063783645629883,
+      "opposite_off_peak_mV": 2.294292449951172,
+      "opposite_off_fwhm_ms": 167.0,
+      "opposite_off_delay_ms": 227.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "Tm3",
+      "on_min_mV": 0.0,
+      "on_max_mV": 6.789310455322266,
+      "opposite_off_peak_mV": 1.3076286315917969,
+      "opposite_off_fwhm_ms": 153.0,
+      "opposite_off_delay_ms": 199.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "Mi4",
+      "on_min_mV": 0.0,
+      "on_max_mV": 15.103504180908203,
+      "opposite_off_peak_mV": 0.6035289764404297,
+      "opposite_off_fwhm_ms": 73.0,
+      "opposite_off_delay_ms": 433.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "Mi9",
+      "on_min_mV": 0.0,
+      "on_max_mV": 2.7027740478515625,
+      "opposite_off_peak_mV": 0.2318878173828125,
+      "opposite_off_fwhm_ms": 233.0,
+      "opposite_off_delay_ms": 314.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "T4a",
+      "on_min_mV": 0.0,
+      "on_max_mV": 12.45987319946289,
+      "opposite_off_peak_mV": 0.09131240844726562,
+      "opposite_off_fwhm_ms": 25.0,
+      "opposite_off_delay_ms": 746.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "T4b",
+      "on_min_mV": 0.0,
+      "on_max_mV": 13.695175170898438,
+      "opposite_off_peak_mV": 0.6295623779296875,
+      "opposite_off_fwhm_ms": 110.0,
+      "opposite_off_delay_ms": 432.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "T4c",
+      "on_min_mV": 0.0,
+      "on_max_mV": 9.945568084716797,
+      "opposite_off_peak_mV": 0.745391845703125,
+      "opposite_off_fwhm_ms": 111.0,
+      "opposite_off_delay_ms": 432.0
+    },
+    {
+      "model": "HH k=0.01",
+      "cell": "T4d",
+      "on_min_mV": 0.0,
+      "on_max_mV": 12.161402702331543,
+      "opposite_off_peak_mV": 0.5909595489501953,
+      "opposite_off_fwhm_ms": 84.0,
+      "opposite_off_delay_ms": 432.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "R1-6",
+      "on_min_mV": 0.0,
+      "on_max_mV": 19.25729751586914,
+      "opposite_off_peak_mV": 0.03366279602050781,
+      "opposite_off_fwhm_ms": 147.0,
+      "opposite_off_delay_ms": 849.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "L1",
+      "on_min_mV": -22.820541381835938,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 13.287879943847656,
+      "opposite_off_fwhm_ms": 159.0,
+      "opposite_off_delay_ms": 97.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "L2",
+      "on_min_mV": -12.067733764648438,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 8.812728881835938,
+      "opposite_off_fwhm_ms": 158.0,
+      "opposite_off_delay_ms": 101.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "L3",
+      "on_min_mV": -6.9314117431640625,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 1.9447517395019531,
+      "opposite_off_fwhm_ms": 157.0,
+      "opposite_off_delay_ms": 150.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "L4",
+      "on_min_mV": -19.99427604675293,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 16.648473739624023,
+      "opposite_off_fwhm_ms": 157.0,
+      "opposite_off_delay_ms": 114.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "L5",
+      "on_min_mV": -29.364559173583984,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 5.969895362854004,
+      "opposite_off_fwhm_ms": 140.0,
+      "opposite_off_delay_ms": 123.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "Mi1",
+      "on_min_mV": 0.0,
+      "on_max_mV": 17.351945877075195,
+      "opposite_off_peak_mV": 33.71672439575195,
+      "opposite_off_fwhm_ms": 178.0,
+      "opposite_off_delay_ms": 92.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "Tm3",
+      "on_min_mV": 0.0,
+      "on_max_mV": 21.158658981323242,
+      "opposite_off_peak_mV": 30.8072452545166,
+      "opposite_off_fwhm_ms": 185.0,
+      "opposite_off_delay_ms": 102.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "Mi4",
+      "on_min_mV": -1.6142654418945312,
+      "on_max_mV": 4.451202392578125,
+      "opposite_off_peak_mV": 0.4206085205078125,
+      "opposite_off_fwhm_ms": 148.0,
+      "opposite_off_delay_ms": 886.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "Mi9",
+      "on_min_mV": -26.25414276123047,
+      "on_max_mV": 0.0,
+      "opposite_off_peak_mV": 4.328067302703857,
+      "opposite_off_fwhm_ms": 149.0,
+      "opposite_off_delay_ms": 193.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "T4a",
+      "on_min_mV": 0.0,
+      "on_max_mV": 12.888896942138672,
+      "opposite_off_peak_mV": 3.8208847045898438,
+      "opposite_off_fwhm_ms": 203.0,
+      "opposite_off_delay_ms": 170.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "T4b",
+      "on_min_mV": 0.0,
+      "on_max_mV": 11.134941101074219,
+      "opposite_off_peak_mV": 4.018836975097656,
+      "opposite_off_fwhm_ms": 196.0,
+      "opposite_off_delay_ms": 160.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "T4c",
+      "on_min_mV": 0.0,
+      "on_max_mV": 12.67770004272461,
+      "opposite_off_peak_mV": 4.672088623046875,
+      "opposite_off_fwhm_ms": 201.0,
+      "opposite_off_delay_ms": 163.0
+    },
+    {
+      "model": "HP-LP",
+      "cell": "T4d",
+      "on_min_mV": 0.0,
+      "on_max_mV": 11.22122573852539,
+      "opposite_off_peak_mV": 4.074440002441406,
+      "opposite_off_fwhm_ms": 196.0,
+      "opposite_off_delay_ms": 168.0
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "n_neurons": 5789,
+  "mean_definition": "Equal-weight arithmetic mean across all neurons at each sample, no smoothing",
+  "dt_ms": 1.0,
+  "display_window_ms": [
+    200,
+    1200
+  ],
+  "background": "20 pA at photoreceptors, zero direct current elsewhere, no added pulse",
+  "warmup_ms": 324.0,
+  "previous_selected_traces_exact_match": true,
+  "previous_population_reference_max_error_mV": 0.0,
+  "mean_min_mV": -41.09192078731403,
+  "mean_max_mV": -41.02722212542333,
+  "peak_to_peak_mV": 0.06469866189070217,
+  "source_unchanged": true,
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_2_hp_lp.py": "ef2803ecafbc7679d200fb5ae491d2bd3e840d820d75cc491e0a12df10c9fbfe",
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "889b9a1f789b952c4feff1175b0bc900b9b4257aee1c6e1813faa3aafe2bd94b",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": "f11e6bede6493ba56d1ddcb78aee6b2277421d83776d8f1133791d17474ef1dc",
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/hp_lp_extreme20_1ms_34381872/plot_all_neuron_mean.py": "c2909299219b86c81510df3fd97f3338eb616c6642e4bd7aa47fd044fd82eb04"
+  }
+}

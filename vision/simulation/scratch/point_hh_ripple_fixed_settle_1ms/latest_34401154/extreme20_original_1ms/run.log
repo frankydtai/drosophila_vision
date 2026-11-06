@@ -1,0 +1,283 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{
+  "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34401154-run_init_from-n_iter-200-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "initial_state": "original_initial_state.npz, after the original 324-ms background stage",
+  "dt_ms": 1.0,
+  "stimulation": "constant 20 pA at photoreceptors, zero direct current at other neurons; no added pulse",
+  "ranking": "all neurons, SD in float64 after centering at the first sample; ties broken by ascending node index",
+  "rank_window_ms": [
+    200,
+    1200
+  ],
+  "n_neurons": 5789,
+  "n_exactly_constant": 2920,
+  "same_global_axes": {
+    "xlim": [
+      200,
+      1200
+    ],
+    "ylim": [
+      -70.0,
+      5.0
+    ],
+    "yticks": [
+      -60.0,
+      -40.0,
+      -20.0,
+      0.0
+    ]
+  },
+  "saved_trace_reproduction_max_error_mV": 0.0,
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34401154-run_init_from-n_iter-200-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "5f0427ff185bd33cb37f5dacafdde93e4079609676195d9678bc0677a8c77044",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34401154-run_init_from-n_iter-200-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": "ca991887efd5e959b3c8b15921cba5c10df5e0819b97fffc4e755f0d1e772577",
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/point_hh_ripple_fixed_settle_1ms/latest_34401154/original_initial_state.npz": "e7cfd84855c5606f7e4bd6998d672b04eae2fa62fe72045097e2106288ad7230",
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/point_hh_ripple_fixed_settle_1ms/latest_34401154/extreme20_original_1ms/plot_extremes.py": "4002a961b399074cdff5f753fc356ae106a89a0c45a95b341ceef3fb30bbb02d"
+  },
+  "source_unchanged": true,
+  "selected": [
+    {
+      "group": "largest",
+      "rank": 1,
+      "node": 5548,
+      "root_id": "720575940624247479",
+      "cell_type": "Mi4",
+      "u": -8,
+      "v": 4,
+      "std_mV": 12.447531174297639,
+      "peak_to_peak_mV": 40.75026798248291,
+      "mean_mV": -38.07323634255302
+    },
+    {
+      "group": "largest",
+      "rank": 2,
+      "node": 5619,
+      "root_id": "720575940624249269",
+      "cell_type": "Mi4",
+      "u": -2,
+      "v": -6,
+      "std_mV": 11.104080583523945,
+      "peak_to_peak_mV": 35.890838623046875,
+      "mean_mV": -35.5773390275496
+    },
+    {
+      "group": "largest",
+      "rank": 3,
+      "node": 659,
+      "root_id": "720575940655201953",
+      "cell_type": "Mi4",
+      "u": -5,
+      "v": -4,
+      "std_mV": 11.039380083215098,
+      "peak_to_peak_mV": 35.94629383087158,
+      "mean_mV": -37.12677689818116
+    },
+    {
+      "group": "largest",
+      "rank": 4,
+      "node": 1344,
+      "root_id": "720575940605803744",
+      "cell_type": "T4a",
+      "u": 5,
+      "v": -1,
+      "std_mV": 10.812385933891028,
+      "peak_to_peak_mV": 34.36684226989746,
+      "mean_mV": -37.15025367889252
+    },
+    {
+      "group": "largest",
+      "rank": 5,
+      "node": 4883,
+      "root_id": "720575940631572536",
+      "cell_type": "Mi4",
+      "u": 4,
+      "v": 4,
+      "std_mV": 10.089692434794712,
+      "peak_to_peak_mV": 32.579973220825195,
+      "mean_mV": -36.70841643383929
+    },
+    {
+      "group": "largest",
+      "rank": 6,
+      "node": 5243,
+      "root_id": "720575940610740394",
+      "cell_type": "Mi1",
+      "u": -2,
+      "v": 8,
+      "std_mV": 9.931686157179172,
+      "peak_to_peak_mV": 40.398677825927734,
+      "mean_mV": -44.76619330128947
+    },
+    {
+      "group": "largest",
+      "rank": 7,
+      "node": 1082,
+      "root_id": "720575940633978007",
+      "cell_type": "Mi4",
+      "u": -1,
+      "v": 3,
+      "std_mV": 9.909441830649685,
+      "peak_to_peak_mV": 32.67214775085449,
+      "mean_mV": -41.257594462041254
+    },
+    {
+      "group": "largest",
+      "rank": 8,
+      "node": 3764,
+      "root_id": "720575940632596511",
+      "cell_type": "Mi4",
+      "u": -2,
+      "v": 8,
+      "std_mV": 9.9002544123841,
+      "peak_to_peak_mV": 30.490203857421875,
+      "mean_mV": -29.37142098128617
+    },
+    {
+      "group": "largest",
+      "rank": 9,
+      "node": 1818,
+      "root_id": "720575940621412336",
+      "cell_type": "Mi4",
+      "u": -5,
+      "v": 1,
+      "std_mV": 9.868181437742493,
+      "peak_to_peak_mV": 31.324048042297363,
+      "mean_mV": -35.067917870474865
+    },
+    {
+      "group": "largest",
+      "rank": 10,
+      "node": 4584,
+      "root_id": "720575940625929609",
+      "cell_type": "T4b",
+      "u": 8,
+      "v": 2,
+      "std_mV": 9.697215942046327,
+      "peak_to_peak_mV": 31.750585556030273,
+      "mean_mV": -39.39902430790645
+    },
+    {
+      "group": "smallest",
+      "rank": 1,
+      "node": 0,
+      "root_id": "720575940627005443",
+      "cell_type": "L4",
+      "u": 0,
+      "v": 9,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -41.270782470703125
+    },
+    {
+      "group": "smallest",
+      "rank": 2,
+      "node": 1,
+      "root_id": "720575940627398675",
+      "cell_type": "T4b",
+      "u": 10,
+      "v": -5,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -4.9346394538879395
+    },
+    {
+      "group": "smallest",
+      "rank": 3,
+      "node": 4,
+      "root_id": "720575940623990825",
+      "cell_type": "R1-6",
+      "u": 10,
+      "v": -1,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -57.808433532714844
+    },
+    {
+      "group": "smallest",
+      "rank": 4,
+      "node": 5,
+      "root_id": "720575940629626923",
+      "cell_type": "R1-6",
+      "u": -2,
+      "v": -5,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -57.808433532714844
+    },
+    {
+      "group": "smallest",
+      "rank": 5,
+      "node": 6,
+      "root_id": "720575940617044018",
+      "cell_type": "L2",
+      "u": -8,
+      "v": 10,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -44.92936706542969
+    },
+    {
+      "group": "smallest",
+      "rank": 6,
+      "node": 7,
+      "root_id": "720575940636704879",
+      "cell_type": "R1-6",
+      "u": 5,
+      "v": -5,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -57.808433532714844
+    },
+    {
+      "group": "smallest",
+      "rank": 7,
+      "node": 8,
+      "root_id": "720575940642996365",
+      "cell_type": "R1-6",
+      "u": -6,
+      "v": -4,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -57.808433532714844
+    },
+    {
+      "group": "smallest",
+      "rank": 8,
+      "node": 9,
+      "root_id": "720575940615078034",
+      "cell_type": "L2",
+      "u": -10,
+      "v": 0,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -63.67057800292969
+    },
+    {
+      "group": "smallest",
+      "rank": 9,
+      "node": 13,
+      "root_id": "720575940605116640",
+      "cell_type": "L4",
+      "u": -7,
+      "v": 3,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -41.270782470703125
+    },
+    {
+      "group": "smallest",
+      "rank": 10,
+      "node": 15,
+      "root_id": "720575940617830630",
+      "cell_type": "L5",
+      "u": -4,
+      "v": -6,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -47.541011810302734
+    }
+  ]
+}

@@ -1,0 +1,189 @@
+[
+  {
+    "iteration": 0,
+    "cost": 8146676.0,
+    "grad_max": 631702272.0,
+    "bad_params": [],
+    "state_v_grad_samples": [
+      [
+        900,
+        5.2085747718811035
+      ],
+      [
+        800,
+        6.050343990325928
+      ],
+      [
+        700,
+        10.577486038208008
+      ],
+      [
+        600,
+        23.60495376586914
+      ],
+      [
+        500,
+        175.6460723876953
+      ],
+      [
+        400,
+        88.78474426269531
+      ],
+      [
+        300,
+        186.87803649902344
+      ],
+      [
+        200,
+        345.0774841308594
+      ],
+      [
+        100,
+        190.616943359375
+      ]
+    ],
+    "elapsed": 8.107533464208245
+  },
+  {
+    "iteration": 1,
+    "cost": 18210720.0,
+    "grad_max": 3.6348086399577096e+19,
+    "bad_params": [],
+    "state_v_grad_samples": [
+      [
+        900,
+        3.121464252471924
+      ],
+      [
+        800,
+        4.123865604400635
+      ],
+      [
+        700,
+        8.160693168640137
+      ],
+      [
+        600,
+        14.396059036254883
+      ],
+      [
+        500,
+        44781.3828125
+      ],
+      [
+        400,
+        72644427776.0
+      ],
+      [
+        300,
+        2.329057857204388e+17
+      ],
+      [
+        200,
+        7.629345466745126e+20
+      ],
+      [
+        100,
+        2.499145575670968e+24
+      ]
+    ],
+    "elapsed": 6.285339700058103
+  },
+  {
+    "iteration": 2,
+    "cost": 18064920.0,
+    "grad_max": NaN,
+    "bad_params": [
+      "v_th_syn",
+      "k_minus_syn",
+      "gene_gNa_para",
+      "gene_gNa_tipE",
+      "gene_gNa_Teh1",
+      "gene_gNa_Teh2",
+      "gene_gNa_Teh3",
+      "gene_gNa_Teh4",
+      "gene_gK_Sh",
+      "gene_gK_Shal",
+      "gene_gK_Shab",
+      "gene_gK_Shaw",
+      "gene_gK_eag",
+      "gene_gK_sei",
+      "gene_gK_Elk",
+      "gene_gLeak_Ork1",
+      "gene_gLeak_Irk1",
+      "gene_gLeak_Irk2",
+      "gene_gLeak_Irk3",
+      "gene_gLeak_ClC-a",
+      "gene_gLeak_pHCl-1",
+      "gene_gS_brp",
+      "gene_gS_Rim",
+      "gene_gS_Liprin-alpha",
+      "gene_gS_Syt1",
+      "gene_gS_Syt7",
+      "gene_gS_Sytbeta",
+      "gene_gS_nSyb",
+      "gene_gS_Syx1A",
+      "gene_gS_Snap25",
+      "gene_gS_Csp",
+      "gene_gS_cpx",
+      "gene_gS_shi",
+      "gene_gS_Syn",
+      "gene_gS_Syp",
+      "gene_gS_Vap33",
+      "gene_gS_ChAT",
+      "gene_gS_VAChT",
+      "gene_gS_nAChRalpha1",
+      "gene_gS_nAChRalpha2",
+      "gene_gS_nAChRbeta1",
+      "gene_gS_Gad1",
+      "gene_gS_VGAT",
+      "gene_gS_Rdl",
+      "gene_gS_Lcch3",
+      "gene_gS_Grd",
+      "gene_gS_Hdc",
+      "gene_gS_ort",
+      "gene_gS_HisCl1",
+      "gene_gS_VGlut",
+      "gene_gS_GluClalpha"
+    ],
+    "state_v_grad_samples": [
+      [
+        900,
+        6.236790657043457
+      ],
+      [
+        800,
+        8.27872371673584
+      ],
+      [
+        700,
+        11.300172805786133
+      ],
+      [
+        600,
+        294361.34375
+      ],
+      [
+        500,
+        50891538432.0
+      ],
+      [
+        400,
+        8.616372129187548e+19
+      ],
+      [
+        300,
+        1.7236643329313984e+29
+      ],
+      [
+        200,
+        2.981210668839163e+34
+      ],
+      [
+        100,
+        NaN
+      ]
+    ],
+    "elapsed": 14.778131302446127
+  }
+]

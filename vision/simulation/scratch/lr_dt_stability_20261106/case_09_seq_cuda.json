@@ -1,0 +1,80 @@
+{
+  "hardware": "NVIDIA A100 80GB PCIe MIG 1g.10gb",
+  "sequential": true,
+  "case": {
+    "run": "34401153",
+    "lr": 0.003,
+    "iterations": 20,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 9,
+  "device": "cuda",
+  "limit": 20,
+  "label": "seq",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "cebab45f11f68681cbcdfa18d5252b05b0b10973d699fdf2913f7760367e5370",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 2056962.328125,
+      "grad_max": 6.073559295323013e+17,
+      "grad_norm64": 1.0287476729019672e+18,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 6.212427957508506e+16,
+      "adam_finite": true,
+      "adam_v_max": 3.688812181637527e+32,
+      "forward_s": 20.435044661164284,
+      "train_elapsed_s": 51.53973005153239,
+      "iteration_s": 51.53874031640589
+    },
+    {
+      "iteration": 1,
+      "cost": 4035405.68359375,
+      "grad_max": 13735570702336.0,
+      "grad_norm64": 18514520962096.254,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 249686753280.0,
+      "adam_finite": true,
+      "adam_v_max": 3.685123507176719e+32,
+      "forward_s": 17.896646471694112,
+      "train_elapsed_s": 100.23302537761629,
+      "iteration_s": 48.549087069928646
+    },
+    {
+      "iteration": 2,
+      "cost": 7473493.390625,
+      "grad_max": 1.9258699325961667e+18,
+      "grad_norm64": 2.2147962663232123e+18,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 5.648153865669837e+16,
+      "adam_finite": true,
+      "adam_v_max": 4.077119000155241e+33,
+      "forward_s": 17.593428157269955,
+      "train_elapsed_s": 148.33170323073864,
+      "iteration_s": 47.94602141715586
+    },
+    {
+      "iteration": 3,
+      "cost": 5520594.265625,
+      "grad_max": 1232018048.0,
+      "grad_norm64": 1732956282.7723486,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 136366800.0,
+      "adam_finite": true,
+      "adam_v_max": 4.0730418446358546e+33,
+      "forward_s": 17.475850962102413,
+      "train_elapsed_s": 196.25741656310856,
+      "iteration_s": 47.778475066646934
+    }
+  ],
+  "stop_reason": "completed",
+  "elapsed_s": 196.25750166922808,
+  "source_files_unchanged": true,
+  "excluded_from_ranking": "Original sequential readout zeroed baseline unlike full-pack objective."
+}

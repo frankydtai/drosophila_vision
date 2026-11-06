@@ -1,0 +1,286 @@
+{
+  "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "initial_state": "Unchanged HPLP pre_steady solve (50 iterations, damping 0.1) followed by 324 ms background integration",
+  "dt_ms": 1.0,
+  "stimulation": "constant 20 pA at photoreceptors, zero direct current at other neurons; no added pulse",
+  "ranking": "all neurons, SD in float64 after centering at the first sample; ties by ascending node index; tied smallest group excludes cells already selected in largest group",
+  "rank_window_ms": [
+    200,
+    1200
+  ],
+  "n_neurons": 5789,
+  "n_exactly_constant": 2061,
+  "same_global_axes": {
+    "xlim": [
+      200,
+      1200
+    ],
+    "ylim": [
+      -105.0,
+      95.0
+    ],
+    "yticks": [
+      -100.0,
+      -80.0,
+      -60.0,
+      -40.0,
+      -20.0,
+      0.0,
+      20.0,
+      40.0,
+      60.0,
+      80.0
+    ]
+  },
+  "saved_trace_reproduction_max_error_mV": 0.0,
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_2_hp_lp.py": "ef2803ecafbc7679d200fb5ae491d2bd3e840d820d75cc491e0a12df10c9fbfe",
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "889b9a1f789b952c4feff1175b0bc900b9b4257aee1c6e1813faa3aafe2bd94b",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": "f11e6bede6493ba56d1ddcb78aee6b2277421d83776d8f1133791d17474ef1dc",
+    "/home/yitai/drosophila_vision/vision/simulation/scratch/hp_lp_extreme20_1ms_34381872/plot_extremes.py": "a5ff65ffb39eebd84d191f6fbfa14c65752a1411e8bbdab95861541e11a5e72c"
+  },
+  "source_unchanged": true,
+  "selected": [
+    {
+      "group": "largest",
+      "rank": 1,
+      "node": 1219,
+      "root_id": "720575940627427717",
+      "cell_type": "L5",
+      "u": 8,
+      "v": -3,
+      "std_mV": 20.431033650260833,
+      "peak_to_peak_mV": 56.51368236541748,
+      "mean_mV": -30.91970954574905
+    },
+    {
+      "group": "largest",
+      "rank": 2,
+      "node": 3886,
+      "root_id": "720575940610578786",
+      "cell_type": "Mi1",
+      "u": 8,
+      "v": -3,
+      "std_mV": 12.3086191329691,
+      "peak_to_peak_mV": 28.265235900878906,
+      "mean_mV": -88.27411557863523
+    },
+    {
+      "group": "largest",
+      "rank": 3,
+      "node": 2675,
+      "root_id": "720575940624183690",
+      "cell_type": "L1",
+      "u": 8,
+      "v": -3,
+      "std_mV": 12.157399172446766,
+      "peak_to_peak_mV": 35.84122848510742,
+      "mean_mV": -51.294794221738954
+    },
+    {
+      "group": "largest",
+      "rank": 4,
+      "node": 4803,
+      "root_id": "720575940625016807",
+      "cell_type": "L5",
+      "u": 2,
+      "v": 5,
+      "std_mV": 11.065603710773077,
+      "peak_to_peak_mV": 57.9012565612793,
+      "mean_mV": 11.575242827749069
+    },
+    {
+      "group": "largest",
+      "rank": 5,
+      "node": 4604,
+      "root_id": "720575940628158407",
+      "cell_type": "Mi9",
+      "u": 2,
+      "v": 4,
+      "std_mV": 10.70167925101661,
+      "peak_to_peak_mV": 44.5195426940918,
+      "mean_mV": 63.004336990676556
+    },
+    {
+      "group": "largest",
+      "rank": 6,
+      "node": 4599,
+      "root_id": "720575940612298536",
+      "cell_type": "L4",
+      "u": 1,
+      "v": 5,
+      "std_mV": 9.289099044035476,
+      "peak_to_peak_mV": 47.76710224151611,
+      "mean_mV": -9.894491878633092
+    },
+    {
+      "group": "largest",
+      "rank": 7,
+      "node": 1673,
+      "root_id": "720575940635171747",
+      "cell_type": "L5",
+      "u": 2,
+      "v": 4,
+      "std_mV": 8.714499439626344,
+      "peak_to_peak_mV": 50.68302345275879,
+      "mean_mV": -2.7447389106068028
+    },
+    {
+      "group": "largest",
+      "rank": 8,
+      "node": 4452,
+      "root_id": "720575940635232931",
+      "cell_type": "L4",
+      "u": 2,
+      "v": 4,
+      "std_mV": 8.657025497010494,
+      "peak_to_peak_mV": 44.60507011413574,
+      "mean_mV": -4.447413034851548
+    },
+    {
+      "group": "largest",
+      "rank": 9,
+      "node": 5686,
+      "root_id": "720575940621235952",
+      "cell_type": "Tm3",
+      "u": 1,
+      "v": 5,
+      "std_mV": 8.500533033057716,
+      "peak_to_peak_mV": 41.69141694903374,
+      "mean_mV": -22.10916958526372
+    },
+    {
+      "group": "largest",
+      "rank": 10,
+      "node": 1298,
+      "root_id": "720575940639357117",
+      "cell_type": "L5",
+      "u": 3,
+      "v": 4,
+      "std_mV": 8.134848826230824,
+      "peak_to_peak_mV": 42.75974655151367,
+      "mean_mV": 13.78330858386718
+    },
+    {
+      "group": "smallest",
+      "rank": 1,
+      "node": 1,
+      "root_id": "720575940627398675",
+      "cell_type": "T4b",
+      "u": 10,
+      "v": -5,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -100.0
+    },
+    {
+      "group": "smallest",
+      "rank": 2,
+      "node": 4,
+      "root_id": "720575940623990825",
+      "cell_type": "R1-6",
+      "u": 10,
+      "v": -1,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -32.00002670288086
+    },
+    {
+      "group": "smallest",
+      "rank": 3,
+      "node": 5,
+      "root_id": "720575940629626923",
+      "cell_type": "R1-6",
+      "u": -2,
+      "v": -5,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -32.00002670288086
+    },
+    {
+      "group": "smallest",
+      "rank": 4,
+      "node": 8,
+      "root_id": "720575940642996365",
+      "cell_type": "R1-6",
+      "u": -6,
+      "v": -4,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -32.00002670288086
+    },
+    {
+      "group": "smallest",
+      "rank": 5,
+      "node": 17,
+      "root_id": "720575940629233926",
+      "cell_type": "R1-6",
+      "u": 2,
+      "v": 6,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -32.11698913574219
+    },
+    {
+      "group": "smallest",
+      "rank": 6,
+      "node": 19,
+      "root_id": "720575940630937916",
+      "cell_type": "R1-6",
+      "u": 8,
+      "v": -7,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -32.00002670288086
+    },
+    {
+      "group": "smallest",
+      "rank": 7,
+      "node": 21,
+      "root_id": "720575940606427494",
+      "cell_type": "R1-6",
+      "u": 10,
+      "v": 0,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -32.00002670288086
+    },
+    {
+      "group": "smallest",
+      "rank": 8,
+      "node": 22,
+      "root_id": "720575940636836215",
+      "cell_type": "R1-6",
+      "u": -6,
+      "v": 6,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -32.11698913574219
+    },
+    {
+      "group": "smallest",
+      "rank": 9,
+      "node": 25,
+      "root_id": "720575940623991236",
+      "cell_type": "R1-6",
+      "u": -9,
+      "v": 6,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -32.00002670288086
+    },
+    {
+      "group": "smallest",
+      "rank": 10,
+      "node": 30,
+      "root_id": "720575940634346135",
+      "cell_type": "T4c",
+      "u": 3,
+      "v": 1,
+      "std_mV": 0.0,
+      "peak_to_peak_mV": 0.0,
+      "mean_mV": -100.0
+    }
+  ]
+}

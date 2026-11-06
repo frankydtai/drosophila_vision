@@ -1,0 +1,66 @@
+{
+  "temporary_readout_fix": true,
+  "microbatch": "all",
+  "hardware": "NVIDIA A100 80GB PCIe MIG 1g.10gb",
+  "sequential": false,
+  "case": {
+    "run": "34424399",
+    "lr": 0.09,
+    "iterations": 100,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 24,
+  "device": "cuda",
+  "limit": 100,
+  "label": "maxlr_gpu",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "23056f8eb160bf5fe7669d4394cc856271fd2e79a6f9795add210ac4476b29bf",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 8146679.0,
+      "grad_max": 631703232.0,
+      "grad_norm64": 742688350.6422343,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 3079313.75,
+      "adam_finite": true,
+      "adam_v_max": 399049001795584.0,
+      "forward_s": 1.5438928846269846,
+      "train_elapsed_s": 3.973708024248481,
+      "iteration_s": 3.972762828692794
+    },
+    {
+      "iteration": 1,
+      "cost": 18213602.0,
+      "grad_max": 1704297.75,
+      "grad_norm64": 1946077.6366913584,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 1.365829397487025e+26,
+      "adam_finite": true,
+      "adam_v_max": 398649972490240.0,
+      "forward_s": 1.2064510211348534,
+      "train_elapsed_s": 7.4981637597084045,
+      "iteration_s": 3.385216522961855
+    },
+    {
+      "iteration": 2,
+      "cost": 18040544.0,
+      "grad_max": null,
+      "grad_norm64": null,
+      "z_finite": true,
+      "grad_finite": false,
+      "sampled_state_grad_max": 6.578537440065008e+36,
+      "nonfinite_state_gradient": true,
+      "forward_s": 1.1792067345231771,
+      "train_elapsed_s": 10.949764516204596,
+      "iteration_s": 3.3186028823256493
+    }
+  ],
+  "stop_reason": "nonfinite_grad",
+  "elapsed_s": 11.015931924805045,
+  "source_files_unchanged": true
+}

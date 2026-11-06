@@ -1,0 +1,66 @@
+{
+  "temporary_readout_fix": true,
+  "microbatch": 1,
+  "hardware": "spartan-bm146.hpc.unimelb.edu.au",
+  "sequential": true,
+  "case": {
+    "run": "34424399",
+    "lr": 0.1,
+    "iterations": 100,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 25,
+  "device": "cpu",
+  "limit": 100,
+  "label": "maxlr_cpu",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "23056f8eb160bf5fe7669d4394cc856271fd2e79a6f9795add210ac4476b29bf",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 8146675.84375,
+      "grad_max": 631702272.0,
+      "grad_norm64": 742678068.0331033,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 3079306.25,
+      "adam_finite": true,
+      "adam_v_max": 399047793836032.0,
+      "forward_s": 1.7512153796851635,
+      "train_elapsed_s": 3.6033089980483055,
+      "iteration_s": 3.602140488103032
+    },
+    {
+      "iteration": 1,
+      "cost": 18210720.375,
+      "grad_max": 3.6348086399577096e+19,
+      "grad_norm64": 3.728185654021436e+19,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 1.0908349232401232e+29,
+      "adam_finite": true,
+      "adam_v_max": 1.3211834850758675e+36,
+      "forward_s": 1.3701077569276094,
+      "train_elapsed_s": 6.956215739250183,
+      "iteration_s": 3.1686464995145798
+    },
+    {
+      "iteration": 2,
+      "cost": 18064919.625,
+      "grad_max": null,
+      "grad_norm64": null,
+      "z_finite": true,
+      "grad_finite": false,
+      "sampled_state_grad_max": 1.5304757683000488e+37,
+      "nonfinite_state_gradient": true,
+      "forward_s": 1.3205948173999786,
+      "train_elapsed_s": 10.274224404245615,
+      "iteration_s": 3.1691612638533115
+    }
+  ],
+  "stop_reason": "nonfinite_grad",
+  "elapsed_s": 10.328931614756584,
+  "source_files_unchanged": true
+}

@@ -1,0 +1,13 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 34424399 no_pre_grad nodes 5789 z 62 packs [('spread', (1, 925, 5789))]
+/home/yitai/drosophila_vision/vision/simulation/scratch/nonfinite_grad_20261106/diagnose.py:62: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:835.)
+  print('FORWARD',iteration,float(cost),'seconds',time.monotonic()-started,flush=True)
+FORWARD 0 8146676.0 seconds 1.6537866070866585
+{"iteration": 0, "cost": 8146676.0, "grad_max": 765848320.0, "bad_params": [], "state_v_grad_samples": [[900, 5.2085747718811035], [800, 6.050343990325928], [700, 10.577486038208008], [600, 23.60495376586914], [500, 175.64610290527344], [400, 88.78534698486328]], "elapsed": 4.63531400822103}
+FORWARD 1 18516426.0 seconds 1.17564981803298
+{"iteration": 1, "cost": 18516426.0, "grad_max": 29650734.0, "bad_params": [], "state_v_grad_samples": [[900, 4.562249183654785], [800, 8.616935729980469], [700, 13.309874534606934], [600, 32.02244186401367], [500, 150.62489318847656], [400, 578.1673583984375]], "elapsed": 4.185234600678086}
+FORWARD 2 18554842.0 seconds 1.284163286909461
+{"iteration": 2, "cost": 18554842.0, "grad_max": 25264900.0, "bad_params": [], "state_v_grad_samples": [[900, 5.181304931640625], [800, 10.205745697021484], [700, 14.424291610717773], [600, 28.821950912475586], [500, 131.78662109375], [400, 117.8404769897461]], "elapsed": 4.281902404502034}
+DONE SOURCE UNCHANGED

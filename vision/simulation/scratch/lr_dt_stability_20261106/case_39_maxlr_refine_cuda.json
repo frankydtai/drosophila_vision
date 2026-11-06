@@ -1,0 +1,79 @@
+{
+  "temporary_readout_fix": true,
+  "microbatch": "all",
+  "hardware": "NVIDIA A100 80GB PCIe MIG 1g.10gb",
+  "sequential": false,
+  "case": {
+    "run": "34424399",
+    "lr": 0.068,
+    "iterations": 100,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 39,
+  "device": "cuda",
+  "limit": 100,
+  "label": "maxlr_refine",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "23056f8eb160bf5fe7669d4394cc856271fd2e79a6f9795add210ac4476b29bf",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 8146677.0,
+      "grad_max": 631703360.0,
+      "grad_norm64": 742680213.9613714,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 3079315.75,
+      "adam_finite": true,
+      "adam_v_max": 399049136013312.0,
+      "forward_s": 1.5106513127684593,
+      "train_elapsed_s": 3.89749813452363,
+      "iteration_s": 3.896491728723049
+    },
+    {
+      "iteration": 1,
+      "cost": 18218688.0,
+      "grad_max": 1829374.0,
+      "grad_norm64": 2000556.9849917563,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 3.876779483296327e+19,
+      "adam_finite": true,
+      "adam_v_max": 398650106707968.0,
+      "forward_s": 1.190411563962698,
+      "train_elapsed_s": 7.276761155575514,
+      "iteration_s": 3.2837794050574303
+    },
+    {
+      "iteration": 2,
+      "cost": 18108822.0,
+      "grad_max": 2288764.5,
+      "grad_norm64": 2598713.056347142,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 1.6209212107398689e+31,
+      "adam_finite": true,
+      "adam_v_max": 398251446501376.0,
+      "forward_s": 1.16466592438519,
+      "train_elapsed_s": 10.67850050330162,
+      "iteration_s": 3.2959505561739206
+    },
+    {
+      "iteration": 3,
+      "cost": 17770060.0,
+      "grad_max": null,
+      "grad_norm64": null,
+      "z_finite": true,
+      "grad_finite": false,
+      "sampled_state_grad_max": 4.448696977849074e+35,
+      "forward_s": 1.1687913518399,
+      "train_elapsed_s": 14.146441705524921,
+      "iteration_s": 3.2726863026618958
+    }
+  ],
+  "stop_reason": "nonfinite_grad",
+  "elapsed_s": 14.176087925210595,
+  "source_files_unchanged": false
+}

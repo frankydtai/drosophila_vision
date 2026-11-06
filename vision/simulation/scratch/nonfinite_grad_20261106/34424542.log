@@ -1,0 +1,9 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 34424399 no_pre_grad nodes 5789 z 62 packs [('spread', (1, 925, 5789))]
+/home/yitai/drosophila_vision/vision/simulation/scratch/nonfinite_grad_20261106/diagnose.py:64: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:835.)
+  print('FORWARD',iteration,float(cost),'seconds',time.monotonic()-started,flush=True)
+FORWARD 0 18064920.0 seconds 1.6052628494799137
+{"iteration": 0, "cost": 18064920.0, "grad_max": 1849270.375, "bad_params": [], "state_v_grad_samples": [[900, 6.236791610717773], [800, 8.27872371673584], [700, 11.300172805786133], [600, 294362.40625], [500, 50891726848.0], [400, 8.616382684499175e+19]], "elapsed": 4.574569698423147}
+DONE SOURCE UNCHANGED

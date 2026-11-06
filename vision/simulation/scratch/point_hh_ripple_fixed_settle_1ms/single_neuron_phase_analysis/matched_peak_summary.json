@@ -1,0 +1,23 @@
+{
+  "L1": {
+    "matched_peak_delay_B_minus_A_ms_min": 14,
+    "max": 18,
+    "mean": 15.944444444444445,
+    "std": 1.1290223018278651,
+    "n_pairs": 18
+  },
+  "Mi1": {
+    "matched_peak_delay_B_minus_A_ms_min": -20,
+    "max": -20,
+    "mean": -20.0,
+    "std": 0.0,
+    "n_pairs": 23
+  },
+  "Tm3": {
+    "matched_peak_delay_B_minus_A_ms_min": -10,
+    "max": -10,
+    "mean": -10.0,
+    "std": 0.0,
+    "n_pairs": 17
+  }
+}

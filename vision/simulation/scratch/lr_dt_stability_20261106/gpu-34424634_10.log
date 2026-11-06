@@ -1,0 +1,5 @@
+network: /home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/inputs/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 10 {'run': '34401153', 'lr': 0.001, 'iterations': 20, 'delta_ms': 1.0, 'delta_ms_pre': 1.0} cuda 20 n_z 62 sequential False
+{"iteration": 0, "error": "CUDA out of memory. Tried to allocate 2.00 MiB. GPU 0 has a total capacity of 19.50 GiB of which 640.00 KiB is free. Including non-PyTorch memory, this process has 19.47 GiB memory in use. Of the allocated memory 19.01 GiB is allocated by PyTorch, and 368.41 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)", "iteration_s": 8.433474868535995}
+DONE 10 runtime_error source_unchanged True

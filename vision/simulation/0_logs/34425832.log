@@ -1,0 +1,406 @@
+Job ID: 34425832
+Node:   spartan-gpgpu099
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-322f5568-e44f-6ee4-45a8-e5d9489b443e)
+GPU 1: NVIDIA A100 80GB PCIe (UUID: GPU-14844a85-9bf8-1cac-86bb-ab42ec5dba78)
+GPU 2: NVIDIA A100 80GB PCIe (UUID: GPU-40730cdb-5070-f06f-e8e1-92c3b4bc8f18)
+GPU 3: NVIDIA A100 80GB PCIe (UUID: GPU-705f91ce-5278-67b6-77ed-ac45a7d89e43)
+  MIG 1g.20gb     Device  0: (UUID: MIG-bf385ceb-5949-5136-9f64-4eb4b863fdba)
+cuda: True NVIDIA A100 80GB PCIe MIG 1g.20gb
+Start:  Fri 06 Nov 2026 14:58:20 AEDT
+==== config ====
+{'RUN_NAME': '34425425-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0',
+ 'RUN_PATH': 'point_hh/34425425-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0',
+ 'MODEL': {'delta_ms': 1.0,
+           'delta_ms_pre': 1.0,
+           'cap': 40.0,
+           'g_leak': 1.0,
+           'e_exc': 10.0,
+           'e_inh': -70.0,
+           'e_h': 50.0,
+           'h_g_max': 100.0,
+           'gt_amp': 20.0,
+           'v_clamp': 100.0,
+           'a_syn_exc': 0.001,
+           'a_syn_inh': 0.001,
+           'euler': 'im'},
+ 'POINT_HH': {'ion_rules': '/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv',
+              'synapse_rules': '/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv',
+              'connections': '/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz',
+              'area_um2': 100.0,
+              'capacitance_uF_cm2': 1.0,
+              'v_min_mV': -120.0,
+              'v_max_mV': 80.0,
+              'gene_mode': 'on',
+              'gene': {'version': 'v6',
+                       'expression': '/home/yitai/Ripple/3_T4T5_mcHH_model/gene_2_param/expr_matrix_subset_all_curated.csv',
+                       'training_types': None,
+                       'max_fold_changes': {'gNa': 4.0, 'gK': 3.5, 'gLeak': 3.0, 'gS': 6.0},
+                       'params': {'gene_gNa_para': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_tipE': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_Teh1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_Teh2': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_Teh3': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_Teh4': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Sh': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Shal': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Shab': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Shaw': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_eag': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_sei': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Elk': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_Ork1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_Irk1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_Irk2': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_Irk3': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_ClC-a': {'lo': -2.0,
+                                                       'hi': 2.0,
+                                                       'init': 0.0,
+                                                       'jit': 0.0,
+                                                       'mode': 'shared'},
+                                  'gene_gLeak_pHCl-1': {'lo': -2.0,
+                                                        'hi': 2.0,
+                                                        'init': 0.0,
+                                                        'jit': 0.0,
+                                                        'mode': 'shared'},
+                                  'gene_gS_brp': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Rim': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Liprin-alpha': {'lo': -2.0,
+                                                           'hi': 2.0,
+                                                           'init': 0.0,
+                                                           'jit': 0.0,
+                                                           'mode': 'shared'},
+                                  'gene_gS_Syt1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Syt7': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Sytbeta': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_nSyb': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Syx1A': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Snap25': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Csp': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_cpx': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_shi': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Syn': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Syp': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Vap33': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_ChAT': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_VAChT': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_nAChRalpha1': {'lo': -2.0,
+                                                          'hi': 2.0,
+                                                          'init': 0.0,
+                                                          'jit': 0.0,
+                                                          'mode': 'shared'},
+                                  'gene_gS_nAChRalpha2': {'lo': -2.0,
+                                                          'hi': 2.0,
+                                                          'init': 0.0,
+                                                          'jit': 0.0,
+                                                          'mode': 'shared'},
+                                  'gene_gS_nAChRbeta1': {'lo': -2.0,
+                                                         'hi': 2.0,
+                                                         'init': 0.0,
+                                                         'jit': 0.0,
+                                                         'mode': 'shared'},
+                                  'gene_gS_Gad1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_VGAT': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Rdl': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Lcch3': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Grd': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Hdc': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_ort': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_HisCl1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_VGlut': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_GluClalpha': {'lo': -2.0,
+                                                         'hi': 2.0,
+                                                         'init': 0.0,
+                                                         'jit': 0.0,
+                                                         'mode': 'shared'}}}},
+ 'NEURON_SCHEMA': {'model': 'point_hh',
+                   'filter': 'none',
+                   'syn_mode': 'per_cell',
+                   'a_lo': 0.1,
+                   'a_hi': 10.0,
+                   'h_cells': ['L1', 'L2', 'L4', 'L5'],
+                   'params': {'a_gt': {'lo': 0.5,
+                                       'hi': 1.0,
+                                       'init': 1.0,
+                                       'jit': 0.1,
+                                       'mode': 'indi',
+                                       'modes': {'fixed': ['T4a', 'T4b', 'T4c', 'T4d']}},
+                              'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'syn_strength_cell': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'fixed'},
+                              'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'gNa': {'lo': 0.001, 'hi': 30.0, 'init': 3.0, 'jit': 0.0, 'mode': 'indi'},
+                              'gK': {'lo': 0.001, 'hi': 20.0, 'init': 1.0, 'jit': 0.0, 'mode': 'indi'},
+                              'gLeak': {'lo': 0.001, 'hi': 10.0, 'init': 1.2, 'jit': 0.0, 'mode': 'indi'},
+                              'gS': {'lo': 0.0001, 'hi': 3.0, 'init': 0.3, 'jit': 0.0, 'mode': 'indi'},
+                              'v_th_syn': {'lo': -80.0, 'hi': -20.0, 'init': -45.0, 'jit': 0.0, 'mode': 'shared'},
+                              'delta_syn': {'lo': 0.5, 'hi': 20.0, 'init': 4.0, 'jit': 0.0, 'mode': 'fixed'},
+                              'k_minus_syn': {'lo': 0.001, 'hi': 2.0, 'init': 0.01, 'jit': 0.0, 'mode': 'shared'},
+                              'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 5.0, 'jit': 0.1, 'mode': 'shared'},
+                              'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'e_leak': {'lo': -100.0, 'hi': 50.0, 'init': -52.0, 'jit': 1.0, 'mode': 'fixed'},
+                              'v_th': {'lo': -100.0,
+                                       'hi': 100.0,
+                                       'init': -45.0,
+                                       'inits': {'L1': -60.0, 'L2': -60.0, 'L3': -60.0},
+                                       'jit': 0.0,
+                                       'mode': 'fixed',
+                                       'modes': {'indi': ['L1', 'L2', 'L3']}},
+                              'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 10.0, 'jit': 2.0, 'mode': 'indi'},
+                              'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'a_h': {'lo': 0.0,
+                                      'hi': 1.0,
+                                      'init': 0.0,
+                                      'inits': {'L1': 0.5, 'L2': 0.5},
+                                      'jit': 0.1,
+                                      'mode': 'fixed',
+                                      'modes': {'indi': ['L1', 'L2']}},
+                              'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'a_h_rev': {'lo': 0.0,
+                                          'hi': 1.0,
+                                          'init': 0.0,
+                                          'jit': 0.1,
+                                          'mode': 'fixed',
+                                          'modes': {'indi': ['L1', 'L2', 'L4', 'L5']}},
+                              'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau_rev': {'lo': -70.0,
+                                                  'hi': -40.0,
+                                                  'init': -50.0,
+                                                  'jit': 5.0,
+                                                  'mode': 'shared'},
+                              'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'},
+                              'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'},
+                              'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'},
+                              'a_sti_mid': {'lo': 0.5, 'hi': 2.0, 'init': 1, 'jit': 0.05, 'mode': 'shared'}}},
+ 'NEURON_FORWARD': {'pre_grad': True},
+ 'NETWORK_PATH': {'network': 'right_min_neuron1_r10_filtered'},
+ 'SPREAD_INPUT_SPEC': {'ms_pre': 324.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0},
+ 'SPREAD_GT': {'spread_gt_mode': 'pos'},
+ 'SPOT_INPUT_GEO': {'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0},
+ 'SPOT_PACK': {'spot_cost_radii': [0, 1, 2],
+               'a_sti_radii': [1, 2],
+               'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}},
+ 'SBAR_INPUT_GEO': {'multi_bar': False, 'bar_dist': 4, 'shift_mid': 2},
+ 'SBAR_GT': {'sbar_gt_w': 2},
+ 'SBAR_PACK': {'a_sti_mids': [0.5, 1.0, 1.5, 2.0]},
+ 'MBAR_INPUT_SPEC': {'ms_pre': 324.0, 'bar_ws_deg': [2.25], 'bar_directions': ['right', 'left', 'up', 'down']},
+ 'TRAIN_CONFIG': {'tasks': ['spread', 'sbar'],
+                  'contrasts': ['bright', 'dark'],
+                  'i_sti': {'bright': 40.0, 'dark': 0.0},
+                  'gt_by_task': {'spread': ['L1',
+                                            'L2',
+                                            'L3',
+                                            'L4',
+                                            'L5',
+                                            'Mi1',
+                                            'Mi4',
+                                            'Mi9',
+                                            'Tm3',
+                                            'T4a',
+                                            'T4b',
+                                            'T4c',
+                                            'T4d'],
+                                 'sbar': ['T4a', 'T4b', 'T4c', 'T4d'],
+                                 'mbar': ['T4a', 'T4b', 'T4c', 'T4d']},
+                  'cost_radius': None,
+                  'cost_mid': None},
+ 'VAL_FROM': {'bias_gt': {'source': 'v_onset', 'enabled': True},
+              'v_th_ca': {'source': 'v_th', 'enabled': False},
+              'a_ca': {'source': 'a_out', 'enabled': False},
+              'a_h_rev': {'source': 'a_h', 'enabled': False},
+              'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False},
+              'h_slope_rev': {'source': 'h_slope', 'enabled': False},
+              'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}},
+ 'TRAIN_OPTIMIZATION': {'part_cost_scales': {'spread': 0,
+                                             'sbar': 0,
+                                             'sbar_bright_T4a_mid+0': 0,
+                                             'sbar_bright_T4a_mid-1': 0,
+                                             'sbar_bright_T4a_mid-2': 0,
+                                             'sbar_bright_T4a_mid+1': 0,
+                                             'sbar_bright_T4a_mid+2': 1},
+                        'cost_norm': 'a_gt2',
+                        'a_lsd': 1.0,
+                        'cost_entry_reduce': 'mean_trace',
+                        'cost_ms': None,
+                        'pre_steady': 'solve',
+                        'pre_steady_n_iter': 50,
+                        'pre_steady_damp': 0.1,
+                        'n_run': 1,
+                        'n_iter': 0,
+                        'lrs': [0.003],
+                        'checkpoint_interval': 1000},
+ 'TRAIN_SESSION': {'fp': 32, 'sequential': False},
+ 'FIGURE_PLOT': {'tasks': ['spread', 'mbar', 'sbar'],
+                 'sbar_figure_cells': ['R1-6',
+                                       'R7',
+                                       'R8',
+                                       'L1',
+                                       'L2',
+                                       'L3',
+                                       'L4',
+                                       'L5',
+                                       'Mi1',
+                                       'Mi4',
+                                       'Mi9',
+                                       'Tm3',
+                                       'T4a'],
+                 'html': False,
+                 'plot_right_only': False,
+                 'x': None,
+                 'y': None,
+                 'align_xy': None,
+                 'ms_shown': None},
+ 'FIGURE_PLOT_STI_SPOT': {'spot_radii': [0.5, 1.0, 1.5, 2.0], 'output': None},
+ 'FIGURE_PLOT_STI_MBAR': {'output': None,
+                          'gif': False,
+                          'gif_output': None,
+                          't_stride': 2,
+                          't': None,
+                          'direction': 'left'},
+ 'ANALYZE_RUNS': ['point_hh/34425425-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0'],
+ 'ANALYZE_CELL_DYNAMICS': {'cells': None,
+                           'spec': None,
+                           'mid': None,
+                           'node': None,
+                           'radius': 0,
+                           't_rel_start': None,
+                           't_rel_stop': None,
+                           'figure': True,
+                           'json': False,
+                           'a_mid': None},
+ 'ANALYZE_SYN_SIGN': {'bins': 20, 'after_train': False, 'post': False},
+ 'ANALYZE_TRACE': {'trace_osc_min_f': 0.5,
+                   'trace_osc_max_f': 20.0,
+                   'trace_osc_peak_threshold': 0.5,
+                   'trace_osc_z_threshold': 2.0,
+                   'trace_osc_snr_min': 2.0,
+                   'trace_drift_min_slope_mv_over_s': 1.0,
+                   'trace_drift_min_r': 0.5,
+                   'trace_baseline_ms': 200.0,
+                   'trace_flat_max_abs': 0.5,
+                   'trace_flat_v_peak_to_peak_max': 1.0,
+                   'trace_flat_abs_mean': 0.2,
+                   'check': None,
+                   'baseline_ms_shown': None},
+ 'ANALYZE_COST_PART': {'part': None,
+                       'cost_norm': None,
+                       'stride': 1,
+                       'per_node': False,
+                       'csv': None,
+                       'print_parts': False}}
+==== end config ====
+[2026-11-06 14:58:31,208][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/4a8e08e3e24c8c7b.npz
+param_modes:
+  a_gt                  indi=10/shared=0/fixed=4/frozen=0 (10)
+  bias_gt               indi=0/shared=0/fixed=0/frozen=14 (0)
+  a_sti_mid             indi=0/shared=1/fixed=0/frozen=0 (1)
+  v_th_syn              indi=0/shared=101/fixed=0/frozen=0 (1)
+  delta_syn             indi=0/shared=0/fixed=101/frozen=0 (0)
+  k_minus_syn           indi=0/shared=101/fixed=0/frozen=0 (1)
+  gene_gNa_para         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_tipE         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_Teh1         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_Teh2         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_Teh3         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_Teh4         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Sh            indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Shal          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Shab          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Shaw          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_eag           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_sei           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Elk           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_Ork1       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_Irk1       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_Irk2       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_Irk3       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_ClC-a      indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_pHCl-1     indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_brp           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Rim           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Liprin-alpha  indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syt1          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syt7          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Sytbeta       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_nSyb          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syx1A         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Snap25        indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Csp           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_cpx           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_shi           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syn           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syp           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Vap33         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_ChAT          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_VAChT         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_nAChRalpha1   indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_nAChRalpha2   indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_nAChRbeta1    indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Gad1          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_VGAT          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Rdl           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Lcch3         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Grd           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Hdc           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_ort           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_HisCl1        indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_VGlut         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_GluClalpha    indi=0/shared=14/fixed=0/frozen=0 (1)
+device=cuda, model=point_hh, syn_mode=per_cell, euler=implicit, pre_steady=solve, a_lsd=1.0, cost_entry_reduce=mean_trace, n_run=1, n_iter=100, lrs=[0.003], n_z=62, fname=train_point_hh.npy
+checkpoint_interval=1000
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34425425-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34425425-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz' only (62 z, reset Adam, objective changed: tasks)
+
+round 0
+
+Error executing job with overrides: ['n_iter=100', 'tasks=[mbar]', 'contrasts=[bright]', '~part_cost_scales', '+part_cost_scales={mbar:1,mbar_DSI:0}']
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py", line 96, in gradient_network
+    cost = _measure_cost(z)
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py", line 93, in _measure_cost
+    return cost_fn(param_z).item()
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py", line 339, in cost_fn
+    return _eval_parts(z, no_grad=False)
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py", line 333, in _eval_parts
+    parts = calc_cost_parts(z, session)
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/3_cost.py", line 1052, in calc_cost_parts
+    _calc_unscaled_cost_parts(z, session), session,
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/3_cost.py", line 962, in _calc_unscaled_cost_parts
+    trace = forward_pack(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/3_cost.py", line 178, in forward_pack
+    trace = forward_trace(session, params, i_sti, pack=pack)
+  File "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py", line 363, in forward_trace
+    return forward_v(session, params, i_sti, pack=pack)
+  File "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py", line 333, in forward_v
+    take(t)
+  File "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py", line 317, in take
+    point_state = drv.step(
+  File "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py", line 675, in step
+    s_new = _release_step(s, pre_v, v_th, delta, k_minus, dt)
+  File "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py", line 563, in _release_step
+    s_inf = release_steady(pre_v, v_th_syn, delta_syn)
+  File "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py", line 552, in release_steady
+    return torch.sigmoid((pre_v - v_th_syn) / delta_syn)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 MiB. GPU 0 has a total capacity of 19.50 GiB of which 640.00 KiB is free. Including non-PyTorch memory, this process has 19.47 GiB memory in use. Of the allocated memory 19.01 GiB is allocated by PyTorch, and 368.41 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/run_init_from.py", line 39, in main
+    run_train_and_plot(**kwargs)
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 62, in run_train_and_plot
+    fname, run_dir, session, result = implementation.run_train(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/5_implementation.py", line 971, in run_train
+    result = do_many_runs(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py", line 409, in do_many_runs
+    z_best, adam = optimize_staged(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py", line 304, in optimize_staged
+    z, adam = gradient_network(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py", line 98, in gradient_network
+    raise RuntimeError(f'non-finite at init: {e}') from e
+RuntimeError: non-finite at init: CUDA out of memory. Tried to allocate 2.00 MiB. GPU 0 has a total capacity of 19.50 GiB of which 640.00 KiB is free. Including non-PyTorch memory, this process has 19.47 GiB memory in use. Of the allocated memory 19.01 GiB is allocated by PyTorch, and 368.41 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.

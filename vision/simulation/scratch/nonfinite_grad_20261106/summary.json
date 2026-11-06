@@ -1,0 +1,127 @@
+{
+  "cause": "Exploding reverse-time gradients through Point-HH/synapse recurrence overflow float32; observed Inf in R1-6 -> R1-6 s-state gradients before NaN at SigmoidBackward0.",
+  "reproduced": {
+    "34401153": "non-finite gradients at iteration 1",
+    "34424399": "non-finite gradients at iteration 2"
+  },
+  "controls": {
+    "34424399_baseline_results.json": [
+      {
+        "iteration": 0,
+        "cost": 8146676.0,
+        "grad_max": 631702272.0,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 1,
+        "cost": 18210720.0,
+        "grad_max": 3.6348086399577096e+19,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 2,
+        "cost": 18064920.0,
+        "grad_max": NaN,
+        "bad_param_count": 51
+      }
+    ],
+    "34401153_baseline_results.json": [
+      {
+        "iteration": 0,
+        "cost": 2056932.375,
+        "grad_max": 67824902995968.0,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 1,
+        "cost": 9948169.0,
+        "grad_max": NaN,
+        "bad_param_count": 52
+      }
+    ],
+    "34424399_fp64_results.json": [
+      {
+        "iteration": 0,
+        "cost": 8146677.564434153,
+        "grad_max": 631703551.6128572,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 1,
+        "cost": 18210723.40481631,
+        "grad_max": 25127863511.852093,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 2,
+        "cost": 18311907.02282902,
+        "grad_max": 8.831090837544899e+32,
+        "bad_param_count": 0
+      }
+    ],
+    "34424399_no_pre_grad_results.json": [
+      {
+        "iteration": 0,
+        "cost": 8146676.0,
+        "grad_max": 765848320.0,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 1,
+        "cost": 18516426.0,
+        "grad_max": 29650734.0,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 2,
+        "cost": 18554842.0,
+        "grad_max": 25264900.0,
+        "bad_param_count": 0
+      }
+    ],
+    "34401153_fp64_results.json": [
+      {
+        "iteration": 0,
+        "cost": 2056973.2782576173,
+        "grad_max": 1.1800781120947554e+16,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 1,
+        "cost": 9948169.057118881,
+        "grad_max": 7.309892684492997e+165,
+        "bad_param_count": 0
+      },
+      {
+        "iteration": 2,
+        "cost": 9961987.018604279,
+        "grad_max": 1.1426003276661062e+220,
+        "bad_param_count": 0
+      }
+    ],
+    "34424399_no_pre_grad_fixed_bad_results.json": [
+      {
+        "iteration": 0,
+        "cost": 18064920.0,
+        "grad_max": 1849270.375,
+        "bad_param_count": 0
+      }
+    ],
+    "34424399_fp64_fixed_bad_results.json": [
+      {
+        "iteration": 0,
+        "cost": 18064917.7948123,
+        "grad_max": 2.8107444156091474e+26,
+        "bad_param_count": 0
+      }
+    ]
+  },
+  "limitations": [
+    "CPU saved-best-parameter reproduction; original GPU trajectory not reproduced bit-for-bit.",
+    "Both anomaly runs wrote diagnostics and passed source hash checks, then exited with segmentation fault (139); not counted as clean test passes.",
+    "Moving-bar no_pre_grad auxiliary job 34424507 cancelled during slow backward; no completed result for that control.",
+    "Large finite float64 gradients do not establish stable training or a fix."
+  ],
+  "formal_source_edits": false,
+  "temporary_outputs": "vision/simulation/scratch/nonfinite_grad_20261106"
+}

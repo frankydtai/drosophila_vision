@@ -1,0 +1,35 @@
+ M vision/simulation/0_logs/34400578.log
+ M vision/simulation/0_logs/34400581.log
+ M vision/simulation/1_neuron/1_4_point_hh.py
+ M vision/simulation/1_neuron/4_forward.py
+ M vision/simulation/conf/config.yaml
+ M vision/simulation/run.log
+ M vision/simulation/run.slurm
+ M vision/simulation/run_init_from.log
+?? vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/4a8e08e3e24c8c7b.npz
+?? vision/simulation/0_logs/34400701.log
+?? vision/simulation/0_logs/34400702.log
+?? vision/simulation/0_logs/34400756.log
+?? vision/simulation/0_logs/34401067.log
+?? vision/simulation/0_logs/34401068.log
+?? vision/simulation/0_logs/34401153.log
+?? vision/simulation/0_logs/34401154.log
+?? vision/simulation/0_logs/34424395.log
+?? vision/simulation/0_logs/34424399.log
+?? vision/simulation/0_runs/point_hh/34400578-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34400701-run_init_from-n_iter-20-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34400756-run_init_from-n_iter-20-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34401067-run_init_from-n_iter-20-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34401068-run_init_from-n_iter-20-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34401153-run_init_from-n_iter-200-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34401154-run_init_from-n_iter-200-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34424395-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34424399-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/scratch/hp_lp_extreme20_1ms_34381872/
+?? vision/simulation/scratch/lr_dt_stability_20261106/
+?? vision/simulation/scratch/native_initialization_ab_20261106/
+?? vision/simulation/scratch/nonfinite_grad_20261106/
+?? vision/simulation/scratch/point_hh_k_minus_1ms_34400581/
+?? vision/simulation/scratch/point_hh_oscillation_stability_34400581/
+?? vision/simulation/scratch/point_hh_ripple_fixed_settle_1ms/

@@ -1,0 +1,294 @@
+{
+  "34400581": {
+    "A": {
+      "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+      "method": "saved-project pre_steady -> original forward_v pre-period",
+      "pre_steady": "solve",
+      "n_iter": 50,
+      "damping": 0.1,
+      "dt_ms": 1.0,
+      "physical_pre_steps": 324,
+      "physical_pre_ms": 324,
+      "observation_steps": 1200,
+      "fp": 32,
+      "nodes": 5789,
+      "edges": 27824,
+      "native_calls": [
+        "neuron.point_hh.pre_steady",
+        "neuron.forward.forward_v",
+        "neuron.point_hh.step"
+      ],
+      "no_function_replacement": true,
+      "source_sha256": {
+        "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+        "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+        "/home/yitai/drosophila_vision/vision/simulation/4_train/1_param.py": "87084c855e1e20b5323fec854781280ce0eb3f1ec320fc219b0a5cbc534f4fd3",
+        "/home/yitai/drosophila_vision/vision/simulation/4_train/2_session.py": "b6145bb07de7a52ba6ac40924c2b819a6890ac392b4a1afdb4ca1080e359b775",
+        "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml": "ad1be28125f0132f7262ba12fc3856c43c686ab2da31d0d6b63e1848f135bd1c"
+      },
+      "saved_inputs_sha256": {
+        "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": "ca6f8f484cd4b3c1d2e420b0f13215c0591157bb0acb58e4d1c3e4359a5790c1",
+        "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34400581-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "43f0a403902d4935eae0cba52a24927b096ba6b4c206e0a57e9edecdfdf8266b"
+      },
+      "source_unchanged": true,
+      "elapsed_s": 6.869107306003571
+    },
+    "B": {
+      "method": "Ripple native cold-start -> native_engines -> fixed_threshold_settle",
+      "initialization_callsite": "/home/yitai/Ripple/experiments/paper3_gene_mapping/train_c0_legacy_types.py:200",
+      "no_A_state_read": true,
+      "no_Point_HH_import": true,
+      "no_function_replacement": true,
+      "native_functions": {
+        "build_point_network": "/home/yitai/Ripple/src/ripple/models/whole_cns/point.py",
+        "StableHH": "/home/yitai/Ripple/src/ripple/biophysics/channels.py",
+        "SharedPointGeneMap": "/home/yitai/Ripple/experiments/paper3_gene_mapping/point_hh_shared25.py",
+        "native_engines": "/home/yitai/Ripple/experiments/paper3_gene_mapping/full_optic_shared25_physiology.py",
+        "fixed_threshold_settle": "/home/yitai/Ripple/experiments/paper3_gene_mapping/fixed_threshold_settle.py",
+        "execution_plan": "/home/yitai/Ripple/experiments/paper3_gene_mapping/shared25_memory_engine.py",
+        "integrate": "/scratch/punim0477/yitai/ripple_p1_bar_20261028/comp_neuro/lib/python3.10/site-packages/jaxley/integrate.py"
+      },
+      "mapper": "original SharedPointGeneMap; inactive residual designs; beta == reference; parameters audited unchanged",
+      "dt_ms": 1.0,
+      "fp": 64,
+      "backend": "cpu",
+      "bootstrap_steps": 1,
+      "settle_execution_plan": {
+        "engine": "jaxley_step_streaming_exact_v1",
+        "duration_ms": 100.0,
+        "endpoint_policy": "visible",
+        "physical_steps": 101,
+        "physical_final_time_ms": 101.0,
+        "dt_ms": 1.0,
+        "visible_steps": 101,
+        "returned_samples": 102,
+        "legacy_final_steps": 121,
+        "legacy_final_time_ms": 121.0,
+        "checkpoint_lengths": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "checkpoint_total_steps": 256,
+        "extra_checkpoint_padding": "identity_no_time_advance",
+        "gradient_policy": "full_reverse_mode_no_stop_gradient_no_truncation",
+        "safety": "all_cell_visible_voltage_online; sampled_release_visible_and_all_edge_legacy_final"
+      },
+      "physical_pre_steps": 8081,
+      "physical_pre_ms": 8081.0,
+      "status": "budget_exhausted",
+      "converged": false,
+      "blocks": 80,
+      "nodes": 5789,
+      "edges": 27824,
+      "observation_steps": 1201,
+      "unit_audit": {
+        "gNa_roundtrip_max_abs": 4.440892098500626e-16,
+        "gK_roundtrip_max_abs": 1.1102230246251565e-16,
+        "gLeak_roundtrip_max_abs": 2.220446049250313e-16
+      },
+      "matched_inputs_sha256": "a5273648f09a16d2a2d3bd330bc94b30e65291f466205eea81f3b7ccf81d21ea",
+      "source_sha256": {
+        "/home/yitai/Ripple/experiments/paper3_gene_mapping/fixed_threshold_settle.py": "136879be61c0a8fd9449cb61ac8c65ab33ce8703e4b5c04f2163a7d11ca17788",
+        "/home/yitai/Ripple/experiments/paper3_gene_mapping/full_optic_shared25_physiology.py": "f4db15a215c7747e49ce661a218ec032ab47e76b274fde16e72b907a1ca62e29",
+        "/home/yitai/Ripple/experiments/paper3_gene_mapping/point_hh_shared25.py": "d075c837bf8d9cbf6cb996ab409fd9b4422eb0ca0f898e04395b17a12cff4426",
+        "/home/yitai/Ripple/experiments/paper3_gene_mapping/shared25_memory_engine.py": "fe66f532bff2bcedd4ffe6f355433ff2f07820f758463eb8c73b565c147e2b26",
+        "/home/yitai/Ripple/src/ripple/biophysics/channels.py": "c01a6d3a21ac206ef011708d141c4432660961d02ad59fa06c4c4b7432ae7747",
+        "/home/yitai/Ripple/src/ripple/models/whole_cns/point.py": "30e4c08312cf349305ccc76c2371a9aac6c3a32ccd61bb87da1167565f66754f",
+        "/scratch/punim0477/yitai/ripple_p1_bar_20261028/comp_neuro/lib/python3.10/site-packages/jaxley/integrate.py": "ec67de87270a9621499a1cf6e5a7bdde1ab4bb4ff0ed4c83e9ab9b65e3549fe2",
+        "/scratch/punim0477/yitai/ripple_p1_bar_20261028/comp_neuro/lib/python3.10/site-packages/jaxley/modules/base.py": "124e908ea33b5164788b1364a7beef5b6915068d6fbe04f10ea5d86a5a97ea5f"
+      },
+      "source_unchanged": true,
+      "elapsed_s": 32.97362358495593
+    },
+    "representatives": [
+      {
+        "node": 1162,
+        "cell": "L1",
+        "A_v0": -22.17371940612793,
+        "B_v0": -39.33264881139172,
+        "A_ptp_mV": 41.13996124267578,
+        "B_ptp_mV": 41.196601848798934,
+        "A_period_ms": 48.73684210526316,
+        "B_period_ms": 48.78947368421053
+      },
+      {
+        "node": 443,
+        "cell": "Mi1",
+        "A_v0": -53.863929748535156,
+        "B_v0": -52.27260531459413,
+        "A_ptp_mV": 39.99081802368164,
+        "B_ptp_mV": 39.98934634865478,
+        "A_period_ms": 45.857142857142854,
+        "B_period_ms": 45.857142857142854
+      },
+      {
+        "node": 3062,
+        "cell": "Tm3",
+        "A_v0": -35.299739837646484,
+        "B_v0": -22.656332535327827,
+        "A_ptp_mV": 27.16953468322754,
+        "B_ptp_mV": 27.169432364786047,
+        "A_period_ms": 45.45,
+        "B_period_ms": 45.476190476190474
+      }
+    ],
+    "celltypes": 14,
+    "nodes": 5789,
+    "initial_voltage_max_abs_difference_mV": 31.02152472020741,
+    "initial_voltage_rms_difference_mV": 2.7347497062154003,
+    "all_states_finite": true,
+    "comparison_window_ms": [
+      0,
+      1200
+    ],
+    "limitation": "Native A float32 and native B float64 and their numerical kernels are retained; this compares independent native pipelines, not initialization alone under an identical solver."
+  },
+  "34401154": {
+    "A": {
+      "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34401154-run_init_from-n_iter-200-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+      "method": "saved-project pre_steady -> original forward_v pre-period",
+      "pre_steady": "solve",
+      "n_iter": 50,
+      "damping": 0.1,
+      "dt_ms": 1.0,
+      "physical_pre_steps": 324,
+      "physical_pre_ms": 324,
+      "observation_steps": 1200,
+      "fp": 32,
+      "nodes": 5789,
+      "edges": 27824,
+      "native_calls": [
+        "neuron.point_hh.pre_steady",
+        "neuron.forward.forward_v",
+        "neuron.point_hh.step"
+      ],
+      "no_function_replacement": true,
+      "source_sha256": {
+        "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+        "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+        "/home/yitai/drosophila_vision/vision/simulation/4_train/1_param.py": "87084c855e1e20b5323fec854781280ce0eb3f1ec320fc219b0a5cbc534f4fd3",
+        "/home/yitai/drosophila_vision/vision/simulation/4_train/2_session.py": "b6145bb07de7a52ba6ac40924c2b819a6890ac392b4a1afdb4ca1080e359b775",
+        "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml": "ad1be28125f0132f7262ba12fc3856c43c686ab2da31d0d6b63e1848f135bd1c"
+      },
+      "saved_inputs_sha256": {
+        "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34401154-run_init_from-n_iter-200-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": "ca991887efd5e959b3c8b15921cba5c10df5e0819b97fffc4e755f0d1e772577",
+        "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34401154-run_init_from-n_iter-200-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "5f0427ff185bd33cb37f5dacafdde93e4079609676195d9678bc0677a8c77044"
+      },
+      "source_unchanged": true,
+      "elapsed_s": 6.323782600462437
+    },
+    "B": {
+      "method": "Ripple native cold-start -> native_engines -> fixed_threshold_settle",
+      "initialization_callsite": "/home/yitai/Ripple/experiments/paper3_gene_mapping/train_c0_legacy_types.py:200",
+      "no_A_state_read": true,
+      "no_Point_HH_import": true,
+      "no_function_replacement": true,
+      "native_functions": {
+        "build_point_network": "/home/yitai/Ripple/src/ripple/models/whole_cns/point.py",
+        "StableHH": "/home/yitai/Ripple/src/ripple/biophysics/channels.py",
+        "SharedPointGeneMap": "/home/yitai/Ripple/experiments/paper3_gene_mapping/point_hh_shared25.py",
+        "native_engines": "/home/yitai/Ripple/experiments/paper3_gene_mapping/full_optic_shared25_physiology.py",
+        "fixed_threshold_settle": "/home/yitai/Ripple/experiments/paper3_gene_mapping/fixed_threshold_settle.py",
+        "execution_plan": "/home/yitai/Ripple/experiments/paper3_gene_mapping/shared25_memory_engine.py",
+        "integrate": "/scratch/punim0477/yitai/ripple_p1_bar_20261028/comp_neuro/lib/python3.10/site-packages/jaxley/integrate.py"
+      },
+      "mapper": "original SharedPointGeneMap; inactive residual designs; beta == reference; parameters audited unchanged",
+      "dt_ms": 1.0,
+      "fp": 64,
+      "backend": "cpu",
+      "bootstrap_steps": 1,
+      "settle_execution_plan": {
+        "engine": "jaxley_step_streaming_exact_v1",
+        "duration_ms": 100.0,
+        "endpoint_policy": "visible",
+        "physical_steps": 101,
+        "physical_final_time_ms": 101.0,
+        "dt_ms": 1.0,
+        "visible_steps": 101,
+        "returned_samples": 102,
+        "legacy_final_steps": 121,
+        "legacy_final_time_ms": 121.0,
+        "checkpoint_lengths": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "checkpoint_total_steps": 256,
+        "extra_checkpoint_padding": "identity_no_time_advance",
+        "gradient_policy": "full_reverse_mode_no_stop_gradient_no_truncation",
+        "safety": "all_cell_visible_voltage_online; sampled_release_visible_and_all_edge_legacy_final"
+      },
+      "physical_pre_steps": 8081,
+      "physical_pre_ms": 8081.0,
+      "status": "budget_exhausted",
+      "converged": false,
+      "blocks": 80,
+      "nodes": 5789,
+      "edges": 27824,
+      "observation_steps": 1201,
+      "unit_audit": {
+        "gNa_roundtrip_max_abs": 8.881784197001252e-16,
+        "gK_roundtrip_max_abs": 2.220446049250313e-16,
+        "gLeak_roundtrip_max_abs": 1.1102230246251565e-16
+      },
+      "matched_inputs_sha256": "9362ebc3ee24048f9961f600a0d775e87f0ce956a318f36c990c3e30be11eb60",
+      "source_sha256": {
+        "/home/yitai/Ripple/experiments/paper3_gene_mapping/fixed_threshold_settle.py": "136879be61c0a8fd9449cb61ac8c65ab33ce8703e4b5c04f2163a7d11ca17788",
+        "/home/yitai/Ripple/experiments/paper3_gene_mapping/full_optic_shared25_physiology.py": "f4db15a215c7747e49ce661a218ec032ab47e76b274fde16e72b907a1ca62e29",
+        "/home/yitai/Ripple/experiments/paper3_gene_mapping/point_hh_shared25.py": "d075c837bf8d9cbf6cb996ab409fd9b4422eb0ca0f898e04395b17a12cff4426",
+        "/home/yitai/Ripple/experiments/paper3_gene_mapping/shared25_memory_engine.py": "fe66f532bff2bcedd4ffe6f355433ff2f07820f758463eb8c73b565c147e2b26",
+        "/home/yitai/Ripple/src/ripple/biophysics/channels.py": "c01a6d3a21ac206ef011708d141c4432660961d02ad59fa06c4c4b7432ae7747",
+        "/home/yitai/Ripple/src/ripple/models/whole_cns/point.py": "30e4c08312cf349305ccc76c2371a9aac6c3a32ccd61bb87da1167565f66754f",
+        "/scratch/punim0477/yitai/ripple_p1_bar_20261028/comp_neuro/lib/python3.10/site-packages/jaxley/integrate.py": "ec67de87270a9621499a1cf6e5a7bdde1ab4bb4ff0ed4c83e9ab9b65e3549fe2",
+        "/scratch/punim0477/yitai/ripple_p1_bar_20261028/comp_neuro/lib/python3.10/site-packages/jaxley/modules/base.py": "124e908ea33b5164788b1364a7beef5b6915068d6fbe04f10ea5d86a5a97ea5f"
+      },
+      "source_unchanged": true,
+      "elapsed_s": 29.40952896513045
+    },
+    "representatives": [
+      {
+        "node": 1162,
+        "cell": "L1",
+        "A_v0": -52.745933532714844,
+        "B_v0": -56.42754059974957,
+        "A_ptp_mV": 29.239673614501953,
+        "B_ptp_mV": 29.313633437536282,
+        "A_period_ms": 54.22222222222222,
+        "B_period_ms": 54.35294117647059
+      },
+      {
+        "node": 671,
+        "cell": "Mi1",
+        "A_v0": -59.480926513671875,
+        "B_v0": -33.714023838470425,
+        "A_ptp_mV": 44.660064697265625,
+        "B_ptp_mV": 44.67765811995224,
+        "A_period_ms": 54.22222222222222,
+        "B_period_ms": 54.333333333333336
+      },
+      {
+        "node": 5565,
+        "cell": "Tm3",
+        "A_v0": -46.894073486328125,
+        "B_v0": -47.16013697600733,
+        "A_ptp_mV": 32.94538116455078,
+        "B_ptp_mV": 32.91344810680012,
+        "A_period_ms": 56.6875,
+        "B_period_ms": 56.6875
+      }
+    ],
+    "celltypes": 14,
+    "nodes": 5789,
+    "initial_voltage_max_abs_difference_mV": 58.83959652259907,
+    "initial_voltage_rms_difference_mV": 4.758020293793997,
+    "all_states_finite": true,
+    "comparison_window_ms": [
+      0,
+      1200
+    ],
+    "limitation": "Native A float32 and native B float64 and their numerical kernels are retained; this compares independent native pipelines, not initialization alone under an identical solver."
+  }
+}

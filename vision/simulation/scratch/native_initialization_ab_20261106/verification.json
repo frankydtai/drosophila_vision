@@ -1,0 +1,29 @@
+{
+  "34400581": {
+    "all_states_finite": true,
+    "source_unchanged": true,
+    "nodes_compared": 5789,
+    "celltypes_compared": 14,
+    "B_status": "budget_exhausted",
+    "comparison_window_ms": [
+      0,
+      1200
+    ]
+  },
+  "34401154": {
+    "all_states_finite": true,
+    "source_unchanged": true,
+    "nodes_compared": 5789,
+    "celltypes_compared": 14,
+    "B_status": "budget_exhausted",
+    "comparison_window_ms": [
+      0,
+      1200
+    ]
+  },
+  "B_imports_no_vision_model_or_train": true,
+  "jobs": {
+    "simulation": 34424285,
+    "analysis": 34424306
+  }
+}

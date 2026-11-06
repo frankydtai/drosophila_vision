@@ -1,0 +1,81 @@
+{
+  "temporary_readout_fix": true,
+  "microbatch": "all",
+  "hardware": "NVIDIA A100 80GB PCIe",
+  "sequential": false,
+  "case": {
+    "run": "34401153",
+    "lr": 0.003,
+    "iterations": 20,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 9,
+  "device": "cuda",
+  "limit": 3,
+  "label": "full80_backtrack",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "cebab45f11f68681cbcdfa18d5252b05b0b10973d699fdf2913f7760367e5370",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 1869977.0,
+      "grad_max": 4.348349015025254e+16,
+      "grad_norm64": 7.365377901138682e+16,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 129292591693824.0,
+      "adam_finite": true,
+      "adam_v_max": 1.8908140813077078e+30,
+      "trials": [
+        {
+          "lr": 0.003,
+          "cost": 2721906.0166015625
+        },
+        {
+          "lr": 0.0015,
+          "cost": 1502713.53125
+        }
+      ],
+      "accepted": true,
+      "accepted_cost": 1502713.53125,
+      "accepted_lr": 0.0015,
+      "forward_s": 12.97886865772307,
+      "train_elapsed_s": 20.977643985301256,
+      "iteration_s": 20.976504107937217
+    },
+    {
+      "iteration": 1,
+      "cost": 1502785.25,
+      "grad_max": 807113945251840.0,
+      "grad_norm64": 942525839761568.6,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 7302175260672.0,
+      "adam_finite": true,
+      "adam_v_max": 1.8895747812268753e+30,
+      "trials": [
+        {
+          "lr": 0.0022500000000000003,
+          "cost": 2767240.4921875
+        },
+        {
+          "lr": 0.0011250000000000001,
+          "cost": 1906581.2734375
+        },
+        {
+          "lr": 0.0005625000000000001,
+          "cost": 1643739.7890625
+        }
+      ],
+      "accepted": false,
+      "forward_s": 15.3024180829525,
+      "train_elapsed_s": 43.84305933304131,
+      "iteration_s": 22.6837792173028
+    }
+  ],
+  "stop_reason": "no_improving_step_above_lr_floor",
+  "elapsed_s": 43.90624798461795,
+  "source_files_unchanged": true
+}

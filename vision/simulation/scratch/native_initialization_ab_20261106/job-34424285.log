@@ -1,0 +1,14 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+A START 34400581 input (2, 2991, 5789) onset 324
+A DONE 34400581 nodes 5789 edges 27824 seconds 6.869107306003571
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+A START 34401154 input (4, 2991, 5789) onset 324
+A DONE 34401154 nodes 5789 edges 27824 seconds 6.323782600462437
+B START 34400581 backend cpu nodes 5789 edges 27824
+B SETTLE 34400581 budget_exhausted blocks 80
+B DONE 34400581 seconds 32.97362358495593
+B START 34401154 backend cpu nodes 5789 edges 27824
+B SETTLE 34401154 budget_exhausted blocks 80
+B DONE 34401154 seconds 29.40952896513045

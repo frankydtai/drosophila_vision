@@ -1,0 +1,6 @@
+network: /home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/inputs/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 8 {'run': '34401153', 'lr': 0.01, 'iterations': 20, 'delta_ms': 1.0, 'delta_ms_pre': 1.0} cpu 20 n_z 62 sequential True
+{"iteration": 0, "cost": 2056932.4921875, "grad_max": 67824911384576.0, "grad_norm64": 114884813327898.67, "z_finite": true, "grad_finite": true, "sampled_state_grad_max": 5006806745088.0, "adam_finite": true, "adam_v_max": 4.600218772912192e+24, "forward_s": 19.75038051791489, "train_elapsed_s": 53.305342733860016, "iteration_s": 53.304406287148595}
+{"iteration": 1, "cost": 9714604.15625, "grad_max": null, "grad_norm64": null, "z_finite": true, "grad_finite": false, "sampled_state_grad_max": 1.1851403381919022e+38, "nonfinite_state_gradient": true, "forward_s": 19.5883971452713, "train_elapsed_s": 112.45260146446526, "iteration_s": 58.996097756549716}
+DONE 8 nonfinite_grad source_unchanged True

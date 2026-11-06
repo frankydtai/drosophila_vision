@@ -1,0 +1,29 @@
+START latest_34401154
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+SETTLE latest_34401154 block 1 tail_drift_mV 35.178829193115234
+SETTLE latest_34401154 block 2 tail_drift_mV 37.98490905761719
+SETTLE latest_34401154 block 10 tail_drift_mV 32.22010803222656
+SETTLE latest_34401154 block 20 tail_drift_mV 30.244884490966797
+SETTLE latest_34401154 block 30 tail_drift_mV 24.87694549560547
+SETTLE latest_34401154 block 40 tail_drift_mV 38.377830505371094
+SETTLE latest_34401154 block 50 tail_drift_mV 40.071170806884766
+SETTLE latest_34401154 block 60 tail_drift_mV 27.079769134521484
+SETTLE latest_34401154 block 70 tail_drift_mV 30.55386734008789
+SETTLE latest_34401154 block 80 tail_drift_mV 32.63106918334961
+DONE latest_34401154 budget_exhausted {'block': 80, 'voltage_drift_mv': 34.41621398925781, 'voltage_drift_cell_index': 5548, 'gate_drift': 0.9006706476211548, 'release_residual': 0.5886233448982239, 'release_residual_edge_index': 1057, 'v_min': -71.94123840332031, 'v_max': -2.1876044273376465, 'safe': True, 'tail_voltage_drift_mv': 32.63106918334961, 'threshold_change_mv': 0.0, 'worst_voltage_cell_type': 'Mi4', 'worst_voltage_node': 5548, 'worst_release_pre_type': 'L5', 'worst_release_post_type': 'Mi4', 'worst_release_gS_nS': 2.700000047683716}
+START original_34400581
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+SETTLE original_34400581 block 1 tail_drift_mV 36.1978759765625
+SETTLE original_34400581 block 2 tail_drift_mV 35.40385818481445
+SETTLE original_34400581 block 10 tail_drift_mV 35.19881057739258
+SETTLE original_34400581 block 20 tail_drift_mV 36.276100158691406
+SETTLE original_34400581 block 30 tail_drift_mV 33.24188232421875
+SETTLE original_34400581 block 40 tail_drift_mV 33.762489318847656
+SETTLE original_34400581 block 50 tail_drift_mV 31.61488914489746
+SETTLE original_34400581 block 60 tail_drift_mV 28.408905029296875
+SETTLE original_34400581 block 70 tail_drift_mV 33.796417236328125
+SETTLE original_34400581 block 80 tail_drift_mV 35.445640563964844
+DONE original_34400581 budget_exhausted {'block': 80, 'voltage_drift_mv': 27.400413513183594, 'voltage_drift_cell_index': 5421, 'gate_drift': 0.9225391149520874, 'release_residual': 0.7325632572174072, 'release_residual_edge_index': 4046, 'v_min': -71.65511322021484, 'v_max': -1.7992527484893799, 'safe': True, 'tail_voltage_drift_mv': 35.445640563964844, 'threshold_change_mv': 0.0, 'worst_voltage_cell_type': 'Mi1', 'worst_voltage_node': 5421, 'worst_release_pre_type': 'Mi1', 'worst_release_post_type': 'T4b', 'worst_release_gS_nS': 2.594449758529663}
+ALL_DONE /home/yitai/drosophila_vision/vision/simulation/scratch/point_hh_ripple_fixed_settle_1ms

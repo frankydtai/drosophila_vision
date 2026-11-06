@@ -1,0 +1,8 @@
+network: /home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/inputs/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 22 {'run': '34424399', 'lr': 0.07, 'iterations': 100, 'delta_ms': 1.0, 'delta_ms_pre': 1.0} cuda 100 n_z 62 sequential False
+{"iteration": 0, "cost": 8146676.0, "grad_max": 631703616.0, "grad_norm64": 742692457.4951762, "z_finite": true, "grad_finite": true, "sampled_state_grad_max": 3079318.25, "adam_finite": true, "adam_v_max": 399049471557632.0, "forward_s": 1.497709633782506, "train_elapsed_s": 3.868559379130602, "iteration_s": 3.8676734529435635}
+{"iteration": 1, "cost": 18218346.0, "grad_max": 1817823.5, "grad_norm64": 2063694.0925385568, "z_finite": true, "grad_finite": true, "sampled_state_grad_max": 1.5515280707509918e+20, "adam_finite": true, "adam_v_max": 398650442252288.0, "forward_s": 1.1950334999710321, "train_elapsed_s": 7.280862307175994, "iteration_s": 3.280627302825451}
+{"iteration": 2, "cost": 18080122.0, "grad_max": 2474957.25, "grad_norm64": 3887164.4237005357, "z_finite": true, "grad_finite": true, "sampled_state_grad_max": 4.0566782502834395e+31, "adam_finite": true, "adam_v_max": 398251815600128.0, "forward_s": 1.1648673843592405, "train_elapsed_s": 10.715267065912485, "iteration_s": 3.2937249280512333}
+{"iteration": 3, "cost": 17508882.0, "grad_max": null, "grad_norm64": null, "z_finite": true, "grad_finite": false, "sampled_state_grad_max": 1.6576098334897819e+35, "forward_s": 1.1720139291137457, "train_elapsed_s": 14.095956793054938, "iteration_s": 3.2508083302527666}
+DONE 22 nonfinite_grad source_unchanged True

@@ -1,0 +1,81 @@
+{
+  "temporary_readout_fix": true,
+  "microbatch": 1,
+  "hardware": "spartan-bm174.hpc.unimelb.edu.au",
+  "sequential": true,
+  "case": {
+    "run": "34424399",
+    "lr": 0.06,
+    "iterations": 100,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 21,
+  "device": "cpu",
+  "limit": 100,
+  "label": "maxlr_cpu",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "23056f8eb160bf5fe7669d4394cc856271fd2e79a6f9795add210ac4476b29bf",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 8146675.84375,
+      "grad_max": 631702272.0,
+      "grad_norm64": 742678068.0331033,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 3079306.25,
+      "adam_finite": true,
+      "adam_v_max": 399047793836032.0,
+      "forward_s": 2.0406922288239002,
+      "train_elapsed_s": 4.175836760550737,
+      "iteration_s": 4.174853950738907
+    },
+    {
+      "iteration": 1,
+      "cost": 18219634.75,
+      "grad_max": 3756783616.0,
+      "grad_norm64": 3999474730.7529907,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 1.475885109482619e+17,
+      "adam_finite": true,
+      "adam_v_max": 1.4118558229331968e+16,
+      "forward_s": 1.4523227140307426,
+      "train_elapsed_s": 7.917253851890564,
+      "iteration_s": 3.5744633208960295
+    },
+    {
+      "iteration": 2,
+      "cost": 18125384.875,
+      "grad_max": 1.540872087839703e+17,
+      "grad_norm64": 1.5421355299650736e+17,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 5.197672669370475e+27,
+      "adam_finite": true,
+      "adam_v_max": 2.3742870301787895e+31,
+      "forward_s": 1.4840310625731945,
+      "train_elapsed_s": 11.62945944443345,
+      "iteration_s": 3.5531695298850536
+    },
+    {
+      "iteration": 3,
+      "cost": 17860717.75,
+      "grad_max": 1.7542968906248244e+23,
+      "grad_norm64": 1.7555233694245676e+23,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 7.089508519669348e+32,
+      "adam_finite": false,
+      "adam_v_max": null,
+      "forward_s": 1.371661378070712,
+      "train_elapsed_s": 15.036886481568217,
+      "iteration_s": 3.2460800390690565
+    }
+  ],
+  "stop_reason": "nonfinite_adam",
+  "elapsed_s": 15.092137413099408,
+  "source_files_unchanged": true
+}

@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=run
 #SBATCH --account=punim0477
-#SBATCH --partition=gpu-a100-short
+#SBATCH --partition=gpu-a100-mig
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
-#SBATCH --time=1:00:00
+#SBATCH --time=3:00:00
 #SBATCH --chdir=/home/yitai/drosophila_vision/vision/simulation
 #SBATCH --output=0_logs/%j.log
 #SBATCH --error=0_logs/%j.log
@@ -41,7 +41,7 @@ echo "==== end config ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
 # DSI-only: turn off mbar waveform MSE, scale all mbar_DSI_* parts to 1.
 "${PYTHON}" -u run_init_from.py \
-  n_iter=20 \
+  n_iter=100 \
   tasks=[mbar] \
   'contrasts=[bright]' \
   '~part_cost_scales' \

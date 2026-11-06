@@ -1,0 +1,81 @@
+{
+  "temporary_readout_fix": true,
+  "microbatch": 2,
+  "hardware": "NVIDIA A100 80GB PCIe MIG 1g.20gb",
+  "sequential": true,
+  "case": {
+    "run": "34401153",
+    "lr": 0.003,
+    "iterations": 20,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 9,
+  "device": "cuda",
+  "limit": 10,
+  "label": "seq_pair20_deterministic_backtrack",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "cebab45f11f68681cbcdfa18d5252b05b0b10973d699fdf2913f7760367e5370",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 1869945.21875,
+      "grad_max": 1646989766819840.0,
+      "grad_norm64": 2789728803061688.5,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 5785379667968.0,
+      "adam_finite": true,
+      "adam_v_max": 2.7125754168688684e+27,
+      "trials": [
+        {
+          "lr": 0.003,
+          "cost": 2710271.017578125
+        },
+        {
+          "lr": 0.0015,
+          "cost": 1501994.05859375
+        }
+      ],
+      "accepted": true,
+      "accepted_cost": 1501994.05859375,
+      "accepted_lr": 0.0015,
+      "forward_s": 38.62252051755786,
+      "train_elapsed_s": 56.34374010190368,
+      "iteration_s": 56.34292055480182
+    },
+    {
+      "iteration": 1,
+      "cost": 1501994.05859375,
+      "grad_max": 238321242472448.0,
+      "grad_norm64": 278305392898165.72,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 2143778111488.0,
+      "adam_finite": true,
+      "adam_v_max": 2.766660089901364e+27,
+      "trials": [
+        {
+          "lr": 0.0022500000000000003,
+          "cost": 3000168.861328125
+        },
+        {
+          "lr": 0.0011250000000000001,
+          "cost": 1915913.8203125
+        },
+        {
+          "lr": 0.0005625000000000001,
+          "cost": 1649160.5625
+        }
+      ],
+      "accepted": false,
+      "forward_s": 48.989389799535275,
+      "train_elapsed_s": 122.86295761540532,
+      "iteration_s": 66.37118314392865
+    }
+  ],
+  "stop_reason": "no_improving_step_above_lr_floor",
+  "elapsed_s": 122.9346746597439,
+  "source_files_unchanged": true
+}

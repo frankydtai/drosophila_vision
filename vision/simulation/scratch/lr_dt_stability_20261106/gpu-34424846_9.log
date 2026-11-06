@@ -1,0 +1,5 @@
+network: /home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/inputs/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 9 {'run': '34401153', 'lr': 0.003, 'iterations': 20, 'delta_ms': 1.0, 'delta_ms_pre': 1.0} cuda 20 n_z 62 sequential True
+{"iteration": 0, "cost": 1869913.5, "grad_max": 2.0098186349373293e+19, "grad_norm64": 3.4042757310876537e+19, "z_finite": true, "grad_finite": true, "sampled_state_grad_max": 7.478762643411436e+17, "adam_finite": false, "adam_v_max": null, "forward_s": 10.985505962744355, "train_elapsed_s": 26.33491130359471, "iteration_s": 26.334058856591582}
+DONE 9 nonfinite_adam source_unchanged True

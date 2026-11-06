@@ -1,0 +1,8 @@
+network: /home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/inputs/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/worker.py", line 23, in <module>
+    session,z0=session_z_from_node_vals(*load_best_node_vals(str(O/'inputs'/case['run'])),session)
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/copy/vision/simulation/4_train/5_implementation.py", line 471, in load_best_node_vals
+    raise FileNotFoundError(fp)
+FileNotFoundError: /home/yitai/drosophila_vision/vision/simulation/scratch/lr_dt_stability_20261106/inputs/34424399/data/best_param.npz

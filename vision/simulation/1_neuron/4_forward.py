@@ -303,8 +303,13 @@ def forward_v(session, params, i_sti, *, pack=None):
     else:
         u, u_rev, v = drv.pre_steady(session, params, n_b, i_sti=pre_i_sti)
         v_slow = None
-    trace = v.new_empty(n_b, t_end, v.shape[-1])
-    trace[:, 0] = v
+    # Stack differentiable traces once to avoid a CopySlices chain.
+    stack_trace = torch.is_grad_enabled() and (
+        bool((session.train_opts or {})["pre_grad"]) or t_onset <= 0
+    )
+    trace = [v] if stack_trace else v.new_empty(n_b, t_end, v.shape[-1])
+    if not stack_trace:
+        trace[:, 0] = v
 
     def take(t):
         nonlocal point_state, v_slow, u, u_rev, v
@@ -318,12 +323,15 @@ def forward_v(session, params, i_sti, *, pack=None):
             v_slow, v = drv.step(v_slow, v, params, drive_at(t - 1), session, delta_ms=step_delta_ms(session, t, t_onset))
         else:
             u, u_rev, v = drv.step(u, u_rev, v, params, drive_at(t - 1), session, delta_ms=step_delta_ms(session, t, t_onset))
-        trace[:, t] = v
+        if stack_trace:
+            trace.append(v)
+        else:
+            trace[:, t] = v
 
     if bool((session.train_opts or {})["pre_grad"]) or t_onset <= 0:
         for t in range(1, t_end):
             take(t)
-        return trace
+        return torch.stack(trace, dim=1) if stack_trace else trace
     with torch.no_grad():
         for t in range(1, t_onset):
             take(t)

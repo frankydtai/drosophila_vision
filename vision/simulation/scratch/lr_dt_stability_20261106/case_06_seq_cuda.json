@@ -1,0 +1,51 @@
+{
+  "hardware": "NVIDIA A100 80GB PCIe MIG 1g.20gb",
+  "sequential": true,
+  "case": {
+    "run": "34401153",
+    "lr": 0.1,
+    "iterations": 20,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 6,
+  "device": "cuda",
+  "limit": 20,
+  "label": "seq",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "cebab45f11f68681cbcdfa18d5252b05b0b10973d699fdf2913f7760367e5370",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 2056906.625,
+      "grad_max": 8.338446046157865e+17,
+      "grad_norm64": 1.4123833386373327e+18,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 8.41862896240558e+16,
+      "adam_finite": true,
+      "adam_v_max": 6.952969149323843e+32,
+      "forward_s": 18.99034432321787,
+      "train_elapsed_s": 49.8208771366626,
+      "iteration_s": 49.82005402818322
+    },
+    {
+      "iteration": 1,
+      "cost": 9948168.96875,
+      "grad_max": null,
+      "grad_norm64": null,
+      "z_finite": true,
+      "grad_finite": false,
+      "sampled_state_grad_max": 5.258245113361101e+36,
+      "nonfinite_state_gradient": true,
+      "forward_s": 17.942461732774973,
+      "train_elapsed_s": 98.25120699219406,
+      "iteration_s": 48.30986995436251
+    }
+  ],
+  "stop_reason": "nonfinite_grad",
+  "elapsed_s": 98.40005691722035,
+  "source_files_unchanged": true,
+  "excluded_from_ranking": "Original sequential readout zeroed baseline unlike full-pack objective."
+}

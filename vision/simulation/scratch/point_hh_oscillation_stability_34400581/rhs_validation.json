@@ -1,0 +1,36 @@
+{
+  "equilibrium_rhs_max": 2.842170943040401e-14,
+  "drive_error_to_0_or_20_pA": 1.8314239014216582e-12,
+  "checks": [
+    {
+      "component": "real",
+      "perturb_mV": 0.001,
+      "relative_rhs_derivative_error": 4.797249147425645e-09
+    },
+    {
+      "component": "real",
+      "perturb_mV": 0.0001,
+      "relative_rhs_derivative_error": 4.911767706348544e-08
+    },
+    {
+      "component": "real",
+      "perturb_mV": 1e-05,
+      "relative_rhs_derivative_error": 4.5378520188397496e-07
+    },
+    {
+      "component": "imag",
+      "perturb_mV": 0.001,
+      "relative_rhs_derivative_error": 3.6082037666938055e-09
+    },
+    {
+      "component": "imag",
+      "perturb_mV": 0.0001,
+      "relative_rhs_derivative_error": 3.208867107938134e-08
+    },
+    {
+      "component": "imag",
+      "perturb_mV": 1e-05,
+      "relative_rhs_derivative_error": 3.3931678219289304e-07
+    }
+  ]
+}

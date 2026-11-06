@@ -1,0 +1,39 @@
+{
+  "temporary_readout_fix": true,
+  "microbatch": 2,
+  "hardware": "NVIDIA A100 80GB PCIe MIG 1g.20gb",
+  "sequential": true,
+  "case": {
+    "run": "34401153",
+    "lr": 0.003,
+    "iterations": 20,
+    "delta_ms": 1.0,
+    "delta_ms_pre": 1.0
+  },
+  "case_index": 9,
+  "device": "cuda",
+  "limit": 20,
+  "label": "seq_pair20_extended",
+  "seed": "saved_best_params",
+  "integrator_step_changed": false,
+  "initial_z_sha256": "cebab45f11f68681cbcdfa18d5252b05b0b10973d699fdf2913f7760367e5370",
+  "iterations": [
+    {
+      "iteration": 0,
+      "cost": 1869913.5,
+      "grad_max": 2.0098186349373293e+19,
+      "grad_norm64": 3.4042757310876537e+19,
+      "z_finite": true,
+      "grad_finite": true,
+      "sampled_state_grad_max": 7.478762643411436e+17,
+      "adam_finite": false,
+      "adam_v_max": null,
+      "forward_s": 10.985505962744355,
+      "train_elapsed_s": 26.33491130359471,
+      "iteration_s": 26.334058856591582
+    }
+  ],
+  "stop_reason": "nonfinite_adam",
+  "elapsed_s": 26.3930547144264,
+  "source_files_unchanged": true
+}
