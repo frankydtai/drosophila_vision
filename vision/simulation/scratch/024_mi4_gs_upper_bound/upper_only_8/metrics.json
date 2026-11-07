@@ -1,0 +1,68 @@
+{
+  "total": 1065471.0,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 254096.78125,
+    "mbar_right_bright_w1_T4b_ND": 170263.984375,
+    "mbar_left_bright_w1_T4a_ND": 290256.34375,
+    "mbar_left_bright_w1_T4b_PD": 350853.8125
+  },
+  "groups": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 14.0682373046875,
+      "nd_peak_mV": 10.578251838684082,
+      "nd_pd_ratio": 0.7519244671227885,
+      "dsi_peak": 0.14160172851742642
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 13.45152473449707,
+      "nd_peak_mV": 9.175829887390137,
+      "nd_pd_ratio": 0.6821405058906287,
+      "dsi_peak": 0.1889613221106052
+    }
+  },
+  "case": {
+    "label": "upper_only_8",
+    "upper_fold": 8,
+    "kind": "upper_only",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  "parameter_summary": {
+    "free_parameters": 62,
+    "at_lower_bound": 0,
+    "at_upper_bound": 4,
+    "zero_gS_edges": 0,
+    "active_gS_edges": 27824
+  },
+  "mi4_output": {
+    "mbar_right_bright_w1_T4a_PD": {
+      "peak_open_conductance_nS": 11.871077537536621,
+      "peak_outward_current_pA": 273.68438720703125,
+      "peak_evoked_outward_current_pA": 117.38352966308594,
+      "evoked_current_integral_pA_ms": 32154.287109375
+    },
+    "mbar_right_bright_w1_T4b_ND": {
+      "peak_open_conductance_nS": 14.536842346191406,
+      "peak_outward_current_pA": 295.97650146484375,
+      "peak_evoked_outward_current_pA": 147.26893615722656,
+      "evoked_current_integral_pA_ms": 35510.703125
+    },
+    "mbar_left_bright_w1_T4a_ND": {
+      "peak_open_conductance_nS": 11.781978607177734,
+      "peak_outward_current_pA": 298.1837158203125,
+      "peak_evoked_outward_current_pA": 141.8828582763672,
+      "evoked_current_integral_pA_ms": 37851.83203125
+    },
+    "mbar_left_bright_w1_T4b_PD": {
+      "peak_open_conductance_nS": 14.435539245605469,
+      "peak_outward_current_pA": 281.7889404296875,
+      "peak_evoked_outward_current_pA": 133.0813751220703,
+      "evoked_current_integral_pA_ms": 31686.01953125
+    },
+    "source_voltage_summary": {
+      "baseline_mean_mV": -36.079402923583984,
+      "maximum_spatial_mean_mV": -30.094141006469727
+    }
+  },
+  "nominal_per_contact_gS_upper_nS": 2.4,
+  "nominal_per_contact_gS_lower_nS": 0.049999999999999996
+}

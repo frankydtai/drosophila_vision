@@ -1,0 +1,43 @@
+{
+  "folder": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+  "g_context_mode": "init",
+  "spread_iterations": 100,
+  "spread_best_cost": 3187424.25,
+  "mbar_initial_cost": 9058330.0,
+  "cost": 1002873.5625,
+  "mbar_improvement_percent": 88.92871464718111,
+  "images": [
+    "cost.png",
+    "spread_gt_v.png",
+    "spread_all_v.png",
+    "mbar_gt_v.png",
+    "mbar_all_v.png",
+    "sbar_gt_v.png",
+    "sbar_all_v.png"
+  ],
+  "parameters_and_adam_verified": true,
+  "protected_files_unchanged": true,
+  "total_computed_iterations": 532,
+  "files": {
+    "param.csv": "fb49126ae1721c338cf2cfa97187ff68d71d3e4932478dd447093a673dd1a453",
+    "point_hh_synapse_params.csv": "18601c430a3ff0034d159afad95f6ae3ad0ff2f3cfd60d759a65f5e90f81a8a9",
+    "cost.png": "a59ba4f88662bcecf6295dc65e53848b48c12a534058e773df0fb4ed15127d98",
+    "spread_gt_v.png": "e457943a933b3d1c7ae8cfb0d973746f16110a5cbf2ba4fd75819f9e38864456",
+    "spread_all_v.png": "46cc19da42843c387cae1c61f8da6c99d5f07bc32970ae1772f9971a2dab108d",
+    "mbar_gt_v.png": "fc6e10983a1924f72f3679f3bdfabb1991f2545f6b3d4af97430b62b679127c9",
+    "mbar_all_v.png": "fdde6db3618d2c5a6266dc03a346101b30643747f52221afc01ed46531cd6e73",
+    "sbar_gt_v.png": "3e50ff141db059e8e52f442097d18db86d43979e71683de8b4a592818bffd8d0",
+    "sbar_all_v.png": "8f9cd0ca406fc703b7559082f78a169f8fba12bbb972b1167dc8fff9c9824feb",
+    "data/train_opts.json": "3872f379956e1fd8876c2715bd99915dd44877038675f97843e1ca7cbfcdc9ad",
+    "data/point_hh_context.json": "04387f6df4c5ac34209ef7cecbc7f4c9018dc9a632e6945de813951e4215d5f1",
+    "data/point_hh_type_params.csv": "a41ffa0d0e482cf747fb15755e6e7620287f027e1390c355a6d80644da79743e",
+    "data/point_hh_edge_params.csv": "953b0b08fbc2d676eb3e4b939310013cd074c49cf88774ad67de05bec2a384d0",
+    "data/train_point_hh.npy": "62992378aebf317e63ff5d5b8e29ad560021c1d6c5cc00e0e9fa560f69a03054",
+    "data/best_costs.npy": "3b7a42eb2dc55ef57db28354540ef34ec37756d23d75a552583bf635d40c6b89",
+    "data/costs.npy": "0e026400f5268e7ee2ca7c756e104073f3399d241710f43a6c40aed8a0371124",
+    "data/best_costs_by_part.npz": "a817da19292fc5ea6285c8148575cb715f78978b9a2a4c950046f3fe55e6c99a",
+    "data/costs_by_part.npz": "e2b3b9aa5483ab66cf21476445bd2783161ff832b7ce271a71a29f97c299ba00",
+    "data/best_param.npz": "16f5e36be1cd073c59ab9f4c643f04e48a7b1eeeb1fe638b9be0102a3b22eae9",
+    "data/best_adam.npz": "99fab3455c91d584f2975fcddaa4844b8768c8522f8543e1ccc768addb2e3c9c"
+  }
+}

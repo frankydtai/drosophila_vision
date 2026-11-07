@@ -1,0 +1,9 @@
+{
+  "valid_yaml": true,
+  "valid_native_schema": true,
+  "candidate_initialization_applied": true,
+  "k_minus_fixed": true,
+  "modified_pair_values_verified": true,
+  "formal_files_modified": false,
+  "rules_path_substitution": "Proposed future rules path replaced by identical tested scratch rules during validation only."
+}

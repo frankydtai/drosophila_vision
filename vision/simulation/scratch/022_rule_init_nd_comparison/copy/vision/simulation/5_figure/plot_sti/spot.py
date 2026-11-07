@@ -1,0 +1,178 @@
+"""Visualise multi-spot center tiling on a connectome hex view.
+
+Marks spot centers (crimson) and draws each spot's axial-radius hex
+(straight edges through ``(spot_radius + 0.5) * _HEX_DIRECTIONS``, via
+``xy_deg_from_uv`` — not a Euclidean RegularPolygon) on
+:func:`build_hex.plot_fafb_columns` for network hexes only.
+Spot centers from :func:`task.spot.sti_geo.build_spot`.
+
+Usage (from simulation/, project .venv):
+
+    ../.venv/bin/python 5_figure/plot_sti/spot.py
+    ../.venv/bin/python 5_figure/plot_sti/spot.py multi_spot=false
+    ../.venv/bin/python 5_figure/plot_sti/spot.py spot_radii=[0.5,1,2]
+"""
+from __future__ import annotations
+
+import math
+import os
+import sys
+
+import hydra
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+import numpy as np
+import pandas as pd
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
+PLOT_DIR = os.path.join(HERE, "plotted_multi_spot")
+sys.path.insert(0, ROOT)
+os.chdir(ROOT)
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+
+import import_bootstrap  # noqa: F401
+import network.path  # noqa: F401
+from build_hex import (
+    FIELD_VIEW_PAD_DEG,
+    _HEX_DIRECTIONS,
+    plot_fafb_columns,
+    view_bounds_from_vertices,
+    set_axis_labels,
+    xy_deg_from_uv,
+)
+from config import FIGURE_PLOT_STI_SPOT, MODEL, NEURON_SCHEMA, NETWORK_PATH, SPOT_INPUT_GEO, resolve_config
+from network.construction import Network, load_network
+from path import network_run_token, resolve_network_json
+from task.spot.sti_geo import build_spot, standardize_spot_radius
+from train.param import SIM_DTYPE
+
+
+def _network_hexes_df(connectome: Network) -> pd.DataFrame:
+    """One unique ``(u, v)`` hex per connectome position."""
+    uv = sorted({(int(u), int(v)) for u, v in zip(connectome.us, connectome.vs)})
+    return pd.DataFrame({"column_id": -1, "u": [u for u, _ in uv], "v": [v for _, v in uv]})
+
+
+def _plot_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> None:
+    """Straight axial-radius hex about each center (vertices along ``_HEX_DIRECTIONS``).
+
+    Vertex axial distance is ``spot_radius + 0.5``: outer
+    boundary of the footprint / halfway to neighboring spot centers.
+    """
+    e = float(spot_radius) + 0.5
+    du, dv = np.asarray(_HEX_DIRECTIONS, dtype=float).T
+    for center_u, center_v in zip(np.atleast_1d(centers_u), np.atleast_1d(centers_v)):
+        xs, ys = xy_deg_from_uv(float(center_u) + e * du, float(center_v) + e * dv)
+        ax.add_patch(
+            Polygon(
+                np.column_stack([xs, ys]),
+                closed=True,
+                fill=False,
+                edgecolor="crimson",
+                linewidth=1.0,
+            )
+        )
+
+
+def plot_multi_spot_tiling(
+    *,
+    network: str,
+    spot_radii,
+    path: str | None,
+    multi_spot: bool,
+    fully_inside: bool,
+) -> None:
+    spot_radii = [float(spot_radius) for spot_radius in spot_radii]
+    if not spot_radii:
+        raise SystemExit("figure_plot_sti_spot.spot_radii must list at least one value")
+    for spot_radius in spot_radii:
+        standardize_spot_radius(spot_radius)
+
+    network_json = str(resolve_network_json(network))
+    connectome = load_network(
+        network_json, device="cpu",
+        a_syn_exc=MODEL['a_syn_exc'], a_syn_inh=MODEL['a_syn_inh'],
+        syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
+    )
+    run_token = network_run_token(network_json, connectome.meta)
+    path = path or os.path.join(
+        PLOT_DIR, f"plotted_multi_spot_{run_token}.png",
+    )
+
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    df_hexes = _network_hexes_df(connectome)
+    x_deg, y_deg = xy_deg_from_uv(df_hexes["u"].values, df_hexes["v"].values)
+    x0, y0, x1, y1 = view_bounds_from_vertices(x_deg, y_deg)
+    pad = FIELD_VIEW_PAD_DEG
+    xlim = (x0 - pad, x1 + pad)
+    ylim = (y0 - pad, y1 + pad)
+
+    n = len(spot_radii)
+    n_col = max(1, int(math.ceil(math.sqrt(n))))
+    n_row = int(math.ceil(n / n_col))
+    fig, axes = plt.subplots(n_row, n_col, figsize=(7 * n_col, 6.5 * n_row), sharex=True, sharey=True)
+    axes_flat = np.atleast_1d(axes).ravel()
+    n_by_spot_radius = {}
+    for ax, spot_radius in zip(axes_flat, spot_radii):
+        plot_fafb_columns(ax, df_hexes, label=False)
+        centers = build_spot(
+            connectome,
+            spot_radius=spot_radius,
+            multi_spot=multi_spot,
+            fully_inside=fully_inside,
+        ).centers
+        n_spot = len(centers)
+        n_by_spot_radius[spot_radius] = n_spot
+        dist = int(round(2.0 * spot_radius)) + 1
+        print(
+            f"network={run_token}  spot_radius={spot_radius}  "
+            f"spot_radius_dist={dist}  n_spot={n_spot}",
+        )
+        if centers:
+            center_u = np.array([center[0] for center in centers], dtype=np.int64)
+            center_v = np.array([center[1] for center in centers], dtype=np.int64)
+            sx, sy = xy_deg_from_uv(center_u, center_v)
+            _plot_spot_radius_hexes(ax, center_u, center_v, spot_radius)
+            ax.plot(
+                sx, sy, "o", color="crimson", markersize=5,
+                markeredgecolor="black", markeredgewidth=0.4,
+            )
+        ax.set_title(
+            f"spot_radius={spot_radius}  spot_radius_dist={dist}  n={n_spot}",
+            fontsize=11,
+            fontweight="bold",
+        )
+        ax.set_aspect("equal")
+        set_axis_labels(ax)
+        ax.grid(True, alpha=0.3, linestyle="--")
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+    for ax in axes_flat[len(spot_radii):]:
+        ax.set_visible(False)
+
+    fig.suptitle(f"Spot centers vs spot_radius ({run_token})", fontsize=13, fontweight="bold")
+    plt.tight_layout()
+    plt.savefig(path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Wrote {path}")
+    print("n_by_spot_radius:", n_by_spot_radius)
+
+
+@hydra.main(version_base=None, config_path="../../conf", config_name="config")
+def main(hydra_config) -> None:
+    resolve_config(hydra_config)
+    plot_multi_spot_tiling(
+        network=str(NETWORK_PATH["network"]),
+        spot_radii=FIGURE_PLOT_STI_SPOT.get("spot_radii") or [0.5, 1.0, 1.5, 2.0],
+        path=FIGURE_PLOT_STI_SPOT.get("output"),
+        multi_spot=bool(SPOT_INPUT_GEO["multi_spot"]),
+        fully_inside=bool(SPOT_INPUT_GEO["fully_inside"]),
+    )
+
+
+if __name__ == "__main__":
+    main()

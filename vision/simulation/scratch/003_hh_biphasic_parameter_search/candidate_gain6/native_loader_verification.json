@@ -1,0 +1,24 @@
+{
+  "candidate": "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/candidate_gain6",
+  "loaded_by_original_load_best": true,
+  "delta_ms": 1.0,
+  "k_minus_syn": 0.01,
+  "gene_mode": "on",
+  "changes": [
+    {
+      "pair": "L1:Mi1",
+      "gS_multiplier": 6,
+      "v_th_syn_mV": -51.0,
+      "delta_syn_mV": 0.5,
+      "gS_per_contact_median_nS": 2.4449827671051025
+    },
+    {
+      "pair": "L1:Tm3",
+      "gS_multiplier": 6,
+      "v_th_syn_mV": -51.0,
+      "delta_syn_mV": 0.5,
+      "gS_per_contact_median_nS": 1.674350380897522
+    }
+  ],
+  "evaluated_mbar_cost": 8043056.125
+}

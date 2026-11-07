@@ -1,0 +1,174 @@
+{
+  "mode": "reset",
+  "lr": 0.003,
+  "device": "cpu",
+  "hardware": "spartan-bm177.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "initial_adam_iter": 79,
+  "records": [
+    {
+      "iter": 0,
+      "cost": 583273.75,
+      "grad_norm": 24286221.47786141,
+      "gradient_dot_step": -184734.38414443916,
+      "adam_iter": 1,
+      "step_norm": 0.021633077528923343
+    },
+    {
+      "iter": 1,
+      "cost": 602568.8125,
+      "grad_norm": 49403460.51681136,
+      "gradient_dot_step": -269577.23473939544,
+      "adam_iter": 2,
+      "step_norm": 0.016979191004564232
+    },
+    {
+      "iter": 2,
+      "cost": 622632.875,
+      "grad_norm": 67299307.09031917,
+      "gradient_dot_step": -86780.17852119074,
+      "adam_iter": 3,
+      "step_norm": 0.009393477464457818
+    },
+    {
+      "iter": 3,
+      "cost": 601523.5,
+      "grad_norm": 77631491.20850612,
+      "gradient_dot_step": -211891.0912916919,
+      "adam_iter": 4,
+      "step_norm": 0.010181735634103883
+    },
+    {
+      "iter": 4,
+      "cost": 470482.28125,
+      "grad_norm": 27540264.671990402,
+      "gradient_dot_step": -75350.58909383067,
+      "adam_iter": 5,
+      "step_norm": 0.010071478438089095
+    },
+    {
+      "iter": 5,
+      "cost": 555535.0,
+      "grad_norm": 20491156.583076097,
+      "gradient_dot_step": -97829.28965852174,
+      "adam_iter": 6,
+      "step_norm": 0.010667066532455466
+    },
+    {
+      "iter": 6,
+      "cost": 855439.625,
+      "grad_norm": 35707709.15748469,
+      "gradient_dot_step": -52138.39545112604,
+      "adam_iter": 7,
+      "step_norm": 0.011135452103066993
+    },
+    {
+      "iter": 7,
+      "cost": 1145025.125,
+      "grad_norm": 9518196.409902558,
+      "gradient_dot_step": -30710.702951387513,
+      "adam_iter": 8,
+      "step_norm": 0.011329298835409006
+    },
+    {
+      "iter": 8,
+      "cost": 1140308.75,
+      "grad_norm": 25258695.6166914,
+      "gradient_dot_step": -82122.44124795307,
+      "adam_iter": 9,
+      "step_norm": 0.0117612000270462
+    },
+    {
+      "iter": 9,
+      "cost": 1358255.0,
+      "grad_norm": 24111888.85282493,
+      "gradient_dot_step": -41906.464347124,
+      "adam_iter": 10,
+      "step_norm": 0.010943865062028215
+    },
+    {
+      "iter": 10,
+      "cost": 1642793.125,
+      "grad_norm": 51077082.768492535,
+      "gradient_dot_step": -111427.10270717836,
+      "adam_iter": 11,
+      "step_norm": 0.008749296496383592
+    },
+    {
+      "iter": 11,
+      "cost": 1812087.5,
+      "grad_norm": 20089053098.10615,
+      "gradient_dot_step": -72555747.70888832,
+      "adam_iter": 12,
+      "step_norm": 0.01033799569078079
+    },
+    {
+      "iter": 12,
+      "cost": 1556211.75,
+      "grad_norm": 18670979.870557737,
+      "gradient_dot_step": -22099.70715294921,
+      "adam_iter": 13,
+      "step_norm": 0.009400646859310881
+    },
+    {
+      "iter": 13,
+      "cost": 1267834.25,
+      "grad_norm": 24728816.53680184,
+      "gradient_dot_step": 53176.56865815536,
+      "adam_iter": 14,
+      "step_norm": 0.008541990698412523
+    },
+    {
+      "iter": 14,
+      "cost": 1067725.0,
+      "grad_norm": 8327461.091748102,
+      "gradient_dot_step": 2467.1612905670245,
+      "adam_iter": 15,
+      "step_norm": 0.007775107807793477
+    },
+    {
+      "iter": 15,
+      "cost": 830587.125,
+      "grad_norm": 21880648.946750432,
+      "gradient_dot_step": -50121.818021468716,
+      "adam_iter": 16,
+      "step_norm": 0.007128054153995374
+    },
+    {
+      "iter": 16,
+      "cost": 617567.0,
+      "grad_norm": 37702356.19202017,
+      "gradient_dot_step": -80289.69098755484,
+      "adam_iter": 17,
+      "step_norm": 0.006597889666967325
+    },
+    {
+      "iter": 17,
+      "cost": 488268.9375,
+      "grad_norm": 30589863.453913115,
+      "gradient_dot_step": -17782.681367212506,
+      "adam_iter": 18,
+      "step_norm": 0.005933350887049795
+    },
+    {
+      "iter": 18,
+      "cost": 468285.46875,
+      "grad_norm": 30167745.413350854,
+      "gradient_dot_step": 10443.61935625709,
+      "adam_iter": 19,
+      "step_norm": 0.005250147181976211
+    },
+    {
+      "iter": 19,
+      "cost": 436490.75,
+      "grad_norm": 16651612.83709919,
+      "gradient_dot_step": -15214.969072987926,
+      "adam_iter": 20,
+      "step_norm": 0.004966630911231843
+    }
+  ],
+  "elapsed_s": 419.00744553655386,
+  "final_cost": 469100.78125,
+  "best_cost": 436490.75,
+  "copy_files_unchanged": true
+}

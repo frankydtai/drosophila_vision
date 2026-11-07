@@ -1,0 +1,133 @@
+{
+  "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+  "trainable_count": 62,
+  "hard_upper": [
+    {
+      "parameter": "a_gt",
+      "scope": "R1-6",
+      "value": 1.0,
+      "lo": 0.5,
+      "hi": 1.0,
+      "at_upper": true,
+      "at_lower": false
+    },
+    {
+      "parameter": "a_gt",
+      "scope": "Mi1",
+      "value": 1.0,
+      "lo": 0.5,
+      "hi": 1.0,
+      "at_upper": true,
+      "at_lower": false
+    },
+    {
+      "parameter": "a_gt",
+      "scope": "Tm3",
+      "value": 1.0,
+      "lo": 0.5,
+      "hi": 1.0,
+      "at_upper": true,
+      "at_lower": false
+    },
+    {
+      "parameter": "a_gt",
+      "scope": "Mi4",
+      "value": 1.0,
+      "lo": 0.5,
+      "hi": 1.0,
+      "at_upper": true,
+      "at_lower": false
+    }
+  ],
+  "hard_lower": [],
+  "fixed_T4_a_gt": 1.0,
+  "gene_coefficients_at_bounds": 0,
+  "maximum_absolute_gene_coefficient": {
+    "parameter": "gene_gLeak_pHCl-1",
+    "value": 0.1530643254518509,
+    "bounds": [
+      -2.0,
+      2.0
+    ]
+  },
+  "effective_upper_hit_count": 0,
+  "near_effective_upper": [
+    {
+      "parameter": "gS_per_contact",
+      "scope": "Mi4->Mi1 GABA",
+      "baseline": 0.3,
+      "value": 1.6679913,
+      "fold": 5.559971,
+      "max_fold": 6.0,
+      "effective_upper": 1.7999999999999998,
+      "fraction_of_upper": 0.9266618333333334,
+      "at_effective_upper": false
+    },
+    {
+      "parameter": "gS_per_contact",
+      "scope": "Mi4->Mi9 GABA",
+      "baseline": 0.3,
+      "value": 1.6572934,
+      "fold": 5.524311333333333,
+      "max_fold": 6.0,
+      "effective_upper": 1.7999999999999998,
+      "fraction_of_upper": 0.9207185555555556,
+      "at_effective_upper": false
+    },
+    {
+      "parameter": "gS_per_contact",
+      "scope": "Mi4->T4a GABA",
+      "baseline": 0.3,
+      "value": 1.6483202,
+      "fold": 5.4944006666666665,
+      "max_fold": 6.0,
+      "effective_upper": 1.7999999999999998,
+      "fraction_of_upper": 0.9157334444444445,
+      "at_effective_upper": false
+    },
+    {
+      "parameter": "gS_per_contact",
+      "scope": "Mi4->T4b GABA",
+      "baseline": 0.3,
+      "value": 1.6562501,
+      "fold": 5.520833666666667,
+      "max_fold": 6.0,
+      "effective_upper": 1.7999999999999998,
+      "fraction_of_upper": 0.9201389444444446,
+      "at_effective_upper": false
+    },
+    {
+      "parameter": "gS_per_contact",
+      "scope": "Mi4->T4c GABA",
+      "baseline": 0.3,
+      "value": 1.6578069,
+      "fold": 5.526023,
+      "max_fold": 6.0,
+      "effective_upper": 1.7999999999999998,
+      "fraction_of_upper": 0.9210038333333334,
+      "at_effective_upper": false
+    },
+    {
+      "parameter": "gS_per_contact",
+      "scope": "Mi4->T4d GABA",
+      "baseline": 0.3,
+      "value": 1.6468611,
+      "fold": 5.489537,
+      "max_fold": 6.0,
+      "effective_upper": 1.7999999999999998,
+      "fraction_of_upper": 0.9149228333333334,
+      "at_effective_upper": false
+    },
+    {
+      "parameter": "gS_per_contact",
+      "scope": "Mi4->Tm3 GABA",
+      "baseline": 0.3,
+      "value": 1.676909,
+      "fold": 5.589696666666667,
+      "max_fold": 6.0,
+      "effective_upper": 1.7999999999999998,
+      "fraction_of_upper": 0.9316161111111112,
+      "at_effective_upper": false
+    }
+  ]
+}

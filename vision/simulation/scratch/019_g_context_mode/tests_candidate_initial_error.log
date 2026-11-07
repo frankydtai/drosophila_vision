@@ -1,0 +1,6 @@
+TEST_MODEL /home/yitai/drosophila_vision/vision/simulation/scratch/019_g_context_mode/copy/vision/simulation/1_neuron/1_4_point_hh.py
+ERROR: usage: run_tests.py [options] [file_or_dir] [file_or_dir] [...]
+run_tests.py: error: unrecognized arguments: --q --p no:cacheprovider
+  inifile: None
+  rootdir: /home/yitai/drosophila_vision
+

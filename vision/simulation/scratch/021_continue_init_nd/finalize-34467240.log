@@ -1,0 +1,65 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+/home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/copy/vision/simulation/5_figure/1_panel.py:860: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run/cost.png: prep=0.0s  plot_s=0.1s  save=0.6s  elapsed_s=0.7s
+plot device=cpu
+1 trained set(s); costs min=994279.3750 max=994279.3750; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run/spread_gt_v.png: prep=0.8s  plot_s=0.2s  save=0.5s  elapsed_s=1.6s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run/spread_all_v.png: prep=0.0s  plot_s=0.1s  save=0.6s  elapsed_s=0.7s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run/mbar_gt_v.png: prep=5.6s  plot_s=0.1s  save=0.3s  elapsed_s=6.0s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run/mbar_all_v.png: prep=0.0s  plot_s=0.3s  save=1.2s  elapsed_s=1.6s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run/sbar_gt_v.png: prep=3.7s  plot_s=0.1s  save=0.3s  elapsed_s=4.2s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run/sbar_all_v.png: prep=0.0s  plot_s=1.3s  save=1.8s  elapsed_s=3.1s
+VALIDATED {"selected_run": "/home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run", "g_context_mode": "init", "spread_iterations": 100, "selected_cost": 994279.375, "selected_adam_iter": 138, "parameter_roundtrip_exact": true, "adam_moments_roundtrip_exact": true, "images": {"cost.png": {"width": 2214, "height": 1346, "bytes": 174291, "sha256": "3196ed49da472245f9050d0cf08f75b708d79c90b45e09e3f8ab2adafebc8a44"}, "spread_gt_v.png": {"width": 2159, "height": 991, "bytes": 187908, "sha256": "511e31fee93a3fcd13312e3d9a796c51fa9efda85fa0093a33cc26c61acf28cf"}, "spread_all_v.png": {"width": 2102, "height": 1295, "bytes": 197889, "sha256": "889868f182984c8c7feb2e39da9df2b2b9aac873ef441a2ced895b8be4227518"}, "mbar_gt_v.png": {"width": 851, "height": 542, "bytes": 73319, "sha256": "15aadff6766c47d1f201f8cd4c38925a82da1886285a16b05fd5ce93b8c95983"}, "mbar_all_v.png": {"width": 854, "height": 2303, "bytes": 207045, "sha256": "e3c7557efa4d3d8789de622d9975b0610a15626016b04377f6258e8ae63dfbaf"}, "sbar_gt_v.png": {"width": 860, "height": 405, "bytes": 69422, "sha256": "5b4d226bfc1577da8f36c2c60500027241df59ac0089eee04da1e5be02a26662"}, "sbar_all_v.png": {"width": 860, "height": 1830, "bytes": 213737, "sha256": "d0b6e95f283666887cfe10abc883e91764d308a5bc5e5dda351befbf6c07d401"}}, "protected_files_unchanged": true, "elapsed_s": 50.711561504751444}
+ND comparison saved
+{
+  "folder": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+  "cost": 994279.375,
+  "previous_cost": 1002873.5625,
+  "improvement_percent": 0.8569562327055524,
+  "nd_loss_before": 594820.015625,
+  "nd_loss_after": 576710.484375,
+  "selection_tradeoff": "ND_peaks_and_total_lower_but_at_least_one_ND_PD_ratio_did_not_improve",
+  "ND_before": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 15.036992073059082,
+      "nd_peak_mV": 11.029266357421875,
+      "nd_pd_ratio": 0.7334755716991019,
+      "dsi_peak": 0.1537514762538071
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 14.765630722045898,
+      "nd_peak_mV": 9.975295066833496,
+      "nd_pd_ratio": 0.6755752771156488,
+      "dsi_peak": 0.19361990307692423
+    }
+  },
+  "ND_after": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 14.79284381866455,
+      "nd_peak_mV": 10.843286514282227,
+      "nd_pd_ratio": 0.7330089229091261,
+      "dsi_peak": 0.1540621478962389
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 14.527135848999023,
+      "nd_peak_mV": 9.937688827514648,
+      "nd_pd_ratio": 0.6840776413748064,
+      "dsi_peak": 0.18759370158145156
+    }
+  },
+  "images": [
+    "cost.png",
+    "spread_gt_v.png",
+    "spread_all_v.png",
+    "mbar_gt_v.png",
+    "mbar_all_v.png",
+    "sbar_gt_v.png",
+    "sbar_all_v.png",
+    "nd_comparison.png"
+  ],
+  "parameters_and_adam_verified": true,
+  "protected_files_unchanged": true,
+  "total_additional_iterations": 190
+}

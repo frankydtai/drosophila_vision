@@ -1,0 +1,11 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START HH_saved k= 0.04453190043568611
+DONE HH_saved 1740471.875 {'mbar_DSI_bright_T4a': -96.8515625, 'mbar_DSI_bright_T4b': -48.01171875}
+START HH_k001 k= 0.009999999776482582
+DONE HH_k001 7442548.125 {'mbar_DSI_bright_T4a': 684.76171875, 'mbar_DSI_bright_T4b': 410.365234375}
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START HPLP matched input
+DONE HPLP 1389648.515625 {'mbar_DSI_bright_T4a': 513.80078125, 'mbar_DSI_bright_T4b': 419.1015625}
+PREPARE_FINISHED

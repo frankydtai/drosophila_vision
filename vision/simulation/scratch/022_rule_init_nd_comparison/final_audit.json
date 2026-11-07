@@ -1,0 +1,14 @@
+{
+  "no_training": true,
+  "formal_files_unchanged": 78,
+  "git_status_unchanged": true,
+  "stored_costs_reproduced_exactly": true,
+  "cases": 8,
+  "record_folder": "/home/yitai/drosophila_vision/vision/simulation/scratch/022_rule_init_nd_comparison",
+  "bounds_audit_completed": true,
+  "trainable_parameters_checked": 62,
+  "hard_upper_hits": 4,
+  "gene_coefficients_at_bounds": 0,
+  "effective_conductance_upper_hits": 0,
+  "comparison_image_verified": true
+}

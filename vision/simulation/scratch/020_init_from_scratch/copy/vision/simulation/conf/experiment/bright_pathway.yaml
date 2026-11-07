@@ -1,0 +1,25 @@
+# @package _global_
+# Start a NEW hp_lp run: ../.venv/bin/python run.py +experiment=bright_pathway
+# L1/L2/L3 thresholds start at -57 mV and remain trainable.
+# All other thresholds, including L4/L5, stay fixed at -45 mV.
+model: hp_lp
+filter: none
+tasks: [spread]
+contrasts: [bright, dark]
+init_from: null
+params:
+  v_th:
+    init: -45.0
+    inits: {L1: -57.0, L2: -57.0, L3: -57.0}
+    mode: fixed
+    modes:
+      indi: [L1, L2, L3]
+val_from:
+  bias_gt:
+    source: v_onset
+    enabled: true
+    scope: entry
+part_cost_scales:
+  spread: 1.0
+n_iter: 200
+lrs: [0.1]

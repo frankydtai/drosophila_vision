@@ -1,0 +1,40 @@
+{
+  "changed_files": [
+    "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/4_pack.py",
+    "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py",
+    "/home/yitai/drosophila_vision/vision/simulation/5_figure/2_4_mbar.py"
+  ],
+  "historical_peak_definition": "b0f21fb9; uses current corrected [-T,3T] transit windows",
+  "DSI": "sum of raw aligned PD mean trace minus sum of raw aligned ND mean trace",
+  "DSI_peak": {
+    "baseline": "existing effective GT baseline (gt_affine_from_pack after forward_pack)",
+    "aggregation": "align each entry to first stimulus, subtract per-entry baseline, average each direction, take nonnegative peak in its common window",
+    "formula": "(R_PD - R_ND) / (R_PD + R_ND + 1e-8)",
+    "zero_response": 0.0
+  },
+  "log": "DSI: xxxx  DSI_peak: xxxx; arithmetic means over cell/contrast groups; initial/final evaluations plus global iterations 10,20,30,...; cache both values together between updates",
+  "figure": "GT panels display both DSI and DSI_peak, including zero loss weights and zero values",
+  "forwards": "Both metrics reuse the same monitoring/plot forward trace",
+  "cost_unchanged": true,
+  "raw_pack_functions_unchanged": true,
+  "existing_optimizer_logic_unchanged": true,
+  "configuration_unchanged": true,
+  "tests_passed": 158,
+  "test_log": "/home/yitai/drosophila_vision/vision/simulation/scratch/010_dsi_peak_restore/final_verification.log",
+  "zero_weight_preview": "/home/yitai/drosophila_vision/vision/simulation/scratch/010_dsi_peak_restore/gt_weight_0_gain_1_paired_False.png",
+  "raw_versus_peak_example": {
+    "T4a": {
+      "DSI": 3.0,
+      "DSI_peak": 0.6
+    },
+    "T4b": {
+      "DSI": 4.0,
+      "DSI_peak": 0.5
+    }
+  },
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/4_pack.py": "03637f65788200b0220aaa23ac08e9faff68fff3a426fb5a512beb4d6fa54d4e",
+    "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py": "86f7fc15e30fc6f4c80181aa0983ac3810b7cd8f4c001384caf498e088c16ee7",
+    "/home/yitai/drosophila_vision/vision/simulation/5_figure/2_4_mbar.py": "a987dc3d4a377f79e2461c4aac43cd5a8aaa061f26a5a9aebb6cc4d7687812b4"
+  }
+}

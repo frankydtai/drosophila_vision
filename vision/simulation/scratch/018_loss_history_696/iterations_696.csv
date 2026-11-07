@@ -1,0 +1,697 @@
+iteration,phase,trial,trial_iteration,objective,loss_before,loss_after,source
+1,A,34430456,1,spread,9255072.0,10841829.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+2,A,34430456,2,spread,10841829.0,9178464.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+3,A,34430456,3,spread,9178464.0,7585120.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+4,A,34430456,4,spread,7585120.5,8118497.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+5,A,34430456,5,spread,8118497.0,8903557.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+6,A,34430456,6,spread,8903557.0,8196491.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+7,A,34430456,7,spread,8196491.0,6987509.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+8,A,34430456,8,spread,6987509.5,6285360.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+9,A,34430456,9,spread,6285360.0,6620939.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+10,A,34430456,10,spread,6620939.5,7030852.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+11,A,34430456,11,spread,7030852.5,7196856.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+12,A,34430456,12,spread,7196856.0,7123959.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+13,A,34430456,13,spread,7123959.0,6365817.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+14,A,34430456,14,spread,6365817.5,5811210.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+15,A,34430456,15,spread,5811210.5,5477972.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+16,A,34430456,16,spread,5477972.5,5723845.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+17,A,34430456,17,spread,5723845.0,5860687.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+18,A,34430456,18,spread,5860687.5,5820857.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+19,A,34430456,19,spread,5820857.0,5505867.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+20,A,34430456,20,spread,5505867.5,5147304.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+21,A,34430456,21,spread,5147304.0,4957600.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+22,A,34430456,22,spread,4957600.5,5017179.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+23,A,34430456,23,spread,5017179.5,5062801.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+24,A,34430456,24,spread,5062801.0,5088077.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+25,A,34430456,25,spread,5088077.0,5115826.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+26,A,34430456,26,spread,5115826.0,4987751.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+27,A,34430456,27,spread,4987751.0,4661325.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+28,A,34430456,28,spread,4661325.5,4487166.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+29,A,34430456,29,spread,4487166.5,4483524.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+30,A,34430456,30,spread,4483524.0,4547178.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+31,A,34430456,31,spread,4547178.5,4593532.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+32,A,34430456,32,spread,4593532.0,4578803.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+33,A,34430456,33,spread,4578803.5,4527848.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+34,A,34430456,34,spread,4527848.5,4497148.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+35,A,34430456,35,spread,4497148.5,4433787.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+36,A,34430456,36,spread,4433787.5,4390881.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+37,A,34430456,37,spread,4390881.0,4397129.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+38,A,34430456,38,spread,4397129.0,4350963.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+39,A,34430456,39,spread,4350963.5,4311336.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+40,A,34430456,40,spread,4311336.5,4408615.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+41,A,34430456,41,spread,4408615.0,4420092.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+42,A,34430456,42,spread,4420092.5,4325017.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+43,A,34430456,43,spread,4325017.0,4293573.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+44,A,34430456,44,spread,4293573.5,4259131.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+45,A,34430456,45,spread,4259131.0,4258780.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+46,A,34430456,46,spread,4258780.5,4258565.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+47,A,34430456,47,spread,4258565.0,4248897.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+48,A,34430456,48,spread,4248897.0,4253792.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+49,A,34430456,49,spread,4253792.0,4236319.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+50,A,34430456,50,spread,4236319.5,4203782.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+51,A,34430456,51,spread,4203782.5,4201917.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+52,A,34430456,52,spread,4201917.5,4196751.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+53,A,34430456,53,spread,4196751.5,4191871.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+54,A,34430456,54,spread,4191871.5,4178604.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+55,A,34430456,55,spread,4178604.5,4172466.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+56,A,34430456,56,spread,4172466.0,4161781.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+57,A,34430456,57,spread,4161781.75,4169278.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+58,A,34430456,58,spread,4169278.25,4159000.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+59,A,34430456,59,spread,4159000.25,4152973.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+60,A,34430456,60,spread,4152973.5,4139185.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+61,A,34430456,61,spread,4139185.0,4139705.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+62,A,34430456,62,spread,4139705.0,4140806.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+63,A,34430456,63,spread,4140806.0,4142238.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+64,A,34430456,64,spread,4142238.0,4152336.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+65,A,34430456,65,spread,4152336.5,4119099.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+66,A,34430456,66,spread,4119099.75,4110998.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+67,A,34430456,67,spread,4110998.0,4114639.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+68,A,34430456,68,spread,4114639.75,4105736.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+69,A,34430456,69,spread,4105736.75,4090672.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+70,A,34430456,70,spread,4090672.0,4087801.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+71,A,34430456,71,spread,4087801.25,4080520.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+72,A,34430456,72,spread,4080520.0,4072227.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+73,A,34430456,73,spread,4072227.75,4069975.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+74,A,34430456,74,spread,4069975.25,4066828.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+75,A,34430456,75,spread,4066828.0,4057974.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+76,A,34430456,76,spread,4057974.0,4054222.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+77,A,34430456,77,spread,4054222.0,4050265.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+78,A,34430456,78,spread,4050265.5,4054315.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+79,A,34430456,79,spread,4054315.5,4050951.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+80,A,34430456,80,spread,4050951.0,4062266.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+81,A,34430456,81,spread,4062266.5,4116643.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+82,A,34430456,82,spread,4116643.25,4097138.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+83,A,34430456,83,spread,4097138.5,4030891.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+84,A,34430456,84,spread,4030891.0,4072238.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+85,A,34430456,85,spread,4072238.5,4063600.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+86,A,34430456,86,spread,4063600.0,4035867.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+87,A,34430456,87,spread,4035867.75,4035599.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+88,A,34430456,88,spread,4035599.0,4043885.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+89,A,34430456,89,spread,4043885.5,4033644.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+90,A,34430456,90,spread,4033644.5,4003861.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+91,A,34430456,91,spread,4003861.0,4008023.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+92,A,34430456,92,spread,4008023.75,4000097.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+93,A,34430456,93,spread,4000097.0,3990062.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+94,A,34430456,94,spread,3990062.25,3990517.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+95,A,34430456,95,spread,3990517.5,3981373.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+96,A,34430456,96,spread,3981373.75,3974264.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+97,A,34430456,97,spread,3974264.75,3976275.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+98,A,34430456,98,spread,3976275.5,3978799.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+99,A,34430456,99,spread,3978799.0,3986387.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+100,A,34430456,100,spread,3986387.25,3974346.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+101,B,34430984,1,moving-bar,6045370.5,3944631.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+102,B,34430984,2,moving-bar,3944631.25,3674521.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+103,B,34430984,3,moving-bar,3674521.25,3163783.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+104,B,34430984,4,moving-bar,3163783.75,2460683.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+105,B,34430984,5,moving-bar,2460683.5,1751848.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+106,B,34430984,6,moving-bar,1751848.625,1568431.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+107,B,34430984,7,moving-bar,1568431.625,1434471.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+108,B,34430984,8,moving-bar,1434471.375,1434690.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+109,B,34430984,9,moving-bar,1434690.0,1357229.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+110,B,34430984,10,moving-bar,1357229.375,1598707.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+111,B,34430984,11,moving-bar,1598707.25,1779795.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+112,B,34430984,12,moving-bar,1779795.0,2150573.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+113,B,34430984,13,moving-bar,2150573.5,2319213.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+114,B,34430984,14,moving-bar,2319213.5,2441740.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+115,B,34430984,15,moving-bar,2441740.25,2484825.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+116,B,34430984,16,moving-bar,2484825.75,2668438.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+117,B,34430984,17,moving-bar,2668438.0,2656913.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+118,B,34430984,18,moving-bar,2656913.0,2670953.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+119,B,34430984,19,moving-bar,2670953.0,2567919.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+120,B,34430984,20,moving-bar,2567919.25,2349448.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+121,B,34430984,21,moving-bar,2349448.5,2165268.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+122,B,34430984,22,moving-bar,2165268.75,1974627.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+123,B,34430984,23,moving-bar,1974627.5,1860359.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+124,B,34430984,24,moving-bar,1860359.0,1794290.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+125,B,34430984,25,moving-bar,1794290.0,1731677.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+126,B,34430984,26,moving-bar,1731677.125,1673719.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+127,B,34430984,27,moving-bar,1673719.25,1525214.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+128,B,34430984,28,moving-bar,1525214.875,1528739.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+129,B,34430984,29,moving-bar,1528739.75,1494236.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+130,B,34430984,30,moving-bar,1494236.25,1330348.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+131,B,34430984,31,moving-bar,1330348.25,1323467.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+132,B,34430984,32,moving-bar,1323467.75,1359575.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+133,B,34430984,33,moving-bar,1359575.25,1360148.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+134,B,34430984,34,moving-bar,1360148.125,1353541.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+135,B,34430984,35,moving-bar,1353541.5,1359989.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+136,B,34430984,36,moving-bar,1359989.875,1373223.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+137,B,34430984,37,moving-bar,1373223.75,1342129.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+138,B,34430984,38,moving-bar,1342129.875,1252749.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+139,B,34430984,39,moving-bar,1252749.5,1153808.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+140,B,34430984,40,moving-bar,1153808.75,1164955.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+141,B,34430984,41,moving-bar,1164955.375,1211409.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+142,B,34430984,42,moving-bar,1211409.75,1197476.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+143,B,34430984,43,moving-bar,1197476.375,1172150.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+144,B,34430984,44,moving-bar,1172150.25,1123787.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+145,B,34430984,45,moving-bar,1123787.25,1126288.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+146,B,34430984,46,moving-bar,1126288.375,1115387.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+147,B,34430984,47,moving-bar,1115387.125,1098578.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+148,B,34430984,48,moving-bar,1098578.5,1091911.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+149,B,34430984,49,moving-bar,1091911.5,1093890.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+150,B,34430984,50,moving-bar,1093890.25,1086564.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+151,B,34431163,1,moving-bar,1086564.375,1075520.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+152,B,34431163,2,moving-bar,1075520.5,1062913.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+153,B,34431163,3,moving-bar,1062913.625,1047823.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+154,B,34431163,4,moving-bar,1047823.875,1009456.5625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+155,B,34431163,5,moving-bar,1009456.5625,997189.8125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+156,B,34431163,6,moving-bar,997189.8125,1007454.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+157,B,34431163,7,moving-bar,1007454.875,992747.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+158,B,34431163,8,moving-bar,992747.75,971318.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+159,B,34431163,9,moving-bar,971318.375,953344.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+160,B,34431163,10,moving-bar,953344.0,943407.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+161,B,34431163,11,moving-bar,943407.625,931074.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+162,B,34431163,12,moving-bar,931074.5,832784.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+163,B,34431163,13,moving-bar,832784.25,700692.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+164,B,34431163,14,moving-bar,700692.75,656823.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+165,B,34431163,15,moving-bar,656823.0,662934.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+166,B,34431163,16,moving-bar,662934.375,665942.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+167,B,34431163,17,moving-bar,665942.75,661079.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+168,B,34431163,18,moving-bar,661079.0,647766.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+169,B,34431163,19,moving-bar,647766.5,638254.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+170,B,34431163,20,moving-bar,638254.625,627920.3125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+171,B,34431163,21,moving-bar,627920.3125,614209.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+172,B,34431163,22,moving-bar,614209.75,596139.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+173,B,34431163,23,moving-bar,596139.375,603640.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+174,B,34431163,24,moving-bar,603640.625,591330.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+175,B,34431163,25,moving-bar,591330.25,591685.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+176,B,34431163,26,moving-bar,591685.875,587921.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+177,B,34431163,27,moving-bar,587921.625,585824.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+178,B,34431163,28,moving-bar,585824.25,584694.0625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+179,B,34431163,29,moving-bar,584694.0625,583273.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+180,B,34431163,30,moving-bar,583273.5,594099.5625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+181,B,34431163,31,moving-bar,594099.5625,594152.8125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+182,B,34431163,32,moving-bar,594152.8125,603628.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+183,B,34431163,33,moving-bar,603628.75,596765.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+184,B,34431163,34,moving-bar,596765.0,634571.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+185,B,34431163,35,moving-bar,634571.75,648138.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+186,B,34431163,36,moving-bar,648138.5,640405.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+187,B,34431163,37,moving-bar,640405.5,633214.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+188,B,34431163,38,moving-bar,633214.375,626136.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+189,B,34431163,39,moving-bar,626136.5,619599.9375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+190,B,34431163,40,moving-bar,619599.9375,611606.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+191,B,34431163,41,moving-bar,611606.75,606490.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+192,B,34431163,42,moving-bar,606490.625,610471.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+193,B,34431163,43,moving-bar,610471.5,607455.3125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+194,B,34431163,44,moving-bar,607455.3125,646637.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+195,B,34431163,45,moving-bar,646637.375,679818.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+196,B,34431163,46,moving-bar,679818.125,695987.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+197,B,34431163,47,moving-bar,695987.75,704272.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+198,B,34431163,48,moving-bar,704272.0,744361.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+199,B,34431163,49,moving-bar,744361.75,770003.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+200,B,34431163,50,moving-bar,770003.375,767006.9375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+201,B,34431163,51,moving-bar,767006.9375,751309.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+202,B,34431163,52,moving-bar,751309.0,681004.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+203,B,34431163,53,moving-bar,681004.5,670467.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+204,B,34431163,54,moving-bar,670467.0,649447.3125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+205,B,34431163,55,moving-bar,649447.3125,636660.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+206,B,34431163,56,moving-bar,636660.875,634005.1875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+207,B,34431163,57,moving-bar,634005.1875,627992.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+208,B,34431163,58,moving-bar,627992.875,632465.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+209,B,34431163,59,moving-bar,632465.375,644978.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+210,B,34431163,60,moving-bar,644978.0,673667.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+211,B,34431163,61,moving-bar,673667.875,703758.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+212,B,34431163,62,moving-bar,703758.875,736147.4375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+213,B,34431163,63,moving-bar,736147.4375,731328.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+214,B,34431163,64,moving-bar,731328.75,823785.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+215,B,34431163,65,moving-bar,823785.25,889947.0625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+216,B,34431163,66,moving-bar,889947.0625,925981.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+217,B,34431163,67,moving-bar,925981.375,996195.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+218,B,34431163,68,moving-bar,996195.0,994638.8125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+219,B,34431163,69,moving-bar,994638.8125,992668.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+220,B,34431163,70,moving-bar,992668.0,973774.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+221,B,34431163,71,moving-bar,973774.125,927863.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+222,B,34431163,72,moving-bar,927863.5,896986.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+223,B,34431163,73,moving-bar,896986.875,860766.9375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+224,B,34431163,74,moving-bar,860766.9375,803147.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+225,B,34431163,75,moving-bar,803147.75,799007.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+226,B,34431163,76,moving-bar,799007.875,761492.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+227,B,34431163,77,moving-bar,761492.125,759052.3125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+228,B,34431163,78,moving-bar,759052.3125,756594.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+229,B,34431163,79,moving-bar,756594.5,753847.5625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+230,B,34431163,80,moving-bar,753847.5625,811175.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+231,B,34431163,81,moving-bar,811175.375,923383.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+232,B,34431163,82,moving-bar,923383.75,1009055.3125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+233,B,34431163,83,moving-bar,1009055.3125,1047582.6875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+234,B,34431163,84,moving-bar,1047582.6875,1044375.9375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+235,B,34431163,85,moving-bar,1044375.9375,1042900.1875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+236,B,34431163,86,moving-bar,1042900.1875,1093120.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+237,B,34431163,87,moving-bar,1093120.875,1098551.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+238,B,34431163,88,moving-bar,1098551.75,1132185.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+239,B,34431163,89,moving-bar,1132185.75,1186157.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+240,B,34431163,90,moving-bar,1186157.25,1128906.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+241,B,34431163,91,moving-bar,1128906.125,1127947.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+242,B,34431163,92,moving-bar,1127947.25,1087250.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+243,B,34431163,93,moving-bar,1087250.5,1083787.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+244,B,34431163,94,moving-bar,1083787.125,1116143.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+245,B,34431163,95,moving-bar,1116143.0,1113844.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+246,B,34431163,96,moving-bar,1113844.5,1126437.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+247,B,34431163,97,moving-bar,1126437.25,1086299.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+248,B,34431163,98,moving-bar,1086299.75,1021827.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+249,B,34431163,99,moving-bar,1021827.75,921165.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+250,B,34431163,100,moving-bar,921165.625,583273.4375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+251,B,34432972,1,moving-bar,583273.5,594099.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+252,B,34432972,2,moving-bar,594099.25,594154.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+253,B,34432972,3,moving-bar,594154.125,603629.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+254,B,34432972,4,moving-bar,603629.375,596737.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+255,B,34432972,5,moving-bar,596737.75,634568.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+256,B,34432972,6,moving-bar,634568.375,648117.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+257,B,34432972,7,moving-bar,648117.625,640376.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+258,B,34432972,8,moving-bar,640376.0,633176.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+259,B,34432972,9,moving-bar,633176.5,626111.4375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+260,B,34432972,10,moving-bar,626111.4375,619599.75,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+261,B,34432972,11,moving-bar,619599.75,611609.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+262,B,34432972,12,moving-bar,611609.125,606413.3125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+263,B,34432972,13,moving-bar,606413.3125,610400.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+264,B,34432972,14,moving-bar,610400.5,607418.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+265,B,34432972,15,moving-bar,607418.125,646437.3125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+266,B,34432972,16,moving-bar,646437.3125,679801.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+267,B,34432972,17,moving-bar,679801.625,682907.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+268,B,34432972,18,moving-bar,682907.625,704546.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+269,B,34432972,19,moving-bar,704546.375,744915.1875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+270,B,34432972,20,moving-bar,744915.1875,770123.0625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+271,B,34432972,21,moving-bar,770123.0625,767146.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+272,B,34432972,22,moving-bar,767146.125,751074.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+273,B,34432972,23,moving-bar,751074.625,680427.8125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+274,B,34432972,24,moving-bar,680427.8125,659884.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+275,B,34432972,25,moving-bar,659884.125,632788.625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+276,B,34432972,26,moving-bar,632788.625,643960.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+277,B,34432972,27,moving-bar,643960.5,641583.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+278,B,34432972,28,moving-bar,641583.25,649937.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+279,B,34432972,29,moving-bar,649937.0,646221.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+280,B,34432972,30,moving-bar,646221.875,523429.0625,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+281,B,34432972,31,moving-bar,523429.0625,599155.875,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+282,B,34432972,32,moving-bar,599155.875,768069.125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+283,B,34432972,33,moving-bar,768069.125,985455.3125,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+284,B,34432972,34,moving-bar,985455.3125,1371401.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+285,B,34432972,35,moving-bar,1371401.5,1605939.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+286,B,34432972,36,moving-bar,1605939.5,1813366.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+287,B,34432972,37,moving-bar,1813366.375,2096842.375,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+288,B,34432972,38,moving-bar,2096842.375,2340176.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+289,B,34432972,39,moving-bar,2340176.5,2687604.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+290,B,34432972,40,moving-bar,2687604.5,2895390.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+291,B,34432972,41,moving-bar,2895390.5,2971032.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+292,B,34432972,42,moving-bar,2971032.5,3040112.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+293,B,34432972,43,moving-bar,3040112.25,3142301.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+294,B,34432972,44,moving-bar,3142301.25,3240091.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+295,B,34432972,45,moving-bar,3240091.5,3268756.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+296,B,34432972,46,moving-bar,3268756.5,3273352.5,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+297,B,34432972,47,moving-bar,3273352.5,3207940.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+298,B,34432972,48,moving-bar,3207940.0,3079617.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+299,B,34432972,49,moving-bar,3079617.0,2962977.25,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+300,B,34432972,50,moving-bar,2962977.25,2774708.0,"/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+301,C,diagnosis resume,1,moving-bar,583273.75,594099.125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+302,C,diagnosis resume,2,moving-bar,594099.125,594153.125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+303,C,diagnosis resume,3,moving-bar,594153.125,603628.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+304,C,diagnosis resume,4,moving-bar,603628.0,596737.25,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+305,C,diagnosis resume,5,moving-bar,596737.25,634567.25,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+306,C,diagnosis resume,6,moving-bar,634567.25,648117.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+307,C,diagnosis resume,7,moving-bar,648117.0625,640376.875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+308,C,diagnosis resume,8,moving-bar,640376.875,633178.625,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+309,C,diagnosis resume,9,moving-bar,633178.625,626111.5,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+310,C,diagnosis resume,10,moving-bar,626111.5,619599.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+311,C,diagnosis resume,11,moving-bar,619599.0625,611608.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+312,C,diagnosis resume,12,moving-bar,611608.4375,606412.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+313,C,diagnosis resume,13,moving-bar,606412.0625,610388.375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+314,C,diagnosis resume,14,moving-bar,610388.375,607418.375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+315,C,diagnosis resume,15,moving-bar,607418.375,646508.25,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+316,C,diagnosis resume,16,moving-bar,646508.25,679850.25,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+317,C,diagnosis resume,17,moving-bar,679850.25,682922.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+318,C,diagnosis resume,18,moving-bar,682922.6875,704613.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+319,C,diagnosis resume,19,moving-bar,704613.3125,699820.875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+320,C,diagnosis resume,20,moving-bar,699820.875,695509.25,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json
+321,C,diagnosis reset,1,moving-bar,583273.75,602568.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+322,C,diagnosis reset,2,moving-bar,602568.8125,622632.875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+323,C,diagnosis reset,3,moving-bar,622632.875,601523.5,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+324,C,diagnosis reset,4,moving-bar,601523.5,470482.28125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+325,C,diagnosis reset,5,moving-bar,470482.28125,555535.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+326,C,diagnosis reset,6,moving-bar,555535.0,855439.625,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+327,C,diagnosis reset,7,moving-bar,855439.625,1145025.125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+328,C,diagnosis reset,8,moving-bar,1145025.125,1140308.75,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+329,C,diagnosis reset,9,moving-bar,1140308.75,1358255.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+330,C,diagnosis reset,10,moving-bar,1358255.0,1642793.125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+331,C,diagnosis reset,11,moving-bar,1642793.125,1812087.5,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+332,C,diagnosis reset,12,moving-bar,1812087.5,1556211.75,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+333,C,diagnosis reset,13,moving-bar,1556211.75,1267834.25,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+334,C,diagnosis reset,14,moving-bar,1267834.25,1067725.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+335,C,diagnosis reset,15,moving-bar,1067725.0,830587.125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+336,C,diagnosis reset,16,moving-bar,830587.125,617567.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+337,C,diagnosis reset,17,moving-bar,617567.0,488268.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+338,C,diagnosis reset,18,moving-bar,488268.9375,468285.46875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+339,C,diagnosis reset,19,moving-bar,468285.46875,436490.75,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+340,C,diagnosis reset,20,moving-bar,436490.75,469100.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json
+341,C,diagnosis resume_small,1,moving-bar,583273.75,583100.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+342,C,diagnosis resume_small,2,moving-bar,583100.5625,582556.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+343,C,diagnosis resume_small,3,moving-bar,582556.3125,581619.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+344,C,diagnosis resume_small,4,moving-bar,581619.5625,580496.375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+345,C,diagnosis resume_small,5,moving-bar,580496.375,579307.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+346,C,diagnosis resume_small,6,moving-bar,579307.0,578294.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+347,C,diagnosis resume_small,7,moving-bar,578294.0,577694.375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+348,C,diagnosis resume_small,8,moving-bar,577694.375,576688.5,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+349,C,diagnosis resume_small,9,moving-bar,576688.5,575394.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+350,C,diagnosis resume_small,10,moving-bar,575394.4375,573775.5,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+351,C,diagnosis resume_small,11,moving-bar,573775.5,572068.875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+352,C,diagnosis resume_small,12,moving-bar,572068.875,567102.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+353,C,diagnosis resume_small,13,moving-bar,567102.6875,565663.875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+354,C,diagnosis resume_small,14,moving-bar,565663.875,564186.75,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+355,C,diagnosis resume_small,15,moving-bar,564186.75,562754.75,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+356,C,diagnosis resume_small,16,moving-bar,562754.75,561411.25,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+357,C,diagnosis resume_small,17,moving-bar,561411.25,560149.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+358,C,diagnosis resume_small,18,moving-bar,560149.4375,558952.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+359,C,diagnosis resume_small,19,moving-bar,558952.4375,558361.375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+360,C,diagnosis resume_small,20,moving-bar,558361.375,557135.25,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json
+361,C,diagnosis reset_small,1,moving-bar,583273.75,568819.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+362,C,diagnosis reset_small,2,moving-bar,568819.6875,567850.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+363,C,diagnosis reset_small,3,moving-bar,567850.0,554916.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+364,C,diagnosis reset_small,4,moving-bar,554916.6875,547419.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+365,C,diagnosis reset_small,5,moving-bar,547419.5625,545932.75,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+366,C,diagnosis reset_small,6,moving-bar,545932.75,535877.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+367,C,diagnosis reset_small,7,moving-bar,535877.6875,534819.375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+368,C,diagnosis reset_small,8,moving-bar,534819.375,529848.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+369,C,diagnosis reset_small,9,moving-bar,529848.8125,524871.0,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+370,C,diagnosis reset_small,10,moving-bar,524871.0,527635.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json
+371,D,replay reset 20,1,moving-bar,583273.75,602568.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+372,D,replay reset 20,2,moving-bar,602568.8125,622632.875,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+373,D,replay reset 20,3,moving-bar,622632.875,601523.5,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+374,D,replay reset 20,4,moving-bar,601523.5,470482.28125,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+375,D,replay reset 20,5,moving-bar,470482.28125,555535.0,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+376,D,replay reset 20,6,moving-bar,555535.0,855439.625,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+377,D,replay reset 20,7,moving-bar,855439.625,1145025.125,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+378,D,replay reset 20,8,moving-bar,1145025.125,1140308.75,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+379,D,replay reset 20,9,moving-bar,1140308.75,1358255.0,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+380,D,replay reset 20,10,moving-bar,1358255.0,1642793.125,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+381,D,replay reset 20,11,moving-bar,1642793.125,1812087.5,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+382,D,replay reset 20,12,moving-bar,1812087.5,1556211.75,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+383,D,replay reset 20,13,moving-bar,1556211.75,1267834.25,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+384,D,replay reset 20,14,moving-bar,1267834.25,1067725.0,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+385,D,replay reset 20,15,moving-bar,1067725.0,830587.125,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+386,D,replay reset 20,16,moving-bar,830587.125,617567.0,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+387,D,replay reset 20,17,moving-bar,617567.0,488268.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+388,D,replay reset 20,18,moving-bar,488268.9375,468285.46875,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+389,D,replay reset 20,19,moving-bar,468285.46875,436490.75,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+390,D,replay reset 20,20,moving-bar,436490.75,469100.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101
+391,E,screen_00_resume_0.001,1,moving-bar,469100.78125,464996.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+392,E,screen_00_resume_0.001,2,moving-bar,464996.6875,474601.5,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+393,E,screen_00_resume_0.001,3,moving-bar,474601.5,471812.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+394,E,screen_00_resume_0.001,4,moving-bar,471812.0625,510627.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+395,E,screen_00_resume_0.001,5,moving-bar,510627.6875,475236.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+396,E,screen_00_resume_0.001,6,moving-bar,475236.4375,483718.875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+397,E,screen_00_resume_0.001,7,moving-bar,483718.875,481777.0,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+398,E,screen_00_resume_0.001,8,moving-bar,481777.0,478242.375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+399,E,screen_00_resume_0.001,9,moving-bar,478242.375,471480.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+400,E,screen_00_resume_0.001,10,moving-bar,471480.3125,463611.625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+401,E,screen_00_resume_0.001,11,moving-bar,463611.625,462040.75,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+402,E,screen_00_resume_0.001,12,moving-bar,462040.75,458470.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+403,E,screen_00_resume_0.001,13,moving-bar,458470.5625,456503.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+404,E,screen_00_resume_0.001,14,moving-bar,456503.8125,460717.09375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+405,E,screen_00_resume_0.001,15,moving-bar,460717.09375,480538.625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+406,E,screen_00_resume_0.001,16,moving-bar,480538.625,495425.46875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+407,E,screen_00_resume_0.001,17,moving-bar,495425.46875,503782.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+408,E,screen_00_resume_0.001,18,moving-bar,503782.8125,500987.0,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+409,E,screen_00_resume_0.001,19,moving-bar,500987.0,494376.375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+410,E,screen_00_resume_0.001,20,moving-bar,494376.375,489248.28125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+411,E,screen_00_resume_0.001,21,moving-bar,489248.28125,488223.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+412,E,screen_00_resume_0.001,22,moving-bar,488223.78125,488267.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+413,E,screen_00_resume_0.001,23,moving-bar,488267.4375,488866.59375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+414,E,screen_00_resume_0.001,24,moving-bar,488866.59375,486276.375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json
+415,E,screen_01_resume_0.0003,1,moving-bar,469100.78125,465664.71875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+416,E,screen_01_resume_0.0003,2,moving-bar,465664.71875,462889.28125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+417,E,screen_01_resume_0.0003,3,moving-bar,462889.28125,469026.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+418,E,screen_01_resume_0.0003,4,moving-bar,469026.4375,462505.75,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+419,E,screen_01_resume_0.0003,5,moving-bar,462505.75,459296.28125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+420,E,screen_01_resume_0.0003,6,moving-bar,459296.28125,456189.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+421,E,screen_01_resume_0.0003,7,moving-bar,456189.0625,462034.75,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+422,E,screen_01_resume_0.0003,8,moving-bar,462034.75,466377.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+423,E,screen_01_resume_0.0003,9,moving-bar,466377.78125,463180.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+424,E,screen_01_resume_0.0003,10,moving-bar,463180.5625,465528.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+425,E,screen_01_resume_0.0003,11,moving-bar,465528.4375,442104.21875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+426,E,screen_01_resume_0.0003,12,moving-bar,442104.21875,439280.0,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+427,E,screen_01_resume_0.0003,13,moving-bar,439280.0,461459.5,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+428,E,screen_01_resume_0.0003,14,moving-bar,461459.5,459829.5,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+429,E,screen_01_resume_0.0003,15,moving-bar,459829.5,460414.90625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+430,E,screen_01_resume_0.0003,16,moving-bar,460414.90625,458605.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+431,E,screen_01_resume_0.0003,17,moving-bar,458605.9375,456270.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+432,E,screen_01_resume_0.0003,18,moving-bar,456270.8125,456772.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+433,E,screen_01_resume_0.0003,19,moving-bar,456772.3125,454756.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+434,E,screen_01_resume_0.0003,20,moving-bar,454756.5625,451218.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+435,E,screen_01_resume_0.0003,21,moving-bar,451218.53125,447627.96875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+436,E,screen_01_resume_0.0003,22,moving-bar,447627.96875,445299.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+437,E,screen_01_resume_0.0003,23,moving-bar,445299.53125,444614.125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+438,E,screen_01_resume_0.0003,24,moving-bar,444614.125,444459.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json
+439,E,screen_02_reset_0.001,1,moving-bar,469100.78125,483063.96875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+440,E,screen_02_reset_0.001,2,moving-bar,483063.96875,471284.15625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+441,E,screen_02_reset_0.001,3,moving-bar,471284.15625,432258.65625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+442,E,screen_02_reset_0.001,4,moving-bar,432258.65625,410908.90625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+443,E,screen_02_reset_0.001,5,moving-bar,410908.90625,435999.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+444,E,screen_02_reset_0.001,6,moving-bar,435999.6875,428533.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+445,E,screen_02_reset_0.001,7,moving-bar,428533.8125,450641.125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+446,E,screen_02_reset_0.001,8,moving-bar,450641.125,458983.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+447,E,screen_02_reset_0.001,9,moving-bar,458983.9375,458777.71875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+448,E,screen_02_reset_0.001,10,moving-bar,458777.71875,443705.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+449,E,screen_02_reset_0.001,11,moving-bar,443705.5625,426653.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+450,E,screen_02_reset_0.001,12,moving-bar,426653.3125,416487.96875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+451,E,screen_02_reset_0.001,13,moving-bar,416487.96875,422795.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+452,E,screen_02_reset_0.001,14,moving-bar,422795.78125,433761.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+453,E,screen_02_reset_0.001,15,moving-bar,433761.78125,492758.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+454,E,screen_02_reset_0.001,16,moving-bar,492758.9375,489863.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+455,E,screen_02_reset_0.001,17,moving-bar,489863.78125,514593.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+456,E,screen_02_reset_0.001,18,moving-bar,514593.78125,531674.5,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+457,E,screen_02_reset_0.001,19,moving-bar,531674.5,568714.0,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+458,E,screen_02_reset_0.001,20,moving-bar,568714.0,650594.0,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+459,E,screen_02_reset_0.001,21,moving-bar,650594.0,676505.5,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+460,E,screen_02_reset_0.001,22,moving-bar,676505.5,719439.125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+461,E,screen_02_reset_0.001,23,moving-bar,719439.125,729721.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+462,E,screen_02_reset_0.001,24,moving-bar,729721.6875,754609.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json
+463,E,screen_03_reset_0.0003,1,moving-bar,469100.78125,467399.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+464,E,screen_03_reset_0.0003,2,moving-bar,467399.4375,497609.875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+465,E,screen_03_reset_0.0003,3,moving-bar,497609.875,488126.15625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+466,E,screen_03_reset_0.0003,4,moving-bar,488126.15625,489533.125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+467,E,screen_03_reset_0.0003,5,moving-bar,489533.125,474057.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+468,E,screen_03_reset_0.0003,6,moving-bar,474057.9375,427640.5,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+469,E,screen_03_reset_0.0003,7,moving-bar,427640.5,408933.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+470,E,screen_03_reset_0.0003,8,moving-bar,408933.8125,406590.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+471,E,screen_03_reset_0.0003,9,moving-bar,406590.1875,401035.59375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+472,E,screen_03_reset_0.0003,10,moving-bar,401035.59375,407558.25,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+473,E,screen_03_reset_0.0003,11,moving-bar,407558.25,415939.375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+474,E,screen_03_reset_0.0003,12,moving-bar,415939.375,401502.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+475,E,screen_03_reset_0.0003,13,moving-bar,401502.78125,397253.875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+476,E,screen_03_reset_0.0003,14,moving-bar,397253.875,457670.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+477,E,screen_03_reset_0.0003,15,moving-bar,457670.9375,450568.5,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+478,E,screen_03_reset_0.0003,16,moving-bar,450568.5,439451.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+479,E,screen_03_reset_0.0003,17,moving-bar,439451.4375,439162.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+480,E,screen_03_reset_0.0003,18,moving-bar,439162.0625,413427.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+481,E,screen_03_reset_0.0003,19,moving-bar,413427.9375,416765.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+482,E,screen_03_reset_0.0003,20,moving-bar,416765.78125,409561.96875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+483,E,screen_03_reset_0.0003,21,moving-bar,409561.96875,405422.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+484,E,screen_03_reset_0.0003,22,moving-bar,405422.53125,402492.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+485,E,screen_03_reset_0.0003,23,moving-bar,402492.3125,400409.375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+486,E,screen_03_reset_0.0003,24,moving-bar,400409.375,403213.34375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json
+487,E,refine_00_resume_backtrack,1,moving-bar,397253.875,395939.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+488,E,refine_00_resume_backtrack,2,moving-bar,395939.4375,395939.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+489,E,refine_00_resume_backtrack,3,moving-bar,395939.4375,395787.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+490,E,refine_00_resume_backtrack,4,moving-bar,395787.8125,395730.75,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+491,E,refine_00_resume_backtrack,5,moving-bar,395730.75,395550.75,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+492,E,refine_00_resume_backtrack,6,moving-bar,395550.75,395306.84375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+493,E,refine_00_resume_backtrack,7,moving-bar,395306.84375,395202.625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+494,E,refine_00_resume_backtrack,8,moving-bar,395202.625,394854.0,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+495,E,refine_00_resume_backtrack,9,moving-bar,394854.0,394645.375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+496,E,refine_00_resume_backtrack,10,moving-bar,394645.375,394357.59375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+497,E,refine_00_resume_backtrack,11,moving-bar,394357.59375,394215.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+498,E,refine_00_resume_backtrack,12,moving-bar,394215.3125,394175.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+499,E,refine_00_resume_backtrack,13,moving-bar,394175.1875,394161.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+500,E,refine_00_resume_backtrack,14,moving-bar,394161.3125,394156.25,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+501,E,refine_00_resume_backtrack,15,moving-bar,394156.25,394150.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+502,E,refine_00_resume_backtrack,16,moving-bar,394150.6875,394149.625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json
+503,E,refine_01_reset_backtrack,1,moving-bar,397253.875,395645.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+504,E,refine_01_reset_backtrack,2,moving-bar,395645.5625,395632.125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+505,E,refine_01_reset_backtrack,3,moving-bar,395632.125,395631.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+506,E,refine_01_reset_backtrack,4,moving-bar,395631.8125,395631.125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+507,E,refine_01_reset_backtrack,5,moving-bar,395631.125,395629.875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+508,E,refine_01_reset_backtrack,6,moving-bar,395629.875,395628.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+509,E,refine_01_reset_backtrack,7,moving-bar,395628.9375,395627.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+510,E,refine_01_reset_backtrack,8,moving-bar,395627.1875,395624.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+511,E,refine_01_reset_backtrack,9,moving-bar,395624.4375,395619.375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+512,E,refine_01_reset_backtrack,10,moving-bar,395619.375,395614.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+513,E,refine_01_reset_backtrack,11,moving-bar,395614.1875,395606.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+514,E,refine_01_reset_backtrack,12,moving-bar,395606.8125,395596.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+515,E,refine_01_reset_backtrack,13,moving-bar,395596.9375,395584.71875,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+516,E,refine_01_reset_backtrack,14,moving-bar,395584.71875,395570.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+517,E,refine_01_reset_backtrack,15,moving-bar,395570.3125,395552.75,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+518,E,refine_01_reset_backtrack,16,moving-bar,395552.75,395530.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json
+519,F,screen_00_resume_small_backtrack,1,moving-bar,394149.625,394149.625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+520,F,screen_00_resume_small_backtrack,2,moving-bar,394149.625,394149.625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+521,F,screen_00_resume_small_backtrack,3,moving-bar,394149.625,394149.25,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+522,F,screen_00_resume_small_backtrack,4,moving-bar,394149.25,394149.0,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+523,F,screen_00_resume_small_backtrack,5,moving-bar,394149.0,394148.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+524,F,screen_00_resume_small_backtrack,6,moving-bar,394148.6875,394148.09375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+525,F,screen_00_resume_small_backtrack,7,moving-bar,394148.09375,394147.65625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+526,F,screen_00_resume_small_backtrack,8,moving-bar,394147.65625,394147.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+527,F,screen_00_resume_small_backtrack,9,moving-bar,394147.4375,394146.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+528,F,screen_00_resume_small_backtrack,10,moving-bar,394146.875,394145.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+529,F,screen_00_resume_small_backtrack,11,moving-bar,394145.78125,394143.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+530,F,screen_00_resume_small_backtrack,12,moving-bar,394143.875,394143.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+531,F,screen_00_resume_small_backtrack,13,moving-bar,394143.53125,394141.71875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+532,F,screen_00_resume_small_backtrack,14,moving-bar,394141.71875,394138.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+533,F,screen_00_resume_small_backtrack,15,moving-bar,394138.5625,394136.09375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+534,F,screen_00_resume_small_backtrack,16,moving-bar,394136.09375,394131.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+535,F,screen_00_resume_small_backtrack,17,moving-bar,394131.6875,394131.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+536,F,screen_00_resume_small_backtrack,18,moving-bar,394131.6875,394131.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json
+537,F,screen_01_reset_0.0003,1,moving-bar,394149.625,441210.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+538,F,screen_01_reset_0.0003,2,moving-bar,441210.78125,453196.125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+539,F,screen_01_reset_0.0003,3,moving-bar,453196.125,403335.375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+540,F,screen_01_reset_0.0003,4,moving-bar,403335.375,425100.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+541,F,screen_01_reset_0.0003,5,moving-bar,425100.8125,418474.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+542,F,screen_01_reset_0.0003,6,moving-bar,418474.78125,421788.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+543,F,screen_01_reset_0.0003,7,moving-bar,421788.875,419919.15625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+544,F,screen_01_reset_0.0003,8,moving-bar,419919.15625,423970.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+545,F,screen_01_reset_0.0003,9,moving-bar,423970.4375,425693.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+546,F,screen_01_reset_0.0003,10,moving-bar,425693.4375,409912.0,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+547,F,screen_01_reset_0.0003,11,moving-bar,409912.0,403398.90625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+548,F,screen_01_reset_0.0003,12,moving-bar,403398.90625,419517.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+549,F,screen_01_reset_0.0003,13,moving-bar,419517.0625,413216.5,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+550,F,screen_01_reset_0.0003,14,moving-bar,413216.5,408480.75,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+551,F,screen_01_reset_0.0003,15,moving-bar,408480.75,405941.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+552,F,screen_01_reset_0.0003,16,moving-bar,405941.1875,405191.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+553,F,screen_01_reset_0.0003,17,moving-bar,405191.3125,401771.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+554,F,screen_01_reset_0.0003,18,moving-bar,401771.9375,399396.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+555,F,screen_01_reset_0.0003,19,moving-bar,399396.0625,401758.03125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+556,F,screen_01_reset_0.0003,20,moving-bar,401758.03125,398682.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+557,F,screen_01_reset_0.0003,21,moving-bar,398682.0625,396186.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+558,F,screen_01_reset_0.0003,22,moving-bar,396186.6875,392879.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+559,F,screen_01_reset_0.0003,23,moving-bar,392879.6875,389533.71875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+560,F,screen_01_reset_0.0003,24,moving-bar,389533.71875,384632.59375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+561,F,screen_01_reset_0.0003,25,moving-bar,384632.59375,381475.5,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+562,F,screen_01_reset_0.0003,26,moving-bar,381475.5,378878.125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+563,F,screen_01_reset_0.0003,27,moving-bar,378878.125,376536.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+564,F,screen_01_reset_0.0003,28,moving-bar,376536.6875,374381.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+565,F,screen_01_reset_0.0003,29,moving-bar,374381.5625,372516.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+566,F,screen_01_reset_0.0003,30,moving-bar,372516.3125,370636.09375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+567,F,screen_01_reset_0.0003,31,moving-bar,370636.09375,369056.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+568,F,screen_01_reset_0.0003,32,moving-bar,369056.875,368541.34375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json
+569,F,screen_02_reset_0.001,1,moving-bar,394149.625,439205.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+570,F,screen_02_reset_0.001,2,moving-bar,439205.6875,417061.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+571,F,screen_02_reset_0.001,3,moving-bar,417061.53125,430696.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+572,F,screen_02_reset_0.001,4,moving-bar,430696.6875,388900.125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+573,F,screen_02_reset_0.001,5,moving-bar,388900.125,402152.71875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+574,F,screen_02_reset_0.001,6,moving-bar,402152.71875,390146.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+575,F,screen_02_reset_0.001,7,moving-bar,390146.4375,377583.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+576,F,screen_02_reset_0.001,8,moving-bar,377583.6875,371620.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+577,F,screen_02_reset_0.001,9,moving-bar,371620.6875,370454.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+578,F,screen_02_reset_0.001,10,moving-bar,370454.4375,375784.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+579,F,screen_02_reset_0.001,11,moving-bar,375784.875,372466.46875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+580,F,screen_02_reset_0.001,12,moving-bar,372466.46875,357124.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+581,F,screen_02_reset_0.001,13,moving-bar,357124.0625,378921.375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+582,F,screen_02_reset_0.001,14,moving-bar,378921.375,349663.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+583,F,screen_02_reset_0.001,15,moving-bar,349663.1875,353016.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+584,F,screen_02_reset_0.001,16,moving-bar,353016.9375,342045.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+585,F,screen_02_reset_0.001,17,moving-bar,342045.9375,341159.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+586,F,screen_02_reset_0.001,18,moving-bar,341159.5625,336764.375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+587,F,screen_02_reset_0.001,19,moving-bar,336764.375,334891.375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+588,F,screen_02_reset_0.001,20,moving-bar,334891.375,328956.0,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+589,F,screen_02_reset_0.001,21,moving-bar,328956.0,341566.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+590,F,screen_02_reset_0.001,22,moving-bar,341566.1875,354077.125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+591,F,screen_02_reset_0.001,23,moving-bar,354077.125,347631.09375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+592,F,screen_02_reset_0.001,24,moving-bar,347631.09375,321614.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+593,F,screen_02_reset_0.001,25,moving-bar,321614.4375,323780.34375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+594,F,screen_02_reset_0.001,26,moving-bar,323780.34375,328350.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+595,F,screen_02_reset_0.001,27,moving-bar,328350.3125,447526.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+596,F,screen_02_reset_0.001,28,moving-bar,447526.875,435815.09375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+597,F,screen_02_reset_0.001,29,moving-bar,435815.09375,515556.21875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+598,F,screen_02_reset_0.001,30,moving-bar,515556.21875,551900.5,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+599,F,screen_02_reset_0.001,31,moving-bar,551900.5,570052.5,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+600,F,screen_02_reset_0.001,32,moving-bar,570052.5,557199.3125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json
+601,F,screen_03_reset_0.003,1,moving-bar,394149.625,766293.25,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+602,F,screen_03_reset_0.003,2,moving-bar,766293.25,414297.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+603,F,screen_03_reset_0.003,3,moving-bar,414297.6875,427917.125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+604,F,screen_03_reset_0.003,4,moving-bar,427917.125,453709.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+605,F,screen_03_reset_0.003,5,moving-bar,453709.8125,412196.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+606,F,screen_03_reset_0.003,6,moving-bar,412196.78125,377492.65625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+607,F,screen_03_reset_0.003,7,moving-bar,377492.65625,422046.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+608,F,screen_03_reset_0.003,8,moving-bar,422046.78125,437943.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+609,F,screen_03_reset_0.003,9,moving-bar,437943.875,421995.625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+610,F,screen_03_reset_0.003,10,moving-bar,421995.625,398207.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+611,F,screen_03_reset_0.003,11,moving-bar,398207.78125,405330.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+612,F,screen_03_reset_0.003,12,moving-bar,405330.53125,351084.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+613,F,screen_03_reset_0.003,13,moving-bar,351084.1875,342575.625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+614,F,screen_03_reset_0.003,14,moving-bar,342575.625,350993.125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+615,F,screen_03_reset_0.003,15,moving-bar,350993.125,402784.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+616,F,screen_03_reset_0.003,16,moving-bar,402784.9375,367531.59375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+617,F,screen_03_reset_0.003,17,moving-bar,367531.59375,372928.84375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+618,F,screen_03_reset_0.003,18,moving-bar,372928.84375,382610.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+619,F,screen_03_reset_0.003,19,moving-bar,382610.5625,375474.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+620,F,screen_03_reset_0.003,20,moving-bar,375474.53125,361889.46875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+621,F,screen_03_reset_0.003,21,moving-bar,361889.46875,353333.375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+622,F,screen_03_reset_0.003,22,moving-bar,353333.375,340849.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+623,F,screen_03_reset_0.003,23,moving-bar,340849.9375,376687.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+624,F,screen_03_reset_0.003,24,moving-bar,376687.9375,358220.90625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+625,F,screen_03_reset_0.003,25,moving-bar,358220.90625,317305.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+626,F,screen_03_reset_0.003,26,moving-bar,317305.9375,311675.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+627,F,screen_03_reset_0.003,27,moving-bar,311675.6875,378055.34375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+628,F,screen_03_reset_0.003,28,moving-bar,378055.34375,490422.25,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+629,F,screen_03_reset_0.003,29,moving-bar,490422.25,523557.5,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+630,F,screen_03_reset_0.003,30,moving-bar,523557.5,492151.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+631,F,screen_03_reset_0.003,31,moving-bar,492151.6875,411574.375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+632,F,screen_03_reset_0.003,32,moving-bar,411574.375,381899.46875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json
+633,F,refine_00_resume_backtrack,1,moving-bar,311675.6875,309761.0,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+634,F,refine_00_resume_backtrack,2,moving-bar,309761.0,309719.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+635,F,refine_00_resume_backtrack,3,moving-bar,309719.4375,309260.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+636,F,refine_00_resume_backtrack,4,moving-bar,309260.53125,308060.4375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+637,F,refine_00_resume_backtrack,5,moving-bar,308060.4375,306175.59375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+638,F,refine_00_resume_backtrack,6,moving-bar,306175.59375,304157.96875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+639,F,refine_00_resume_backtrack,7,moving-bar,304157.96875,302167.59375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+640,F,refine_00_resume_backtrack,8,moving-bar,302167.59375,300431.25,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+641,F,refine_00_resume_backtrack,9,moving-bar,300431.25,298503.15625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+642,F,refine_00_resume_backtrack,10,moving-bar,298503.15625,293603.15625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+643,F,refine_00_resume_backtrack,11,moving-bar,293603.15625,293257.25,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+644,F,refine_00_resume_backtrack,12,moving-bar,293257.25,293257.25,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+645,F,refine_00_resume_backtrack,13,moving-bar,293257.25,293092.5,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+646,F,refine_00_resume_backtrack,14,moving-bar,293092.5,293077.125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+647,F,refine_00_resume_backtrack,15,moving-bar,293077.125,293076.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+648,F,refine_00_resume_backtrack,16,moving-bar,293076.9375,293074.8125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json
+649,F,refine_01_reset_backtrack,1,moving-bar,311675.6875,310497.75,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+650,F,refine_01_reset_backtrack,2,moving-bar,310497.75,310206.0,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+651,F,refine_01_reset_backtrack,3,moving-bar,310206.0,309411.75,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+652,F,refine_01_reset_backtrack,4,moving-bar,309411.75,307930.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+653,F,refine_01_reset_backtrack,5,moving-bar,307930.5625,306153.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+654,F,refine_01_reset_backtrack,6,moving-bar,306153.78125,304326.96875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+655,F,refine_01_reset_backtrack,7,moving-bar,304326.96875,302610.25,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+656,F,refine_01_reset_backtrack,8,moving-bar,302610.25,301181.0,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+657,F,refine_01_reset_backtrack,9,moving-bar,301181.0,299878.78125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+658,F,refine_01_reset_backtrack,10,moving-bar,299878.78125,297589.5,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+659,F,refine_01_reset_backtrack,11,moving-bar,297589.5,296661.40625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+660,F,refine_01_reset_backtrack,12,moving-bar,296661.40625,291558.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+661,F,refine_01_reset_backtrack,13,moving-bar,291558.875,291185.625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+662,F,refine_01_reset_backtrack,14,moving-bar,291185.625,290822.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+663,F,refine_01_reset_backtrack,15,moving-bar,290822.5625,290200.84375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+664,F,refine_01_reset_backtrack,16,moving-bar,290200.84375,290132.09375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json
+665,F,extend_00_resume_backtrack,1,moving-bar,290132.09375,290130.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+666,F,extend_00_resume_backtrack,2,moving-bar,290130.9375,290130.375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+667,F,extend_00_resume_backtrack,3,moving-bar,290130.375,290129.15625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+668,F,extend_00_resume_backtrack,4,moving-bar,290129.15625,290126.59375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+669,F,extend_00_resume_backtrack,5,moving-bar,290126.59375,290121.34375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+670,F,extend_00_resume_backtrack,6,moving-bar,290121.34375,290115.75,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+671,F,extend_00_resume_backtrack,7,moving-bar,290115.75,290109.5625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+672,F,extend_00_resume_backtrack,8,moving-bar,290109.5625,290095.46875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+673,F,extend_00_resume_backtrack,9,moving-bar,290095.46875,290080.71875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+674,F,extend_00_resume_backtrack,10,moving-bar,290080.71875,290061.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+675,F,extend_00_resume_backtrack,11,moving-bar,290061.0625,290039.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+676,F,extend_00_resume_backtrack,12,moving-bar,290039.6875,290016.75,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+677,F,extend_00_resume_backtrack,13,moving-bar,290016.75,289993.34375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+678,F,extend_00_resume_backtrack,14,moving-bar,289993.34375,289958.6875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+679,F,extend_00_resume_backtrack,15,moving-bar,289958.6875,289905.40625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+680,F,extend_00_resume_backtrack,16,moving-bar,289905.40625,289831.875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+681,F,extend_00_resume_backtrack,17,moving-bar,289831.875,289745.03125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+682,F,extend_00_resume_backtrack,18,moving-bar,289745.03125,289652.1875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+683,F,extend_00_resume_backtrack,19,moving-bar,289652.1875,289521.21875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+684,F,extend_00_resume_backtrack,20,moving-bar,289521.21875,289334.96875,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+685,F,extend_00_resume_backtrack,21,moving-bar,289334.96875,289125.28125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+686,F,extend_00_resume_backtrack,22,moving-bar,289125.28125,288837.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+687,F,extend_00_resume_backtrack,23,moving-bar,288837.53125,288466.90625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+688,F,extend_00_resume_backtrack,24,moving-bar,288466.90625,287991.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+689,F,extend_00_resume_backtrack,25,moving-bar,287991.0625,287401.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+690,F,extend_00_resume_backtrack,26,moving-bar,287401.9375,286637.0625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+691,F,extend_00_resume_backtrack,27,moving-bar,286637.0625,285715.28125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+692,F,extend_00_resume_backtrack,28,moving-bar,285715.28125,284818.53125,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+693,F,extend_00_resume_backtrack,29,moving-bar,284818.53125,284322.84375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+694,F,extend_00_resume_backtrack,30,moving-bar,284322.84375,284029.625,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+695,F,extend_00_resume_backtrack,31,moving-bar,284029.625,283734.75,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json
+696,F,extend_00_resume_backtrack,32,moving-bar,283734.75,282966.9375,/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json

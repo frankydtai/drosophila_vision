@@ -1,0 +1,364 @@
+diff --git a/vision/simulation/3_task/4_mbar/4_pack.py b/vision/simulation/3_task/4_mbar/4_pack.py
+index 490f83a3..6480ef9f 100644
+--- a/vision/simulation/3_task/4_mbar/4_pack.py
++++ b/vision/simulation/3_task/4_mbar/4_pack.py
+@@ -188,6 +188,42 @@ def dsi_cost_parts(pack, trace, *, b_offset=0):
+     }
+ 
+ 
++def dsi_peak_values(pack, trace, bias_gt, *, b_offset=0, eps=1e-8):
++    """Normalized peaks of baseline-relative, aligned PD/ND mean traces.
++
++    Average each direction over selected entries on its common transit window,
++    take its nonnegative peak, then return (R_PD-R_ND)/(R_PD+R_ND+eps).
++    """
++    if pack.dsi_t0s is None or pack.dsi_n_ts is None:
++        raise ValueError("moving-bar DSI requires per-entry transit windows")
++    stops = pack.dsi_t0s + pack.dsi_n_ts
++    if bool((pack.dsi_t0s < 0).any()) or bool((stops > trace.shape[1]).any()):
++        raise ValueError("moving-bar DSI window is outside the simulated trace")
++    # Current hex_dsi_window spans [-T, 3T], including both endpoints.
++    before = (pack.dsi_n_ts - 1) // 4
++    first_sti = pack.dsi_t0s + before
++    offsets = torch.arange(
++        -int(before.max()), int((pack.dsi_n_ts - 1 - before).max()) + 1,
++        device=trace.device,
++    )
++    ts = first_sti[:, None] + offsets[None, :]
++    valid = (ts >= pack.dsi_t0s[:, None]) & (ts < stops[:, None])
++    response = trace[
++        pack.entry_bs[:, None] + int(b_offset),
++        ts.clamp(min=0, max=trace.shape[1] - 1),
++        pack.entry_nodes[:, None],
++    ] - bias_gt[:, None]
++    parts = {}
++    for key, pd, nd in dsi_groups(pack):
++        pd_mean = response[pd].mean(dim=0)
++        nd_mean = response[nd].mean(dim=0)
++        r_pd = pd_mean.masked_fill(~valid[pd].all(dim=0), -torch.inf).amax().clamp_min(0.0)
++        r_nd = nd_mean.masked_fill(~valid[nd].all(dim=0), -torch.inf).amax().clamp_min(0.0)
++        dsi = (r_pd - r_nd) / (r_pd + r_nd + eps)
++        parts[key] = dsi
++    return parts
++
++
+ def _mbar_cost_part_plot_specs(
+     entry_part_keys: Sequence[str],
+     entry_nodes,
+diff --git a/vision/simulation/4_train/4_optimization.py b/vision/simulation/4_train/4_optimization.py
+index 26f6dc98..00460628 100644
+--- a/vision/simulation/4_train/4_optimization.py
++++ b/vision/simulation/4_train/4_optimization.py
+@@ -18,7 +18,8 @@ import torch
+ from torch import nn
+ from tqdm import tqdm
+ 
+-from train.cost import session_cost_part_keys
++from task.mbar.pack import dsi_groups, dsi_peak_values, dsi_values
++from train.cost import forward_pack, gt_affine_from_pack, session_cost_part_keys
+ from train.cost import (
+     backward_part_sums,
+     calc_cost_parts,
+@@ -26,6 +27,7 @@ from train.cost import (
+ )
+ from train.param import (
+     active_device,
++    params_from_z,
+     schema_clamps,
+     schema_copy,
+     schema_n_z,
+@@ -70,6 +72,35 @@ def _fmt_cost_parts(parts, *, summary_only=False):
+     return "  [" + "  ".join(f"{k}={v:.4f}" for k, v in parts.items()) + "]"
+ 
+ 
++def _calc_dsi(z, session):
++    """Mean raw DSI and normalized DSI_peak, independent of loss scales."""
++    values = []
++    peak_values = []
++    with torch.no_grad():
++        for pack in session.iter_packs():
++            if not any(True for _ in dsi_groups(pack)):
++                continue
++            params = params_from_z(z, session)
++            trace = forward_pack(session, params, pack.i_sti, pack)
++            values.extend(float(value.item()) for value in dsi_values(pack, trace).values())
++            _, bias_gt = gt_affine_from_pack(params, pack, session)
++            peak_values.extend(
++                float(value.item())
++                for value in dsi_peak_values(pack, trace, bias_gt).values()
++            )
++    return (
++        (sum(values) / len(values), sum(peak_values) / len(peak_values))
++        if values else None
++    )
++
++
++def _fmt_dsi(dsi):
++    if dsi is None:
++        return ""
++    value, peak = dsi
++    return f"  DSI: {value:.4f}  DSI_peak: {peak:.4f}"
++
++
+ _TQDM_REFRESH_INTERVAL = 10
+ 
+ 
+@@ -77,7 +108,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
+                      cost_log=None, iter_log=None, float_last_parts=None, task_order=None,
+                      backward_iter=None, eval_cost=None,
+                      checkpoint_interval=None, on_interval_best=None, global_iter_start=0,
+-                     adam_init=None):
++                     adam_init=None, dsi_fn=None):
+ 
+     a = time.time()
+ 
+@@ -106,6 +137,8 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
+     interval_best_adam = _adam_bag(optimizer, z)
+     best_adam = _adam_bag(optimizer, z)
+ 
++    dsi = dsi_fn(z) if dsi_fn is not None else None
++    initial_dsi = best_dsi = dsi
+     initial_cost = 1.0 * cost
+     initial_parts = float_last_parts(task_order) if float_last_parts else None
+     best_parts = initial_parts
+@@ -134,7 +167,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
+         range(n_iter),
+         desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(
+             initial_parts, summary_only=True,
+-        ),
++        ) + _fmt_dsi(initial_dsi),
+         bar_format=(
+             '{percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} '
+             '[{elapsed}<{remaining}, {rate_fmt}] {desc}'
+@@ -170,8 +203,13 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
+             aborted = f'iter {iter}: non-finite grad'
+             break
+ 
++        measure_dsi = (global_iter_start + iter + 1) % 10 == 0
++        if measure_dsi:
++            dsi = dsi_fn(z) if dsi_fn is not None else None
++
+         if cost < best_cost:
+ 
++            best_dsi = dsi if measure_dsi else None
+             best_cost = cost
+             best_z = z.clone().detach()
+             best_adam = _adam_bag(optimizer, z)
+@@ -196,31 +234,34 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
+         if checkpoint_interval and global_iter % checkpoint_interval == 0:
+             _commit_interval_checkpoint(global_iter)
+ 
+-        if (iter + 1) % _TQDM_REFRESH_INTERVAL == 0 or iter == n_iter - 1:
+-            progress_bar.set_description(
+-                f'Cost: {cost:.4f}' + _fmt_cost_parts(
+-                    float_last_parts(task_order) if float_last_parts else None,
+-                    summary_only=True,
+-                ),
+-                refresh=False,
+-            )
++        progress_bar.set_description(
++            f'Cost: {cost:.4f}' + _fmt_cost_parts(
++                float_last_parts(task_order) if float_last_parts else None,
++                summary_only=True,
++            ) + _fmt_dsi(dsi),
++            refresh=False,
++        )
+ 
+     if aborted is None:
+         try:
+             cost = _measure_cost(z)
+             final_parts = float_last_parts(task_order) if float_last_parts else None
++            dsi = dsi_fn(z) if dsi_fn is not None else None
+         except RuntimeError as e:
+             aborted = f'final eval: {e}'
+             cost = float('nan')
++            dsi = None
+             final_parts = None
+         else:
+             if np.isfinite(cost) and cost < best_cost:
++                best_dsi = dsi
+                 best_cost = cost
+                 best_z = z.clone().detach()
+                 best_adam = _adam_bag(optimizer, z)
+                 best_parts = final_parts
+     else:
+         cost = float('nan')
++        dsi = None
+         final_parts = None
+ 
+     print()
+@@ -228,13 +269,13 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
+         print('ABORT:', aborted)
+     print('Initl cost =', format(initial_cost, '.4f') + _fmt_cost_parts(
+         initial_parts, summary_only=True,
+-    ))
++    ) + _fmt_dsi(initial_dsi))
+     print('Final cost =', format(cost, '.4f') + _fmt_cost_parts(
+         final_parts, summary_only=True,
+-    ))
++    ) + _fmt_dsi(dsi))
+     print('Best  cost =', format(best_cost, '.4f') + _fmt_cost_parts(
+         best_parts, summary_only=True,
+-    ))
++    ) + _fmt_dsi(best_dsi))
+ 
+     print('time needed  =', format(time.time() - a, '.2f'), ' sec')
+     print()
+@@ -297,7 +338,7 @@ def optimize_staged(z, cost_fn, z_clamps, lrs, niters, cost_log=None, iter_log=N
+                  float_last_parts=None, task_order=None,
+                  backward_iter=None, eval_cost=None,
+                  checkpoint_interval=None, on_interval_best=None, global_iter_start=0,
+-                 adam_init=None):
++                 adam_init=None, dsi_fn=None):
+     global_iter = global_iter_start
+     adam = None
+     for stage_i, lr in enumerate(lrs):
+@@ -311,6 +352,7 @@ def optimize_staged(z, cost_fn, z_clamps, lrs, niters, cost_log=None, iter_log=N
+             on_interval_best=on_interval_best,
+             global_iter_start=global_iter,
+             adam_init=adam_init if stage_i == 0 else None,
++            dsi_fn=dsi_fn,
+         )
+         global_iter += niters
+     return z, adam
+@@ -416,6 +458,7 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
+             checkpoint_interval=checkpoint_interval,
+             on_interval_best=on_interval_best,
+             adam_init=adam_init,
++            dsi_fn=lambda z: _calc_dsi(z, session),
+         )
+ 
+         run_params[run] = z_best.detach().cpu().numpy()
+diff --git a/vision/simulation/5_figure/2_4_mbar.py b/vision/simulation/5_figure/2_4_mbar.py
+index 3c205855..0d1aeb91 100644
+--- a/vision/simulation/5_figure/2_4_mbar.py
++++ b/vision/simulation/5_figure/2_4_mbar.py
+@@ -10,6 +10,7 @@ import numpy as np
+ import torch
+ 
+ import train
++from train.cost import gt_affine_from_pack
+ from task.mbar.gt import (
+     GT_CELLS,
+     fig1_trace_from_sti,
+@@ -19,6 +20,7 @@ from task.mbar.gt import (
+ from task.mbar.pack import (
+     bar_specs_from_task,
+     dsi_groups,
++    dsi_peak_values,
+     dsi_values,
+     nodes_from_hexes,
+     mbar_specs_by_cell,
+@@ -150,6 +152,7 @@ class MbarTraceReadout:
+     ms_shown: tuple[float, float] | None = None
+     dsi_by_cell: dict = field(default_factory=dict)
+     dsi_window_ts: dict = field(default_factory=dict)
++    dsi_peak_by_cell: dict = field(default_factory=dict)
+ 
+ 
+ def _mbar_figure(n_row, n_col, *, sharex='col'):
+@@ -437,6 +440,11 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
+             pack, trace, window_ts=window_ts,
+         ).items()
+     }
++    _, bias_gt = gt_affine_from_pack(params, pack, session)
++    dsi_peak_by_cell = {
++        key.removeprefix(f"mbar_DSI_{contrast}_"): float(value)
++        for key, value in dsi_peak_values(pack, trace, bias_gt).items()
++    }
+     trace = as_numpy(trace)
+     specs = bar_specs_from_task(session, task, contrast)
+     spec_tokens = [spec.token for spec in specs]
+@@ -534,6 +542,7 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
+         gt_affine_by_cell=gt_affine_by_cell,
+         ms_shown=ms_shown,
+         dsi_by_cell=dsi_by_cell,
++        dsi_peak_by_cell=dsi_peak_by_cell,
+         dsi_window_ts=dsi_window_ts,
+     )
+ 
+@@ -960,6 +969,8 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
+             )
+             if cell in row_readout.dsi_by_cell:
+                 cell_title += f'\nDSI={row_readout.dsi_by_cell[cell]:.3f}'
++            if cell in row_readout.dsi_peak_by_cell:
++                cell_title += f'  DSI_peak={row_readout.dsi_peak_by_cell[cell]:.3f}'
+             gt_trace = gt_trace_affine(
+                 row_readout, cell, row_readout.gt_traces.get(key),
+             )
+diff --git a/vision/simulation/conf/config.yaml b/vision/simulation/conf/config.yaml
+index e231dd96..cfe1d664 100644
+--- a/vision/simulation/conf/config.yaml
++++ b/vision/simulation/conf/config.yaml
+@@ -2,7 +2,7 @@
+ # 0.0   run (RUN_NAME / RUN_PATH)
+ # ---------------------------------------------------------------------------
+ run_name: |-
+- 34425425-run-n_iter-100-tasks-spread-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0
++ 34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0
+ run_path: point_hh/${run_name}
+ 
+ # ---------------------------------------------------------------------------
+@@ -306,7 +306,7 @@ pre_steady_damp: 0.1
+ n_run: 1
+ n_iter: 0
+ lrs: [0.003]
+-checkpoint_interval: 1000
++checkpoint_interval: 100
+ 
+ # ---------------------------------------------------------------------------
+ # 4.5   train.implementation
+diff --git a/vision/simulation/run.log b/vision/simulation/run.log
+index e20f2fb2..ff26131e 100644
+--- a/vision/simulation/run.log
++++ b/vision/simulation/run.log
+@@ -186,3 +186,7 @@
+ [2026-11-06 14:57:23,742][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/4a8e08e3e24c8c7b.npz
+ [2026-11-06 15:01:45,271][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/4a8e08e3e24c8c7b.npz
+ [2026-11-06 15:01:49,923][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/4a8e08e3e24c8c7b.npz
++[2026-11-06 16:59:59,938][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:00:04,228][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:00:04,877][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/3e2737b0a261f218.npz
++[2026-11-06 17:00:09,093][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/3e2737b0a261f218.npz
+diff --git a/vision/simulation/run.slurm b/vision/simulation/run.slurm
+index ed330c71..38121bcd 100644
+--- a/vision/simulation/run.slurm
++++ b/vision/simulation/run.slurm
+@@ -41,7 +41,7 @@ echo "==== end config ===="
+ # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
+ # DSI-only: turn off mbar waveform MSE, scale all mbar_DSI_* parts to 1.
+ "${PYTHON}" -u run_init_from.py \
+-  n_iter=100 \
++  n_iter=50 \
+   tasks=[mbar] \
+   'contrasts=[bright]' \
+   '~part_cost_scales' \
+diff --git a/vision/simulation/run_init_from.log b/vision/simulation/run_init_from.log
+index bf8463c0..823857e8 100644
+--- a/vision/simulation/run_init_from.log
++++ b/vision/simulation/run_init_from.log
+@@ -251,3 +251,24 @@
+ [2026-11-06 15:38:27,521][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/4a8e08e3e24c8c7b.npz
+ [2026-11-06 15:52:14,835][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/4a8e08e3e24c8c7b.npz
+ [2026-11-06 15:52:14,865][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/4a8e08e3e24c8c7b.npz
++[2026-11-06 16:14:34,993][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 16:35:29,634][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 16:35:33,857][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 16:43:59,806][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:02:56,117][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:04:44,772][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:04:48,942][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:13:39,297][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:13:43,508][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:15:44,896][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:36:41,990][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:36:46,297][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:37:16,712][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:37:20,883][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:51:38,569][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 17:53:27,860][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 18:16:37,838][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 18:37:55,072][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 18:37:59,311][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 18:38:33,375][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
++[2026-11-06 18:38:37,509][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz

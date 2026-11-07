@@ -1,0 +1,6 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/019_g_context_mode/integration.py", line 30, in <module>
+    assert torch.equal(ctx.params['gS'],n.edge_n_syn*init_opts['params']['gS']['init'])
+AssertionError

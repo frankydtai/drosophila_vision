@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=dsi_log_check
+#SBATCH --account=punim0477
+#SBATCH --partition=gpu-a100-mig
+#SBATCH --qos=publicgpu
+#SBATCH --gres=gpu:1
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G
+#SBATCH --time=0:15:00
+#SBATCH --chdir=/home/yitai/drosophila_vision/vision/simulation/scratch/005_dsi_training_log
+#SBATCH --output=/home/yitai/drosophila_vision/vision/simulation/scratch/005_dsi_training_log/deterministic-%j.log
+#SBATCH --error=/home/yitai/drosophila_vision/vision/simulation/scratch/005_dsi_training_log/deterministic-%j.log
+set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
+export MPLCONFIGDIR="$PWD/matplotlib"
+export XDG_CACHE_HOME="$PWD/cache"
+/home/yitai/drosophila_vision/vision/.venv/bin/python -B -u benchmark_deterministic.py

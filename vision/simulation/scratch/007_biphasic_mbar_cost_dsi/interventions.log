@@ -1,0 +1,54 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START {'name': 'saved_baseline'}
+DONE saved_baseline cost 1740471.875 DSI {'mbar_DSI_bright_T4a': -96.8515625, 'mbar_DSI_bright_T4b': -48.01171875} seconds 19.851133279502392
+REUSE saved_repeat
+REUSE zero_dose
+REUSE Mi9_frozen
+START {'name': 'Mi4_frozen', 'freeze_sources': ['Mi4']}
+DONE Mi4_frozen cost 5065325.3125 DSI {'mbar_DSI_bright_T4a': -30.93359375, 'mbar_DSI_bright_T4b': 10.513671875} seconds 25.176076130010188
+START {'name': 'Mi9_zero', 'mi9_zero': True}
+DONE Mi9_zero cost 1749223.390625 DSI {'mbar_DSI_bright_T4a': -97.818359375, 'mbar_DSI_bright_T4b': -51.380859375} seconds 30.35386637225747
+START {'name': 'excitatory_negative_0.5', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.5}
+DONE excitatory_negative_0.5 cost 3213700.0625 DSI {'mbar_DSI_bright_T4a': 92.7109375, 'mbar_DSI_bright_T4b': 88.78515625} seconds 36.270858531817794
+START {'name': 'excitatory_negative_1', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 1.0}
+DONE excitatory_negative_1 cost 6803757.5 DSI {'mbar_DSI_bright_T4a': 270.880859375, 'mbar_DSI_bright_T4b': 173.1171875} seconds 42.183929924853146
+START {'name': 'excitatory_negative_1.5', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 1.5}
+DONE excitatory_negative_1.5 cost 10706236.0 DSI {'mbar_DSI_bright_T4a': 383.453125, 'mbar_DSI_bright_T4b': 227.828125} seconds 48.15759119391441
+START {'name': 'Mi1_negative', 'negative_sources': ['Mi1']}
+DONE Mi1_negative cost 2910838.4375 DSI {'mbar_DSI_bright_T4a': 79.22265625, 'mbar_DSI_bright_T4b': 55.40625} seconds 54.14074227400124
+START {'name': 'Tm3_negative', 'negative_sources': ['Tm3']}
+DONE Tm3_negative cost 2009407.8125 DSI {'mbar_DSI_bright_T4a': 9.95703125, 'mbar_DSI_bright_T4b': 30.54296875} seconds 59.82512075826526
+START {'name': 'Mi9_restore', 'restore_mi9': True}
+DONE Mi9_restore cost 1743019.75 DSI {'mbar_DSI_bright_T4a': -104.119140625, 'mbar_DSI_bright_T4b': -50.15625} seconds 65.32645353209227
+START {'name': 'joint_0.5', 'negative_sources': ['Mi1', 'Tm3'], 'restore_mi9': True, 'dose': 0.5}
+DONE joint_0.5 cost 3149902.875 DSI {'mbar_DSI_bright_T4a': 91.09765625, 'mbar_DSI_bright_T4b': 91.697265625} seconds 71.69857134670019
+START {'name': 'joint_1', 'negative_sources': ['Mi1', 'Tm3'], 'restore_mi9': True, 'dose': 1.0}
+DONE joint_1 cost 6620785.5 DSI {'mbar_DSI_bright_T4a': 272.150390625, 'mbar_DSI_bright_T4b': 171.27734375} seconds 78.17752016801387
+START {'name': 'joint_1.5', 'negative_sources': ['Mi1', 'Tm3'], 'restore_mi9': True, 'dose': 1.5}
+DONE joint_1.5 cost 10392721.375 DSI {'mbar_DSI_bright_T4a': 388.140625, 'mbar_DSI_bright_T4b': 220.28515625} seconds 84.60495491605252
+START {'name': 'Mi9_theta-55_native', 'mi9_threshold': -55.0}
+DONE Mi9_theta-55_native cost 1735632.1875 DSI {'mbar_DSI_bright_T4a': -90.654296875, 'mbar_DSI_bright_T4b': -55.921875} seconds 89.36755479779094
+START {'name': 'Mi9_theta-55_frozen', 'mi9_threshold': -55.0, 'freeze_sources': ['Mi9']}
+DONE Mi9_theta-55_frozen cost 1730237.59375 DSI {'mbar_DSI_bright_T4a': -89.03125, 'mbar_DSI_bright_T4b': -44.513671875} seconds 94.97017665207386
+START {'name': 'Mi9_theta-55_restored', 'mi9_threshold': -55.0, 'restore_mi9': True}
+DONE Mi9_theta-55_restored cost 1769320.875 DSI {'mbar_DSI_bright_T4a': -115.76171875, 'mbar_DSI_bright_T4b': -52.46875} seconds 101.25996371544898
+START {'name': 'Mi9_theta-55_joint', 'mi9_threshold': -55.0, 'restore_mi9': True, 'negative_sources': ['Mi1', 'Tm3']}
+DONE Mi9_theta-55_joint cost 6145614.25 DSI {'mbar_DSI_bright_T4a': 254.173828125, 'mbar_DSI_bright_T4b': 170.71484375} seconds 108.10011770948768
+START {'name': 'Mi9_theta-60_native', 'mi9_threshold': -60.0}
+DONE Mi9_theta-60_native cost 1776290.75 DSI {'mbar_DSI_bright_T4a': -84.625, 'mbar_DSI_bright_T4b': -47.53515625} seconds 112.7548618009314
+START {'name': 'Mi9_theta-60_frozen', 'mi9_threshold': -60.0, 'freeze_sources': ['Mi9']}
+DONE Mi9_theta-60_frozen cost 1757606.59375 DSI {'mbar_DSI_bright_T4a': -76.8671875, 'mbar_DSI_bright_T4b': -35.65625} seconds 118.41353172063828
+START {'name': 'Mi9_theta-60_restored', 'mi9_threshold': -60.0, 'restore_mi9': True}
+DONE Mi9_theta-60_restored cost 1967240.0625 DSI {'mbar_DSI_bright_T4a': -139.375, 'mbar_DSI_bright_T4b': -54.6875} seconds 124.84479152597487
+START {'name': 'Mi9_theta-60_joint', 'mi9_threshold': -60.0, 'restore_mi9': True, 'negative_sources': ['Mi1', 'Tm3']}
+DONE Mi9_theta-60_joint cost 5442658.25 DSI {'mbar_DSI_bright_T4a': 239.794921875, 'mbar_DSI_bright_T4b': 177.595703125} seconds 132.28669165819883
+START {'name': 'Mi9_theta-65_native', 'mi9_threshold': -65.0}
+DONE Mi9_theta-65_native cost 1894051.234375 DSI {'mbar_DSI_bright_T4a': -63.939453125, 'mbar_DSI_bright_T4b': -25.29296875} seconds 137.84788979962468
+START {'name': 'Mi9_theta-65_frozen', 'mi9_threshold': -65.0, 'freeze_sources': ['Mi9']}
+DONE Mi9_theta-65_frozen cost 1853790.4375 DSI {'mbar_DSI_bright_T4a': -56.001953125, 'mbar_DSI_bright_T4b': -20.6484375} seconds 143.87974739447236
+START {'name': 'Mi9_theta-65_restored', 'mi9_threshold': -65.0, 'restore_mi9': True}
+DONE Mi9_theta-65_restored cost 2696027.9375 DSI {'mbar_DSI_bright_T4a': -168.900390625, 'mbar_DSI_bright_T4b': -44.20703125} seconds 150.0237457389012
+START {'name': 'Mi9_theta-65_joint', 'mi9_threshold': -65.0, 'restore_mi9': True, 'negative_sources': ['Mi1', 'Tm3']}
+DONE Mi9_theta-65_joint cost 4478681.0 DSI {'mbar_DSI_bright_T4a': 252.359375, 'mbar_DSI_bright_T4b': 210.96875} seconds 157.20525666698813
+INTERVENTIONS_FINISHED

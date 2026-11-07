@@ -1,0 +1,46 @@
+{
+  "mapping_version": "point_hh_curated_v1",
+  "g_context_mode": "init",
+  "units": {
+    "time": "ms",
+    "voltage": "mV",
+    "current": "pA",
+    "capacitance": "pF",
+    "conductance": "nS"
+  },
+  "area_um2": 100.0,
+  "capacitance_uF_cm2": 1.0,
+  "contact_scaling": "gS_nS = params.gS.init * network_n_syn",
+  "ion_fallbacks": {
+    "L2": "L3",
+    "T4b/T4c/T4d": "T4a"
+  },
+  "unresolved_synapse_policy": "gS=params.gS.init*network_n_syn",
+  "resolution_counts": {
+    "exact": 2,
+    "same_pre_transmitter_fallback": 1,
+    "unresolved_init": 1
+  },
+  "n_edge": 4,
+  "sources": {
+    "ion_rules": {
+      "path": "/home/yitai/drosophila_vision/vision/simulation/scratch/019_g_context_mode/pytest_tmp_formal/test_context_save_records_effe0/ion.csv",
+      "sha256": "cc15205d9194136ab28698a276991e4ad1ce28eeb2fb8ee8bd7938a9470dc80a"
+    },
+    "synapse_rules": {
+      "path": "/home/yitai/drosophila_vision/vision/simulation/scratch/019_g_context_mode/pytest_tmp_formal/test_context_save_records_effe0/syn.csv",
+      "sha256": "396a1699e9682e8e29930e52dbefc5b77ab0c7a4119231685b2f05ac46a64196"
+    },
+    "connections": {
+      "path": "/home/yitai/drosophila_vision/vision/simulation/scratch/019_g_context_mode/pytest_tmp_formal/test_context_save_records_effe0/connections.csv",
+      "sha256": "86f68c8c68a9bb3601952763ebbbe10a4640755fa8003ce58c33ee8ee2f35108"
+    },
+    "network": "/home/yitai/drosophila_vision/vision/simulation/scratch/019_g_context_mode/pytest_tmp_formal/test_context_save_records_effe0/network.json"
+  },
+  "g_inits": {
+    "gNa": 3.0,
+    "gK": 1.0,
+    "gLeak": 1.2,
+    "gS": 0.3
+  }
+}

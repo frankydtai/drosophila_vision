@@ -1,0 +1,894 @@
+{
+  "dt_ms": 1.0,
+  "k_minus_syn": 0.01,
+  "formal_kernel_modified": false,
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "checks": [
+    {
+      "model": "reference",
+      "protocol": "standard",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.9301528930664,
+      "voltage_max_mV": -2.1226823329925537,
+      "node_distribution": [
+        {
+          "cell": "L1",
+          "n_nodes": 331,
+          "fraction_both_peaks_at_least_3mV": 0.649546827794562,
+          "opposite_peak_median_mV": 5.602985382080078,
+          "opposite_peak_p95_mV": 10.22636604309082,
+          "control_node_std_median_mV": 0.010627908632159233,
+          "control_node_std_p95_mV": 0.94365394115448
+        },
+        {
+          "cell": "Mi1",
+          "n_nodes": 331,
+          "fraction_both_peaks_at_least_3mV": 0.4229607250755287,
+          "opposite_peak_median_mV": 2.043323516845703,
+          "opposite_peak_p95_mV": 8.727752685546875,
+          "control_node_std_median_mV": 0.009067926555871964,
+          "control_node_std_p95_mV": 1.6338896751403809
+        },
+        {
+          "cell": "Tm3",
+          "n_nodes": 324,
+          "fraction_both_peaks_at_least_3mV": 0.41975308641975306,
+          "opposite_peak_median_mV": 2.3029632568359375,
+          "opposite_peak_p95_mV": 8.819859504699707,
+          "control_node_std_median_mV": 0.067705437541008,
+          "control_node_std_p95_mV": 2.483959913253784
+        },
+        {
+          "cell": "T4a",
+          "n_nodes": 324,
+          "fraction_both_peaks_at_least_3mV": 0.44135802469135804,
+          "opposite_peak_median_mV": 3.0554494857788086,
+          "opposite_peak_p95_mV": 20.559497833251953,
+          "control_node_std_median_mV": 0.08153730630874634,
+          "control_node_std_p95_mV": 2.903712034225464
+        }
+      ]
+    },
+    {
+      "model": "gain3",
+      "protocol": "standard",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93155670166016,
+      "voltage_max_mV": -2.1709513664245605,
+      "node_distribution": [
+        {
+          "cell": "L1",
+          "n_nodes": 331,
+          "fraction_both_peaks_at_least_3mV": 0.1268882175226586,
+          "opposite_peak_median_mV": 1.7421798706054688,
+          "opposite_peak_p95_mV": 5.174186706542969,
+          "control_node_std_median_mV": 0.002930545713752508,
+          "control_node_std_p95_mV": 0.5461844801902771
+        },
+        {
+          "cell": "Mi1",
+          "n_nodes": 331,
+          "fraction_both_peaks_at_least_3mV": 0.5558912386706949,
+          "opposite_peak_median_mV": 5.818447113037109,
+          "opposite_peak_p95_mV": 15.523181915283203,
+          "control_node_std_median_mV": 0.005134787410497665,
+          "control_node_std_p95_mV": 1.598470687866211
+        },
+        {
+          "cell": "Tm3",
+          "n_nodes": 324,
+          "fraction_both_peaks_at_least_3mV": 0.6327160493827161,
+          "opposite_peak_median_mV": 6.321512222290039,
+          "opposite_peak_p95_mV": 18.11109733581543,
+          "control_node_std_median_mV": 0.03632693365216255,
+          "control_node_std_p95_mV": 2.463728189468384
+        },
+        {
+          "cell": "T4a",
+          "n_nodes": 324,
+          "fraction_both_peaks_at_least_3mV": 0.6388888888888888,
+          "opposite_peak_median_mV": 5.959081649780273,
+          "opposite_peak_p95_mV": 27.721498489379883,
+          "control_node_std_median_mV": 0.044261809438467026,
+          "control_node_std_p95_mV": 1.9351530075073242
+        }
+      ]
+    },
+    {
+      "model": "gain6",
+      "protocol": "standard",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93175506591797,
+      "voltage_max_mV": -2.2893776893615723,
+      "node_distribution": [
+        {
+          "cell": "L1",
+          "n_nodes": 331,
+          "fraction_both_peaks_at_least_3mV": 0.10876132930513595,
+          "opposite_peak_median_mV": 1.4404640197753906,
+          "opposite_peak_p95_mV": 5.268516540527344,
+          "control_node_std_median_mV": 0.0023761047050356865,
+          "control_node_std_p95_mV": 0.5966747999191284
+        },
+        {
+          "cell": "Mi1",
+          "n_nodes": 331,
+          "fraction_both_peaks_at_least_3mV": 0.5558912386706949,
+          "opposite_peak_median_mV": 5.859928131103516,
+          "opposite_peak_p95_mV": 16.290817260742188,
+          "control_node_std_median_mV": 0.005399351008236408,
+          "control_node_std_p95_mV": 1.723259449005127
+        },
+        {
+          "cell": "Tm3",
+          "n_nodes": 324,
+          "fraction_both_peaks_at_least_3mV": 0.6234567901234568,
+          "opposite_peak_median_mV": 6.20994758605957,
+          "opposite_peak_p95_mV": 21.163318634033203,
+          "control_node_std_median_mV": 0.025835927575826645,
+          "control_node_std_p95_mV": 2.7392373085021973
+        },
+        {
+          "cell": "T4a",
+          "n_nodes": 324,
+          "fraction_both_peaks_at_least_3mV": 0.6512345679012346,
+          "opposite_peak_median_mV": 6.672336578369141,
+          "opposite_peak_p95_mV": 27.944442749023438,
+          "control_node_std_median_mV": 0.04268106073141098,
+          "control_node_std_p95_mV": 1.905537724494934
+        }
+      ]
+    },
+    {
+      "model": "gain6",
+      "protocol": "repeat",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93175506591797,
+      "voltage_max_mV": -2.2893776893615723,
+      "node_distribution": []
+    },
+    {
+      "test": "native_forward_repeat",
+      "exact": true
+    },
+    {
+      "model": "gain3",
+      "protocol": "long_warmup",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93148040771484,
+      "voltage_max_mV": -2.168067455291748,
+      "node_distribution": []
+    },
+    {
+      "model": "gain3",
+      "protocol": "short_pulse",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93155670166016,
+      "voltage_max_mV": -2.417728900909424,
+      "node_distribution": []
+    },
+    {
+      "model": "gain3",
+      "protocol": "long_pulse",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93155670166016,
+      "voltage_max_mV": -2.1709513664245605,
+      "node_distribution": []
+    },
+    {
+      "model": "gain3",
+      "protocol": "weak_bright",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93107604980469,
+      "voltage_max_mV": -2.4274590015411377,
+      "node_distribution": []
+    },
+    {
+      "model": "gain3",
+      "protocol": "dark",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93024444580078,
+      "voltage_max_mV": -2.450599431991577,
+      "node_distribution": []
+    },
+    {
+      "model": "gain3",
+      "protocol": "zero",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93024444580078,
+      "voltage_max_mV": -2.450599431991577,
+      "node_distribution": []
+    },
+    {
+      "model": "gain6",
+      "protocol": "long_warmup",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93175506591797,
+      "voltage_max_mV": -2.282329559326172,
+      "node_distribution": []
+    },
+    {
+      "model": "gain6",
+      "protocol": "short_pulse",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.9317398071289,
+      "voltage_max_mV": -2.4177370071411133,
+      "node_distribution": []
+    },
+    {
+      "model": "gain6",
+      "protocol": "long_pulse",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93175506591797,
+      "voltage_max_mV": -2.2717182636260986,
+      "node_distribution": []
+    },
+    {
+      "model": "gain6",
+      "protocol": "weak_bright",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93121337890625,
+      "voltage_max_mV": -2.4307992458343506,
+      "node_distribution": []
+    },
+    {
+      "model": "gain6",
+      "protocol": "dark",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93034362792969,
+      "voltage_max_mV": -2.450765609741211,
+      "node_distribution": []
+    },
+    {
+      "model": "gain6",
+      "protocol": "zero",
+      "finite": true,
+      "pre_stimulus_matched_exact": true,
+      "voltage_min_mV": -71.93034362792969,
+      "voltage_max_mV": -2.450765609741211,
+      "node_distribution": []
+    }
+  ],
+  "model_reload_max_errors": {
+    "gain3": {
+      "cap": 0.0,
+      "gNa": 0.0,
+      "gK": 0.0,
+      "gLeak": 0.0,
+      "eNa": 0.0,
+      "eK": 0.0,
+      "eLeak": 0.0,
+      "gS": 1.52587890625e-05,
+      "e_syn": 0.0,
+      "v_th_syn": 0.0,
+      "delta_syn": 0.0,
+      "k_minus_syn": 0.0
+    },
+    "gain6": {
+      "cap": 0.0,
+      "gNa": 0.0,
+      "gK": 0.0,
+      "gLeak": 0.0,
+      "eNa": 0.0,
+      "eK": 0.0,
+      "eLeak": 0.0,
+      "gS": 3.0517578125e-05,
+      "e_syn": 0.0,
+      "v_th_syn": 0.0,
+      "delta_syn": 0.0,
+      "k_minus_syn": 0.0
+    }
+  },
+  "mbar": [
+    {
+      "model": "reference",
+      "cost": 7442548.125,
+      "dsi_raw": {
+        "mbar_DSI_bright_T4a": 684.76171875,
+        "mbar_DSI_bright_T4b": 410.365234375
+      },
+      "waveform_metrics": [
+        {
+          "cell": "R1-6",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.794021879847797,
+          "negative_peak_mV": -0.01676165645324801
+        },
+        {
+          "cell": "R1-6",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.79399844126388,
+          "negative_peak_mV": -0.01678199680588932
+        },
+        {
+          "cell": "L1",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 2.151858660857208,
+          "negative_peak_mV": -6.2705813666851355
+        },
+        {
+          "cell": "L1",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 2.21214721239118,
+          "negative_peak_mV": -6.266625933486168
+        },
+        {
+          "cell": "L2",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": -0.008173915556852762,
+          "negative_peak_mV": -4.159295199142775
+        },
+        {
+          "cell": "L2",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": -0.01079099272374151,
+          "negative_peak_mV": -4.18695417344091
+        },
+        {
+          "cell": "L3",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": -0.013522698460519678,
+          "negative_peak_mV": -4.203743032913479
+        },
+        {
+          "cell": "L3",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": -0.012699029976829479,
+          "negative_peak_mV": -4.2077027856078075
+        },
+        {
+          "cell": "L4",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": -0.00028654642395054,
+          "negative_peak_mV": -0.041762394256018354
+        },
+        {
+          "cell": "L4",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 0.0016679157334351657,
+          "negative_peak_mV": -0.04831375932460702
+        },
+        {
+          "cell": "L5",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 7.959308181436782,
+          "negative_peak_mV": -2.5548536553734493
+        },
+        {
+          "cell": "L5",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.100113285691364,
+          "negative_peak_mV": -2.639866091915657
+        },
+        {
+          "cell": "Mi1",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 14.58463506105015,
+          "negative_peak_mV": -1.917951447755513
+        },
+        {
+          "cell": "Mi1",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 14.826126130553376,
+          "negative_peak_mV": -2.0660174647012965
+        },
+        {
+          "cell": "Tm3",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 15.937807213570718,
+          "negative_peak_mV": -1.5766596063690699
+        },
+        {
+          "cell": "Tm3",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 15.736237418091292,
+          "negative_peak_mV": -1.582088201547407
+        },
+        {
+          "cell": "Mi4",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 17.710128020018935,
+          "negative_peak_mV": -0.6436067840862165
+        },
+        {
+          "cell": "Mi4",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 17.45190125539236,
+          "negative_peak_mV": -0.8326043155987719
+        },
+        {
+          "cell": "Mi9",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 0.37814772535531915,
+          "negative_peak_mV": -0.5383817381476064
+        },
+        {
+          "cell": "Mi9",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 0.2714387933125977,
+          "negative_peak_mV": -0.5099335573131185
+        },
+        {
+          "cell": "T4a",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 14.328598570822805,
+          "negative_peak_mV": -4.045948512613904
+        },
+        {
+          "cell": "T4a",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 11.103538351290133,
+          "negative_peak_mV": -1.5631012673774194
+        },
+        {
+          "cell": "T4b",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 10.264590627561148,
+          "negative_peak_mV": -1.2267540816033176
+        },
+        {
+          "cell": "T4b",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 11.71389608982075,
+          "negative_peak_mV": -3.1007699944224214
+        },
+        {
+          "cell": "T4c",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.656760043780618,
+          "negative_peak_mV": -1.840111877566791
+        },
+        {
+          "cell": "T4c",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.69231399378139,
+          "negative_peak_mV": -1.9002696487188118
+        },
+        {
+          "cell": "T4d",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 10.041948433917785,
+          "negative_peak_mV": -1.401324382855833
+        },
+        {
+          "cell": "T4d",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 9.315629261071944,
+          "negative_peak_mV": -1.2188497768486926
+        }
+      ]
+    },
+    {
+      "model": "gain3",
+      "cost": 6640109.5,
+      "dsi_raw": {
+        "mbar_DSI_bright_T4a": 481.294921875,
+        "mbar_DSI_bright_T4b": 480.66015625
+      },
+      "waveform_metrics": [
+        {
+          "cell": "R1-6",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.793541250173107,
+          "negative_peak_mV": -0.016123016190512374
+        },
+        {
+          "cell": "R1-6",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.79376031188417,
+          "negative_peak_mV": -0.015940864580080927
+        },
+        {
+          "cell": "L1",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 0.05990851352358817,
+          "negative_peak_mV": -5.591540030174812
+        },
+        {
+          "cell": "L1",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": -0.02750720020082298,
+          "negative_peak_mV": -5.494353530849281
+        },
+        {
+          "cell": "L2",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": -0.017003230893905652,
+          "negative_peak_mV": -4.244388207283805
+        },
+        {
+          "cell": "L2",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": -0.022912976666020768,
+          "negative_peak_mV": -4.259600017427175
+        },
+        {
+          "cell": "L3",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": -0.012439029249605937,
+          "negative_peak_mV": -4.2112185968450575
+        },
+        {
+          "cell": "L3",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": -0.011271936689723816,
+          "negative_peak_mV": -4.210776801290123
+        },
+        {
+          "cell": "L4",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 0.007326699306389628,
+          "negative_peak_mV": -0.056105838228312166
+        },
+        {
+          "cell": "L4",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 0.005187170244830952,
+          "negative_peak_mV": -0.05165010359880284
+        },
+        {
+          "cell": "L5",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.229451762390383,
+          "negative_peak_mV": -0.25765965196073637
+        },
+        {
+          "cell": "L5",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.338029268056246,
+          "negative_peak_mV": -0.22575576447195544
+        },
+        {
+          "cell": "Mi1",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 10.480257214081341,
+          "negative_peak_mV": -1.9963021022022787
+        },
+        {
+          "cell": "Mi1",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 10.420262434674619,
+          "negative_peak_mV": -2.2888382568988774
+        },
+        {
+          "cell": "Tm3",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 13.043258554840271,
+          "negative_peak_mV": -1.767545747469498
+        },
+        {
+          "cell": "Tm3",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 12.901312689343627,
+          "negative_peak_mV": -1.817139621512851
+        },
+        {
+          "cell": "Mi4",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 15.134108130933097,
+          "negative_peak_mV": -0.08094587860104241
+        },
+        {
+          "cell": "Mi4",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 15.208781548472597,
+          "negative_peak_mV": -0.10704224644763372
+        },
+        {
+          "cell": "Mi9",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 0.32211583935064425,
+          "negative_peak_mV": -0.4906130546728207
+        },
+        {
+          "cell": "Mi9",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 0.21370547146922547,
+          "negative_peak_mV": -0.551714028473441
+        },
+        {
+          "cell": "T4a",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 11.101293475858036,
+          "negative_peak_mV": -3.901996110373993
+        },
+        {
+          "cell": "T4a",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.487883016874832,
+          "negative_peak_mV": -1.7881360625748997
+        },
+        {
+          "cell": "T4b",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.264788421672293,
+          "negative_peak_mV": -1.8596222815171757
+        },
+        {
+          "cell": "T4b",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 10.167598898842765,
+          "negative_peak_mV": -3.295356072360562
+        },
+        {
+          "cell": "T4c",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 7.796741279580935,
+          "negative_peak_mV": -2.1039311554526776
+        },
+        {
+          "cell": "T4c",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 7.652793081472236,
+          "negative_peak_mV": -2.1872667012014375
+        },
+        {
+          "cell": "T4d",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.470007287558147,
+          "negative_peak_mV": -1.9194171853084896
+        },
+        {
+          "cell": "T4d",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 7.762769815830101,
+          "negative_peak_mV": -1.8213790781042078
+        }
+      ]
+    },
+    {
+      "model": "gain6",
+      "cost": 8043056.125,
+      "dsi_raw": {
+        "mbar_DSI_bright_T4a": 502.51171875,
+        "mbar_DSI_bright_T4b": 416.173828125
+      },
+      "waveform_metrics": [
+        {
+          "cell": "R1-6",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.79346654231611,
+          "negative_peak_mV": -0.016181555153004012
+        },
+        {
+          "cell": "R1-6",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.793789526486734,
+          "negative_peak_mV": -0.01591923580317456
+        },
+        {
+          "cell": "L1",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 0.06347273113900798,
+          "negative_peak_mV": -5.427811817917217
+        },
+        {
+          "cell": "L1",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 0.0032811956846643398,
+          "negative_peak_mV": -5.444094698268323
+        },
+        {
+          "cell": "L2",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": -0.023429469260584312,
+          "negative_peak_mV": -4.266456721273457
+        },
+        {
+          "cell": "L2",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": -0.03013691964756049,
+          "negative_peak_mV": -4.289078420216242
+        },
+        {
+          "cell": "L3",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": -0.011823505141833834,
+          "negative_peak_mV": -4.218442804753579
+        },
+        {
+          "cell": "L3",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": -0.012255888879352028,
+          "negative_peak_mV": -4.219211681706341
+        },
+        {
+          "cell": "L4",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 0.0062603834575156725,
+          "negative_peak_mV": -0.05611928563597246
+        },
+        {
+          "cell": "L4",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 0.003926513115153796,
+          "negative_peak_mV": -0.05294564481542352
+        },
+        {
+          "cell": "L5",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.170205005105188,
+          "negative_peak_mV": -0.13460514090095188
+        },
+        {
+          "cell": "L5",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.322822669334215,
+          "negative_peak_mV": -0.11332302300263564
+        },
+        {
+          "cell": "Mi1",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 9.92528110082823,
+          "negative_peak_mV": -2.087563625930194
+        },
+        {
+          "cell": "Mi1",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 9.878716149327339,
+          "negative_peak_mV": -2.2850603751501524
+        },
+        {
+          "cell": "Tm3",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 12.842020420853942,
+          "negative_peak_mV": -2.2432797141698586
+        },
+        {
+          "cell": "Tm3",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 12.650613013789691,
+          "negative_peak_mV": -2.0907498169492698
+        },
+        {
+          "cell": "Mi4",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 15.066445496576652,
+          "negative_peak_mV": 0.009994803663452956
+        },
+        {
+          "cell": "Mi4",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 15.123667526001562,
+          "negative_peak_mV": 0.02920385016458482
+        },
+        {
+          "cell": "Mi9",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 0.3047805852629608,
+          "negative_peak_mV": -0.46760439954259425
+        },
+        {
+          "cell": "Mi9",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 0.2521668987517529,
+          "negative_peak_mV": -0.5153522264097035
+        },
+        {
+          "cell": "T4a",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 11.504085752789479,
+          "negative_peak_mV": -3.9198795651780145
+        },
+        {
+          "cell": "T4a",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 8.834763713472025,
+          "negative_peak_mV": -1.764462156413174
+        },
+        {
+          "cell": "T4b",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.5708417229271,
+          "negative_peak_mV": -1.8472112946340928
+        },
+        {
+          "cell": "T4b",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 10.463427511067827,
+          "negative_peak_mV": -3.082954846578801
+        },
+        {
+          "cell": "T4c",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.007797720896129,
+          "negative_peak_mV": -2.211985205791251
+        },
+        {
+          "cell": "T4c",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 7.919771130662085,
+          "negative_peak_mV": -2.105888055422014
+        },
+        {
+          "cell": "T4d",
+          "condition": "right_bright_w1",
+          "positive_peak_mV": 8.665465543672756,
+          "negative_peak_mV": -1.9691160691454144
+        },
+        {
+          "cell": "T4d",
+          "condition": "left_bright_w1",
+          "positive_peak_mV": 7.960442286168931,
+          "negative_peak_mV": -1.7698800163025794
+        }
+      ]
+    }
+  ],
+  "source_unchanged": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": true,
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": true,
+    "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml": false,
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": true,
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": true
+  },
+  "physics_and_trained_source_files_unchanged": true,
+  "main_config_changed_externally_during_validation": true,
+  "configuration_note": "Saved run options/parameters were loaded once per process. The on-disk main config changed in other ongoing work; no experiment writes to it. Neither HH core file nor the source best_param/train_opts changed.",
+  "validation_complete": true,
+  "original_load_best_verified": [
+    {
+      "candidate": "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/candidate_gain3",
+      "loaded_by_original_load_best": true,
+      "delta_ms": 1.0,
+      "k_minus_syn": 0.01,
+      "gene_mode": "on",
+      "changes": [
+        {
+          "pair": "L1:Mi1",
+          "gS_multiplier": 3,
+          "v_th_syn_mV": -51.0,
+          "delta_syn_mV": 0.5,
+          "gS_per_contact_median_nS": 1.2224913835525513
+        },
+        {
+          "pair": "L1:Tm3",
+          "gS_multiplier": 3,
+          "v_th_syn_mV": -51.0,
+          "delta_syn_mV": 0.5,
+          "gS_per_contact_median_nS": 0.837175190448761
+        }
+      ],
+      "evaluated_mbar_cost": 6640109.5
+    },
+    {
+      "candidate": "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/candidate_gain6",
+      "loaded_by_original_load_best": true,
+      "delta_ms": 1.0,
+      "k_minus_syn": 0.01,
+      "gene_mode": "on",
+      "changes": [
+        {
+          "pair": "L1:Mi1",
+          "gS_multiplier": 6,
+          "v_th_syn_mV": -51.0,
+          "delta_syn_mV": 0.5,
+          "gS_per_contact_median_nS": 2.4449827671051025
+        },
+        {
+          "pair": "L1:Tm3",
+          "gS_multiplier": 6,
+          "v_th_syn_mV": -51.0,
+          "delta_syn_mV": 0.5,
+          "gS_per_contact_median_nS": 1.674350380897522
+        }
+      ],
+      "evaluated_mbar_cost": 8043056.125
+    }
+  ]
+}

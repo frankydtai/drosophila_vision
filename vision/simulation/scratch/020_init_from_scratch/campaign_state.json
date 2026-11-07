@@ -1,0 +1,74 @@
+{
+  "request": "Fresh init-mode training: native spread 100, then moving-bar optimization; best model and seven figures in a new point_hh folder",
+  "numerical_code": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/copy/vision",
+  "native_spread": {
+    "job": "34463440",
+    "seed": 0,
+    "iterations": 100,
+    "initial_cost": 8091284.0,
+    "best_cost": 3187424.25,
+    "complete": true
+  },
+  "mbar_initial": {
+    "job": "34463474",
+    "iterations_each": 80,
+    "learning_rates": [
+      0.003,
+      0.001
+    ],
+    "initial_cost": 9058330.0
+  },
+  "early_seed": {
+    "job": "34463847",
+    "cost": 2130424.25,
+    "source": "mbar_initial_00_0.003",
+    "additional_optimizer_iterations": 0
+  },
+  "refine": {
+    "job": "34463865",
+    "iterations_each": 32,
+    "source": "early_refine_seed/run",
+    "complete": true,
+    "actual_iterations_each": 12,
+    "stop_reason": "no_improving_step"
+  },
+  "important": [
+    "Use this current init-capable code snapshot, never scratch/012 copy.",
+    "No old rule-trained weights were loaded.",
+    "refine_cases.json already contains two running cases; do not overwrite with prepare_refine.py.",
+    "If adding a late refinement, append a new case and launch only its array index.",
+    "choose_result.py must wait for all listed mbar/refine/extend cases and compares only moving-bar losses.",
+    "render.py validates mode init, native spread100, exact parameter/Adam roundtrip and seven PNGs.",
+    "export.py writes a fresh point_hh folder and verifies original source hashes."
+  ],
+  "planned_followup": "From the lowest completed checkpoint: continued Adam80 (lr .003), backtracking32 (lr cap .001), reset Adam40 (lr .001), all init-only, same model and bounds.",
+  "extend": {
+    "job": "34464076",
+    "source": "mbar_initial_00_0.003/run",
+    "seed_cost": 1851093.625,
+    "cases": [
+      "extend_00_adam:80",
+      "extend_01_backtrack:32",
+      "extend_02_reset:40"
+    ]
+  },
+  "polish_job": "34464938",
+  "polish_seed": {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run",
+    "cost": 1509479.75,
+    "additional_iterations": [
+      64,
+      32
+    ]
+  },
+  "phase": "complete",
+  "finalize_job": "34464984",
+  "finalize_requires_success": [
+    "34464076",
+    "34464938"
+  ],
+  "result_folder": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+  "best_loss": 1002873.5625,
+  "total_computed_iterations": 532,
+  "final_audit": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/final_audit.json"
+}

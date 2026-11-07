@@ -1,0 +1,747 @@
+"""Simulation + plotting for the FiveCol medulla model."""
+import importlib
+import json
+import os
+
+import hydra
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+
+import import_bootstrap  # noqa: F401
+import train
+from figure.panel import (
+    network_hex_count,
+    ElapsedTimer,
+    plot_cost_figure,
+    plot_cost_total,
+)
+from train.session import run_data_dir
+from train.implementation import (
+    best_param_path,
+    load_best_node_vals,
+    load_stored_costs,
+    resolve_run_dir,
+    session_z_from_node_vals,
+)
+from network.construction import cell_rows
+
+
+def filter_figure_token(filter=None) -> str:
+    """Figure filename token from train ``filter``: ``none`` → ``v``, ``ca`` → ``ca``."""
+    if filter is None or str(filter) == "none":
+        return "v"
+    return str(filter)
+
+
+def session_filter_figure_token(session) -> str:
+    opts = (session.train_opts if session is not None else None) or {}
+    return filter_figure_token(opts.get("filter"))
+
+
+def figure_subtitle_sti_geo(session, task):
+    """Subtitle suffix from sti geometry (centers × shifts, hex count)."""
+    opts = (session.train_opts or {}).get(f'{task}_sti_opts') or {}
+    resolve = getattr(
+        importlib.import_module('task.' + task + '.sti_geo'),
+        'resolve_' + task,
+    )
+    geo = resolve(session.connectome, sti_opts=opts)
+    n_center = len(geo.centers)
+    n_shift = len(geo.shifts)
+    n_hex = network_hex_count(session.connectome)
+    return (
+        f'  [avg over {n_center} centers x {n_shift} shifts = {n_center * n_shift}]\n'
+        f'({n_hex} hexes in network)'
+    )
+
+
+def plot_cost(costs, path, *, costs_by_part=None, part_order=None, session=None):
+    """Plot train cost grouped by cell / series from ``session`` pack metadata."""
+    from itertools import cycle, islice
+
+    timer = ElapsedTimer()
+    timer.end_prep()
+    if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
+        raise ValueError("plot_cost requires non-empty `costs`")
+
+    if not costs_by_part:
+        plot_cost_total(costs, path, timer=timer)
+        return
+
+    if session is None:
+        raise ValueError("plot_cost with costs_by_part requires session")
+
+    part_specs = train.session_cost_part_plot_specs(session)
+    part_keys = list(part_order) if part_order else list(costs_by_part.keys())
+    part_keys = [key for key in part_keys if key in costs_by_part and len(costs_by_part[key])]
+
+    if not part_keys:
+        plot_cost_total(costs, path, timer=timer)
+        return
+
+    costs_by_cell = {}
+    costs_global = []
+    series_order = []
+    series_seen = set()
+
+    for part_key in part_keys:
+        part_costs = np.asarray(costs_by_part[part_key], dtype=np.float64)
+        if part_costs.size == 0:
+            continue
+
+        spec = part_specs.get(part_key)
+        if spec is None:
+            raise ValueError(f"unknown cost part_key {part_key!r} for session packs")
+        cell, series, label = spec.cell, spec.series, spec.label
+        if series not in series_seen:
+            series_seen.add(series)
+            series_order.append(series)
+        if cell is None:
+            costs_global.append((series, label, part_costs))
+        else:
+            costs_by_cell.setdefault(cell, []).append((series, label, part_costs))
+
+    palette = list(plt.get_cmap("tab20").colors)
+    colors_by_series = dict(zip(
+        series_order, islice(cycle(palette), len(series_order)),
+    ))
+
+    rows = cell_rows(sorted(costs_by_cell.keys()))
+    plot_cost_figure(
+        costs,
+        path,
+        costs_by_cell=costs_by_cell,
+        costs_global=costs_global,
+        series_order=series_order,
+        colors_by_series=colors_by_series,
+        rows=rows,
+        timer=timer,
+    )
+
+
+def _plot_device_label():
+    device = train.active_device()
+    if device == 'cuda' and torch.cuda.is_available():
+        return f'cuda ({torch.cuda.get_device_name(0)})'
+    return device
+
+
+def load_train_opts(run_dir):
+    opts_path = os.path.join(
+        run_data_dir(os.path.abspath(run_dir)), "train_opts.json",
+    )
+    if not os.path.isfile(opts_path):
+        return None
+    with open(opts_path) as f:
+        return json.load(f)
+
+
+def session_from_task(base_session, task, contrast):
+    """Session with one ``task`` × one ``contrast``; shared connectome/schema."""
+    opts = dict(base_session.train_opts or {})
+    opts['tasks'] = [task]
+    opts['contrasts'] = [contrast]
+    opts['packs'] = None
+    opts['network'] = base_session.connectome
+    return train.open_session(opts, base_session.model,
+                           schema=train.schema_copy(base_session.schema))
+
+
+def resolve_model(run_dir, model=None):
+    if model is None:
+        opts = load_train_opts(run_dir)
+        if not opts or 'model' not in opts:
+            raise SystemExit(
+                f'cannot determine model for {run_dir!r}; '
+                f'expected train_opts.json with "model" in '
+                f'{train.MODELS}'
+            )
+        model = opts['model']
+    if model not in train.MODELS:
+        raise SystemExit(
+            f'invalid model {model!r} in {run_dir!r}; '
+            f'expected one of {train.MODELS}'
+        )
+    return model
+
+
+def select_best(params, session, *, final_costs=None, verbose=True):
+    """Pick the best parameter row via ``argmin`` of costs; ``calc_cost`` only when not supplied."""
+    params = np.atleast_2d(params)
+    valid_mask = (
+        np.ones(params.shape[0], dtype=bool)
+        if params.shape[1] == 0
+        else np.any(params != 0, axis=1)
+    )
+    valid = params[valid_mask]
+    if len(valid) == 0:
+        raise SystemExit('no trained parameter sets found (file all zeros)')
+    valid_run_idxs = np.where(valid_mask)[0]
+
+    note = ''
+    if final_costs is not None:
+        final_costs = np.asarray(final_costs, dtype=np.float64)
+        if final_costs.shape[0] != params.shape[0]:
+            raise ValueError(
+                f'final_costs length {final_costs.shape[0]} != params runs {params.shape[0]}',
+            )
+        valid_costs = final_costs[valid_mask]
+        best = int(np.argmin(valid_costs))
+        run = int(valid_run_idxs[best])
+        selected = float(final_costs[run])
+        note = ' (from saved final costs)'
+    else:
+        costs_out = []
+        for row in valid:
+            z = torch.tensor(row, dtype=session.sim_dtype, device=session.device)
+            costs_out.append(train.calc_cost(z, session).item())
+        valid_costs = np.array(costs_out)
+        best = int(np.argmin(valid_costs))
+        run = int(valid_run_idxs[best])
+        selected = float(valid_costs[best])
+    if verbose:
+        print(f'{len(valid)} trained set(s); costs min={valid_costs.min():.4f} '
+              f'max={valid_costs.max():.4f}; selected #{run}{note}')
+    return valid[best], selected
+
+
+def _session_z_from_best_param(session, run_dir):
+    """Remap ``best_param.npz`` per-param vals onto ``session``; return ``(session, z)``."""
+    node_vals, cells, pairs = load_best_node_vals(run_dir)
+    return session_z_from_node_vals(node_vals, cells, pairs, session)
+
+
+def load_best(run_dir, *, model=None, verbose=False):
+    """Load session and best ``z`` from a train run (``best_param.npz`` + costs)."""
+    run_dir = os.path.abspath(run_dir)
+    if not os.path.isdir(run_dir):
+        raise SystemExit(f'run dir not found: {run_dir}')
+    model = resolve_model(run_dir, model=model)
+    session, z = _session_z_from_best_param(train.session_from_run_dir(run_dir, model=model), run_dir)
+    best_cost = None
+    final_costs, _, _, _ = load_stored_costs(run_dir)
+    if final_costs is not None and len(final_costs) > 0:
+        best_cost = float(final_costs[int(np.argmin(final_costs))])
+    if best_cost is None:
+        best_cost = train.calc_cost(z, session).item()
+    if verbose:
+        print(f'loaded best_param.npz (cost={best_cost:.4f})')
+    return session, z, float(best_cost)
+
+
+def override_session(
+    *,
+    run_dir,
+    session,
+    z,
+    ms_pre=None,
+    ms_response=None,
+    ms_post=None,
+    ms_sti=None,
+    delta_ms=None,
+    delta_ms_pre=None,
+    euler=None,
+    filter=None,
+):
+    """Re-open session when any ms / euler / filter override is set; remap best ``z``.
+
+    Unset flags keep values from the run's train opts. ``ms_pre`` /
+    ``delta_ms`` / ``delta_ms_pre`` also update the last task sti opts;
+    ``ms_response`` / ``ms_post`` / ``ms_sti`` apply to earlier tasks. ``euler`` is
+    CLI ``im``/``ex`` (or already expanded ``implicit``/``explicit``).
+    ``filter`` is ``none``/``ca``.
+
+    Returns ``(session, z, ms_changed)`` where ``ms_changed`` maps
+    ms keys that differ from the run (for filename suffixes).
+    """
+    if (
+        ms_pre is None
+        and ms_response is None
+        and ms_post is None
+        and ms_sti is None
+        and delta_ms is None
+        and delta_ms_pre is None
+        and euler is None
+        and filter is None
+    ):
+        return session, z, {}
+
+    if delta_ms is not None and float(delta_ms) <= 0:
+        raise SystemExit(f"delta_ms={delta_ms} must be > 0")
+    if delta_ms_pre is not None and float(delta_ms_pre) <= 0:
+        raise SystemExit(f"delta_ms_pre={delta_ms_pre} must be > 0")
+    if ms_post is not None and float(ms_post) < 0:
+        raise SystemExit("ms_post must be >= 0")
+
+    opts = load_train_opts(run_dir)
+    if opts is None:
+        raise SystemExit(f"missing train opts under {run_dir}")
+
+    ms_changed = {}
+    if (
+        ms_pre is not None
+        or ms_response is not None
+        or ms_post is not None
+        or ms_sti is not None
+        or delta_ms is not None
+        or delta_ms_pre is not None
+    ):
+        pairs = (
+            ("ms_pre", ms_pre),
+            ("ms_post", ms_post),
+            ("delta_ms", delta_ms),
+            ("delta_ms_pre", delta_ms_pre),
+            ("ms_response", ms_response),
+            ("ms_sti", ms_sti),
+        )
+        val = lambda ms: None if ms is None else float(ms)
+
+        def merge_ms(sti_opts, merge_pairs):
+            before = {key: val(sti_opts.get(key)) for key, _ in merge_pairs}
+            for key, ms in merge_pairs:
+                if ms is not None:
+                    sti_opts[key] = float(ms)
+            ms_sti_val = sti_opts.get("ms_sti")
+            ms_response_val = sti_opts.get("ms_response")
+            if ms_sti_val is not None and ms_response_val is not None:
+                sti_opts["ms_response"] = max(
+                    float(ms_response_val), float(ms_sti_val),
+                )
+            sti_opts.pop("n_t", None)
+            return {
+                key: sti_opts[key]
+                for key, _ in merge_pairs
+                if val(sti_opts.get(key)) != before[key]
+            }
+
+        for task in train.TASKS:
+            sti_opts = opts.get(f'{task}_sti_opts')
+            if sti_opts is None:
+                continue
+            if task == train.TASKS[-1]:
+                ms_changed.update(merge_ms(
+                    sti_opts,
+                    (
+                        ("ms_pre", ms_pre),
+                        ("ms_post", None),
+                        ("delta_ms", delta_ms),
+                        ("delta_ms_pre", delta_ms_pre),
+                        ("ms_response", None),
+                        ("ms_sti", None),
+                    ),
+                ))
+            else:
+                ms_changed.update(merge_ms(sti_opts, pairs))
+
+    if euler is not None:
+        opts["euler"] = train.expand_euler(euler)
+
+    if filter is not None:
+        opts["filter"] = str(filter)
+
+    session = train.resolve_session(opts, model=opts.get("model"))
+    session, z = _session_z_from_best_param(session, run_dir)
+    return session, z, ms_changed
+
+
+def _filename_token(value):
+    val = float(value)
+    if val == int(val):
+        return str(int(val))
+    return "%g" % val
+
+
+def ms_filename_suffix(
+    *,
+    ms_pre=None,
+    ms_sti=None,
+    ms_response=None,
+    ms_post=None,
+    delta_ms=None,
+    delta_ms_pre=None,
+):
+    """PNG filename token suffix for ms keys that differ from the run (plot / analyze).
+
+    Order: pre, sti, response, post, delta, delta_pre. Example::
+
+        _ms_post_2500
+
+    Empty string when every value is unset.
+    """
+    parts = []
+    for name, val in (
+        ("ms_pre", ms_pre),
+        ("ms_sti", ms_sti),
+        ("ms_response", ms_response),
+        ("ms_post", ms_post),
+        ("delta", delta_ms),
+        ("delta_pre", delta_ms_pre),
+    ):
+        if val is not None:
+            parts.append(f"{name}_{_filename_token(val)}")
+    if not parts:
+        return ""
+    return "_" + "_".join(parts)
+
+
+def euler_filename_suffix(euler=None):
+    """PNG filename token suffix for a non-``None`` euler override (``_im`` / ``_ex``)."""
+    if euler is None:
+        return ""
+    token = str(euler)
+    if token not in ("im", "ex"):
+        raise ValueError(f"euler filename suffix expects im|ex, got {euler!r}")
+    return f"_{token}"
+
+
+def param_filename_suffix(param_vals=None):
+    parts = []
+    for param, bag in (param_vals or {}).items():
+        if isinstance(bag, dict):
+            for node, number in bag.items():
+                parts.append("_".join([
+                    str(param), "val", str(node).replace(":", "_"),
+                    _filename_token(number),
+                ]))
+        else:
+            parts.append("_".join([
+                str(param), "val", _filename_token(bag),
+            ]))
+    if not parts:
+        return ""
+    return "_" + "_".join(parts)
+
+
+def at_xy_filename_suffix(at_x=None, at_y=None):
+    """PNG filename token suffix for ``x`` / ``y`` hex-step filters (analyze slice tokens)."""
+    parts = []
+    if at_x is not None:
+        parts.extend(f"x{_filename_token(x)}" for x in at_x)
+    if at_y is not None:
+        parts.extend(f"y{_filename_token(y)}" for y in at_y)
+    if not parts:
+        return ""
+    return "_" + "_".join(parts)
+
+
+def _stored_cost_parts(run_dir):
+    """Best-run weighted contributions from ``costs_by_part.npz`` (no forward)."""
+    final_costs, _, _, final_costs_by_part = load_stored_costs(run_dir)
+    if not final_costs_by_part or final_costs is None or len(final_costs) == 0:
+        return {}
+    run = int(np.argmin(np.asarray(final_costs)))
+    cost_parts = {}
+    for part_key, costs in final_costs_by_part.items():
+        costs = np.asarray(costs).reshape(-1)
+        if run < costs.size:
+            cost_parts[part_key] = float(costs[run])
+    return cost_parts
+
+
+def plot_path(run_dir, token, file_suffix="", *, html=False):
+    return os.path.join(run_dir, f"{token}{file_suffix}{'.html' if html else '.png'}")
+
+
+def figure_path_token(base_token, session):
+    """``{base_token}_v`` / ``{base_token}_ca`` (filter chooses ``v`` or ``ca``, not both)."""
+    return f"{base_token}_{session_filter_figure_token(session)}"
+
+
+def figure_gt_token(task):
+    return f"{task}_gt"
+
+
+def figure_all_token(task):
+    return f"{task}_all"
+
+
+def _readout_kwargs(task, **kwargs):
+    readout_kwargs = {}
+    if kwargs.get('ms_shown') is not None:
+        readout_kwargs['ms_shown'] = kwargs['ms_shown']
+    figure_task = importlib.import_module('figure.' + task)
+    if getattr(figure_task, 'PLOT_AT_XY', False):
+        readout_kwargs['at_xs'] = kwargs.get('at_x')
+        readout_kwargs['at_ys'] = kwargs.get('at_y')
+    if getattr(figure_task, 'PLOT_ALIGN_XY', False):
+        readout_kwargs['align_at_x'] = kwargs.get('align_at_x')
+        readout_kwargs['align_at_y'] = kwargs.get('align_at_y')
+    return readout_kwargs
+
+
+def plot_figures(session, z, run_dir, suffix, model_all, *, task, **kwargs):
+    """Dispatch gt/all figures for one ``task`` via ``figure.<task>`` hooks."""
+    figure_task = importlib.import_module('figure.' + task)
+    token = session_filter_figure_token(session)
+    gt_token = figure_gt_token(task)
+    all_token = figure_all_token(task)
+    file_suffix = kwargs.get('file_suffix', '')
+    html = kwargs.get('html', False)
+    figure_kwargs = dict(
+        gts=kwargs.get('gts'),
+        cost_parts=kwargs.get('cost_parts'),
+    )
+    readout_kwargs = _readout_kwargs(task, **kwargs)
+    contrasts = tuple(session.contrasts)
+    plot_gt_extra = {}
+    if getattr(figure_task, 'PLOT_ALIGN_XY', False):
+        plot_gt_extra['right_only'] = kwargs.get('plot_right_only', True)
+
+    if set(contrasts) >= {"bright", "dark"}:
+        readouts = {
+            contrast: figure_task.build_readout(session, z, contrast, **readout_kwargs)
+            for contrast in ("bright", "dark")
+        }
+        gt_title, all_title = figure_task.figure_titles(session, suffix, token)
+        gt_path = plot_path(
+            run_dir, figure_path_token(gt_token, session), file_suffix, html=html,
+        )
+        figure_task.plot_gt(
+            gt_path, readouts=readouts, title=gt_title,
+            cost_parts=figure_kwargs.get('cost_parts'),
+            **plot_gt_extra,
+        )
+        all_path = None
+        if model_all and hasattr(figure_task, "plot_all"):
+            all_path = plot_path(
+                run_dir, figure_path_token(all_token, session), file_suffix, html=html,
+            )
+            figure_task.plot_all(
+                all_path, readouts=readouts, title=all_title,
+                cost_parts=figure_kwargs.get('cost_parts'),
+                **plot_gt_extra,
+            )
+        return gt_path, all_path
+
+    gt_path = all_path = None
+    for contrast in contrasts:
+        gt_title, all_title = figure_task.figure_titles(session, suffix, token, contrast=contrast)
+        gt_path = plot_path(
+            run_dir, figure_path_token(gt_token, session), file_suffix, html=html,
+        )
+        readouts = {contrast: figure_task.build_readout(session, z, contrast, **readout_kwargs)}
+        figure_task.plot_gt(
+            gt_path, readouts=readouts, title=gt_title,
+            cost_parts=figure_kwargs.get('cost_parts'),
+            **plot_gt_extra,
+        )
+        if model_all and hasattr(figure_task, "plot_all"):
+            all_path = plot_path(
+                run_dir, figure_path_token(all_token, session), file_suffix, html=html,
+            )
+            figure_task.plot_all(
+                all_path, readouts=readouts, title=all_title,
+                cost_parts=figure_kwargs.get('cost_parts'),
+                **plot_gt_extra,
+            )
+    return gt_path, all_path
+
+
+def plot_rf_t(params, run_dir, model=None, model_all=True,
+                   context_dir=None,
+                   only_tasks=None, figure_tasks=None, session=None, *,
+                   final_costs=None,
+                   gts=None,
+                   plot_right_only=True, at_x=None, at_y=None,
+                   align_at_x=None, align_at_y=None,
+                   file_suffix="", html=False, ms_shown=None,
+                   calc_cost=False):
+    """Plot selected parameters without modifying saved training data."""
+    os.makedirs(run_dir, exist_ok=True)
+    ctx = context_dir or run_dir
+    if model is None and session is not None:
+        model = session.model
+    if model is None:
+        raise ValueError('model or session required')
+    if session is None:
+        session = train.session_from_run_dir(ctx, model)
+
+    params = np.atleast_2d(params)
+    if final_costs is None:
+        final_costs, _, _, _ = load_stored_costs(run_dir)
+
+    print(f'plot device={_plot_device_label()}')
+    best, best_cost = select_best(
+        params, session, final_costs=final_costs,
+    )
+    z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
+    if calc_cost:
+        with torch.no_grad():
+            parts = train.calc_cost_parts(z, session)
+            cost_parts = {k: float(v.item()) for k, v in parts.items()}
+            best_cost = float(train.calc_cost(z, session, parts=parts).item())
+    else:
+        cost_parts = _stored_cost_parts(run_dir)
+
+    suffix = f'trained, cost {best_cost:.2f}'
+    cost_norm = (session.train_opts or {}).get("cost_norm", "a_gt2")
+    if cost_norm == "gt_power":
+        suffix = f'{suffix}% of gt power'
+    else:
+        suffix = f'{suffix} ({cost_norm})'
+    tasks = list(session.tasks if figure_tasks is None else figure_tasks)
+    if only_tasks is not None:
+        tasks = [task for task in tasks if task in only_tasks]
+
+    if (at_x is not None or at_y is not None) and not any(
+        getattr(importlib.import_module('figure.' + task), 'PLOT_AT_XY', False) for task in tasks
+    ):
+        raise SystemExit('--x/--y require a task figure module with PLOT_AT_XY')
+    if align_at_x is not None or align_at_y is not None:
+        if align_at_x is None or align_at_y is None:
+            raise SystemExit('--align-xy requires X,Y')
+        if at_x is None and at_y is None:
+            raise SystemExit('--align-xy requires --x and/or --y')
+        if not any(getattr(importlib.import_module('figure.' + task), 'PLOT_ALIGN_XY', False) for task in tasks):
+            raise SystemExit('--align-xy requires a task figure module with PLOT_ALIGN_XY')
+
+    for task in tasks:
+        plot_figures(
+            session, z, run_dir, suffix, model_all,
+            task=task,
+            gts=gts,
+            file_suffix=file_suffix,
+            html=html,
+            ms_shown=ms_shown,
+            cost_parts=cost_parts,
+            at_x=at_x,
+            at_y=at_y,
+            align_at_x=align_at_x,
+            align_at_y=align_at_y,
+            plot_right_only=plot_right_only,
+        )
+
+    return best, best_cost
+
+
+def parse_at_xs(token):
+    """Parse scalar/list ``x`` / ``y`` values (``null`` → ``None``)."""
+    if token is None:
+        return None
+    if isinstance(token, (int, float)) and not isinstance(token, bool):
+        return [float(token)]
+    if isinstance(token, str):
+        raise ValueError("x/y strings are not supported; use a number or list")
+    at_xs = [float(x) for x in token]
+    if not at_xs:
+        raise ValueError("empty x/y list")
+    return at_xs
+
+
+def parse_align_xy(token):
+    """Parse two-item ``align_xy`` reference-stimulus hex list."""
+    if token is None:
+        return None
+    if isinstance(token, str):
+        raise ValueError("align_xy strings are not supported; use [X,Y]")
+    parts = list(token)
+    if len(parts) != 2:
+        raise ValueError("align_xy requires exactly two values [X,Y]")
+    return float(parts[0]), float(parts[1])
+
+
+def parse_ms_shown(token, *, flag="ms_shown"):
+    """Parse ``[START,STOP]`` milliseconds."""
+    if isinstance(token, str):
+        raise ValueError(f"{flag} strings are not supported; use [START,STOP]")
+    parts = list(token)
+    if len(parts) != 2:
+        raise ValueError(f"{flag} must be START,STOP")
+    start, stop = float(parts[0]), float(parts[1])
+    if start > stop:
+        raise ValueError(f"{flag} START={start} > STOP={stop}")
+    return start, stop
+
+
+def plot_trained_run(
+    run_dir,
+    *,
+    figure_kwargs,
+    euler=None,
+    filter=None,
+    param_vals=None,
+    ms_pre=None,
+    ms_response=None,
+    ms_post=None,
+    ms_sti=None,
+    delta_ms=None,
+    delta_ms_pre=None,
+):
+    """Re-plot a trained run; session/parameter overrides affect figures only."""
+    param_vals = param_vals or {}
+    session, z, best_cost = load_best(run_dir, verbose=True)
+    session, z, ms_changed = override_session(
+        run_dir=run_dir, session=session, z=z,
+        ms_pre=ms_pre,
+        ms_response=ms_response,
+        ms_post=ms_post,
+        ms_sti=ms_sti,
+        delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
+        euler=euler,
+        filter=filter,
+    )
+    z = (
+        z if torch.is_tensor(z)
+        else torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64,
+                          device=session.device)
+    )
+    try:
+        z, schema = train.override_params(
+            z, train.schema_copy(session.schema), session, param_vals=param_vals,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    session = session.with_schema(schema)
+    calc_cost = bool(
+        ms_changed or euler is not None or filter is not None or param_vals
+    )
+    file_suffix = (
+        ms_filename_suffix(**ms_changed)
+        + euler_filename_suffix(euler)
+        + param_filename_suffix(param_vals=param_vals)
+        + at_xy_filename_suffix(
+            figure_kwargs.get('at_x'),
+            figure_kwargs.get('at_y'),
+        )
+    )
+    model = resolve_model(run_dir)
+    z = z.detach().cpu().numpy()
+    print(f'params={best_param_path(run_dir)}')
+    print(f'model={model} ({z.shape[-1]} params)')
+    plot_rf_t(
+        np.atleast_2d(z),
+        run_dir,
+        model=model,
+        session=session,
+        final_costs=np.array([best_cost]),
+        file_suffix=file_suffix,
+        calc_cost=calc_cost,
+        **figure_kwargs,
+    )
+
+
+@hydra.main(version_base=None, config_path="../conf", config_name="config")
+def main(hydra_config):
+    from config import (
+        active_config,
+        resolve_config,
+        resolve_figure_kwargs,
+        session_kwargs_from_cli,
+    )
+
+    resolve_config(hydra_config)
+    figure_kwargs = resolve_figure_kwargs(hydra_config)
+    run_dir = resolve_run_dir(active_config()["run_path"])
+    session_kwargs = session_kwargs_from_cli(hydra_config)
+    plot_trained_run(
+        run_dir,
+        figure_kwargs=figure_kwargs,
+        param_vals=dict(active_config().get("param_vals") or {}),
+        **session_kwargs,
+    )
+
+
+if __name__ == '__main__':
+    main()

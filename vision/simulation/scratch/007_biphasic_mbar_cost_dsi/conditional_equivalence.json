@@ -1,0 +1,6 @@
+{
+  "max_abs_error_mV": 7.62939453125e-06,
+  "rmse_mV": 2.27709104905216e-08,
+  "outgoing_T4_conductance_zero": true,
+  "method": "Original HH step, exact precomputed upstream trajectories, unchanged incoming edge order, full initial-state solve."
+}

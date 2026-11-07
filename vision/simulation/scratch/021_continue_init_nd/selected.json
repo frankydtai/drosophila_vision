@@ -1,0 +1,52 @@
+{
+  "label": "nd_resume_0003",
+  "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/nd_resume_0003/run",
+  "cost": 994279.375,
+  "nd_sum": 576710.484375,
+  "adam_iter": 138,
+  "case": {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "n_iter": 40,
+    "backtrack": false,
+    "label": "nd_resume_0003",
+    "resume_adam": true,
+    "lr": 0.0003
+  },
+  "metrics": {
+    "total": 994279.375,
+    "parts": {
+      "mbar_right_bright_w1_T4a_PD": 178565.671875,
+      "mbar_right_bright_w1_T4b_ND": 241680.765625,
+      "mbar_left_bright_w1_T4a_ND": 335029.71875,
+      "mbar_left_bright_w1_T4b_PD": 239003.265625
+    },
+    "groups": {
+      "mbar_DSI_bright_T4a": {
+        "pd_peak_mV": 14.79284381866455,
+        "nd_peak_mV": 10.843286514282227,
+        "nd_pd_ratio": 0.7330089229091261,
+        "dsi_peak": 0.1540621478962389
+      },
+      "mbar_DSI_bright_T4b": {
+        "pd_peak_mV": 14.527135848999023,
+        "nd_peak_mV": 9.937688827514648,
+        "nd_pd_ratio": 0.6840776413748064,
+        "dsi_peak": 0.18759370158145156
+      }
+    }
+  },
+  "response_improved": true,
+  "both_ratios_improved": false,
+  "selection_tradeoff": "ND_peaks_and_total_lower_but_at_least_one_ND_PD_ratio_did_not_improve"
+}

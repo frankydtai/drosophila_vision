@@ -1,0 +1,434 @@
+{
+  "balanced_000": {
+    "case": {
+      "name": "balanced_000",
+      "forward_gain": 1.0,
+      "feedback_gain": 1.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 1.0,
+      "Mi1": 1.0,
+      "Tm3": 1.0
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 0.0,
+      "Mi1": 0.0,
+      "Tm3": 0.0
+    }
+  },
+  "balanced_001": {
+    "case": {
+      "name": "balanced_001",
+      "forward_gain": 1.0,
+      "feedback_gain": 1.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 1.0611395119475373,
+      "Mi1": 2.2760288977323873,
+      "Tm3": 2.020007608744203
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 6.534541626024293e-06,
+      "Mi1": 4.702103979070671e-06,
+      "Tm3": -1.0784761798277032e-05
+    }
+  },
+  "balanced_002": {
+    "case": {
+      "name": "balanced_002",
+      "forward_gain": 1.0,
+      "feedback_gain": 3.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 2.1163381079762016,
+      "Mi1": 1.0,
+      "Tm3": 1.0
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 9.21981245483039e-06,
+      "Mi1": 0.0,
+      "Tm3": 0.0
+    }
+  },
+  "balanced_003": {
+    "case": {
+      "name": "balanced_003",
+      "forward_gain": 1.0,
+      "feedback_gain": 3.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 2.299756612578129,
+      "Mi1": 2.2760288977323873,
+      "Tm3": 2.020007608744203
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 1.7333246432826854e-05,
+      "Mi1": 4.702103979070671e-06,
+      "Tm3": -1.0784761798277032e-05
+    }
+  },
+  "balanced_004": {
+    "case": {
+      "name": "balanced_004",
+      "forward_gain": 1.0,
+      "feedback_gain": 10.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 6.02352118598234,
+      "Mi1": 1.0,
+      "Tm3": 1.0
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 1.6964453607215546e-05,
+      "Mi1": 0.0,
+      "Tm3": 0.0
+    }
+  },
+  "balanced_005": {
+    "case": {
+      "name": "balanced_005",
+      "forward_gain": 1.0,
+      "feedback_gain": 10.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 6.634916467909269,
+      "Mi1": 2.2760288977323873,
+      "Tm3": 2.020007608744203
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 4.425509905559011e-05,
+      "Mi1": 4.702103979070671e-06,
+      "Tm3": -1.0784761798277032e-05
+    }
+  },
+  "balanced_006": {
+    "case": {
+      "name": "balanced_006",
+      "forward_gain": 1.0,
+      "feedback_gain": 30.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 17.186902665625112,
+      "Mi1": 1.0,
+      "Tm3": 1.0
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": -0.00011506325245136395,
+      "Mi1": 0.0,
+      "Tm3": 0.0
+    }
+  },
+  "balanced_007": {
+    "case": {
+      "name": "balanced_007",
+      "forward_gain": 1.0,
+      "feedback_gain": 30.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 19.0210885114059,
+      "Mi1": 2.2760288977323873,
+      "Tm3": 2.020007608744203
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 2.3602719011250883e-05,
+      "Mi1": 4.702103979070671e-06,
+      "Tm3": -1.0784761798277032e-05
+    }
+  },
+  "balanced_008": {
+    "case": {
+      "name": "balanced_008",
+      "forward_gain": 2.0,
+      "feedback_gain": 1.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 1.0,
+      "Mi1": 2.0118548367397477,
+      "Tm3": 2.1434653876583294
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 0.0,
+      "Mi1": 6.546066742885159e-06,
+      "Tm3": -1.582392906129826e-05
+    }
+  },
+  "balanced_009": {
+    "case": {
+      "name": "balanced_009",
+      "forward_gain": 2.0,
+      "feedback_gain": 1.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 1.0611395119475373,
+      "Mi1": 4.563912559069405,
+      "Tm3": 4.183480434009889
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 6.534541626024293e-06,
+      "Mi1": 5.900679752812721e-06,
+      "Tm3": -5.8397836255608127e-05
+    }
+  },
+  "balanced_010": {
+    "case": {
+      "name": "balanced_010",
+      "forward_gain": 2.0,
+      "feedback_gain": 3.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 2.1163381079762016,
+      "Mi1": 2.0118548367397477,
+      "Tm3": 2.1434653876583294
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 9.21981245483039e-06,
+      "Mi1": 6.546066742885159e-06,
+      "Tm3": -1.582392906129826e-05
+    }
+  },
+  "balanced_011": {
+    "case": {
+      "name": "balanced_011",
+      "forward_gain": 2.0,
+      "feedback_gain": 3.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 2.299756612578129,
+      "Mi1": 4.563912559069405,
+      "Tm3": 4.183480434009889
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 1.7333246432826854e-05,
+      "Mi1": 5.900679752812721e-06,
+      "Tm3": -5.8397836255608127e-05
+    }
+  },
+  "balanced_012": {
+    "case": {
+      "name": "balanced_012",
+      "forward_gain": 2.0,
+      "feedback_gain": 10.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 6.02352118598234,
+      "Mi1": 2.0118548367397477,
+      "Tm3": 2.1434653876583294
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 1.6964453607215546e-05,
+      "Mi1": 6.546066742885159e-06,
+      "Tm3": -1.582392906129826e-05
+    }
+  },
+  "balanced_013": {
+    "case": {
+      "name": "balanced_013",
+      "forward_gain": 2.0,
+      "feedback_gain": 10.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 6.634916467909269,
+      "Mi1": 4.563912559069405,
+      "Tm3": 4.183480434009889
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 4.425509905559011e-05,
+      "Mi1": 5.900679752812721e-06,
+      "Tm3": -5.8397836255608127e-05
+    }
+  },
+  "balanced_014": {
+    "case": {
+      "name": "balanced_014",
+      "forward_gain": 2.0,
+      "feedback_gain": 30.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 17.186902665625112,
+      "Mi1": 2.0118548367397477,
+      "Tm3": 2.1434653876583294
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": -0.00011506325245136395,
+      "Mi1": 6.546066742885159e-06,
+      "Tm3": -1.582392906129826e-05
+    }
+  },
+  "balanced_015": {
+    "case": {
+      "name": "balanced_015",
+      "forward_gain": 2.0,
+      "feedback_gain": 30.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 19.0210885114059,
+      "Mi1": 4.563912559069405,
+      "Tm3": 4.183480434009889
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 2.3602719011250883e-05,
+      "Mi1": 5.900679752812721e-06,
+      "Tm3": -5.8397836255608127e-05
+    }
+  },
+  "balanced_016": {
+    "case": {
+      "name": "balanced_016",
+      "forward_gain": 4.0,
+      "feedback_gain": 1.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 1.0,
+      "Mi1": 4.035564583354359,
+      "Tm3": 4.430395991838141
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 0.0,
+      "Mi1": 5.900679752812721e-06,
+      "Tm3": -3.2401378120994195e-05
+    }
+  },
+  "balanced_017": {
+    "case": {
+      "name": "balanced_017",
+      "forward_gain": 4.0,
+      "feedback_gain": 1.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 1.0611395119475373,
+      "Mi1": 9.139679881743442,
+      "Tm3": 8.510426769088646
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 6.534541626024293e-06,
+      "Mi1": 1.843962490966078e-05,
+      "Tm3": -7.911964348750189e-05
+    }
+  },
+  "balanced_018": {
+    "case": {
+      "name": "balanced_018",
+      "forward_gain": 4.0,
+      "feedback_gain": 3.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 2.1163381079762016,
+      "Mi1": 4.035564583354359,
+      "Tm3": 4.430395991838141
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 9.21981245483039e-06,
+      "Mi1": 5.900679752812721e-06,
+      "Tm3": -3.2401378120994195e-05
+    }
+  },
+  "balanced_019": {
+    "case": {
+      "name": "balanced_019",
+      "forward_gain": 4.0,
+      "feedback_gain": 3.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 2.299756612578129,
+      "Mi1": 9.139679881743442,
+      "Tm3": 8.510426769088646
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 1.7333246432826854e-05,
+      "Mi1": 1.843962490966078e-05,
+      "Tm3": -7.911964348750189e-05
+    }
+  },
+  "balanced_020": {
+    "case": {
+      "name": "balanced_020",
+      "forward_gain": 4.0,
+      "feedback_gain": 10.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 6.02352118598234,
+      "Mi1": 4.035564583354359,
+      "Tm3": 4.430395991838141
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 1.6964453607215546e-05,
+      "Mi1": 5.900679752812721e-06,
+      "Tm3": -3.2401378120994195e-05
+    }
+  },
+  "balanced_021": {
+    "case": {
+      "name": "balanced_021",
+      "forward_gain": 4.0,
+      "feedback_gain": 10.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 6.634916467909269,
+      "Mi1": 9.139679881743442,
+      "Tm3": 8.510426769088646
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 4.425509905559011e-05,
+      "Mi1": 1.843962490966078e-05,
+      "Tm3": -7.911964348750189e-05
+    }
+  },
+  "balanced_022": {
+    "case": {
+      "name": "balanced_022",
+      "forward_gain": 4.0,
+      "feedback_gain": 30.0,
+      "threshold": "saved"
+    },
+    "balance_pathway_gains": {
+      "L1": 17.186902665625112,
+      "Mi1": 4.035564583354359,
+      "Tm3": 4.430395991838141
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": -0.00011506325245136395,
+      "Mi1": 5.900679752812721e-06,
+      "Tm3": -3.2401378120994195e-05
+    }
+  },
+  "balanced_023": {
+    "case": {
+      "name": "balanced_023",
+      "forward_gain": 4.0,
+      "feedback_gain": 30.0,
+      "threshold": "rest"
+    },
+    "balance_pathway_gains": {
+      "L1": 19.0210885114059,
+      "Mi1": 9.139679881743442,
+      "Tm3": 8.510426769088646
+    },
+    "target_cell_mean_net_current_change_pA": {
+      "L1": 2.3602719011250883e-05,
+      "Mi1": 1.843962490966078e-05,
+      "Tm3": -7.911964348750189e-05
+    }
+  }
+}

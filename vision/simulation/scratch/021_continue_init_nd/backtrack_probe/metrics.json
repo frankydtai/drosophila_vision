@@ -1,0 +1,23 @@
+{
+  "total": 994576.375,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 169467.953125,
+    "mbar_right_bright_w1_T4b_ND": 246208.59375,
+    "mbar_left_bright_w1_T4a_ND": 342391.625,
+    "mbar_left_bright_w1_T4b_PD": 236508.21875
+  },
+  "groups": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 15.021830558776855,
+      "nd_peak_mV": 10.872892379760742,
+      "nd_pd_ratio": 0.723806085897301,
+      "dsi_peak": 0.1602233083266266
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 14.734167098999023,
+      "nd_peak_mV": 10.033226013183594,
+      "nd_pd_ratio": 0.6809496557063757,
+      "dsi_peak": 0.18980362861059802
+    }
+  }
+}

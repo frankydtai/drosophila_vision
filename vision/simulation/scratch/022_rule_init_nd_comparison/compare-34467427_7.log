@@ -1,0 +1,38 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{
+  "total": 5478827.0,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 2585235.5,
+    "mbar_right_bright_w1_T4b_ND": 159485.828125,
+    "mbar_left_bright_w1_T4a_ND": 181964.109375,
+    "mbar_left_bright_w1_T4b_PD": 2552141.75
+  },
+  "groups": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 3.672178268432617,
+      "nd_peak_mV": 3.6272835731506348,
+      "nd_pd_ratio": 0.9877743693251732,
+      "dsi_peak": 0.0061504116597643115
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 3.887028217315674,
+      "nd_peak_mV": 3.824883222579956,
+      "nd_pd_ratio": 0.9840122090035575,
+      "dsi_peak": 0.008058312798256886
+    }
+  },
+  "case": {
+    "label": "rule_weights_init_baseline",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34437673-continued_optimization-loss-282967",
+    "override": "all"
+  },
+  "stored_cost": 282966.9375,
+  "parameter_summary": {
+    "free_parameters": 62,
+    "at_lower_bound": 0,
+    "at_upper_bound": 3,
+    "zero_gS_edges": 0,
+    "active_gS_edges": 27824
+  }
+}

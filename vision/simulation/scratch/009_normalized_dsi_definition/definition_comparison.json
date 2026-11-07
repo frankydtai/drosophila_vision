@@ -1,0 +1,53 @@
+{
+  "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/007_biphasic_mbar_cost_dsi/references.json",
+  "rows": [
+    {
+      "reference": "HH_saved",
+      "cell": "T4a",
+      "raw_PD_minus_ND_voltage_sum": -96.8515625,
+      "PD_response_peak": 13.920714473463583,
+      "ND_response_peak": 11.981864581813138,
+      "normalized_peak_DSI": 0.07485161564463884
+    },
+    {
+      "reference": "HH_saved",
+      "cell": "T4b",
+      "raw_PD_minus_ND_voltage_sum": -48.01171875,
+      "PD_response_peak": 11.434951698981997,
+      "ND_response_peak": 10.363958727802995,
+      "normalized_peak_DSI": 0.04913057351082284
+    },
+    {
+      "reference": "HH_k001",
+      "cell": "T4a",
+      "raw_PD_minus_ND_voltage_sum": 684.76171875,
+      "PD_response_peak": 14.328598570822805,
+      "ND_response_peak": 11.103538351290133,
+      "normalized_peak_DSI": 0.1268104300244043
+    },
+    {
+      "reference": "HH_k001",
+      "cell": "T4b",
+      "raw_PD_minus_ND_voltage_sum": 410.365234375,
+      "PD_response_peak": 11.71389608982075,
+      "ND_response_peak": 10.264590627561148,
+      "normalized_peak_DSI": 0.06594200414687354
+    },
+    {
+      "reference": "HPLP_matched",
+      "cell": "T4a",
+      "raw_PD_minus_ND_voltage_sum": 513.80078125,
+      "PD_response_peak": 14.561200799842759,
+      "ND_response_peak": 6.357511361687315,
+      "normalized_peak_DSI": 0.39216990868310675
+    },
+    {
+      "reference": "HPLP_matched",
+      "cell": "T4b",
+      "raw_PD_minus_ND_voltage_sum": 419.1015625,
+      "PD_response_peak": 13.389185711319513,
+      "ND_response_peak": 5.598389785690131,
+      "normalized_peak_DSI": 0.4103102013659593
+    }
+  ]
+}

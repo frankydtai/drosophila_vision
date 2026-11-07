@@ -1,0 +1,49 @@
+{
+  "production_change": "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py",
+  "source_sha256": "66b6ce554e2a2864ee6b785ef33bc429fb366d5affc8c63004549c3255b70c6f",
+  "preserves_existing_optimizer_edits": true,
+  "protected_code_and_config_unchanged": true,
+  "correctness_tests_passed": 105,
+  "correctness_log": "/home/yitai/drosophila_vision/vision/simulation/scratch/005_dsi_training_log/final_verification.log",
+  "dsi_definition": "Arithmetic mean over complete cell/contrast groups of raw PD-minus-ND voltage sums; independent of loss weights",
+  "display": "Cost: ... [weighted cost parts]  DSI: ...",
+  "timing": {
+    "baseline_mean_s": 11.326498614934584,
+    "baseline_sd_s": 0.07817990573027453,
+    "new_mean_s": 15.206878980621696,
+    "new_sd_s": 0.08271505896489938,
+    "extra_mean_s": 3.8803803656871114,
+    "extra_percent": 34.259310821533376,
+    "dsi_mean_s": 3.9062881767749786
+  },
+  "timing_design": {
+    "source_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+    "device": "NVIDIA A100 80GB PCIe MIG 1g.20gb",
+    "hostname": "spartan-gpgpu099.hpc.unimelb.edu.au",
+    "warmups": 2,
+    "measurements_each": 6,
+    "alternating_order": true,
+    "cuda_synchronized": true,
+    "same_initial_parameters": true,
+    "includes": [
+      "forward",
+      "backward",
+      "optional DSI monitor",
+      "Adam step",
+      "clamp",
+      "description formatting"
+    ],
+    "excludes": [
+      "session load",
+      "initial/final evaluation",
+      "checkpoint and file export"
+    ]
+  },
+  "deterministic_gpu_control": {
+    "same_cost": true,
+    "same_gradients": true,
+    "same_adam_update": true
+  },
+  "normal_cuda_note": "Repeated runs contain floating-point variations; no bitwise equality asserted outside deterministic control.",
+  "artifacts": "/home/yitai/drosophila_vision/vision/simulation/scratch/005_dsi_training_log"
+}

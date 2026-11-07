@@ -1,0 +1,46 @@
+{
+  "recommended_candidate": "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/candidate_gain3",
+  "stronger_pulse_candidate": "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/candidate_gain6",
+  "baseline_trained_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "dt_ms": 1.0,
+  "k_minus_syn": 0.01,
+  "changed_pairs": [
+    "L1:Mi1",
+    "L1:Tm3"
+  ],
+  "recommended_gS_multiplier": 3.0,
+  "v_th_syn_mV": -51.0,
+  "delta_syn_mV": 0.5,
+  "native_HH_gate_equations_unchanged": true,
+  "core_parameter_grid_cases_completed": 282,
+  "grid_case_counts": {
+    "search_results.json": 49,
+    "balanced_results.json": 24,
+    "membrane_results.json": 36,
+    "slow_recovery_results.json": 48,
+    "slow_balanced_results.json": 9,
+    "strongK_results.json": 36,
+    "release_shape_results.json": 20,
+    "selective_release_results.json": 24,
+    "refined_release_results.json": 36
+  },
+  "validation_complete": true,
+  "formal_source_or_main_config_written_by_experiment": false,
+  "limitations": [
+    "Bright-pulse biphasic waveforms improved for Mi1/Tm3/T4a; L1 rebound weakened.",
+    "Moving-bar reverse peaks remain much smaller than pulse reverse peaks.",
+    "Gain3 reduced the recomputed moving-bar cost relative to fixed-k=.01 baseline; gain6 increased it.",
+    "This is an evaluated candidate, not a retrained optimum or full HPLP reproduction."
+  ],
+  "moving_bar_exploration_status_file": "mbar_exploration_status.json",
+  "formal_promotion_status": "Not applied; reviewable config patch and parameter bundle prepared, pending explicit approval.",
+  "formal_proposal_validated": {
+    "valid_yaml": true,
+    "valid_native_schema": true,
+    "candidate_initialization_applied": true,
+    "k_minus_fixed": true,
+    "modified_pair_values_verified": true,
+    "formal_files_modified": false,
+    "rules_path_substitution": "Proposed future rules path replaced by identical tested scratch rules during validation only."
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run",
+  "native_initialization": false,
+  "random_seed": null,
+  "g_context_mode": "init",
+  "optimization_case": {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run",
+    "native": false,
+    "resume_adam": true,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "label": "polish_00_adam",
+    "lr": 0.001,
+    "n_iter": 64,
+    "backtrack": false
+  },
+  "selected_cost": 1002873.5625,
+  "selected_update": 53,
+  "selected_adam_iter": 133,
+  "selection": "lowest_measured_loss",
+  "terminal_cost": 1448645.5,
+  "job": "34464939",
+  "array_task": "3",
+  "device": "cpu",
+  "hostname": "spartan-bm165.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "training_origin": "native_init_from_scratch",
+  "native_random_seed": 0,
+  "spread_training_iterations": 100,
+  "spread_initial_cost": 8091284.0,
+  "spread_best_cost": 3187424.25,
+  "spread_best_at": 98,
+  "spread_source_run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread_native_100/run",
+  "adam_reset_at_task_switch": true,
+  "initial_mbar_loss": 9058330.0,
+  "improvement_percent_from_mbar_start": 88.92871464718111,
+  "continuation_learning_rate": 0.001,
+  "learning_rate_cap": 0.001,
+  "optimization_records": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch",
+  "iterations_by_case": {
+    "spread_native_100": 100,
+    "mbar_initial_00_0.003": 80,
+    "mbar_initial_01_0.001": 80,
+    "refine_01_reset": 12,
+    "refine_00_resume": 12,
+    "extend_00_adam": 80,
+    "extend_02_reset": 40,
+    "extend_01_backtrack": 32,
+    "polish_01_backtrack": 32,
+    "polish_00_adam": 64
+  },
+  "total_computed_iterations": 532
+}

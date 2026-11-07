@@ -1,0 +1,355 @@
+{
+  "case": {
+    "label": "nd_backtrack_resume",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "resume_adam": true,
+    "lr": 0.0001,
+    "n_iter": 32,
+    "backtrack": true,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  },
+  "hostname": "spartan-bm165.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "records": [
+    {
+      "iter": 0,
+      "cost": 1002873.5625,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 170658.640625,
+        "mbar_right_bright_w1_T4b_ND": 248447.609375,
+        "mbar_left_bright_w1_T4a_ND": 346372.40625,
+        "mbar_left_bright_w1_T4b_PD": 237394.921875
+      },
+      "nd_sum": 594820.015625,
+      "grad_norm": 121072582.81818682,
+      "lr": 0.0001,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 1000503.75
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 134
+    },
+    {
+      "iter": 1,
+      "cost": 1000503.75,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 170569.359375,
+        "mbar_right_bright_w1_T4b_ND": 247342.03125,
+        "mbar_left_bright_w1_T4a_ND": 345438.5625,
+        "mbar_left_bright_w1_T4b_PD": 237153.828125
+      },
+      "nd_sum": 592780.59375,
+      "grad_norm": 112234123.46171528,
+      "lr": 0.0001,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 998049.0625
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 135
+    },
+    {
+      "iter": 2,
+      "cost": 998049.0625,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 170703.125,
+        "mbar_right_bright_w1_T4b_ND": 246339.359375,
+        "mbar_left_bright_w1_T4a_ND": 344026.78125,
+        "mbar_left_bright_w1_T4b_PD": 236979.8125
+      },
+      "nd_sum": 590366.140625,
+      "grad_norm": 75276777.02750054,
+      "lr": 0.0001,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 996921.1875
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 136
+    },
+    {
+      "iter": 3,
+      "cost": 996921.1875,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 170205.046875,
+        "mbar_right_bright_w1_T4b_ND": 246982.625,
+        "mbar_left_bright_w1_T4a_ND": 343387.1875,
+        "mbar_left_bright_w1_T4b_PD": 236346.328125
+      },
+      "nd_sum": 590369.8125,
+      "grad_norm": 30904690.23246323,
+      "lr": 0.0001,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 995362.375
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 137
+    },
+    {
+      "iter": 4,
+      "cost": 995362.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 169914.875,
+        "mbar_right_bright_w1_T4b_ND": 246338.703125,
+        "mbar_left_bright_w1_T4a_ND": 342823.8125,
+        "mbar_left_bright_w1_T4b_PD": 236285.015625
+      },
+      "nd_sum": 589162.515625,
+      "grad_norm": 73248212.55835733,
+      "lr": 0.0001,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 1004361.5625
+        },
+        {
+          "factor": 0.3,
+          "cost": 994690.75
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 138
+    },
+    {
+      "iter": 5,
+      "cost": 994690.75,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 169470.25,
+        "mbar_right_bright_w1_T4b_ND": 246308.984375,
+        "mbar_left_bright_w1_T4a_ND": 342484.75,
+        "mbar_left_bright_w1_T4b_PD": 236426.71875
+      },
+      "nd_sum": 588793.734375,
+      "grad_norm": 101514242.93271147,
+      "lr": 3.7500000000000003e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 1004001.5
+        },
+        {
+          "factor": 0.3,
+          "cost": 994605.375
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 139
+    },
+    {
+      "iter": 6,
+      "cost": 994605.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 169466.390625,
+        "mbar_right_bright_w1_T4b_ND": 246241.96875,
+        "mbar_left_bright_w1_T4a_ND": 342414.84375,
+        "mbar_left_bright_w1_T4b_PD": 236482.109375
+      },
+      "nd_sum": 588656.8125,
+      "grad_norm": 23844768.720678326,
+      "lr": 1.4062500000000001e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 1003884.4375
+        },
+        {
+          "factor": 0.3,
+          "cost": 994576.375
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 140
+    },
+    {
+      "iter": 7,
+      "cost": 994576.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 169467.953125,
+        "mbar_right_bright_w1_T4b_ND": 246208.59375,
+        "mbar_left_bright_w1_T4a_ND": 342391.625,
+        "mbar_left_bright_w1_T4b_PD": 236508.21875
+      },
+      "nd_sum": 588600.21875,
+      "grad_norm": 22506889.18731157,
+      "lr": 5.2734375e-06,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 1003843.125
+        },
+        {
+          "factor": 0.3,
+          "cost": 994566.8125
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 141
+    },
+    {
+      "iter": 8,
+      "cost": 994566.8125,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 169468.46875,
+        "mbar_right_bright_w1_T4b_ND": 246196.625,
+        "mbar_left_bright_w1_T4a_ND": 342383.96875,
+        "mbar_left_bright_w1_T4b_PD": 236517.734375
+      },
+      "nd_sum": 588580.59375,
+      "grad_norm": 25868566.642293703,
+      "lr": 1.9775390625000003e-06,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 994551.5
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 142
+    },
+    {
+      "iter": 9,
+      "cost": 994551.5,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 169467.265625,
+        "mbar_right_bright_w1_T4b_ND": 246179.1875,
+        "mbar_left_bright_w1_T4a_ND": 342376.5,
+        "mbar_left_bright_w1_T4b_PD": 236528.5625
+      },
+      "nd_sum": 588555.6875,
+      "grad_norm": 46100035.39507156,
+      "lr": 2.4719238281250005e-06,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 1003848.1875
+        },
+        {
+          "factor": 0.3,
+          "cost": 994509.75
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 143
+    },
+    {
+      "iter": 10,
+      "cost": 994509.75,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 169461.015625,
+        "mbar_right_bright_w1_T4b_ND": 246099.375,
+        "mbar_left_bright_w1_T4a_ND": 342380.0625,
+        "mbar_left_bright_w1_T4b_PD": 236569.28125
+      },
+      "nd_sum": 588479.4375,
+      "grad_norm": 1920690020.4311874,
+      "lr": 9.269714355468752e-07,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 1003919.9375
+        },
+        {
+          "factor": 0.3,
+          "cost": 1003878.625
+        },
+        {
+          "factor": 0.1,
+          "cost": 1003785.875
+        },
+        {
+          "factor": 0.03,
+          "cost": 1003177.6875
+        },
+        {
+          "factor": 0.01,
+          "cost": 1003097.125
+        }
+      ],
+      "accepted": false,
+      "reset_after_rejected_trials": true,
+      "adam_iter": 0
+    },
+    {
+      "iter": 11,
+      "cost": 994509.75,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 169461.015625,
+        "mbar_right_bright_w1_T4b_ND": 246099.375,
+        "mbar_left_bright_w1_T4a_ND": 342380.0625,
+        "mbar_left_bright_w1_T4b_PD": 236569.28125
+      },
+      "nd_sum": 588479.4375,
+      "grad_norm": 1920690020.4311874,
+      "lr": 2.780914306640625e-07,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 1003912.75
+        },
+        {
+          "factor": 0.3,
+          "cost": 1003866.9375
+        },
+        {
+          "factor": 0.1,
+          "cost": 1003638.625
+        },
+        {
+          "factor": 0.03,
+          "cost": 1003100.0
+        },
+        {
+          "factor": 0.01,
+          "cost": 1003095.4375
+        }
+      ],
+      "accepted": false,
+      "reset_after_rejected_trials": true
+    }
+  ],
+  "initial_cost": 1002873.5625,
+  "best_cost": 994509.75,
+  "best_nd": 588479.4375,
+  "best_parts": {
+    "mbar_right_bright_w1_T4a_PD": 169461.015625,
+    "mbar_right_bright_w1_T4b_ND": 246099.375,
+    "mbar_left_bright_w1_T4a_ND": 342380.0625,
+    "mbar_left_bright_w1_T4b_PD": 236569.28125
+  },
+  "source_total": 1002873.5625,
+  "source_nd": 594820.015625,
+  "source_parts": {
+    "mbar_right_bright_w1_T4a_PD": 170658.640625,
+    "mbar_right_bright_w1_T4b_ND": 248447.609375,
+    "mbar_left_bright_w1_T4a_ND": 346372.40625,
+    "mbar_left_bright_w1_T4b_PD": 237394.921875
+  },
+  "unconstrained_best_cost": 994509.75,
+  "best_at": 10,
+  "elapsed_s": 465.24107374995947,
+  "stop_reason": "no_improving_step",
+  "current_lr": 8.342742919921875e-08,
+  "terminal_cost": 994509.75,
+  "selected_adam_iter": 143,
+  "complete": true
+}

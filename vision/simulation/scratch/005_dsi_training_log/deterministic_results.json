@@ -1,0 +1,48 @@
+{
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "device": "NVIDIA A100 80GB PCIe MIG 1g.20gb",
+  "hostname": "spartan-gpgpu099.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "repeats": 1,
+  "warmups": 2,
+  "records": [
+    {
+      "pair": 0,
+      "enabled": false,
+      "total_s": 14.70675765350461,
+      "forward_backward_s": 14.703902512788773,
+      "dsi_s": 1.3383105397224426e-05,
+      "cost": 1086564.375,
+      "dsi": null,
+      "description": "Cost: 1086564.3750  [mbar_right_bright_w1_T4a_PD=367884.4688  mbar_right_bright_w1_T4b_ND=114536.4062  mbar_left_bright_w1_T4a_ND=187128.9062  mbar_left_bright_w1_T4b_PD=417014.6250]",
+      "grad_finite": true,
+      "grad_sha256": "7dea564f4b23cceb3f002732392fe0cb8d504993c85e58eeeda176c780bca479",
+      "next_z_sha256": "95ea26afa2c86f3060e82565ac3bd61c514adc5cbcbba4587d8b57552ce0c7ec"
+    },
+    {
+      "pair": 0,
+      "enabled": true,
+      "total_s": 21.191488491371274,
+      "forward_backward_s": 14.83446990698576,
+      "dsi_s": 6.356340849772096,
+      "cost": 1086564.375,
+      "dsi": 360.580078125,
+      "description": "Cost: 1086564.3750  [mbar_right_bright_w1_T4a_PD=367884.4688  mbar_right_bright_w1_T4b_ND=114536.4062  mbar_left_bright_w1_T4a_ND=187128.9062  mbar_left_bright_w1_T4b_PD=417014.6250]  DSI: 360.5801",
+      "grad_finite": true,
+      "grad_sha256": "7dea564f4b23cceb3f002732392fe0cb8d504993c85e58eeeda176c780bca479",
+      "next_z_sha256": "95ea26afa2c86f3060e82565ac3bd61c514adc5cbcbba4587d8b57552ce0c7ec"
+    }
+  ],
+  "summary": {
+    "baseline_mean_s": 14.70675765350461,
+    "baseline_sd_s": 0.0,
+    "new_mean_s": 21.191488491371274,
+    "new_sd_s": 0.0,
+    "extra_mean_s": 6.484730837866664,
+    "extra_percent": 44.0935452303544,
+    "dsi_mean_s": 6.356340849772096
+  },
+  "same_cost": true,
+  "same_gradients": true,
+  "same_adam_update": true
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "label": "rule_best",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34437673-continued_optimization-loss-282967",
+    "override": null
+  },
+  {
+    "label": "init_best",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "override": null
+  },
+  {
+    "label": "init_weights_synapse",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "override": "synapse"
+  },
+  {
+    "label": "init_weights_membrane",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "override": "membrane"
+  },
+  {
+    "label": "init_weights_all",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "override": "all"
+  },
+  {
+    "label": "init_weights_close_unresolved",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "override": "close_unresolved"
+  },
+  {
+    "label": "init_weights_restore_Mi4_Mi9_T4",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "override": "restore_Mi4_Mi9_T4"
+  },
+  {
+    "label": "rule_weights_init_baseline",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34437673-continued_optimization-loss-282967",
+    "override": "all"
+  }
+]

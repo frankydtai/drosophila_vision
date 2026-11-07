@@ -1,0 +1,30 @@
+[
+  {
+    "source": "Mi1",
+    "units": "mV equivalent drive",
+    "baseline": 13.461756371360211,
+    "delta_min": -7.317583531861765,
+    "delta_max": 9.066881091843706
+  },
+  {
+    "source": "Tm3",
+    "units": "mV equivalent drive",
+    "baseline": 0.29660141557630526,
+    "delta_min": -0.15086513915843808,
+    "delta_max": 0.15917541209441477
+  },
+  {
+    "source": "Mi4",
+    "units": "mV equivalent drive",
+    "baseline": -0.13180208221742507,
+    "delta_min": -0.18438006883995295,
+    "delta_max": 0.008656736435000867
+  },
+  {
+    "source": "Mi9",
+    "units": "mV equivalent drive",
+    "baseline": -52.842781789672394,
+    "delta_min": -2.1732029118492093,
+    "delta_max": 23.47628676374181
+  }
+]

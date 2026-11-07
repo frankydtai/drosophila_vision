@@ -1,0 +1,12 @@
+{
+  "no_training": true,
+  "evaluations": 12,
+  "formal_files_unchanged": 78,
+  "git_status_unchanged": true,
+  "baseline_reproduced_exactly": true,
+  "proposal_uses_unmodified_model_implementation": true,
+  "native_vs_runtime_relative_loss_difference": 1.0962583533059424e-06,
+  "connectivity_unchanged": true,
+  "membrane_conductances_unchanged": true,
+  "proposed_config_difference": "one scalar: gS max_fold_changes 6 -> 10"
+}

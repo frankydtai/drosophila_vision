@@ -1,0 +1,22 @@
+{
+  "total_cases": 79,
+  "selected_case": "grid_neg_d0.1_t-75",
+  "selected_cost": 1607422.359375,
+  "selected_dsi_raw": {
+    "mbar_DSI_bright_T4a": -44.080078125,
+    "mbar_DSI_bright_T4b": -32.171875
+  },
+  "selected_peak_metrics": {
+    "T4a": {
+      "PD_peak": 13.869529504073185,
+      "ND_peak": 11.831145925970592,
+      "peak_DSI": 0.07931245167664921
+    },
+    "T4b": {
+      "PD_peak": 11.333222293839356,
+      "ND_peak": 10.162260281530884,
+      "peak_DSI": 0.05447479526001305
+    }
+  },
+  "simultaneous_positive_DSI_and_lower_cost_cases": []
+}

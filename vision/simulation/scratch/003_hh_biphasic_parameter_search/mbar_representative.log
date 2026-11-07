@@ -1,0 +1,7 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 0 / 2
+DONE 0 seconds 40.15895011369139 top [({'name': 'mbar_centered_native', 'L3_threshold': -65.0, 'L5_threshold': -55.0, 'source_delta': 2.0, 'tuned_L1': False}, 1.074, 6159873), ({'name': 'mbar_centered_tuned', 'L3_threshold': -65.0, 'L5_threshold': -55.0, 'source_delta': 2.0, 'tuned_L1': True}, 0.72, 6823546)]
+FINISHED

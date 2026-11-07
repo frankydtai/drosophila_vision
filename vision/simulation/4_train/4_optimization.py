@@ -18,7 +18,8 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-from train.cost import session_cost_part_keys
+from task.mbar.pack import dsi_groups, dsi_peak_values, dsi_values
+from train.cost import forward_pack, gt_affine_from_pack, session_cost_part_keys
 from train.cost import (
     backward_part_sums,
     calc_cost_parts,
@@ -26,6 +27,7 @@ from train.cost import (
 )
 from train.param import (
     active_device,
+    params_from_z,
     schema_clamps,
     schema_copy,
     schema_n_z,
@@ -70,6 +72,35 @@ def _fmt_cost_parts(parts, *, summary_only=False):
     return "  [" + "  ".join(f"{k}={v:.4f}" for k, v in parts.items()) + "]"
 
 
+def _calc_dsi(z, session):
+    """Mean raw DSI and normalized DSI_peak, independent of loss scales."""
+    values = []
+    peak_values = []
+    with torch.no_grad():
+        for pack in session.iter_packs():
+            if not any(True for _ in dsi_groups(pack)):
+                continue
+            params = params_from_z(z, session)
+            trace = forward_pack(session, params, pack.i_sti, pack)
+            values.extend(float(value.item()) for value in dsi_values(pack, trace).values())
+            _, bias_gt = gt_affine_from_pack(params, pack, session)
+            peak_values.extend(
+                float(value.item())
+                for value in dsi_peak_values(pack, trace, bias_gt).values()
+            )
+    return (
+        (sum(values) / len(values), sum(peak_values) / len(peak_values))
+        if values else None
+    )
+
+
+def _fmt_dsi(dsi):
+    if dsi is None:
+        return ""
+    value, peak = dsi
+    return f"  DSI: {value:.4f}  DSI_peak: {peak:.4f}"
+
+
 _TQDM_REFRESH_INTERVAL = 10
 
 
@@ -77,7 +108,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
                      cost_log=None, iter_log=None, float_last_parts=None, task_order=None,
                      backward_iter=None, eval_cost=None,
                      checkpoint_interval=None, on_interval_best=None, global_iter_start=0,
-                     adam_init=None):
+                     adam_init=None, dsi_fn=None):
 
     a = time.time()
 
@@ -106,6 +137,8 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
     interval_best_adam = _adam_bag(optimizer, z)
     best_adam = _adam_bag(optimizer, z)
 
+    dsi = dsi_fn(z) if dsi_fn is not None else None
+    initial_dsi = best_dsi = dsi
     initial_cost = 1.0 * cost
     initial_parts = float_last_parts(task_order) if float_last_parts else None
     best_parts = initial_parts
@@ -134,7 +167,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
         range(n_iter),
         desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(
             initial_parts, summary_only=True,
-        ),
+        ) + _fmt_dsi(initial_dsi),
         bar_format=(
             '{percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} '
             '[{elapsed}<{remaining}, {rate_fmt}] {desc}'
@@ -170,8 +203,13 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
             aborted = f'iter {iter}: non-finite grad'
             break
 
+        measure_dsi = (global_iter_start + iter + 1) % 10 == 0
+        if measure_dsi:
+            dsi = dsi_fn(z) if dsi_fn is not None else None
+
         if cost < best_cost:
 
+            best_dsi = dsi if measure_dsi else None
             best_cost = cost
             best_z = z.clone().detach()
             best_adam = _adam_bag(optimizer, z)
@@ -196,31 +234,34 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
         if checkpoint_interval and global_iter % checkpoint_interval == 0:
             _commit_interval_checkpoint(global_iter)
 
-        if (iter + 1) % _TQDM_REFRESH_INTERVAL == 0 or iter == n_iter - 1:
-            progress_bar.set_description(
-                f'Cost: {cost:.4f}' + _fmt_cost_parts(
-                    float_last_parts(task_order) if float_last_parts else None,
-                    summary_only=True,
-                ),
-                refresh=False,
-            )
+        progress_bar.set_description(
+            f'Cost: {cost:.4f}' + _fmt_cost_parts(
+                float_last_parts(task_order) if float_last_parts else None,
+                summary_only=True,
+            ) + _fmt_dsi(dsi),
+            refresh=False,
+        )
 
     if aborted is None:
         try:
             cost = _measure_cost(z)
             final_parts = float_last_parts(task_order) if float_last_parts else None
+            dsi = dsi_fn(z) if dsi_fn is not None else None
         except RuntimeError as e:
             aborted = f'final eval: {e}'
             cost = float('nan')
+            dsi = None
             final_parts = None
         else:
             if np.isfinite(cost) and cost < best_cost:
+                best_dsi = dsi
                 best_cost = cost
                 best_z = z.clone().detach()
                 best_adam = _adam_bag(optimizer, z)
                 best_parts = final_parts
     else:
         cost = float('nan')
+        dsi = None
         final_parts = None
 
     print()
@@ -228,13 +269,13 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_cla
         print('ABORT:', aborted)
     print('Initl cost =', format(initial_cost, '.4f') + _fmt_cost_parts(
         initial_parts, summary_only=True,
-    ))
+    ) + _fmt_dsi(initial_dsi))
     print('Final cost =', format(cost, '.4f') + _fmt_cost_parts(
         final_parts, summary_only=True,
-    ))
+    ) + _fmt_dsi(dsi))
     print('Best  cost =', format(best_cost, '.4f') + _fmt_cost_parts(
         best_parts, summary_only=True,
-    ))
+    ) + _fmt_dsi(best_dsi))
 
     print('time needed  =', format(time.time() - a, '.2f'), ' sec')
     print()
@@ -297,7 +338,7 @@ def optimize_staged(z, cost_fn, z_clamps, lrs, niters, cost_log=None, iter_log=N
                  float_last_parts=None, task_order=None,
                  backward_iter=None, eval_cost=None,
                  checkpoint_interval=None, on_interval_best=None, global_iter_start=0,
-                 adam_init=None):
+                 adam_init=None, dsi_fn=None):
     global_iter = global_iter_start
     adam = None
     for stage_i, lr in enumerate(lrs):
@@ -311,6 +352,7 @@ def optimize_staged(z, cost_fn, z_clamps, lrs, niters, cost_log=None, iter_log=N
             on_interval_best=on_interval_best,
             global_iter_start=global_iter,
             adam_init=adam_init if stage_i == 0 else None,
+            dsi_fn=dsi_fn,
         )
         global_iter += niters
     return z, adam
@@ -416,6 +458,7 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
             checkpoint_interval=checkpoint_interval,
             on_interval_best=on_interval_best,
             adam_init=adam_init,
+            dsi_fn=lambda z: _calc_dsi(z, session),
         )
 
         run_params[run] = z_best.detach().cpu().numpy()

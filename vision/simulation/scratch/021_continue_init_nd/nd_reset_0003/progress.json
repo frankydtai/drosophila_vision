@@ -1,0 +1,610 @@
+{
+  "case": {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "n_iter": 40,
+    "backtrack": false,
+    "label": "nd_reset_0003",
+    "resume_adam": false,
+    "lr": 0.0003
+  },
+  "hostname": "spartan-bm175.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "records": [
+    {
+      "iter": 0,
+      "cost": 1002873.5625,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 170658.640625,
+        "mbar_right_bright_w1_T4b_ND": 248447.609375,
+        "mbar_left_bright_w1_T4a_ND": 346372.40625,
+        "mbar_left_bright_w1_T4b_PD": 237394.921875
+      },
+      "nd_sum": 594820.015625,
+      "grad_norm": 121072582.81818682,
+      "lr": 0.0003,
+      "adam_iter": 1
+    },
+    {
+      "iter": 1,
+      "cost": 1100559.25,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 210141.484375,
+        "mbar_right_bright_w1_T4b_ND": 249799.46875,
+        "mbar_left_bright_w1_T4a_ND": 348356.40625,
+        "mbar_left_bright_w1_T4b_PD": 292261.90625
+      },
+      "nd_sum": 598155.875,
+      "grad_norm": 65534628.43841563,
+      "lr": 0.0003,
+      "adam_iter": 2
+    },
+    {
+      "iter": 2,
+      "cost": 1096300.0,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 239856.265625,
+        "mbar_right_bright_w1_T4b_ND": 219050.671875,
+        "mbar_left_bright_w1_T4a_ND": 316590.53125,
+        "mbar_left_bright_w1_T4b_PD": 320802.5
+      },
+      "nd_sum": 535641.203125,
+      "grad_norm": 599824951.9667994,
+      "lr": 0.0003,
+      "adam_iter": 3
+    },
+    {
+      "iter": 3,
+      "cost": 1170458.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 287937.53125,
+        "mbar_right_bright_w1_T4b_ND": 213147.046875,
+        "mbar_left_bright_w1_T4a_ND": 287358.125,
+        "mbar_left_bright_w1_T4b_PD": 382015.65625
+      },
+      "nd_sum": 500505.171875,
+      "grad_norm": 167591335.62950456,
+      "lr": 0.0003,
+      "adam_iter": 4
+    },
+    {
+      "iter": 4,
+      "cost": 1291400.75,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 350455.0625,
+        "mbar_right_bright_w1_T4b_ND": 193459.609375,
+        "mbar_left_bright_w1_T4a_ND": 281978.8125,
+        "mbar_left_bright_w1_T4b_PD": 465507.28125
+      },
+      "nd_sum": 475438.421875,
+      "grad_norm": 94679611.77125351,
+      "lr": 0.0003,
+      "adam_iter": 5
+    },
+    {
+      "iter": 5,
+      "cost": 1374888.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 414629.875,
+        "mbar_right_bright_w1_T4b_ND": 174882.0625,
+        "mbar_left_bright_w1_T4a_ND": 261407.65625,
+        "mbar_left_bright_w1_T4b_PD": 523968.71875
+      },
+      "nd_sum": 436289.71875,
+      "grad_norm": 111735658.60262422,
+      "lr": 0.0003,
+      "adam_iter": 6
+    },
+    {
+      "iter": 6,
+      "cost": 1460086.875,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 463423.90625,
+        "mbar_right_bright_w1_T4b_ND": 168458.734375,
+        "mbar_left_bright_w1_T4a_ND": 246525.96875,
+        "mbar_left_bright_w1_T4b_PD": 581678.25
+      },
+      "nd_sum": 414984.703125,
+      "grad_norm": 292751716.71621716,
+      "lr": 0.0003,
+      "adam_iter": 7
+    },
+    {
+      "iter": 7,
+      "cost": 1464655.25,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 461929.3125,
+        "mbar_right_bright_w1_T4b_ND": 167584.65625,
+        "mbar_left_bright_w1_T4a_ND": 245360.296875,
+        "mbar_left_bright_w1_T4b_PD": 589781.0
+      },
+      "nd_sum": 412944.953125,
+      "grad_norm": 181346165.37257782,
+      "lr": 0.0003,
+      "adam_iter": 8
+    },
+    {
+      "iter": 8,
+      "cost": 1459772.25,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 458228.9375,
+        "mbar_right_bright_w1_T4b_ND": 168404.953125,
+        "mbar_left_bright_w1_T4a_ND": 246572.125,
+        "mbar_left_bright_w1_T4b_PD": 586566.3125
+      },
+      "nd_sum": 414977.078125,
+      "grad_norm": 134618949.7628956,
+      "lr": 0.0003,
+      "adam_iter": 9
+    },
+    {
+      "iter": 9,
+      "cost": 1445964.125,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 450219.4375,
+        "mbar_right_bright_w1_T4b_ND": 172224.765625,
+        "mbar_left_bright_w1_T4a_ND": 249886.8125,
+        "mbar_left_bright_w1_T4b_PD": 573633.125
+      },
+      "nd_sum": 422111.578125,
+      "grad_norm": 182746032.9183106,
+      "lr": 0.0003,
+      "adam_iter": 10
+    },
+    {
+      "iter": 10,
+      "cost": 1412472.5,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 424354.4375,
+        "mbar_right_bright_w1_T4b_ND": 179570.75,
+        "mbar_left_bright_w1_T4a_ND": 264274.75,
+        "mbar_left_bright_w1_T4b_PD": 544272.5625
+      },
+      "nd_sum": 443845.5,
+      "grad_norm": 152339496.7758799,
+      "lr": 0.0003,
+      "adam_iter": 11
+    },
+    {
+      "iter": 11,
+      "cost": 1385150.0,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 391648.875,
+        "mbar_right_bright_w1_T4b_ND": 194391.40625,
+        "mbar_left_bright_w1_T4a_ND": 302865.0,
+        "mbar_left_bright_w1_T4b_PD": 496244.6875
+      },
+      "nd_sum": 497256.40625,
+      "grad_norm": 30317006.43262878,
+      "lr": 0.0003,
+      "adam_iter": 12
+    },
+    {
+      "iter": 12,
+      "cost": 1359950.625,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 362742.25,
+        "mbar_right_bright_w1_T4b_ND": 209540.421875,
+        "mbar_left_bright_w1_T4a_ND": 330248.78125,
+        "mbar_left_bright_w1_T4b_PD": 457419.15625
+      },
+      "nd_sum": 539789.203125,
+      "grad_norm": 1277041905.5092654,
+      "lr": 0.0003,
+      "adam_iter": 13
+    },
+    {
+      "iter": 13,
+      "cost": 1377533.0,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 388072.875,
+        "mbar_right_bright_w1_T4b_ND": 193116.84375,
+        "mbar_left_bright_w1_T4a_ND": 299749.25,
+        "mbar_left_bright_w1_T4b_PD": 496593.96875
+      },
+      "nd_sum": 492866.09375,
+      "grad_norm": 130731318.38349211,
+      "lr": 0.0003,
+      "adam_iter": 14
+    },
+    {
+      "iter": 14,
+      "cost": 1394737.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 405358.21875,
+        "mbar_right_bright_w1_T4b_ND": 187632.015625,
+        "mbar_left_bright_w1_T4a_ND": 278455.90625,
+        "mbar_left_bright_w1_T4b_PD": 523291.25
+      },
+      "nd_sum": 466087.921875,
+      "grad_norm": 522514581.16656303,
+      "lr": 0.0003,
+      "adam_iter": 15
+    },
+    {
+      "iter": 15,
+      "cost": 1395447.75,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 404720.0,
+        "mbar_right_bright_w1_T4b_ND": 187833.46875,
+        "mbar_left_bright_w1_T4a_ND": 279774.71875,
+        "mbar_left_bright_w1_T4b_PD": 523119.5
+      },
+      "nd_sum": 467608.1875,
+      "grad_norm": 144248710.59668285,
+      "lr": 0.0003,
+      "adam_iter": 16
+    },
+    {
+      "iter": 16,
+      "cost": 1390566.5,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 399400.3125,
+        "mbar_right_bright_w1_T4b_ND": 188429.53125,
+        "mbar_left_bright_w1_T4a_ND": 284339.53125,
+        "mbar_left_bright_w1_T4b_PD": 518397.1875
+      },
+      "nd_sum": 472769.0625,
+      "grad_norm": 117404507.11178793,
+      "lr": 0.0003,
+      "adam_iter": 17
+    },
+    {
+      "iter": 17,
+      "cost": 1369166.25,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 387165.4375,
+        "mbar_right_bright_w1_T4b_ND": 191049.453125,
+        "mbar_left_bright_w1_T4a_ND": 289036.8125,
+        "mbar_left_bright_w1_T4b_PD": 501914.59375
+      },
+      "nd_sum": 480086.265625,
+      "grad_norm": 64555424.8574306,
+      "lr": 0.0003,
+      "adam_iter": 18
+    },
+    {
+      "iter": 18,
+      "cost": 1364196.125,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 382809.8125,
+        "mbar_right_bright_w1_T4b_ND": 192260.625,
+        "mbar_left_bright_w1_T4a_ND": 297707.09375,
+        "mbar_left_bright_w1_T4b_PD": 491418.59375
+      },
+      "nd_sum": 489967.71875,
+      "grad_norm": 79810915.96390922,
+      "lr": 0.0003,
+      "adam_iter": 19
+    },
+    {
+      "iter": 19,
+      "cost": 1362418.625,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 377492.5,
+        "mbar_right_bright_w1_T4b_ND": 195184.453125,
+        "mbar_left_bright_w1_T4a_ND": 304109.1875,
+        "mbar_left_bright_w1_T4b_PD": 485632.46875
+      },
+      "nd_sum": 499293.640625,
+      "grad_norm": 46505374.3948296,
+      "lr": 0.0003,
+      "adam_iter": 20
+    },
+    {
+      "iter": 20,
+      "cost": 1362453.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 374320.8125,
+        "mbar_right_bright_w1_T4b_ND": 198268.28125,
+        "mbar_left_bright_w1_T4a_ND": 307640.28125,
+        "mbar_left_bright_w1_T4b_PD": 482224.0
+      },
+      "nd_sum": 505908.5625,
+      "grad_norm": 36434129.916776106,
+      "lr": 0.0003,
+      "adam_iter": 21
+    },
+    {
+      "iter": 21,
+      "cost": 1334774.0,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 367573.9375,
+        "mbar_right_bright_w1_T4b_ND": 192594.921875,
+        "mbar_left_bright_w1_T4a_ND": 295852.3125,
+        "mbar_left_bright_w1_T4b_PD": 478752.8125
+      },
+      "nd_sum": 488447.234375,
+      "grad_norm": 55707353.47088191,
+      "lr": 0.0003,
+      "adam_iter": 22
+    },
+    {
+      "iter": 22,
+      "cost": 1323541.5,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 363810.0,
+        "mbar_right_bright_w1_T4b_ND": 194062.375,
+        "mbar_left_bright_w1_T4a_ND": 294531.5625,
+        "mbar_left_bright_w1_T4b_PD": 471137.59375
+      },
+      "nd_sum": 488593.9375,
+      "grad_norm": 88729462.2219814,
+      "lr": 0.0003,
+      "adam_iter": 23
+    },
+    {
+      "iter": 23,
+      "cost": 1295412.25,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 350943.75,
+        "mbar_right_bright_w1_T4b_ND": 195199.265625,
+        "mbar_left_bright_w1_T4a_ND": 290924.90625,
+        "mbar_left_bright_w1_T4b_PD": 458344.40625
+      },
+      "nd_sum": 486124.171875,
+      "grad_norm": 83713235.17684942,
+      "lr": 0.0003,
+      "adam_iter": 24
+    },
+    {
+      "iter": 24,
+      "cost": 1270227.75,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 338275.1875,
+        "mbar_right_bright_w1_T4b_ND": 198881.0,
+        "mbar_left_bright_w1_T4a_ND": 289364.71875,
+        "mbar_left_bright_w1_T4b_PD": 443706.9375
+      },
+      "nd_sum": 488245.71875,
+      "grad_norm": 112966935.56902663,
+      "lr": 0.0003,
+      "adam_iter": 25
+    },
+    {
+      "iter": 25,
+      "cost": 1265840.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 328168.4375,
+        "mbar_right_bright_w1_T4b_ND": 207209.21875,
+        "mbar_left_bright_w1_T4a_ND": 302256.5625,
+        "mbar_left_bright_w1_T4b_PD": 428206.1875
+      },
+      "nd_sum": 509465.78125,
+      "grad_norm": 752352958.8348453,
+      "lr": 0.0003,
+      "adam_iter": 26
+    },
+    {
+      "iter": 26,
+      "cost": 1270078.125,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 299712.09375,
+        "mbar_right_bright_w1_T4b_ND": 222817.046875,
+        "mbar_left_bright_w1_T4a_ND": 340744.28125,
+        "mbar_left_bright_w1_T4b_PD": 406804.75
+      },
+      "nd_sum": 563561.328125,
+      "grad_norm": 107350814.52119419,
+      "lr": 0.0003,
+      "adam_iter": 27
+    },
+    {
+      "iter": 27,
+      "cost": 1169193.625,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 266034.125,
+        "mbar_right_bright_w1_T4b_ND": 213179.59375,
+        "mbar_left_bright_w1_T4a_ND": 325759.0625,
+        "mbar_left_bright_w1_T4b_PD": 364220.84375
+      },
+      "nd_sum": 538938.65625,
+      "grad_norm": 45724659.02621218,
+      "lr": 0.0003,
+      "adam_iter": 28
+    },
+    {
+      "iter": 28,
+      "cost": 1068839.125,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 239824.1875,
+        "mbar_right_bright_w1_T4b_ND": 210869.96875,
+        "mbar_left_bright_w1_T4a_ND": 290029.75,
+        "mbar_left_bright_w1_T4b_PD": 328115.28125
+      },
+      "nd_sum": 500899.71875,
+      "grad_norm": 24409779.232904047,
+      "lr": 0.0003,
+      "adam_iter": 29
+    },
+    {
+      "iter": 29,
+      "cost": 1060321.625,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 230758.234375,
+        "mbar_right_bright_w1_T4b_ND": 218746.875,
+        "mbar_left_bright_w1_T4a_ND": 292725.875,
+        "mbar_left_bright_w1_T4b_PD": 318090.625
+      },
+      "nd_sum": 511472.75,
+      "grad_norm": 115452926.52721426,
+      "lr": 0.0003,
+      "adam_iter": 30
+    },
+    {
+      "iter": 30,
+      "cost": 1047499.8125,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 215651.5,
+        "mbar_right_bright_w1_T4b_ND": 221064.546875,
+        "mbar_left_bright_w1_T4a_ND": 314612.46875,
+        "mbar_left_bright_w1_T4b_PD": 296171.3125
+      },
+      "nd_sum": 535677.015625,
+      "grad_norm": 114443464.64483789,
+      "lr": 0.0003,
+      "adam_iter": 31
+    },
+    {
+      "iter": 31,
+      "cost": 1057711.75,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 213711.375,
+        "mbar_right_bright_w1_T4b_ND": 225685.28125,
+        "mbar_left_bright_w1_T4a_ND": 324383.5625,
+        "mbar_left_bright_w1_T4b_PD": 293931.53125
+      },
+      "nd_sum": 550068.84375,
+      "grad_norm": 102852770.61403508,
+      "lr": 0.0003,
+      "adam_iter": 32
+    },
+    {
+      "iter": 32,
+      "cost": 1063008.5,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 217567.796875,
+        "mbar_right_bright_w1_T4b_ND": 228037.28125,
+        "mbar_left_bright_w1_T4a_ND": 327733.46875,
+        "mbar_left_bright_w1_T4b_PD": 289669.96875
+      },
+      "nd_sum": 555770.75,
+      "grad_norm": 121003015.83821215,
+      "lr": 0.0003,
+      "adam_iter": 33
+    },
+    {
+      "iter": 33,
+      "cost": 1054544.375,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 215180.859375,
+        "mbar_right_bright_w1_T4b_ND": 228994.03125,
+        "mbar_left_bright_w1_T4a_ND": 326166.375,
+        "mbar_left_bright_w1_T4b_PD": 284203.09375
+      },
+      "nd_sum": 555160.40625,
+      "grad_norm": 67160710.62753735,
+      "lr": 0.0003,
+      "adam_iter": 34
+    },
+    {
+      "iter": 34,
+      "cost": 1053482.875,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 210768.546875,
+        "mbar_right_bright_w1_T4b_ND": 230167.640625,
+        "mbar_left_bright_w1_T4a_ND": 329139.03125,
+        "mbar_left_bright_w1_T4b_PD": 283407.65625
+      },
+      "nd_sum": 559306.671875,
+      "grad_norm": 64450376.65760427,
+      "lr": 0.0003,
+      "adam_iter": 35
+    },
+    {
+      "iter": 35,
+      "cost": 1037683.25,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 205560.125,
+        "mbar_right_bright_w1_T4b_ND": 228490.015625,
+        "mbar_left_bright_w1_T4a_ND": 320610.53125,
+        "mbar_left_bright_w1_T4b_PD": 283022.59375
+      },
+      "nd_sum": 549100.546875,
+      "grad_norm": 27617885.54046078,
+      "lr": 0.0003,
+      "adam_iter": 36
+    },
+    {
+      "iter": 36,
+      "cost": 1036343.25,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 210841.140625,
+        "mbar_right_bright_w1_T4b_ND": 225204.78125,
+        "mbar_left_bright_w1_T4a_ND": 316732.84375,
+        "mbar_left_bright_w1_T4b_PD": 283564.46875
+      },
+      "nd_sum": 541937.625,
+      "grad_norm": 89747698.22292583,
+      "lr": 0.0003,
+      "adam_iter": 37
+    },
+    {
+      "iter": 37,
+      "cost": 1037708.875,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 213116.125,
+        "mbar_right_bright_w1_T4b_ND": 224466.109375,
+        "mbar_left_bright_w1_T4a_ND": 315561.375,
+        "mbar_left_bright_w1_T4b_PD": 284565.28125
+      },
+      "nd_sum": 540027.484375,
+      "grad_norm": 26562770.13354765,
+      "lr": 0.0003,
+      "adam_iter": 38
+    },
+    {
+      "iter": 38,
+      "cost": 1033619.0625,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 212700.53125,
+        "mbar_right_bright_w1_T4b_ND": 220541.90625,
+        "mbar_left_bright_w1_T4a_ND": 315027.65625,
+        "mbar_left_bright_w1_T4b_PD": 285348.9375
+      },
+      "nd_sum": 535569.5625,
+      "grad_norm": 65163554.292903654,
+      "lr": 0.0003,
+      "adam_iter": 39
+    },
+    {
+      "iter": 39,
+      "cost": 1015611.0,
+      "parts": {
+        "mbar_right_bright_w1_T4a_PD": 202740.3125,
+        "mbar_right_bright_w1_T4b_ND": 220414.84375,
+        "mbar_left_bright_w1_T4a_ND": 312967.8125,
+        "mbar_left_bright_w1_T4b_PD": 279488.0
+      },
+      "nd_sum": 533382.65625,
+      "grad_norm": 12660881.933455274,
+      "lr": 0.0003,
+      "adam_iter": 40
+    }
+  ],
+  "initial_cost": 1002873.5625,
+  "best_cost": 1002873.5625,
+  "best_nd": 594820.015625,
+  "best_parts": {
+    "mbar_right_bright_w1_T4a_PD": 170658.640625,
+    "mbar_right_bright_w1_T4b_ND": 248447.609375,
+    "mbar_left_bright_w1_T4a_ND": 346372.40625,
+    "mbar_left_bright_w1_T4b_PD": 237394.921875
+  },
+  "source_total": 1002873.5625,
+  "source_nd": 594820.015625,
+  "source_parts": {
+    "mbar_right_bright_w1_T4a_PD": 170658.640625,
+    "mbar_right_bright_w1_T4b_ND": 248447.609375,
+    "mbar_left_bright_w1_T4a_ND": 346372.40625,
+    "mbar_left_bright_w1_T4b_PD": 237394.921875
+  },
+  "unconstrained_best_cost": 1002873.5625,
+  "best_at": 0,
+  "elapsed_s": 886.2402561996132,
+  "stop_reason": "completed",
+  "current_lr": 0.0003,
+  "terminal_cost": 1015552.125,
+  "selected_adam_iter": 0,
+  "complete": true
+}

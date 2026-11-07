@@ -1,0 +1,11 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 0 / 20
+DONE 0 elapsed 18.30323609150946 top [({'name': 'release_shape_000', 'delta_syn_mV': 0.5, 'v_th_syn_mV': -55.0}, 0.002), ({'name': 'release_shape_002', 'delta_syn_mV': 0.5, 'v_th_syn_mV': -45.0}, 0.001), ({'name': 'release_shape_001', 'delta_syn_mV': 0.5, 'v_th_syn_mV': -50.0}, 0.0)]
+START 5 / 20
+DONE 5 elapsed 33.297760118730366 top [({'name': 'release_shape_008', 'delta_syn_mV': 1.0, 'v_th_syn_mV': -40.0}, 0.047), ({'name': 'release_shape_006', 'delta_syn_mV': 1.0, 'v_th_syn_mV': -50.0}, 0.041), ({'name': 'release_shape_009', 'delta_syn_mV': 1.0, 'v_th_syn_mV': -35.0}, 0.016)]
+START 10 / 20
+DONE 10 elapsed 47.82463909406215 top [({'name': 'release_shape_012', 'delta_syn_mV': 2.0, 'v_th_syn_mV': -45.0}, 1.054), ({'name': 'release_shape_011', 'delta_syn_mV': 2.0, 'v_th_syn_mV': -50.0}, 0.211), ({'name': 'release_shape_010', 'delta_syn_mV': 2.0, 'v_th_syn_mV': -55.0}, 0.089)]
+START 15 / 20
+DONE 15 elapsed 62.565040880814195 top [({'name': 'release_shape_017', 'delta_syn_mV': 4.0, 'v_th_syn_mV': -45.0}, 2.236), ({'name': 'release_shape_016', 'delta_syn_mV': 4.0, 'v_th_syn_mV': -50.0}, 1.901), ({'name': 'release_shape_018', 'delta_syn_mV': 4.0, 'v_th_syn_mV': -40.0}, 1.083)]
+FINISHED

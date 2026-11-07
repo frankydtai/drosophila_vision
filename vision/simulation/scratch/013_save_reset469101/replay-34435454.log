@@ -1,0 +1,41 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+from '/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/inputs/34431163' -> '/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/inputs/34431163/data/best_param.npz' + '/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/inputs/34431163/data/best_adam.npz' (62 z, adam_iter=79, same objective)
+REPLAY 0 583273.75 EXACT
+REPLAY 1 602568.8125 EXACT
+REPLAY 2 622632.875 EXACT
+REPLAY 3 601523.5 EXACT
+REPLAY 4 470482.28125 EXACT
+REPLAY 5 555535.0 EXACT
+REPLAY 6 855439.625 EXACT
+REPLAY 7 1145025.125 EXACT
+REPLAY 8 1140308.75 EXACT
+REPLAY 9 1358255.0 EXACT
+REPLAY 10 1642793.125 EXACT
+REPLAY 11 1812087.5 EXACT
+REPLAY 12 1556211.75 EXACT
+REPLAY 13 1267834.25 EXACT
+REPLAY 14 1067725.0 EXACT
+REPLAY 15 830587.125 EXACT
+REPLAY 16 617567.0 EXACT
+REPLAY 17 488268.9375 EXACT
+REPLAY 18 468285.46875 EXACT
+REPLAY 19 436490.75 EXACT
+wrote /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/param.csv (best run #0, cost=469100.7812)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/point_hh_synapse_params.csv
+SAVED_EXACT_FINAL 469100.78125 /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/copy/vision/simulation/5_figure/1_panel.py:860: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/cost.png: prep=0.0s  plot_s=0.2s  save=1.1s  elapsed_s=1.3s
+plot device=cpu
+1 trained set(s); costs min=469100.7812 max=469100.7812; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/spread_gt_v.png: prep=0.8s  plot_s=0.2s  save=0.6s  elapsed_s=1.6s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/spread_all_v.png: prep=0.0s  plot_s=0.1s  save=0.6s  elapsed_s=0.7s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/mbar_gt_v.png: prep=5.6s  plot_s=0.1s  save=0.2s  elapsed_s=5.9s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/mbar_all_v.png: prep=0.0s  plot_s=0.5s  save=1.2s  elapsed_s=1.7s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/sbar_gt_v.png: prep=3.8s  plot_s=0.1s  save=0.3s  elapsed_s=4.3s
+plot /home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101/run/sbar_all_v.png: prep=0.0s  plot_s=1.2s  save=1.9s  elapsed_s=3.1s
+ALL_SEVEN_IMAGES_VALID {"selected_cost": 469100.78125, "parameter_roundtrip_exact": true, "selected_adam_iter": 20, "images": {"cost.png": {"width": 2192, "height": 1346, "bytes": 189206, "sha256": "849cc10099cefa705849cfe73ea585cafab42fc1b38c47d1567d7d005958c94f"}, "spread_gt_v.png": {"width": 2159, "height": 991, "bytes": 181442, "sha256": "7c517a3987a35dc94edb490b067f6669e0b015bd1c872c71f60e1bb1243d9f4c"}, "spread_all_v.png": {"width": 2102, "height": 1295, "bytes": 190766, "sha256": "0c416ae1df8d82e3164afc888783738ca4192696e557f357a9d9ada754a1377b"}, "mbar_gt_v.png": {"width": 851, "height": 542, "bytes": 72350, "sha256": "54a3095ade71bf70b1a338abb4de8f102ff3ea7a541837e246e553992b1b59c1"}, "mbar_all_v.png": {"width": 854, "height": 2303, "bytes": 197965, "sha256": "3e9d8dd8eba07c408361e60113e62f974bbba36777d8059560f25064445434cf"}, "sbar_gt_v.png": {"width": 860, "height": 405, "bytes": 65243, "sha256": "57e69f03168d74ca03fcca55e40b21e95548f24f4fb547dbb277764e35cb0226"}, "sbar_all_v.png": {"width": 860, "height": 1830, "bytes": 208021, "sha256": "e15d4b9104895a40bdb522d5f61055da80a2975cb32fed2df0efc11d03625f95"}}, "protected_files_unchanged": true, "elapsed_s": 53.06657973304391}

@@ -1,0 +1,59 @@
+[
+  {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "n_iter": 40,
+    "backtrack": false,
+    "label": "nd_resume_0003",
+    "resume_adam": true,
+    "lr": 0.0003
+  },
+  {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "n_iter": 40,
+    "backtrack": false,
+    "label": "nd_resume_001",
+    "resume_adam": true,
+    "lr": 0.001
+  },
+  {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "n_iter": 40,
+    "backtrack": false,
+    "label": "nd_reset_0003",
+    "resume_adam": false,
+    "lr": 0.0003
+  }
+]

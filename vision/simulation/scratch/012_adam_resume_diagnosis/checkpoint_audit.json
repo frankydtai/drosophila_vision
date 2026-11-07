@@ -1,0 +1,8 @@
+{
+  "best_param_matches_interval100_checkpoint": true,
+  "best_adam_matches_interval100_checkpoint": true,
+  "source_interval_checkpoint_adam_iter": 79,
+  "previous_run_local_iterations": 100,
+  "new_run_local_iterations": 50,
+  "checkpoint_interval": 100
+}

@@ -1,0 +1,11 @@
+[
+  {
+    "label": "extend_00_resume_backtrack",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/run",
+    "resume_adam": true,
+    "lr": 0.0003,
+    "initial_lr": 2.8776980798284053e-06,
+    "n_iter": 32,
+    "backtrack": true
+  }
+]

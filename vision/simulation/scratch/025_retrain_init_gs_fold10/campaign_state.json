@@ -1,0 +1,22 @@
+{
+  "phase": "training",
+  "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+  "g_context_mode": "init",
+  "gene_mode": "on",
+  "gS_max_fold_before": 6.0,
+  "gS_max_fold_after": 10.0,
+  "gS_per_contact_range_before": [
+    0.05,
+    1.8
+  ],
+  "gS_per_contact_range_after": [
+    0.03,
+    3.0
+  ],
+  "formal_change": "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml",
+  "formal_change_scope": "one scalar gS max_fold_changes 6 to 10; user approved both upper and lower expansion",
+  "old_loss": 994279.375,
+  "new_mapping_initial_loss": 855180.6875,
+  "adam_reset": true,
+  "screen_job": "34467927"
+}

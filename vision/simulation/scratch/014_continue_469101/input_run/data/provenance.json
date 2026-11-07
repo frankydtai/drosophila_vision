@@ -1,0 +1,18 @@
+{
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "diagnostic_record": "/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json",
+  "diagnostic_job": "34434745_1",
+  "replay_job": "34435454",
+  "selection": "final_after_20_adam_updates",
+  "selected_cost": 469100.78125,
+  "trajectory_best_cost": 436490.75,
+  "selected_adam_iter": 20,
+  "resume_adam": false,
+  "learning_rate": 0.003,
+  "n_iter": 20,
+  "device": "cpu",
+  "hardware": "spartan-bm176.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "all_20_costs_and_gradient_norms_match_diagnostic_exactly": true,
+  "elapsed_s": 445.42391513846815
+}

@@ -10,6 +10,7 @@ import numpy as np
 import torch
 
 import train
+from train.cost import gt_affine_from_pack
 from task.mbar.gt import (
     GT_CELLS,
     fig1_trace_from_sti,
@@ -19,6 +20,7 @@ from task.mbar.gt import (
 from task.mbar.pack import (
     bar_specs_from_task,
     dsi_groups,
+    dsi_peak_values,
     dsi_values,
     nodes_from_hexes,
     mbar_specs_by_cell,
@@ -150,6 +152,7 @@ class MbarTraceReadout:
     ms_shown: tuple[float, float] | None = None
     dsi_by_cell: dict = field(default_factory=dict)
     dsi_window_ts: dict = field(default_factory=dict)
+    dsi_peak_by_cell: dict = field(default_factory=dict)
 
 
 def _mbar_figure(n_row, n_col, *, sharex='col'):
@@ -437,6 +440,11 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
             pack, trace, window_ts=window_ts,
         ).items()
     }
+    _, bias_gt = gt_affine_from_pack(params, pack, session)
+    dsi_peak_by_cell = {
+        key.removeprefix(f"mbar_DSI_{contrast}_"): float(value)
+        for key, value in dsi_peak_values(pack, trace, bias_gt).items()
+    }
     trace = as_numpy(trace)
     specs = bar_specs_from_task(session, task, contrast)
     spec_tokens = [spec.token for spec in specs]
@@ -534,6 +542,7 @@ def mbar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
         gt_affine_by_cell=gt_affine_by_cell,
         ms_shown=ms_shown,
         dsi_by_cell=dsi_by_cell,
+        dsi_peak_by_cell=dsi_peak_by_cell,
         dsi_window_ts=dsi_window_ts,
     )
 
@@ -960,6 +969,8 @@ def plot_gt(path, *, readouts, title, gts=None, cost_parts=None, right_only=True
             )
             if cell in row_readout.dsi_by_cell:
                 cell_title += f'\nDSI={row_readout.dsi_by_cell[cell]:.3f}'
+            if cell in row_readout.dsi_peak_by_cell:
+                cell_title += f'  DSI_peak={row_readout.dsi_peak_by_cell[cell]:.3f}'
             gt_trace = gt_trace_affine(
                 row_readout, cell, row_readout.gt_traces.get(key),
             )

@@ -1,0 +1,74 @@
+[
+  {
+    "label": "upper_only_6",
+    "upper_fold": 6,
+    "kind": "upper_only",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "upper_only_8",
+    "upper_fold": 8,
+    "kind": "upper_only",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "upper_only_10",
+    "upper_fold": 10,
+    "kind": "upper_only",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "upper_only_12",
+    "upper_fold": 12,
+    "kind": "upper_only",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "upper_only_16",
+    "upper_fold": 16,
+    "kind": "upper_only",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "symmetric_12",
+    "upper_fold": 12,
+    "kind": "symmetric",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "upper_only_6__release_audit",
+    "upper_fold": 6,
+    "kind": "upper_only",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "symmetric_12__release_audit",
+    "upper_fold": 12,
+    "kind": "symmetric",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "symmetric_8",
+    "upper_fold": 8,
+    "kind": "symmetric",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "symmetric_10",
+    "upper_fold": 10,
+    "kind": "symmetric",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "symmetric_16",
+    "upper_fold": 16,
+    "kind": "symmetric",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  {
+    "label": "configured_10",
+    "upper_fold": 10,
+    "kind": "native_symmetric",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  }
+]

@@ -1,0 +1,191 @@
+{
+  "case": {
+    "label": "screen_01_resume_0.0003",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/input_run",
+    "resume_adam": true,
+    "lr": 0.0003,
+    "n_iter": 24,
+    "backtrack": false
+  },
+  "hostname": "spartan-bm163.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "records": [
+    {
+      "iter": 0,
+      "cost": 469100.78125,
+      "grad_norm": 24531366.045450788,
+      "lr": 0.0003,
+      "adam_iter": 21
+    },
+    {
+      "iter": 1,
+      "cost": 465664.71875,
+      "grad_norm": 21801303.979935948,
+      "lr": 0.0003,
+      "adam_iter": 22
+    },
+    {
+      "iter": 2,
+      "cost": 462889.28125,
+      "grad_norm": 144059852.20896944,
+      "lr": 0.0003,
+      "adam_iter": 23
+    },
+    {
+      "iter": 3,
+      "cost": 469026.4375,
+      "grad_norm": 28947804.592480734,
+      "lr": 0.0003,
+      "adam_iter": 24
+    },
+    {
+      "iter": 4,
+      "cost": 462505.75,
+      "grad_norm": 33053865.87711042,
+      "lr": 0.0003,
+      "adam_iter": 25
+    },
+    {
+      "iter": 5,
+      "cost": 459296.28125,
+      "grad_norm": 30154542.354126614,
+      "lr": 0.0003,
+      "adam_iter": 26
+    },
+    {
+      "iter": 6,
+      "cost": 456189.0625,
+      "grad_norm": 29812400.729109697,
+      "lr": 0.0003,
+      "adam_iter": 27
+    },
+    {
+      "iter": 7,
+      "cost": 462034.75,
+      "grad_norm": 181061842.91452184,
+      "lr": 0.0003,
+      "adam_iter": 28
+    },
+    {
+      "iter": 8,
+      "cost": 466377.78125,
+      "grad_norm": 25816097.29474567,
+      "lr": 0.0003,
+      "adam_iter": 29
+    },
+    {
+      "iter": 9,
+      "cost": 463180.5625,
+      "grad_norm": 20843882.84826924,
+      "lr": 0.0003,
+      "adam_iter": 30
+    },
+    {
+      "iter": 10,
+      "cost": 465528.4375,
+      "grad_norm": 16613382.04154678,
+      "lr": 0.0003,
+      "adam_iter": 31
+    },
+    {
+      "iter": 11,
+      "cost": 442104.21875,
+      "grad_norm": 16830233.72881641,
+      "lr": 0.0003,
+      "adam_iter": 32
+    },
+    {
+      "iter": 12,
+      "cost": 439280.0,
+      "grad_norm": 14805335.072184907,
+      "lr": 0.0003,
+      "adam_iter": 33
+    },
+    {
+      "iter": 13,
+      "cost": 461459.5,
+      "grad_norm": 18197917.66513592,
+      "lr": 0.0003,
+      "adam_iter": 34
+    },
+    {
+      "iter": 14,
+      "cost": 459829.5,
+      "grad_norm": 157806201.75923184,
+      "lr": 0.0003,
+      "adam_iter": 35
+    },
+    {
+      "iter": 15,
+      "cost": 460414.90625,
+      "grad_norm": 30217856.67270032,
+      "lr": 0.0003,
+      "adam_iter": 36
+    },
+    {
+      "iter": 16,
+      "cost": 458605.9375,
+      "grad_norm": 44381559.6764753,
+      "lr": 0.0003,
+      "adam_iter": 37
+    },
+    {
+      "iter": 17,
+      "cost": 456270.8125,
+      "grad_norm": 81990508.72452782,
+      "lr": 0.0003,
+      "adam_iter": 38
+    },
+    {
+      "iter": 18,
+      "cost": 456772.3125,
+      "grad_norm": 83658256.2712955,
+      "lr": 0.0003,
+      "adam_iter": 39
+    },
+    {
+      "iter": 19,
+      "cost": 454756.5625,
+      "grad_norm": 36185496.6020143,
+      "lr": 0.0003,
+      "adam_iter": 40
+    },
+    {
+      "iter": 20,
+      "cost": 451218.53125,
+      "grad_norm": 21021381.612767335,
+      "lr": 0.0003,
+      "adam_iter": 41
+    },
+    {
+      "iter": 21,
+      "cost": 447627.96875,
+      "grad_norm": 20197050.40700183,
+      "lr": 0.0003,
+      "adam_iter": 42
+    },
+    {
+      "iter": 22,
+      "cost": 445299.53125,
+      "grad_norm": 18116452.652140234,
+      "lr": 0.0003,
+      "adam_iter": 43
+    },
+    {
+      "iter": 23,
+      "cost": 444614.125,
+      "grad_norm": 34604959.95482089,
+      "lr": 0.0003,
+      "adam_iter": 44
+    }
+  ],
+  "initial_cost": 469100.78125,
+  "best_cost": 439280.0,
+  "best_at": 12,
+  "elapsed_s": 567.1603443659842,
+  "stop_reason": "completed",
+  "current_lr": 0.0003,
+  "terminal_cost": 444459.1875,
+  "selected_adam_iter": 32,
+  "complete": true
+}

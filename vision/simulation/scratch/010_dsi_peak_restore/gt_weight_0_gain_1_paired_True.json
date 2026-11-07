@@ -1,0 +1,15 @@
+{
+  "weight": 0.0,
+  "gain": 1.0,
+  "paired": true,
+  "titles": [
+    "right_bright_w1\nDSI=3.000  DSI_peak=0.600",
+    "left_bright_w1\nDSI=3.000  DSI_peak=0.600",
+    "right_dark_w1\nDSI=6.000  DSI_peak=0.600",
+    "left_dark_w1\nDSI=6.000  DSI_peak=0.600",
+    "right_bright_w1\nDSI=4.000  DSI_peak=0.500",
+    "left_bright_w1\nDSI=4.000  DSI_peak=0.500",
+    "right_dark_w1\nDSI=8.000  DSI_peak=0.500",
+    "left_dark_w1\nDSI=8.000  DSI_peak=0.500"
+  ]
+}

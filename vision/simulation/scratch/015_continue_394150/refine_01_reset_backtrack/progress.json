@@ -1,0 +1,275 @@
+{
+  "case": {
+    "label": "refine_01_reset_backtrack",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/run",
+    "resume_adam": false,
+    "lr": 0.0003,
+    "n_iter": 16,
+    "backtrack": true
+  },
+  "hostname": "spartan-bm176.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "records": [
+    {
+      "iter": 0,
+      "cost": 311675.6875,
+      "grad_norm": 28450541.77621873,
+      "lr": 0.0003,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 351607.1875
+        },
+        {
+          "factor": 0.3,
+          "cost": 312590.25
+        },
+        {
+          "factor": 0.1,
+          "cost": 310497.75
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 1
+    },
+    {
+      "iter": 1,
+      "cost": 310497.75,
+      "grad_norm": 8331317.712612109,
+      "lr": 3.75e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 310206.0
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 2
+    },
+    {
+      "iter": 2,
+      "cost": 310206.0,
+      "grad_norm": 19452506.34317341,
+      "lr": 4.6874999999999994e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 309411.75
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 3
+    },
+    {
+      "iter": 3,
+      "cost": 309411.75,
+      "grad_norm": 19254579.088185024,
+      "lr": 5.859374999999999e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 307930.5625
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 4
+    },
+    {
+      "iter": 4,
+      "cost": 307930.5625,
+      "grad_norm": 8732428.853854667,
+      "lr": 7.324218749999998e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 306153.78125
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 5
+    },
+    {
+      "iter": 5,
+      "cost": 306153.78125,
+      "grad_norm": 7284304.983158391,
+      "lr": 9.155273437499997e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 304326.96875
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 6
+    },
+    {
+      "iter": 6,
+      "cost": 304326.96875,
+      "grad_norm": 6145642.970641689,
+      "lr": 0.00011444091796874997,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 302610.25
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 7
+    },
+    {
+      "iter": 7,
+      "cost": 302610.25,
+      "grad_norm": 5692046.764375539,
+      "lr": 0.00014305114746093747,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 301181.0
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 8
+    },
+    {
+      "iter": 8,
+      "cost": 301181.0,
+      "grad_norm": 5549594.186639113,
+      "lr": 0.00017881393432617185,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 299878.78125
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 9
+    },
+    {
+      "iter": 9,
+      "cost": 299878.78125,
+      "grad_norm": 4268798.041739143,
+      "lr": 0.00022351741790771482,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 297589.5
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 10
+    },
+    {
+      "iter": 10,
+      "cost": 297589.5,
+      "grad_norm": 16248242.200372223,
+      "lr": 0.0002793967723846435,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 298857.90625
+        },
+        {
+          "factor": 0.3,
+          "cost": 296661.40625
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 11
+    },
+    {
+      "iter": 11,
+      "cost": 296661.40625,
+      "grad_norm": 9687836.611176072,
+      "lr": 0.00010477378964424132,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 291558.875
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 12
+    },
+    {
+      "iter": 12,
+      "cost": 291558.875,
+      "grad_norm": 226566920.38331902,
+      "lr": 0.00013096723705530164,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 296228.8125
+        },
+        {
+          "factor": 0.3,
+          "cost": 294955.125
+        },
+        {
+          "factor": 0.1,
+          "cost": 291185.625
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 13
+    },
+    {
+      "iter": 13,
+      "cost": 291185.625,
+      "grad_norm": 202150489.82837757,
+      "lr": 1.6370904631912705e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 290822.5625
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 14
+    },
+    {
+      "iter": 14,
+      "cost": 290822.5625,
+      "grad_norm": 199453170.4878027,
+      "lr": 2.0463630789890882e-05,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 290936.34375
+        },
+        {
+          "factor": 0.3,
+          "cost": 290200.84375
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 15
+    },
+    {
+      "iter": 15,
+      "cost": 290200.84375,
+      "grad_norm": 61850664.76825299,
+      "lr": 7.67386154620908e-06,
+      "trials": [
+        {
+          "factor": 1.0,
+          "cost": 290410.5
+        },
+        {
+          "factor": 0.3,
+          "cost": 290132.09375
+        }
+      ],
+      "accepted": true,
+      "adam_iter": 16
+    }
+  ],
+  "initial_cost": 311675.6875,
+  "best_cost": 290132.09375,
+  "best_at": 16,
+  "elapsed_s": 550.7151075620204,
+  "stop_reason": "completed",
+  "current_lr": 2.8776980798284053e-06,
+  "terminal_cost": 290132.09375,
+  "selected_adam_iter": 16,
+  "complete": true
+}

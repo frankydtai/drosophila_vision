@@ -1,0 +1,9 @@
+{
+  "changed_file": "/home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py",
+  "tests_passed": 140,
+  "schedule": "Initial evaluation, global iterations 10,20,30,..., and final evaluation; cache the last DSI between scheduled iterations",
+  "best_summary": "Show DSI only if measured at that best parameter state",
+  "optimizer_matches_tested_candidate": true,
+  "source_sha256": "0548573517cd96db71ca814dd0252b50d6734c5abc8d8a021cc2a2970af3560b",
+  "test_log": "/home/yitai/drosophila_vision/vision/simulation/scratch/006_dsi_every_ten_iters/final_verification.log"
+}

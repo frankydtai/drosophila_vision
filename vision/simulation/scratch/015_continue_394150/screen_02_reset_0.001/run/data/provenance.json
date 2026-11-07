@@ -1,0 +1,21 @@
+{
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/input_run",
+  "optimization_case": {
+    "label": "screen_02_reset_0.001",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/input_run",
+    "resume_adam": false,
+    "lr": 0.001,
+    "n_iter": 32,
+    "backtrack": false
+  },
+  "selected_cost": 321614.4375,
+  "selected_update": 24,
+  "selected_adam_iter": 24,
+  "selection": "lowest_measured_loss",
+  "terminal_cost": 557199.3125,
+  "job": "34437375",
+  "array_task": "2",
+  "device": "cpu",
+  "hostname": "spartan-bm172.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128"
+}

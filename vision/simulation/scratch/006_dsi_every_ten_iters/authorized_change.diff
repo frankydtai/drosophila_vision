@@ -1,0 +1,18 @@
+--- before
++++ after
+@@ -191,11 +191,13 @@
+             aborted = f'iter {iter}: non-finite grad'
+             break
+ 
+-        dsi = dsi_fn(z) if dsi_fn is not None else None
++        measure_dsi = (global_iter_start + iter + 1) % 10 == 0
++        if measure_dsi:
++            dsi = dsi_fn(z) if dsi_fn is not None else None
+ 
+         if cost < best_cost:
+ 
+-            best_dsi = dsi
++            best_dsi = dsi if measure_dsi else None
+             best_cost = cost
+             best_z = z.clone().detach()
+             best_adam = _adam_bag(optimizer, z)

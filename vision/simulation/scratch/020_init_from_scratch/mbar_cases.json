@@ -1,0 +1,42 @@
+[
+  {
+    "label": "mbar_initial_00_0.003",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread_native_100/run",
+    "native": false,
+    "required_source_steps": 100,
+    "resume_adam": false,
+    "lr": 0.003,
+    "n_iter": 80,
+    "backtrack": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  },
+  {
+    "label": "mbar_initial_01_0.001",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread_native_100/run",
+    "native": false,
+    "required_source_steps": 100,
+    "resume_adam": false,
+    "lr": 0.001,
+    "n_iter": 80,
+    "backtrack": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  }
+]

@@ -1,0 +1,18 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+from '/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/early_refine_seed/run' -> '/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/early_refine_seed/run/data/best_param.npz' only (62 z, reset Adam, resume_adam=false)
+STEP {"iter": 0, "cost": 2130424.25, "grad_norm": 66029209.68088545, "lr": 0.0003, "trials": [{"factor": 1.0, "cost": 2177590.75}, {"factor": 0.3, "cost": 2140650.0}, {"factor": 0.1, "cost": 2124541.5}], "accepted": true, "adam_iter": 1} BEST 2124541.5
+STEP {"iter": 1, "cost": 2124541.5, "grad_norm": 75008421.11600384, "lr": 3.75e-05, "trials": [{"factor": 1.0, "cost": 2142570.25}, {"factor": 0.3, "cost": 2118827.25}], "accepted": true, "adam_iter": 2} BEST 2118827.25
+STEP {"iter": 2, "cost": 2118827.25, "grad_norm": 263283589.70601746, "lr": 1.40625e-05, "trials": [{"factor": 1.0, "cost": 2148109.5}, {"factor": 0.3, "cost": 2153667.5}, {"factor": 0.1, "cost": 2119074.5}, {"factor": 0.03, "cost": 2118566.5}], "accepted": true, "adam_iter": 3} BEST 2118566.5
+STEP {"iter": 3, "cost": 2118566.5, "grad_norm": 351142674.8630907, "lr": 5.2734375e-07, "trials": [{"factor": 1.0, "cost": 2118148.5}], "accepted": true, "adam_iter": 4} BEST 2118148.5
+STEP {"iter": 4, "cost": 2118148.5, "grad_norm": 354432672.11595315, "lr": 6.591796875e-07, "trials": [{"factor": 1.0, "cost": 2117866.5}], "accepted": true, "adam_iter": 5} BEST 2117866.5
+STEP {"iter": 5, "cost": 2117866.5, "grad_norm": 1192418548.2010522, "lr": 8.239746093750001e-07, "trials": [{"factor": 1.0, "cost": 2151935.0}, {"factor": 0.3, "cost": 2117246.25}], "accepted": true, "adam_iter": 6} BEST 2117246.25
+STEP {"iter": 6, "cost": 2117246.25, "grad_norm": 884157459.6398233, "lr": 3.0899047851562506e-07, "trials": [{"factor": 1.0, "cost": 2148822.25}, {"factor": 0.3, "cost": 2117027.25}], "accepted": true, "adam_iter": 7} BEST 2117027.25
+STEP {"iter": 7, "cost": 2117027.25, "grad_norm": 995308585.4916327, "lr": 1.158714294433594e-07, "trials": [{"factor": 1.0, "cost": 2116724.25}], "accepted": true, "adam_iter": 8} BEST 2116724.25
+STEP {"iter": 8, "cost": 2116724.25, "grad_norm": 1118826049.9113622, "lr": 1.4483928680419925e-07, "trials": [{"factor": 1.0, "cost": 2151721.25}, {"factor": 0.3, "cost": 2116221.25}], "accepted": true, "adam_iter": 9} BEST 2116221.25
+STEP {"iter": 9, "cost": 2116221.25, "grad_norm": 16038895183.561575, "lr": 1e-07, "trials": [{"factor": 1.0, "cost": 2150797.25}, {"factor": 0.3, "cost": 2115331.5}], "accepted": true, "adam_iter": 10} BEST 2115331.5
+STEP {"iter": 10, "cost": 2115331.5, "grad_norm": 46905762820.420006, "lr": 1e-07, "trials": [{"factor": 1.0, "cost": 2151539.0}, {"factor": 0.3, "cost": 2148676.75}, {"factor": 0.1, "cost": 2147796.5}, {"factor": 0.03, "cost": 2147751.5}, {"factor": 0.01, "cost": 2115212.5}], "accepted": true, "adam_iter": 11} BEST 2115212.5
+wrote /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/refine_01_reset/run/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/refine_01_reset/run/param.csv (best run #0, cost=2115212.5000)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/refine_01_reset/run/point_hh_synapse_params.csv
+DONE refine_01_reset 2115212.5 no_improving_step

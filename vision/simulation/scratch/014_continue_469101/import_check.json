@@ -1,0 +1,6 @@
+{
+  "select_module": "/usr/lib64/python3.9/lib-dynload/select.cpython-39-x86_64-linux-gnu.so",
+  "numpy_version": "2.0.2",
+  "torch_version": "2.8.0+cu128",
+  "imports_ok": true
+}

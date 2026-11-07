@@ -1,0 +1,33 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START {'name': 'saved_baseline'}
+DONE saved_baseline cost 1740471.875 DSI {'mbar_DSI_bright_T4a': -96.8515625, 'mbar_DSI_bright_T4b': -48.01171875} seconds 19.96573011483997
+START {'name': 'saved_repeat'}
+DONE saved_repeat cost 1740471.875 DSI {'mbar_DSI_bright_T4a': -96.8515625, 'mbar_DSI_bright_T4b': -48.01171875} seconds 40.107479352504015
+START {'name': 'zero_dose', 'negative_sources': ['Mi1', 'Tm3'], 'restore_mi9': True, 'dose': 0.0}
+DONE zero_dose cost 1740471.875 DSI {'mbar_DSI_bright_T4a': -96.8515625, 'mbar_DSI_bright_T4b': -48.01171875} seconds 61.47043389175087
+START {'name': 'Mi9_frozen', 'freeze_sources': ['Mi9']}
+DONE Mi9_frozen cost 1737560.796875 DSI {'mbar_DSI_bright_T4a': -96.759765625, 'mbar_DSI_bright_T4b': -50.37109375} seconds 81.6958936471492
+START {'name': 'Mi4_frozen', 'freeze_sources': ['Mi4']}
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/007_biphasic_mbar_cost_dsi/interventions.py", line 119, in <module>
+    if __name__=='__main__':main()
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/007_biphasic_mbar_cost_dsi/interventions.py", line 116, in main
+    metrics=evaluate(case,v,p,g);records.append(metrics);(OUT/'intervention_results.json').write_text(json.dumps(records,indent=2)+'\n')
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/007_biphasic_mbar_cost_dsi/interventions.py", line 83, in evaluate
+    override_val_from(p,H,onset_trace=v,t_onset=ONSET);metrics,curves=ref.cost_and_curves(H,p,PACK,v)
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/007_biphasic_mbar_cost_dsi/prepare.py", line 32, in cost_and_curves
+    specs=bar_specs_from_task(session,'mbar','bright');tokens=[x.token for x in specs];tr,*_=_traces_from_forward(session,'mbar','bright',v.numpy(),specs,tokens);curves={};metrics={}
+  File "/home/yitai/drosophila_vision/vision/simulation/5_figure/2_4_mbar.py", line 389, in _traces_from_forward
+    grids = mbar_session_t0_grids(
+  File "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/4_pack.py", line 620, in mbar_session_t0_grids
+    sti = build_mbar_signals(
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/007_biphasic_mbar_cost_dsi/prepare.py", line 21, in <lambda>
+    mp.build_mbar_signals=lambda *a,**kw:original_signals(*a,**dict(kw,use_cache=False))
+  File "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/2_sti_spec.py", line 613, in build_mbar_signals
+    i_sti=i_sti_nodes_from_hexes(i_sti_hex, sti, connectome.n_node),
+  File "/home/yitai/drosophila_vision/vision/simulation/3_task/3_sbar/1_sti_geo.py", line 100, in i_sti_nodes_from_hexes
+    i_sti[:, :, np.asarray(nodes, dtype=np.int64)] = i_sti_hex[:, :, np.asarray(hex_idxs, dtype=np.int64)]
+KeyboardInterrupt

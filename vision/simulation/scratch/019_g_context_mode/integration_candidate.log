@@ -1,0 +1,21 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{
+  "phase": "candidate",
+  "model_source": "/home/yitai/drosophila_vision/vision/simulation/scratch/019_g_context_mode/copy/vision/simulation/1_neuron/1_4_point_hh.py",
+  "n_cells": 14,
+  "n_nodes": 5789,
+  "n_edges": 27824,
+  "init_values": {
+    "gNa": 3.0,
+    "gK": 1.0,
+    "gLeak": 1.2,
+    "gS": 0.3
+  },
+  "all_edges_use_init_times_contacts": true,
+  "previously_unresolved_edges_enabled": 3309,
+  "non_G_parameters_unchanged": true,
+  "zero_gene_weights_recover_selected_context": true,
+  "gene_mapped_conductances_finite": true,
+  "cache_init_change": true
+}

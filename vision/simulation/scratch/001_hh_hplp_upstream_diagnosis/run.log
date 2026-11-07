@@ -1,0 +1,17 @@
+START HH
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{"run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0", "dt_ms": 1.0, "cost": 1740471.875, "parts": {"mbar_right_bright_w1_T4a_PD": 363673.375, "mbar_right_bright_w1_T4b_ND": 230796.0625, "mbar_left_bright_w1_T4a_ND": 538594.5, "mbar_left_bright_w1_T4b_PD": 607407.9375}, "saved_cost": 1740471.25, "dsi_raw": {"mbar_DSI_bright_T4a": -96.8515625, "mbar_DSI_bright_T4b": -48.01171875}, "nodes": 5789, "incoming_types": ["Mi1", "Tm3", "Mi4", "Mi9", "T4a", "T4b"], "a_sti_mid": 0.8580805063247681}
+START HPLP_native
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{"run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0", "dt_ms": 2.0, "cost": 288770.89453125, "parts": {"mbar_right_bright_w1_T4a_PD": 81462.453125, "mbar_right_bright_w1_T4b_ND": 18353.875, "mbar_left_bright_w1_T4a_ND": 51434.42578125, "mbar_left_bright_w1_T4b_PD": 137520.140625}, "saved_cost": 288770.5625, "dsi_raw": {"mbar_DSI_bright_T4a": 326.2109375, "mbar_DSI_bright_T4b": 321.54296875}, "nodes": 5789, "incoming_types": ["Mi1", "Tm3", "Mi4", "Mi9", "T4a", "T4b"], "a_sti_mid": 1.2543123960494995}
+START HPLP
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{"run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0", "dt_ms": 1.0, "cost": 584649.5625, "parts": {"mbar_right_bright_w1_T4a_PD": 171699.15625, "mbar_right_bright_w1_T4b_ND": 35106.0234375, "mbar_left_bright_w1_T4a_ND": 90319.7265625, "mbar_left_bright_w1_T4b_PD": 287524.65625}, "saved_cost": 288770.5625, "dsi_raw": {"mbar_DSI_bright_T4a": 634.20703125, "mbar_DSI_bright_T4b": 638.91015625}, "nodes": 5789, "incoming_types": ["Mi1", "Tm3", "Mi4", "Mi9", "T4a", "T4b"], "a_sti_mid": 1.2543123960494995}
+START HPLP100
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{"run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381255-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0", "dt_ms": 1.0, "cost": 867765.765625, "parts": {"mbar_right_bright_w1_T4a_PD": 212921.703125, "mbar_right_bright_w1_T4b_ND": 93266.96875, "mbar_left_bright_w1_T4a_ND": 332434.1875, "mbar_left_bright_w1_T4b_PD": 229142.90625}, "saved_cost": 25603.45703125, "dsi_raw": {"mbar_DSI_bright_T4a": 258.66796875, "mbar_DSI_bright_T4b": 535.375}, "nodes": 5789, "incoming_types": ["Mi1", "Tm3", "Mi4", "Mi9", "T4a", "T4b"], "a_sti_mid": 1.4282933473587036}
+FINISHED /home/yitai/drosophila_vision/vision/simulation/scratch/001_hh_hplp_upstream_diagnosis

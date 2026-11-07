@@ -1,0 +1,10 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/validate_and_export.py", line 64, in <module>
+    for label in ['reference','gain3','gain6']:protocol(label,'standard')
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/validate_and_export.py", line 43, in protocol
+    assert torch.isfinite(v).all();assert torch.equal(v[0,:warmup],v[1,:warmup]);t=np.arange(total)-warmup
+AssertionError

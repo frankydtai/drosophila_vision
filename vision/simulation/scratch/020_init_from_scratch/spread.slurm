@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=hh_init_spread100
+#SBATCH --account=punim0477
+#SBATCH --partition=sapphire
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G
+#SBATCH --time=0:45:00
+#SBATCH --chdir=/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch
+#SBATCH --output=/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread-%j.log
+#SBATCH --error=/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread-%j.log
+set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
+export MPLCONFIGDIR="$PWD/matplotlib_extend"
+export XDG_CACHE_HOME="$PWD/cache_extend"
+export TMPDIR="$PWD"
+/home/yitai/drosophila_vision/vision/.venv/bin/python -B -u worker.py spread_cases.json 0

@@ -1,0 +1,10 @@
+{
+  "z_length": 62,
+  "original_z_dtype": "float64",
+  "loaded_z_dtype": "torch.float32",
+  "z_max_abs_roundtrip_error": 0.0,
+  "z_changed_coordinates": 0,
+  "z_differences": [],
+  "source_best_adam_iter": 79,
+  "synthetic_uninterrupted_vs_resumed_exact": true
+}

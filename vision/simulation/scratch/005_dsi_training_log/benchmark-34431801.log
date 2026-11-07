@@ -1,0 +1,6 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/005_dsi_training_log/benchmark.py", line 36, in <module>
+    session, z0 = load_best_param(str(run), session)
+ValueError: too many values to unpack (expected 2)

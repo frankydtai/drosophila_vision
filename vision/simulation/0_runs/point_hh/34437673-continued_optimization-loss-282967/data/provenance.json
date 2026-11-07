@@ -1,0 +1,28 @@
+{
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/run",
+  "optimization_case": {
+    "label": "extend_00_resume_backtrack",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/run",
+    "resume_adam": true,
+    "lr": 0.0003,
+    "initial_lr": 2.8776980798284053e-06,
+    "n_iter": 32,
+    "backtrack": true
+  },
+  "selected_cost": 282966.9375,
+  "selected_update": 32,
+  "selected_adam_iter": 48,
+  "selection": "lowest_measured_loss",
+  "terminal_cost": 282966.9375,
+  "job": "34437673",
+  "array_task": null,
+  "device": "cpu",
+  "hostname": "spartan-bm176.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "continuation_learning_rate": 3.268949057576933e-05,
+  "learning_rate_cap": 0.0003,
+  "optimization_origin_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34437223-continued_optimization-loss-394150",
+  "optimization_records": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150",
+  "baseline_cost": 394149.625,
+  "improvement_percent": 28.208243887077145
+}

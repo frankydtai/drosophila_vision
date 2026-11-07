@@ -1,0 +1,164 @@
+# -*- coding: utf-8 -*-
+"""HP-then-LP neuron (``--model hp_lp``).
+
+    τ_HP(e_HP) d v_slow / dt = v_in − v_slow
+    e_HP = v_in − v_slow
+    τ_HP(e_HP) = τ_HP,rise if e_HP ≥ 0 else τ_HP,fall
+    v_hp = v_in − a_h v_slow
+    τ_lp dv/dt = −(v − e_leak) + v_hp
+
+with v_in = v_syn + v_sti (no e_leak; leak alone sets rest), v_sti = i_sti/g_leak
+(g_leak in nS converts pA → mV; same scalar as borst),
+v_out = relu(v − v_th)·a_out, v_syn = a_in · signed_g(v_out, syn_strength)
+(syn_strength_cell per_cell or syn_strength_edge per_edge). a_h = 1
+recovers classical HP (v_hp = v_in − v_slow); DC then has v_hp → 0 when
+v_slow → v_in, so v → e_leak.
+
+HP / LP Euler (``session.euler`` = ``implicit`` | ``explicit``):
+
+    implicit HP:  v_slow ← (v_slow + (Δt/τ_HP) v_in) / (1 + Δt/τ_HP)
+    explicit HP:  v_slow ← v_slow + (Δt/τ_HP) (v_in − v_slow)
+
+    implicit LP:  v ← (v + (Δt/τ_lp) (e_leak + v_hp)) / (1 + Δt/τ_lp)
+    explicit LP:  v ← v + (Δt/τ_lp) (−(v − e_leak) + v_hp)
+
+Dynamics only: ``pre_steady`` / ``step``. ``v``
+forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
+
+t=0 uses ``session.pre_steady`` (``--pre-steady …``):
+
+* ``solve`` (default): fixed-iter, voltage-clamped DC map with
+  ``session.pre_steady_n_iter`` / ``session.pre_steady_damp``
+  (under-relaxation; not part of dynamics)
+* ``probe``: one ``v_syn`` from ``e_leak`` (legacy)
+"""
+from __future__ import annotations
+
+import torch
+
+from neuron.borst import syn_strength
+
+
+def update_v(
+    v, v_slow, params, i_sti, connectome, *, delta_ms, v_clamp, g_leak, euler,
+    return_component: bool = False,
+):
+    """One HP→LP step; returns ``(v, v_slow)`` or component extras."""
+    e_leak = params["e_leak"]
+    dt = float(delta_ms)
+    tau_lp = torch.clamp(params["tau_lp"], min=dt)
+    clamp = float(v_clamp)
+    g_leak = float(g_leak)
+    if g_leak == 0.0:
+        raise ValueError("g_leak must be non-zero")
+
+    v_out = torch.relu(v - params["v_th"]) * params["a_out"]
+    v_syn = params["a_in"] * connectome.conn.signed_g(v_out, syn_strength(params))
+    v_sti = i_sti / g_leak
+    v_in = v_syn + v_sti
+    dt_over_tau_hp = dt / torch.where(
+        v_in >= v_slow,
+        torch.clamp(params["tau_hp_rise"], min=dt),
+        torch.clamp(params["tau_hp_fall"], min=dt),
+    )
+    if euler == "implicit":
+        v_slow = (v_slow + dt_over_tau_hp * v_in) / (1.0 + dt_over_tau_hp)
+    else:
+        v_slow = v_slow + dt_over_tau_hp * (v_in - v_slow)
+    # LP uses post-HP ``v_slow`` (same as prior identity).
+    v_hp = v_in - params["a_h"] * v_slow
+    dt_over_tau_lp = dt / tau_lp
+    if return_component:
+        if euler == "implicit":
+            dv_leak = (dt_over_tau_lp / (1.0 + dt_over_tau_lp)) * (-(v - e_leak))
+            dv_hp = (dt_over_tau_lp / (1.0 + dt_over_tau_lp)) * v_hp
+        else:
+            dv_leak = dt_over_tau_lp * (-(v - e_leak))
+            dv_hp = dt_over_tau_lp * v_hp
+        v = v + dv_leak + dv_hp
+    elif euler == "implicit":
+        v = (v + dt_over_tau_lp * (e_leak + v_hp)) / (1.0 + dt_over_tau_lp)
+    else:
+        v = v + dt_over_tau_lp * (-(v - e_leak) + v_hp)
+
+    v_slow = torch.clamp(v_slow, -clamp, clamp)
+    v = torch.clamp(v, -clamp, clamp)
+
+    if not return_component:
+        return v, v_slow
+
+    g_exc, g_inh = connectome.conn.exc_inh_g(v_out, syn_strength(params))
+    return v, v_slow, {
+        "v_syn": v_syn,
+        "v_syn_exc": params["a_in"] * g_exc,
+        "v_syn_inh": params["a_in"] * g_inh,
+        "v_slow": v_slow,
+        "v_in": v_in,
+        "v_hp": v_hp,
+        "dv_leak": dv_leak,
+        "dv_hp": dv_hp,
+        "i_sti": i_sti,
+        "v_sti": v_sti,
+    }
+
+
+def v_dc_from_v(v, params, v_sti, connectome):
+    """Algebraic DC target: ``v_dc = e_leak + (1−a_h)·v_in(v)``."""
+    v_in = (
+        params["a_in"] * connectome.conn.signed_g(
+            torch.relu(v - params["v_th"]) * params["a_out"], syn_strength(params),
+        )
+        + v_sti
+    )
+    return params["e_leak"] + (1.0 - params["a_h"]) * v_in, v_in
+
+
+def pre_steady(session, params, n_b, i_sti=None):
+    """``v_slow``, ``v`` at t=0 from ``session.pre_steady``."""
+    if i_sti is None:
+        raise TypeError("hp_lp pre_steady requires i_sti")
+    pre_steady_mode = str(session.pre_steady)
+    if pre_steady_mode not in ("probe", "solve"):
+        raise ValueError(f"hp_lp pre_steady must be probe|solve; got {pre_steady_mode!r}")
+    connectome = session.connectome
+    g_leak = float(session.g_leak)
+    if g_leak == 0.0:
+        raise ValueError("g_leak must be non-zero")
+    v_sti = i_sti[:, 0, :] / g_leak
+    v = params["e_leak"].expand(n_b, connectome.n_node).clone()
+    if pre_steady_mode == "probe":
+        v_dc, v_in = v_dc_from_v(v, params, v_sti, connectome)
+        return v_in, v_dc
+    damp = float(session.pre_steady_damp)
+    clamp = float(session.v_clamp)
+    for _ in range(int(session.pre_steady_n_iter)):
+        v_dc, _ = v_dc_from_v(v, params, v_sti, connectome)
+        # Solve the same bounded system used by ``step``.  Without this
+        # projection, a recurrent DC map can diverge to an enormous t=0
+        # voltage even though the first dynamic step immediately clamps it.
+        v = torch.clamp(v + damp * (v_dc - v), -clamp, clamp)
+    _, v_in = v_dc_from_v(v, params, v_sti, connectome)
+    return v_in, v
+
+
+def step(v_slow, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
+    """One hp_lp update; returns ``(v_slow, v)`` or + component dict."""
+    if return_component:
+        v, v_slow, component = update_v(
+            v, v_slow, params, i_sti, session.connectome,
+            delta_ms=float(delta_ms),
+            v_clamp=session.v_clamp,
+            g_leak=session.g_leak,
+            euler=session.euler,
+            return_component=True,
+        )
+        return v_slow, v, component
+    v, v_slow = update_v(
+        v, v_slow, params, i_sti, session.connectome,
+        delta_ms=float(delta_ms),
+        v_clamp=session.v_clamp,
+        g_leak=session.g_leak,
+        euler=session.euler,
+        return_component=False,
+    )
+    return v_slow, v

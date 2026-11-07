@@ -1,0 +1,18 @@
+[
+  {
+    "label": "refine_00_resume_backtrack",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/run",
+    "resume_adam": true,
+    "lr": 0.0003,
+    "n_iter": 16,
+    "backtrack": true
+  },
+  {
+    "label": "refine_01_reset_backtrack",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/run",
+    "resume_adam": false,
+    "lr": 0.0003,
+    "n_iter": 16,
+    "backtrack": true
+  }
+]

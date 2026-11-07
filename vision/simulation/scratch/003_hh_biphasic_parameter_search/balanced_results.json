@@ -1,0 +1,3674 @@
+[
+  {
+    "case": {
+      "name": "balanced_000",
+      "forward_gain": 1.0,
+      "feedback_gain": 1.0,
+      "threshold": "saved"
+    },
+    "score": 2.3089490189103246,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679672241210938,
+        "opposite_peak_mV": 4.0704803466796875,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 4.076765435456764e-06,
+        "control_late_std_mV": 7.300190191017464e-06,
+        "late_evoked_max_mV": 3.814697265625e-06,
+        "baseline_mV": -49.079742431640625
+      },
+      "L1": {
+        "on_peak_mV": 10.083850860595703,
+        "opposite_peak_mV": 3.0825042724609375,
+        "opposite_delay_ms": 124.0,
+        "opposite_fwhm_ms": 182,
+        "control_std_mV": 0.03911041095852852,
+        "control_late_std_mV": 0.018212376162409782,
+        "late_evoked_max_mV": 0.07281112670898438,
+        "baseline_mV": -48.803550720214844
+      },
+      "L2": {
+        "on_peak_mV": 4.3350067138671875,
+        "opposite_peak_mV": 0.00466156005859375,
+        "opposite_delay_ms": 566.0,
+        "opposite_fwhm_ms": 42,
+        "control_std_mV": 0.00307705020532012,
+        "control_late_std_mV": 0.003332691267132759,
+        "late_evoked_max_mV": 0.00501251220703125,
+        "baseline_mV": -64.06492614746094
+      },
+      "L3": {
+        "on_peak_mV": 4.29425048828125,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0012029351200908422,
+        "control_late_std_mV": 0.0014551392523571849,
+        "late_evoked_max_mV": 0.001434326171875,
+        "baseline_mV": -64.28492736816406
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.041332244873046875,
+        "opposite_delay_ms": 155.0,
+        "opposite_fwhm_ms": 328,
+        "control_std_mV": 8.175560651579872e-05,
+        "control_late_std_mV": 1.5676232578698546e-05,
+        "late_evoked_max_mV": 0.0002899169921875,
+        "baseline_mV": -45.04339599609375
+      },
+      "L5": {
+        "on_peak_mV": 9.22531509399414,
+        "opposite_peak_mV": 3.301311492919922,
+        "opposite_delay_ms": 217.0,
+        "opposite_fwhm_ms": 254,
+        "control_std_mV": 0.040365688502788544,
+        "control_late_std_mV": 0.022103194147348404,
+        "late_evoked_max_mV": 0.07392501831054688,
+        "baseline_mV": -53.905853271484375
+      },
+      "Mi1": {
+        "on_peak_mV": 16.535186767578125,
+        "opposite_peak_mV": 2.4531784057617188,
+        "opposite_delay_ms": 311.0,
+        "opposite_fwhm_ms": 242,
+        "control_std_mV": 0.05099845305085182,
+        "control_late_std_mV": 0.02321980707347393,
+        "late_evoked_max_mV": 0.11735153198242188,
+        "baseline_mV": -50.866886138916016
+      },
+      "Tm3": {
+        "on_peak_mV": 18.390792846679688,
+        "opposite_peak_mV": 2.406139373779297,
+        "opposite_delay_ms": 399.0,
+        "opposite_fwhm_ms": 184,
+        "control_std_mV": 0.08351962268352509,
+        "control_late_std_mV": 0.029059333726763725,
+        "late_evoked_max_mV": 0.3103904724121094,
+        "baseline_mV": -36.9789924621582
+      },
+      "Mi4": {
+        "on_peak_mV": 18.943115234375,
+        "opposite_peak_mV": 1.1135978698730469,
+        "opposite_delay_ms": 432.0,
+        "opposite_fwhm_ms": 115,
+        "control_std_mV": 0.08675751090049744,
+        "control_late_std_mV": 0.031054770573973656,
+        "late_evoked_max_mV": 0.14258575439453125,
+        "baseline_mV": -39.57121276855469
+      },
+      "Mi9": {
+        "on_peak_mV": 0.015106201171875,
+        "opposite_peak_mV": 0.268341064453125,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 54,
+        "control_std_mV": 0.004304569214582443,
+        "control_late_std_mV": 0.002214772393926978,
+        "late_evoked_max_mV": 0.0189971923828125,
+        "baseline_mV": -69.91948699951172
+      },
+      "T4a": {
+        "on_peak_mV": 11.821798324584961,
+        "opposite_peak_mV": 2.933055877685547,
+        "opposite_delay_ms": 414.0,
+        "opposite_fwhm_ms": 188,
+        "control_std_mV": 0.05956922844052315,
+        "control_late_std_mV": 0.02996109426021576,
+        "late_evoked_max_mV": 0.3580970764160156,
+        "baseline_mV": -36.65361785888672
+      },
+      "T4b": {
+        "on_peak_mV": 11.250368118286133,
+        "opposite_peak_mV": 2.6627197265625,
+        "opposite_delay_ms": 407.0,
+        "opposite_fwhm_ms": 205,
+        "control_std_mV": 0.05945756286382675,
+        "control_late_std_mV": 0.04627125337719917,
+        "late_evoked_max_mV": 0.3353919982910156,
+        "baseline_mV": -42.598388671875
+      },
+      "T4c": {
+        "on_peak_mV": 9.494853973388672,
+        "opposite_peak_mV": 2.992401123046875,
+        "opposite_delay_ms": 421.0,
+        "opposite_fwhm_ms": 201,
+        "control_std_mV": 0.061399295926094055,
+        "control_late_std_mV": 0.049268580973148346,
+        "late_evoked_max_mV": 0.29850006103515625,
+        "baseline_mV": -38.638328552246094
+      },
+      "T4d": {
+        "on_peak_mV": 10.27010726928711,
+        "opposite_peak_mV": 2.1283493041992188,
+        "opposite_delay_ms": 424.0,
+        "opposite_fwhm_ms": 183,
+        "control_std_mV": 0.06215110421180725,
+        "control_late_std_mV": 0.050556544214487076,
+        "late_evoked_max_mV": 0.2870903015136719,
+        "baseline_mV": -37.22474670410156
+      }
+    },
+    "v_min": -71.93140411376953,
+    "v_max": -2.0874056816101074
+  },
+  {
+    "case": {
+      "name": "balanced_001",
+      "forward_gain": 1.0,
+      "feedback_gain": 1.0,
+      "threshold": "rest"
+    },
+    "score": 2.269829895823531,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.67974853515625,
+        "opposite_peak_mV": 4.070606231689453,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 3.814697265625e-06,
+        "control_late_std_mV": 7.62939453125e-06,
+        "late_evoked_max_mV": 7.62939453125e-06,
+        "baseline_mV": -49.07948684692383
+      },
+      "L1": {
+        "on_peak_mV": 9.763992309570312,
+        "opposite_peak_mV": 3.786113739013672,
+        "opposite_delay_ms": 117.0,
+        "opposite_fwhm_ms": 177,
+        "control_std_mV": 0.012898754328489304,
+        "control_late_std_mV": 0.0008741893689148128,
+        "late_evoked_max_mV": 0.08445358276367188,
+        "baseline_mV": -49.898868560791016
+      },
+      "L2": {
+        "on_peak_mV": 4.446277618408203,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0005298567702993751,
+        "control_late_std_mV": 4.3726271542254835e-05,
+        "late_evoked_max_mV": 0.002544403076171875,
+        "baseline_mV": -63.926246643066406
+      },
+      "L3": {
+        "on_peak_mV": 4.298393249511719,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 6.492354441434145e-05,
+        "control_late_std_mV": 1.9475972294458188e-05,
+        "late_evoked_max_mV": 0.00043487548828125,
+        "baseline_mV": -64.278564453125
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.04093170166015625,
+        "opposite_delay_ms": 1.0,
+        "opposite_fwhm_ms": 325,
+        "control_std_mV": 2.3502578187617473e-05,
+        "control_late_std_mV": 4.323868324718205e-06,
+        "late_evoked_max_mV": 0.0002593994140625,
+        "baseline_mV": -45.03465270996094
+      },
+      "L5": {
+        "on_peak_mV": 10.288993835449219,
+        "opposite_peak_mV": 4.084056854248047,
+        "opposite_delay_ms": 210.0,
+        "opposite_fwhm_ms": 258,
+        "control_std_mV": 0.014492069371044636,
+        "control_late_std_mV": 0.0017041275277733803,
+        "late_evoked_max_mV": 0.1175537109375,
+        "baseline_mV": -53.072975158691406
+      },
+      "Mi1": {
+        "on_peak_mV": 19.04311752319336,
+        "opposite_peak_mV": 2.3615570068359375,
+        "opposite_delay_ms": 331.0,
+        "opposite_fwhm_ms": 233,
+        "control_std_mV": 0.021414712071418762,
+        "control_late_std_mV": 0.002851508790627122,
+        "late_evoked_max_mV": 0.14892196655273438,
+        "baseline_mV": -50.795875549316406
+      },
+      "Tm3": {
+        "on_peak_mV": 20.484668731689453,
+        "opposite_peak_mV": 2.2094268798828125,
+        "opposite_delay_ms": 387.0,
+        "opposite_fwhm_ms": 178,
+        "control_std_mV": 0.03039841167628765,
+        "control_late_std_mV": 0.004048588685691357,
+        "late_evoked_max_mV": 0.17065811157226562,
+        "baseline_mV": -38.12483596801758
+      },
+      "Mi4": {
+        "on_peak_mV": 19.844783782958984,
+        "opposite_peak_mV": 1.1868133544921875,
+        "opposite_delay_ms": 436.0,
+        "opposite_fwhm_ms": 119,
+        "control_std_mV": 0.01854158192873001,
+        "control_late_std_mV": 0.0017258740263059735,
+        "late_evoked_max_mV": 0.11572647094726562,
+        "baseline_mV": -40.01469802856445
+      },
+      "Mi9": {
+        "on_peak_mV": 0.01723480224609375,
+        "opposite_peak_mV": 0.478515625,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 69,
+        "control_std_mV": 0.0008173268288373947,
+        "control_late_std_mV": 5.788439011666924e-05,
+        "late_evoked_max_mV": 0.0058135986328125,
+        "baseline_mV": -70.16825103759766
+      },
+      "T4a": {
+        "on_peak_mV": 14.903783798217773,
+        "opposite_peak_mV": 1.1854667663574219,
+        "opposite_delay_ms": 441.0,
+        "opposite_fwhm_ms": 121,
+        "control_std_mV": 0.0380234494805336,
+        "control_late_std_mV": 0.006891750730574131,
+        "late_evoked_max_mV": 0.09175872802734375,
+        "baseline_mV": -39.8948974609375
+      },
+      "T4b": {
+        "on_peak_mV": 14.203704833984375,
+        "opposite_peak_mV": 1.0464744567871094,
+        "opposite_delay_ms": 437.0,
+        "opposite_fwhm_ms": 128,
+        "control_std_mV": 0.02474183402955532,
+        "control_late_std_mV": 0.004680226556956768,
+        "late_evoked_max_mV": 0.08118438720703125,
+        "baseline_mV": -45.46895217895508
+      },
+      "T4c": {
+        "on_peak_mV": 12.495018005371094,
+        "opposite_peak_mV": 1.3154754638671875,
+        "opposite_delay_ms": 446.0,
+        "opposite_fwhm_ms": 127,
+        "control_std_mV": 0.028283877298235893,
+        "control_late_std_mV": 0.0061590359546244144,
+        "late_evoked_max_mV": 0.055477142333984375,
+        "baseline_mV": -41.814910888671875
+      },
+      "T4d": {
+        "on_peak_mV": 12.83779525756836,
+        "opposite_peak_mV": 0.9532127380371094,
+        "opposite_delay_ms": 448.0,
+        "opposite_fwhm_ms": 112,
+        "control_std_mV": 0.029690338298678398,
+        "control_late_std_mV": 0.0046686590649187565,
+        "late_evoked_max_mV": 0.0936431884765625,
+        "baseline_mV": -39.81868362426758
+      }
+    },
+    "v_min": -71.93140411376953,
+    "v_max": -2.0874056816101074
+  },
+  {
+    "case": {
+      "name": "balanced_002",
+      "forward_gain": 1.0,
+      "feedback_gain": 3.0,
+      "threshold": "saved"
+    },
+    "score": 1.9474919347288464,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679569244384766,
+        "opposite_peak_mV": 4.070098876953125,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 7.389037818938959e-06,
+        "control_late_std_mV": 5.331907686922932e-06,
+        "late_evoked_max_mV": 1.1444091796875e-05,
+        "baseline_mV": -49.08003616333008
+      },
+      "L1": {
+        "on_peak_mV": 10.286178588867188,
+        "opposite_peak_mV": 2.9538040161132812,
+        "opposite_delay_ms": 118.0,
+        "opposite_fwhm_ms": 158,
+        "control_std_mV": 0.10911904275417328,
+        "control_late_std_mV": 0.11386346071958542,
+        "late_evoked_max_mV": 0.7747154235839844,
+        "baseline_mV": -48.83324432373047
+      },
+      "L2": {
+        "on_peak_mV": 4.370735168457031,
+        "opposite_peak_mV": 0.041576385498046875,
+        "opposite_delay_ms": 700.0,
+        "opposite_fwhm_ms": 28,
+        "control_std_mV": 0.009794825688004494,
+        "control_late_std_mV": 0.011267385445535183,
+        "late_evoked_max_mV": 0.047954559326171875,
+        "baseline_mV": -63.94985580444336
+      },
+      "L3": {
+        "on_peak_mV": 4.284965515136719,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0021495521068573,
+        "control_late_std_mV": 0.0013023491483181715,
+        "late_evoked_max_mV": 0.00064849853515625,
+        "baseline_mV": -64.28944396972656
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.040782928466796875,
+        "opposite_delay_ms": 165.0,
+        "opposite_fwhm_ms": 309,
+        "control_std_mV": 0.00025492729037068784,
+        "control_late_std_mV": 0.000131231703562662,
+        "late_evoked_max_mV": 0.000217437744140625,
+        "baseline_mV": -45.044342041015625
+      },
+      "L5": {
+        "on_peak_mV": 7.465450286865234,
+        "opposite_peak_mV": 3.3372573852539062,
+        "opposite_delay_ms": 214.0,
+        "opposite_fwhm_ms": 226,
+        "control_std_mV": 0.1031503826379776,
+        "control_late_std_mV": 0.1280634105205536,
+        "late_evoked_max_mV": 0.61578369140625,
+        "baseline_mV": -53.514488220214844
+      },
+      "Mi1": {
+        "on_peak_mV": 13.447040557861328,
+        "opposite_peak_mV": 2.5934715270996094,
+        "opposite_delay_ms": 281.0,
+        "opposite_fwhm_ms": 196,
+        "control_std_mV": 0.13536369800567627,
+        "control_late_std_mV": 0.14878502488136292,
+        "late_evoked_max_mV": 0.7996292114257812,
+        "baseline_mV": -50.24972915649414
+      },
+      "Tm3": {
+        "on_peak_mV": 16.05701446533203,
+        "opposite_peak_mV": 2.5964279174804688,
+        "opposite_delay_ms": 332.0,
+        "opposite_fwhm_ms": 138,
+        "control_std_mV": 0.15823568403720856,
+        "control_late_std_mV": 0.11493835598230362,
+        "late_evoked_max_mV": 1.0543899536132812,
+        "baseline_mV": -36.261802673339844
+      },
+      "Mi4": {
+        "on_peak_mV": 16.781719207763672,
+        "opposite_peak_mV": 1.4547080993652344,
+        "opposite_delay_ms": 363.0,
+        "opposite_fwhm_ms": 80,
+        "control_std_mV": 0.1351000815629959,
+        "control_late_std_mV": 0.12105339020490646,
+        "late_evoked_max_mV": 1.0068626403808594,
+        "baseline_mV": -38.63606262207031
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00913238525390625,
+        "opposite_peak_mV": 0.266998291015625,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 47,
+        "control_std_mV": 0.009342334233224392,
+        "control_late_std_mV": 0.0038246577605605125,
+        "late_evoked_max_mV": 0.04515838623046875,
+        "baseline_mV": -70.04906463623047
+      },
+      "T4a": {
+        "on_peak_mV": 10.33775520324707,
+        "opposite_peak_mV": 3.2847061157226562,
+        "opposite_delay_ms": 354.0,
+        "opposite_fwhm_ms": 141,
+        "control_std_mV": 0.1632223129272461,
+        "control_late_std_mV": 0.1523922234773636,
+        "late_evoked_max_mV": 1.1448211669921875,
+        "baseline_mV": -35.73522186279297
+      },
+      "T4b": {
+        "on_peak_mV": 9.900362014770508,
+        "opposite_peak_mV": 3.0452919006347656,
+        "opposite_delay_ms": 353.0,
+        "opposite_fwhm_ms": 151,
+        "control_std_mV": 0.18433038890361786,
+        "control_late_std_mV": 0.17499080300331116,
+        "late_evoked_max_mV": 1.1873664855957031,
+        "baseline_mV": -41.75397491455078
+      },
+      "T4c": {
+        "on_peak_mV": 8.114822387695312,
+        "opposite_peak_mV": 3.1236419677734375,
+        "opposite_delay_ms": 355.0,
+        "opposite_fwhm_ms": 150,
+        "control_std_mV": 0.1580360233783722,
+        "control_late_std_mV": 0.12672443687915802,
+        "late_evoked_max_mV": 1.0625953674316406,
+        "baseline_mV": -37.607460021972656
+      },
+      "T4d": {
+        "on_peak_mV": 8.730253219604492,
+        "opposite_peak_mV": 2.5668258666992188,
+        "opposite_delay_ms": 355.0,
+        "opposite_fwhm_ms": 138,
+        "control_std_mV": 0.1719038486480713,
+        "control_late_std_mV": 0.16819125413894653,
+        "late_evoked_max_mV": 0.984375,
+        "baseline_mV": -36.04301834106445
+      }
+    },
+    "v_min": -71.93140411376953,
+    "v_max": -2.0874056816101074
+  },
+  {
+    "case": {
+      "name": "balanced_003",
+      "forward_gain": 1.0,
+      "feedback_gain": 3.0,
+      "threshold": "rest"
+    },
+    "score": 2.2688534079239853,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679718017578125,
+        "opposite_peak_mV": 4.070407867431641,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 3.921626557712443e-06,
+        "control_late_std_mV": 3.814697265625e-06,
+        "late_evoked_max_mV": 3.814697265625e-06,
+        "baseline_mV": -49.079593658447266
+      },
+      "L1": {
+        "on_peak_mV": 9.908893585205078,
+        "opposite_peak_mV": 3.4519500732421875,
+        "opposite_delay_ms": 107.0,
+        "opposite_fwhm_ms": 146,
+        "control_std_mV": 0.04289177060127258,
+        "control_late_std_mV": 0.0030195950530469418,
+        "late_evoked_max_mV": 0.20619964599609375,
+        "baseline_mV": -49.839447021484375
+      },
+      "L2": {
+        "on_peak_mV": 4.563701629638672,
+        "opposite_peak_mV": 0.00774383544921875,
+        "opposite_delay_ms": 700.0,
+        "opposite_fwhm_ms": 22,
+        "control_std_mV": 0.001286805490963161,
+        "control_late_std_mV": 6.388717156369239e-05,
+        "late_evoked_max_mV": 0.0100555419921875,
+        "baseline_mV": -63.74721145629883
+      },
+      "L3": {
+        "on_peak_mV": 4.2958221435546875,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.00017244898481294513,
+        "control_late_std_mV": 2.780089562293142e-05,
+        "late_evoked_max_mV": 0.0002288818359375,
+        "baseline_mV": -64.28108215332031
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.038570404052734375,
+        "opposite_delay_ms": 1.0,
+        "opposite_fwhm_ms": 324,
+        "control_std_mV": 0.00010831165127456188,
+        "control_late_std_mV": 1.3983394637762103e-05,
+        "late_evoked_max_mV": 0.0001983642578125,
+        "baseline_mV": -45.03668975830078
+      },
+      "L5": {
+        "on_peak_mV": 9.19070053100586,
+        "opposite_peak_mV": 4.193000793457031,
+        "opposite_delay_ms": 181.0,
+        "opposite_fwhm_ms": 218,
+        "control_std_mV": 0.03551361337304115,
+        "control_late_std_mV": 0.002006695605814457,
+        "late_evoked_max_mV": 0.19156265258789062,
+        "baseline_mV": -52.32776641845703
+      },
+      "Mi1": {
+        "on_peak_mV": 15.950016021728516,
+        "opposite_peak_mV": 2.5243682861328125,
+        "opposite_delay_ms": 258.0,
+        "opposite_fwhm_ms": 196,
+        "control_std_mV": 0.04492775723338127,
+        "control_late_std_mV": 0.0031776910182088614,
+        "late_evoked_max_mV": 0.29355621337890625,
+        "baseline_mV": -49.68185806274414
+      },
+      "Tm3": {
+        "on_peak_mV": 16.941364288330078,
+        "opposite_peak_mV": 2.0553932189941406,
+        "opposite_delay_ms": 298.0,
+        "opposite_fwhm_ms": 155,
+        "control_std_mV": 0.053814567625522614,
+        "control_late_std_mV": 0.006090137641876936,
+        "late_evoked_max_mV": 0.3138389587402344,
+        "baseline_mV": -36.06627655029297
+      },
+      "Mi4": {
+        "on_peak_mV": 16.83708953857422,
+        "opposite_peak_mV": 0.7404899597167969,
+        "opposite_delay_ms": 369.0,
+        "opposite_fwhm_ms": 91,
+        "control_std_mV": 0.039047304540872574,
+        "control_late_std_mV": 0.0022421933244913816,
+        "late_evoked_max_mV": 0.1986083984375,
+        "baseline_mV": -38.66167449951172
+      },
+      "Mi9": {
+        "on_peak_mV": 0.007232666015625,
+        "opposite_peak_mV": 0.41204833984375,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 81,
+        "control_std_mV": 0.0014227216597646475,
+        "control_late_std_mV": 0.00014228116197045892,
+        "late_evoked_max_mV": 0.00986480712890625,
+        "baseline_mV": -70.31726837158203
+      },
+      "T4a": {
+        "on_peak_mV": 12.012615203857422,
+        "opposite_peak_mV": 0.7481460571289062,
+        "opposite_delay_ms": 353.0,
+        "opposite_fwhm_ms": 91,
+        "control_std_mV": 0.04620778188109398,
+        "control_late_std_mV": 0.004883114714175463,
+        "late_evoked_max_mV": 0.22080230712890625,
+        "baseline_mV": -38.2456169128418
+      },
+      "T4b": {
+        "on_peak_mV": 11.349212646484375,
+        "opposite_peak_mV": 0.7963714599609375,
+        "opposite_delay_ms": 348.0,
+        "opposite_fwhm_ms": 100,
+        "control_std_mV": 0.03605605661869049,
+        "control_late_std_mV": 0.004724540747702122,
+        "late_evoked_max_mV": 0.18174362182617188,
+        "baseline_mV": -43.97001266479492
+      },
+      "T4c": {
+        "on_peak_mV": 9.807920455932617,
+        "opposite_peak_mV": 0.8739013671875,
+        "opposite_delay_ms": 356.0,
+        "opposite_fwhm_ms": 103,
+        "control_std_mV": 0.03487858921289444,
+        "control_late_std_mV": 0.0036272890865802765,
+        "late_evoked_max_mV": 0.18686676025390625,
+        "baseline_mV": -39.89619445800781
+      },
+      "T4d": {
+        "on_peak_mV": 9.958070755004883,
+        "opposite_peak_mV": 0.8352432250976562,
+        "opposite_delay_ms": 355.0,
+        "opposite_fwhm_ms": 100,
+        "control_std_mV": 0.033103086054325104,
+        "control_late_std_mV": 0.00301167368888855,
+        "late_evoked_max_mV": 0.16534423828125,
+        "baseline_mV": -37.7946891784668
+      }
+    },
+    "v_min": -71.93140411376953,
+    "v_max": -2.0874056816101074
+  },
+  {
+    "case": {
+      "name": "balanced_004",
+      "forward_gain": 1.0,
+      "feedback_gain": 10.0,
+      "threshold": "saved"
+    },
+    "score": 1.6871081109302974,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679473876953125,
+        "opposite_peak_mV": 4.069755554199219,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 1.600527684786357e-05,
+        "control_late_std_mV": 6.962345651118085e-06,
+        "late_evoked_max_mV": 2.6702880859375e-05,
+        "baseline_mV": -49.08025360107422
+      },
+      "L1": {
+        "on_peak_mV": 10.35085678100586,
+        "opposite_peak_mV": 3.0178909301757812,
+        "opposite_delay_ms": 106.0,
+        "opposite_fwhm_ms": 129,
+        "control_std_mV": 0.20345787703990936,
+        "control_late_std_mV": 0.20354709029197693,
+        "late_evoked_max_mV": 0.6284751892089844,
+        "baseline_mV": -48.40658950805664
+      },
+      "L2": {
+        "on_peak_mV": 4.419647216796875,
+        "opposite_peak_mV": 0.0489654541015625,
+        "opposite_delay_ms": 652.0,
+        "opposite_fwhm_ms": 69,
+        "control_std_mV": 0.018118543550372124,
+        "control_late_std_mV": 0.015537110157310963,
+        "late_evoked_max_mV": 0.054779052734375,
+        "baseline_mV": -63.942386627197266
+      },
+      "L3": {
+        "on_peak_mV": 4.286750793457031,
+        "opposite_peak_mV": 0.00567626953125,
+        "opposite_delay_ms": 690.0,
+        "opposite_fwhm_ms": 66,
+        "control_std_mV": 0.0022443102207034826,
+        "control_late_std_mV": 0.0005235477001406252,
+        "late_evoked_max_mV": 0.0023651123046875,
+        "baseline_mV": -64.28946685791016
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.039791107177734375,
+        "opposite_delay_ms": 173.0,
+        "opposite_fwhm_ms": 312,
+        "control_std_mV": 0.00046311583719216287,
+        "control_late_std_mV": 0.0002203579351771623,
+        "late_evoked_max_mV": 0.000949859619140625,
+        "baseline_mV": -45.045318603515625
+      },
+      "L5": {
+        "on_peak_mV": 6.8157958984375,
+        "opposite_peak_mV": 3.3512802124023438,
+        "opposite_delay_ms": 181.0,
+        "opposite_fwhm_ms": 182,
+        "control_std_mV": 0.14264167845249176,
+        "control_late_std_mV": 0.16321851313114166,
+        "late_evoked_max_mV": 0.4470481872558594,
+        "baseline_mV": -53.52098846435547
+      },
+      "Mi1": {
+        "on_peak_mV": 11.951725006103516,
+        "opposite_peak_mV": 2.4178085327148438,
+        "opposite_delay_ms": 236.0,
+        "opposite_fwhm_ms": 167,
+        "control_std_mV": 0.16654054820537567,
+        "control_late_std_mV": 0.14764221012592316,
+        "late_evoked_max_mV": 0.46579742431640625,
+        "baseline_mV": -50.05570602416992
+      },
+      "Tm3": {
+        "on_peak_mV": 14.2144775390625,
+        "opposite_peak_mV": 1.8661842346191406,
+        "opposite_delay_ms": 285.0,
+        "opposite_fwhm_ms": 140,
+        "control_std_mV": 0.1878427267074585,
+        "control_late_std_mV": 0.12198382616043091,
+        "late_evoked_max_mV": 0.6371116638183594,
+        "baseline_mV": -35.71074676513672
+      },
+      "Mi4": {
+        "on_peak_mV": 14.569856643676758,
+        "opposite_peak_mV": 0.4615745544433594,
+        "opposite_delay_ms": 367.0,
+        "opposite_fwhm_ms": 89,
+        "control_std_mV": 0.17769180238246918,
+        "control_late_std_mV": 0.12599247694015503,
+        "late_evoked_max_mV": 0.5210952758789062,
+        "baseline_mV": -37.71762466430664
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00231170654296875,
+        "opposite_peak_mV": 0.3011932373046875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 46,
+        "control_std_mV": 0.015724897384643555,
+        "control_late_std_mV": 0.013657799921929836,
+        "late_evoked_max_mV": 0.05646514892578125,
+        "baseline_mV": -70.1025619506836
+      },
+      "T4a": {
+        "on_peak_mV": 8.872665405273438,
+        "opposite_peak_mV": 2.4043617248535156,
+        "opposite_delay_ms": 287.0,
+        "opposite_fwhm_ms": 147,
+        "control_std_mV": 0.19052964448928833,
+        "control_late_std_mV": 0.17653639614582062,
+        "late_evoked_max_mV": 0.6039810180664062,
+        "baseline_mV": -34.9813346862793
+      },
+      "T4b": {
+        "on_peak_mV": 8.534446716308594,
+        "opposite_peak_mV": 2.32867431640625,
+        "opposite_delay_ms": 286.0,
+        "opposite_fwhm_ms": 151,
+        "control_std_mV": 0.20625300705432892,
+        "control_late_std_mV": 0.14292705059051514,
+        "late_evoked_max_mV": 0.5087661743164062,
+        "baseline_mV": -41.185691833496094
+      },
+      "T4c": {
+        "on_peak_mV": 7.09381103515625,
+        "opposite_peak_mV": 2.3048019409179688,
+        "opposite_delay_ms": 303.0,
+        "opposite_fwhm_ms": 157,
+        "control_std_mV": 0.188853457570076,
+        "control_late_std_mV": 0.1666543036699295,
+        "late_evoked_max_mV": 0.5289115905761719,
+        "baseline_mV": -36.832611083984375
+      },
+      "T4d": {
+        "on_peak_mV": 7.35273551940918,
+        "opposite_peak_mV": 1.8543434143066406,
+        "opposite_delay_ms": 300.0,
+        "opposite_fwhm_ms": 147,
+        "control_std_mV": 0.19037309288978577,
+        "control_late_std_mV": 0.18091018497943878,
+        "late_evoked_max_mV": 0.49047088623046875,
+        "baseline_mV": -35.29590606689453
+      }
+    },
+    "v_min": -71.93140411376953,
+    "v_max": -2.0874056816101074
+  },
+  {
+    "case": {
+      "name": "balanced_005",
+      "forward_gain": 1.0,
+      "feedback_gain": 10.0,
+      "threshold": "rest"
+    },
+    "score": 1.811125015387766,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679702758789062,
+        "opposite_peak_mV": 4.0703277587890625,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 3.615647756305407e-06,
+        "control_late_std_mV": 7.62939453125e-06,
+        "late_evoked_max_mV": 1.1444091796875e-05,
+        "baseline_mV": -49.079654693603516
+      },
+      "L1": {
+        "on_peak_mV": 10.128421783447266,
+        "opposite_peak_mV": 2.621063232421875,
+        "opposite_delay_ms": 105.0,
+        "opposite_fwhm_ms": 130,
+        "control_std_mV": 0.06039302423596382,
+        "control_late_std_mV": 0.0047805714420974255,
+        "late_evoked_max_mV": 0.2021636962890625,
+        "baseline_mV": -49.823848724365234
+      },
+      "L2": {
+        "on_peak_mV": 4.639533996582031,
+        "opposite_peak_mV": 0.001445770263671875,
+        "opposite_delay_ms": 635.0,
+        "opposite_fwhm_ms": 30,
+        "control_std_mV": 0.0022281177807599306,
+        "control_late_std_mV": 0.00051738356705755,
+        "late_evoked_max_mV": 0.008922576904296875,
+        "baseline_mV": -63.69934844970703
+      },
+      "L3": {
+        "on_peak_mV": 4.2944488525390625,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0002086358144879341,
+        "control_late_std_mV": 6.940441380720586e-05,
+        "late_evoked_max_mV": 0.0003662109375,
+        "baseline_mV": -64.28224182128906
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.037670135498046875,
+        "opposite_delay_ms": 1.0,
+        "opposite_fwhm_ms": 326,
+        "control_std_mV": 0.00018469401402398944,
+        "control_late_std_mV": 4.029808769701049e-05,
+        "late_evoked_max_mV": 0.0001068115234375,
+        "baseline_mV": -45.03792190551758
+      },
+      "L5": {
+        "on_peak_mV": 8.011531829833984,
+        "opposite_peak_mV": 3.6145896911621094,
+        "opposite_delay_ms": 171.0,
+        "opposite_fwhm_ms": 200,
+        "control_std_mV": 0.046008866280317307,
+        "control_late_std_mV": 0.004231335129588842,
+        "late_evoked_max_mV": 0.17348098754882812,
+        "baseline_mV": -52.080631256103516
+      },
+      "Mi1": {
+        "on_peak_mV": 13.971122741699219,
+        "opposite_peak_mV": 2.1593360900878906,
+        "opposite_delay_ms": 233.0,
+        "opposite_fwhm_ms": 170,
+        "control_std_mV": 0.05609424412250519,
+        "control_late_std_mV": 0.009398934431374073,
+        "late_evoked_max_mV": 0.20388031005859375,
+        "baseline_mV": -49.32993698120117
+      },
+      "Tm3": {
+        "on_peak_mV": 15.038999557495117,
+        "opposite_peak_mV": 1.520355224609375,
+        "opposite_delay_ms": 260.0,
+        "opposite_fwhm_ms": 125,
+        "control_std_mV": 0.06932897120714188,
+        "control_late_std_mV": 0.006458966992795467,
+        "late_evoked_max_mV": 0.20963287353515625,
+        "baseline_mV": -35.54802322387695
+      },
+      "Mi4": {
+        "on_peak_mV": 15.118162155151367,
+        "opposite_peak_mV": 0.2666358947753906,
+        "opposite_delay_ms": 566.0,
+        "opposite_fwhm_ms": 93,
+        "control_std_mV": 0.04625636339187622,
+        "control_late_std_mV": 0.0021844692528247833,
+        "late_evoked_max_mV": 0.15029144287109375,
+        "baseline_mV": -38.23918533325195
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00394439697265625,
+        "opposite_peak_mV": 0.37995147705078125,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 78,
+        "control_std_mV": 0.0012906157644465566,
+        "control_late_std_mV": 0.00014957200619392097,
+        "late_evoked_max_mV": 0.005096435546875,
+        "baseline_mV": -70.35346984863281
+      },
+      "T4a": {
+        "on_peak_mV": 10.797687530517578,
+        "opposite_peak_mV": 0.18447113037109375,
+        "opposite_delay_ms": 557.0,
+        "opposite_fwhm_ms": 77,
+        "control_std_mV": 0.05024212598800659,
+        "control_late_std_mV": 0.0032140319235622883,
+        "late_evoked_max_mV": 0.17290878295898438,
+        "baseline_mV": -37.83930587768555
+      },
+      "T4b": {
+        "on_peak_mV": 10.136619567871094,
+        "opposite_peak_mV": 0.24022293090820312,
+        "opposite_delay_ms": 306.0,
+        "opposite_fwhm_ms": 65,
+        "control_std_mV": 0.04358208552002907,
+        "control_late_std_mV": 0.0035300888121128082,
+        "late_evoked_max_mV": 0.12302017211914062,
+        "baseline_mV": -43.5960578918457
+      },
+      "T4c": {
+        "on_peak_mV": 8.690153121948242,
+        "opposite_peak_mV": 0.23070907592773438,
+        "opposite_delay_ms": 313.0,
+        "opposite_fwhm_ms": 73,
+        "control_std_mV": 0.04564829543232918,
+        "control_late_std_mV": 0.002530211815610528,
+        "late_evoked_max_mV": 0.11876296997070312,
+        "baseline_mV": -39.391258239746094
+      },
+      "T4d": {
+        "on_peak_mV": 8.888856887817383,
+        "opposite_peak_mV": 0.2642402648925781,
+        "opposite_delay_ms": 310.0,
+        "opposite_fwhm_ms": 71,
+        "control_std_mV": 0.0420440211892128,
+        "control_late_std_mV": 0.0026990771293640137,
+        "late_evoked_max_mV": 0.11577606201171875,
+        "baseline_mV": -37.26513671875
+      }
+    },
+    "v_min": -71.93140411376953,
+    "v_max": -2.0874056816101074
+  },
+  {
+    "case": {
+      "name": "balanced_006",
+      "forward_gain": 1.0,
+      "feedback_gain": 30.0,
+      "threshold": "saved"
+    },
+    "score": 1.099466211650517,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679435729980469,
+        "opposite_peak_mV": 4.069675445556641,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 1.805569263524376e-05,
+        "control_late_std_mV": 2.0914701963192783e-05,
+        "late_evoked_max_mV": 3.4332275390625e-05,
+        "baseline_mV": -49.08035659790039
+      },
+      "L1": {
+        "on_peak_mV": 10.409137725830078,
+        "opposite_peak_mV": 3.088703155517578,
+        "opposite_delay_ms": 113.0,
+        "opposite_fwhm_ms": 115,
+        "control_std_mV": 0.30895236134529114,
+        "control_late_std_mV": 0.17822887003421783,
+        "late_evoked_max_mV": 0.772979736328125,
+        "baseline_mV": -48.42222595214844
+      },
+      "L2": {
+        "on_peak_mV": 4.441661834716797,
+        "opposite_peak_mV": 0.023342132568359375,
+        "opposite_delay_ms": 574.0,
+        "opposite_fwhm_ms": 54,
+        "control_std_mV": 0.02333776466548443,
+        "control_late_std_mV": 0.02101975679397583,
+        "late_evoked_max_mV": 0.05448150634765625,
+        "baseline_mV": -63.96208572387695
+      },
+      "L3": {
+        "on_peak_mV": 4.288307189941406,
+        "opposite_peak_mV": 0.00167083740234375,
+        "opposite_delay_ms": 699.0,
+        "opposite_fwhm_ms": 50,
+        "control_std_mV": 0.0022478841710835695,
+        "control_late_std_mV": 0.003095305757597089,
+        "late_evoked_max_mV": 0.00739288330078125,
+        "baseline_mV": -64.29147338867188
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.040218353271484375,
+        "opposite_delay_ms": 177.0,
+        "opposite_fwhm_ms": 312,
+        "control_std_mV": 0.0005523223080672324,
+        "control_late_std_mV": 0.0004761510354001075,
+        "late_evoked_max_mV": 0.001262664794921875,
+        "baseline_mV": -45.0460090637207
+      },
+      "L5": {
+        "on_peak_mV": 6.842044830322266,
+        "opposite_peak_mV": 3.1141624450683594,
+        "opposite_delay_ms": 158.0,
+        "opposite_fwhm_ms": 179,
+        "control_std_mV": 0.22505636513233185,
+        "control_late_std_mV": 0.16457363963127136,
+        "late_evoked_max_mV": 0.4133110046386719,
+        "baseline_mV": -53.569915771484375
+      },
+      "Mi1": {
+        "on_peak_mV": 11.556102752685547,
+        "opposite_peak_mV": 1.9097557067871094,
+        "opposite_delay_ms": 244.0,
+        "opposite_fwhm_ms": 211,
+        "control_std_mV": 0.2590874135494232,
+        "control_late_std_mV": 0.24445432424545288,
+        "late_evoked_max_mV": 0.5666542053222656,
+        "baseline_mV": -50.0522575378418
+      },
+      "Tm3": {
+        "on_peak_mV": 14.272722244262695,
+        "opposite_peak_mV": 1.2682609558105469,
+        "opposite_delay_ms": 315.0,
+        "opposite_fwhm_ms": 169,
+        "control_std_mV": 0.23306159675121307,
+        "control_late_std_mV": 0.20080003142356873,
+        "late_evoked_max_mV": 0.7139663696289062,
+        "baseline_mV": -35.79496765136719
+      },
+      "Mi4": {
+        "on_peak_mV": 14.435007095336914,
+        "opposite_peak_mV": 0.51776123046875,
+        "opposite_delay_ms": 385.0,
+        "opposite_fwhm_ms": 59,
+        "control_std_mV": 0.281782865524292,
+        "control_late_std_mV": 0.1928512006998062,
+        "late_evoked_max_mV": 0.7225532531738281,
+        "baseline_mV": -37.56653594970703
+      },
+      "Mi9": {
+        "on_peak_mV": 0.0045623779296875,
+        "opposite_peak_mV": 0.3052978515625,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 41,
+        "control_std_mV": 0.013733286410570145,
+        "control_late_std_mV": 0.014706104062497616,
+        "late_evoked_max_mV": 0.04376983642578125,
+        "baseline_mV": -70.11003875732422
+      },
+      "T4a": {
+        "on_peak_mV": 9.283201217651367,
+        "opposite_peak_mV": 1.8276863098144531,
+        "opposite_delay_ms": 274.0,
+        "opposite_fwhm_ms": 154,
+        "control_std_mV": 0.2653184235095978,
+        "control_late_std_mV": 0.21470104157924652,
+        "late_evoked_max_mV": 0.6795692443847656,
+        "baseline_mV": -34.96805191040039
+      },
+      "T4b": {
+        "on_peak_mV": 8.857845306396484,
+        "opposite_peak_mV": 1.6119613647460938,
+        "opposite_delay_ms": 271.0,
+        "opposite_fwhm_ms": 178,
+        "control_std_mV": 0.26090818643569946,
+        "control_late_std_mV": 0.17318587005138397,
+        "late_evoked_max_mV": 0.5872459411621094,
+        "baseline_mV": -41.198219299316406
+      },
+      "T4c": {
+        "on_peak_mV": 7.078104019165039,
+        "opposite_peak_mV": 1.7236289978027344,
+        "opposite_delay_ms": 316.0,
+        "opposite_fwhm_ms": 178,
+        "control_std_mV": 0.25803110003471375,
+        "control_late_std_mV": 0.1422416865825653,
+        "late_evoked_max_mV": 0.6407699584960938,
+        "baseline_mV": -36.810123443603516
+      },
+      "T4d": {
+        "on_peak_mV": 7.467714309692383,
+        "opposite_peak_mV": 1.3784370422363281,
+        "opposite_delay_ms": 316.0,
+        "opposite_fwhm_ms": 161,
+        "control_std_mV": 0.2079034149646759,
+        "control_late_std_mV": 0.11205244809389114,
+        "late_evoked_max_mV": 0.536041259765625,
+        "baseline_mV": -35.28951644897461
+      }
+    },
+    "v_min": -71.93160247802734,
+    "v_max": -1.2711857557296753
+  },
+  {
+    "case": {
+      "name": "balanced_007",
+      "forward_gain": 1.0,
+      "feedback_gain": 30.0,
+      "threshold": "rest"
+    },
+    "score": 1.6523657221965478,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679691314697266,
+        "opposite_peak_mV": 4.0703125,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 3.615647756305407e-06,
+        "control_late_std_mV": 3.814697265625e-06,
+        "late_evoked_max_mV": 1.1444091796875e-05,
+        "baseline_mV": -49.079681396484375
+      },
+      "L1": {
+        "on_peak_mV": 10.214958190917969,
+        "opposite_peak_mV": 2.5035133361816406,
+        "opposite_delay_ms": 107.0,
+        "opposite_fwhm_ms": 121,
+        "control_std_mV": 0.05869681388139725,
+        "control_late_std_mV": 0.010080307722091675,
+        "late_evoked_max_mV": 0.21029281616210938,
+        "baseline_mV": -49.763248443603516
+      },
+      "L2": {
+        "on_peak_mV": 4.654361724853516,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.002788242883980274,
+        "control_late_std_mV": 0.00045623164623975754,
+        "late_evoked_max_mV": 0.007511138916015625,
+        "baseline_mV": -63.691688537597656
+      },
+      "L3": {
+        "on_peak_mV": 4.294403076171875,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0002305278612766415,
+        "control_late_std_mV": 5.360029172152281e-05,
+        "late_evoked_max_mV": 0.00040435791015625,
+        "baseline_mV": -64.28256225585938
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.036746978759765625,
+        "opposite_delay_ms": 1.0,
+        "opposite_fwhm_ms": 329,
+        "control_std_mV": 0.0001778761943569407,
+        "control_late_std_mV": 6.676099292235449e-05,
+        "late_evoked_max_mV": 0.000240325927734375,
+        "baseline_mV": -45.038387298583984
+      },
+      "L5": {
+        "on_peak_mV": 7.876346588134766,
+        "opposite_peak_mV": 3.5331192016601562,
+        "opposite_delay_ms": 169.0,
+        "opposite_fwhm_ms": 191,
+        "control_std_mV": 0.04921533912420273,
+        "control_late_std_mV": 0.020071910694241524,
+        "late_evoked_max_mV": 0.18165969848632812,
+        "baseline_mV": -51.99099349975586
+      },
+      "Mi1": {
+        "on_peak_mV": 13.595291137695312,
+        "opposite_peak_mV": 2.0418014526367188,
+        "opposite_delay_ms": 221.0,
+        "opposite_fwhm_ms": 161,
+        "control_std_mV": 0.05777479335665703,
+        "control_late_std_mV": 0.01683327555656433,
+        "late_evoked_max_mV": 0.18313217163085938,
+        "baseline_mV": -49.17066955566406
+      },
+      "Tm3": {
+        "on_peak_mV": 14.549415588378906,
+        "opposite_peak_mV": 1.3869400024414062,
+        "opposite_delay_ms": 247.0,
+        "opposite_fwhm_ms": 116,
+        "control_std_mV": 0.0660470649600029,
+        "control_late_std_mV": 0.02069171331822872,
+        "late_evoked_max_mV": 0.20319366455078125,
+        "baseline_mV": -35.35686492919922
+      },
+      "Mi4": {
+        "on_peak_mV": 14.565631866455078,
+        "opposite_peak_mV": 0.190521240234375,
+        "opposite_delay_ms": 548.0,
+        "opposite_fwhm_ms": 96,
+        "control_std_mV": 0.03939278796315193,
+        "control_late_std_mV": 0.010363261215388775,
+        "late_evoked_max_mV": 0.16283035278320312,
+        "baseline_mV": -38.08787536621094
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00390625,
+        "opposite_peak_mV": 0.36656951904296875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 79,
+        "control_std_mV": 0.001595382345840335,
+        "control_late_std_mV": 0.0004415774601511657,
+        "late_evoked_max_mV": 0.0056915283203125,
+        "baseline_mV": -70.35762786865234
+      },
+      "T4a": {
+        "on_peak_mV": 10.305648803710938,
+        "opposite_peak_mV": 0.11162567138671875,
+        "opposite_delay_ms": 544.0,
+        "opposite_fwhm_ms": 75,
+        "control_std_mV": 0.04750113934278488,
+        "control_late_std_mV": 0.007176049519330263,
+        "late_evoked_max_mV": 0.14278793334960938,
+        "baseline_mV": -37.68801498413086
+      },
+      "T4b": {
+        "on_peak_mV": 9.595561981201172,
+        "opposite_peak_mV": 0.07044219970703125,
+        "opposite_delay_ms": 293.0,
+        "opposite_fwhm_ms": 34,
+        "control_std_mV": 0.03847925364971161,
+        "control_late_std_mV": 0.005791785195469856,
+        "late_evoked_max_mV": 0.10486984252929688,
+        "baseline_mV": -43.45914077758789
+      },
+      "T4c": {
+        "on_peak_mV": 8.289188385009766,
+        "opposite_peak_mV": 0.10475540161132812,
+        "opposite_delay_ms": 564.0,
+        "opposite_fwhm_ms": 83,
+        "control_std_mV": 0.043721411377191544,
+        "control_late_std_mV": 0.006371286232024431,
+        "late_evoked_max_mV": 0.1151275634765625,
+        "baseline_mV": -39.22898864746094
+      },
+      "T4d": {
+        "on_peak_mV": 8.482271194458008,
+        "opposite_peak_mV": 0.10709762573242188,
+        "opposite_delay_ms": 533.0,
+        "opposite_fwhm_ms": 86,
+        "control_std_mV": 0.03986404463648796,
+        "control_late_std_mV": 0.00888879131525755,
+        "late_evoked_max_mV": 0.10690689086914062,
+        "baseline_mV": -37.10837173461914
+      }
+    },
+    "v_min": -71.93160247802734,
+    "v_max": -1.2711857557296753
+  },
+  {
+    "case": {
+      "name": "balanced_008",
+      "forward_gain": 2.0,
+      "feedback_gain": 1.0,
+      "threshold": "saved"
+    },
+    "score": 2.6561434383149796,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679737091064453,
+        "opposite_peak_mV": 4.070682525634766,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 7.545143944298616e-06,
+        "control_late_std_mV": 8.932783202908468e-06,
+        "late_evoked_max_mV": 1.1444091796875e-05,
+        "baseline_mV": -49.07952880859375
+      },
+      "L1": {
+        "on_peak_mV": 9.839290618896484,
+        "opposite_peak_mV": 3.2029800415039062,
+        "opposite_delay_ms": 116.0,
+        "opposite_fwhm_ms": 176,
+        "control_std_mV": 0.05306645482778549,
+        "control_late_std_mV": 0.0549238957464695,
+        "late_evoked_max_mV": 0.16436767578125,
+        "baseline_mV": -49.111881256103516
+      },
+      "L2": {
+        "on_peak_mV": 4.374298095703125,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0036025175359100103,
+        "control_late_std_mV": 0.0024660818744450808,
+        "late_evoked_max_mV": 0.0093841552734375,
+        "baseline_mV": -64.02183532714844
+      },
+      "L3": {
+        "on_peak_mV": 4.29486083984375,
+        "opposite_peak_mV": 0.00023651123046875,
+        "opposite_delay_ms": 700.0,
+        "opposite_fwhm_ms": 11,
+        "control_std_mV": 0.0013909732224419713,
+        "control_late_std_mV": 0.0009277635836042464,
+        "late_evoked_max_mV": 0.00466156005859375,
+        "baseline_mV": -64.28489685058594
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.048488616943359375,
+        "opposite_delay_ms": 148.0,
+        "opposite_fwhm_ms": 324,
+        "control_std_mV": 0.0001586934959050268,
+        "control_late_std_mV": 4.370974056655541e-05,
+        "late_evoked_max_mV": 0.00029754638671875,
+        "baseline_mV": -45.03763961791992
+      },
+      "L5": {
+        "on_peak_mV": 8.937606811523438,
+        "opposite_peak_mV": 3.432117462158203,
+        "opposite_delay_ms": 213.0,
+        "opposite_fwhm_ms": 251,
+        "control_std_mV": 0.04708630219101906,
+        "control_late_std_mV": 0.024247851222753525,
+        "late_evoked_max_mV": 0.18991851806640625,
+        "baseline_mV": -53.67019271850586
+      },
+      "Mi1": {
+        "on_peak_mV": 17.219348907470703,
+        "opposite_peak_mV": 2.645221710205078,
+        "opposite_delay_ms": 311.0,
+        "opposite_fwhm_ms": 229,
+        "control_std_mV": 0.061863966286182404,
+        "control_late_std_mV": 0.038527682423591614,
+        "late_evoked_max_mV": 0.1690673828125,
+        "baseline_mV": -50.80730056762695
+      },
+      "Tm3": {
+        "on_peak_mV": 19.698760986328125,
+        "opposite_peak_mV": 3.182666778564453,
+        "opposite_delay_ms": 375.0,
+        "opposite_fwhm_ms": 187,
+        "control_std_mV": 0.097688689827919,
+        "control_late_std_mV": 0.05853063240647316,
+        "late_evoked_max_mV": 0.35836029052734375,
+        "baseline_mV": -37.666656494140625
+      },
+      "Mi4": {
+        "on_peak_mV": 18.994462966918945,
+        "opposite_peak_mV": 1.2172355651855469,
+        "opposite_delay_ms": 420.0,
+        "opposite_fwhm_ms": 108,
+        "control_std_mV": 0.10599140077829361,
+        "control_late_std_mV": 0.08907873183488846,
+        "late_evoked_max_mV": 0.2810859680175781,
+        "baseline_mV": -39.39046859741211
+      },
+      "Mi9": {
+        "on_peak_mV": 0.0105743408203125,
+        "opposite_peak_mV": 0.36028289794921875,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 61,
+        "control_std_mV": 0.004840643610805273,
+        "control_late_std_mV": 0.0028733848594129086,
+        "late_evoked_max_mV": 0.02007293701171875,
+        "baseline_mV": -70.00611114501953
+      },
+      "T4a": {
+        "on_peak_mV": 12.985763549804688,
+        "opposite_peak_mV": 3.004718780517578,
+        "opposite_delay_ms": 412.0,
+        "opposite_fwhm_ms": 165,
+        "control_std_mV": 0.08439365029335022,
+        "control_late_std_mV": 0.1039690375328064,
+        "late_evoked_max_mV": 0.450927734375,
+        "baseline_mV": -37.738800048828125
+      },
+      "T4b": {
+        "on_peak_mV": 12.292327880859375,
+        "opposite_peak_mV": 2.7365150451660156,
+        "opposite_delay_ms": 407.0,
+        "opposite_fwhm_ms": 178,
+        "control_std_mV": 0.09136250615119934,
+        "control_late_std_mV": 0.08948376774787903,
+        "late_evoked_max_mV": 0.41341400146484375,
+        "baseline_mV": -43.60602569580078
+      },
+      "T4c": {
+        "on_peak_mV": 10.578760147094727,
+        "opposite_peak_mV": 3.1007080078125,
+        "opposite_delay_ms": 417.0,
+        "opposite_fwhm_ms": 175,
+        "control_std_mV": 0.0978199914097786,
+        "control_late_std_mV": 0.11337614804506302,
+        "late_evoked_max_mV": 0.3194618225097656,
+        "baseline_mV": -39.73103332519531
+      },
+      "T4d": {
+        "on_peak_mV": 11.267683029174805,
+        "opposite_peak_mV": 2.29888916015625,
+        "opposite_delay_ms": 418.0,
+        "opposite_fwhm_ms": 158,
+        "control_std_mV": 0.0858519971370697,
+        "control_late_std_mV": 0.09335814416408539,
+        "late_evoked_max_mV": 0.4653892517089844,
+        "baseline_mV": -38.179405212402344
+      }
+    },
+    "v_min": -71.93160247802734,
+    "v_max": -1.2711857557296753
+  },
+  {
+    "case": {
+      "name": "balanced_009",
+      "forward_gain": 2.0,
+      "feedback_gain": 1.0,
+      "threshold": "rest"
+    },
+    "score": 2.765907511950961,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679805755615234,
+        "opposite_peak_mV": 4.0708465576171875,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 0.0,
+        "control_late_std_mV": 3.814697265625e-06,
+        "late_evoked_max_mV": 3.814697265625e-06,
+        "baseline_mV": -49.07929229736328
+      },
+      "L1": {
+        "on_peak_mV": 9.68838119506836,
+        "opposite_peak_mV": 3.639892578125,
+        "opposite_delay_ms": 113.0,
+        "opposite_fwhm_ms": 172,
+        "control_std_mV": 0.01139218918979168,
+        "control_late_std_mV": 0.0013073812006041408,
+        "late_evoked_max_mV": 0.0959014892578125,
+        "baseline_mV": -50.02006149291992
+      },
+      "L2": {
+        "on_peak_mV": 4.451942443847656,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0003198281046934426,
+        "control_late_std_mV": 1.9096209143754095e-05,
+        "late_evoked_max_mV": 0.00226593017578125,
+        "baseline_mV": -63.906333923339844
+      },
+      "L3": {
+        "on_peak_mV": 4.2990570068359375,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 4.9592959840083495e-05,
+        "control_late_std_mV": 5.448123829410179e-06,
+        "late_evoked_max_mV": 0.0005340576171875,
+        "baseline_mV": -64.27812194824219
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.041126251220703125,
+        "opposite_delay_ms": 1.0,
+        "opposite_fwhm_ms": 323,
+        "control_std_mV": 5.807666093460284e-05,
+        "control_late_std_mV": 4.6771847337367944e-06,
+        "late_evoked_max_mV": 0.00037384033203125,
+        "baseline_mV": -45.0313606262207
+      },
+      "L5": {
+        "on_peak_mV": 10.346138000488281,
+        "opposite_peak_mV": 4.047626495361328,
+        "opposite_delay_ms": 206.0,
+        "opposite_fwhm_ms": 253,
+        "control_std_mV": 0.009696786291897297,
+        "control_late_std_mV": 0.0006340845720842481,
+        "late_evoked_max_mV": 0.0844879150390625,
+        "baseline_mV": -52.8292236328125
+      },
+      "Mi1": {
+        "on_peak_mV": 19.624547958374023,
+        "opposite_peak_mV": 2.4726028442382812,
+        "opposite_delay_ms": 329.0,
+        "opposite_fwhm_ms": 224,
+        "control_std_mV": 0.015039634890854359,
+        "control_late_std_mV": 0.0009350657928735018,
+        "late_evoked_max_mV": 0.15483856201171875,
+        "baseline_mV": -50.57089614868164
+      },
+      "Tm3": {
+        "on_peak_mV": 21.886249542236328,
+        "opposite_peak_mV": 3.0776596069335938,
+        "opposite_delay_ms": 359.0,
+        "opposite_fwhm_ms": 194,
+        "control_std_mV": 0.022052474319934845,
+        "control_late_std_mV": 0.002399721648544073,
+        "late_evoked_max_mV": 0.205596923828125,
+        "baseline_mV": -38.127750396728516
+      },
+      "Mi4": {
+        "on_peak_mV": 19.81239128112793,
+        "opposite_peak_mV": 1.1695404052734375,
+        "opposite_delay_ms": 427.0,
+        "opposite_fwhm_ms": 112,
+        "control_std_mV": 0.01502854935824871,
+        "control_late_std_mV": 0.001535824267193675,
+        "late_evoked_max_mV": 0.11555862426757812,
+        "baseline_mV": -39.742977142333984
+      },
+      "Mi9": {
+        "on_peak_mV": 0.0152587890625,
+        "opposite_peak_mV": 0.511260986328125,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 69,
+        "control_std_mV": 0.00047565734712406993,
+        "control_late_std_mV": 6.787120219087228e-05,
+        "late_evoked_max_mV": 0.00470733642578125,
+        "baseline_mV": -70.20043182373047
+      },
+      "T4a": {
+        "on_peak_mV": 15.639724731445312,
+        "opposite_peak_mV": 1.3584709167480469,
+        "opposite_delay_ms": 430.0,
+        "opposite_fwhm_ms": 114,
+        "control_std_mV": 0.03464306518435478,
+        "control_late_std_mV": 0.007445207331329584,
+        "late_evoked_max_mV": 0.1084136962890625,
+        "baseline_mV": -40.439964294433594
+      },
+      "T4b": {
+        "on_peak_mV": 14.969306945800781,
+        "opposite_peak_mV": 1.1612434387207031,
+        "opposite_delay_ms": 427.0,
+        "opposite_fwhm_ms": 117,
+        "control_std_mV": 0.021114636212587357,
+        "control_late_std_mV": 0.0046636140905320644,
+        "late_evoked_max_mV": 0.09383010864257812,
+        "baseline_mV": -46.02058029174805
+      },
+      "T4c": {
+        "on_peak_mV": 13.33091926574707,
+        "opposite_peak_mV": 1.48895263671875,
+        "opposite_delay_ms": 434.0,
+        "opposite_fwhm_ms": 119,
+        "control_std_mV": 0.024243969470262527,
+        "control_late_std_mV": 0.004796337801963091,
+        "late_evoked_max_mV": 0.07532501220703125,
+        "baseline_mV": -42.42782211303711
+      },
+      "T4d": {
+        "on_peak_mV": 13.480913162231445,
+        "opposite_peak_mV": 1.1851730346679688,
+        "opposite_delay_ms": 435.0,
+        "opposite_fwhm_ms": 111,
+        "control_std_mV": 0.02585701271891594,
+        "control_late_std_mV": 0.005761479027569294,
+        "late_evoked_max_mV": 0.0966339111328125,
+        "baseline_mV": -40.315670013427734
+      }
+    },
+    "v_min": -71.93160247802734,
+    "v_max": -1.2711857557296753
+  },
+  {
+    "case": {
+      "name": "balanced_010",
+      "forward_gain": 2.0,
+      "feedback_gain": 3.0,
+      "threshold": "saved"
+    },
+    "score": 1.6860944242304803,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679676055908203,
+        "opposite_peak_mV": 4.070243835449219,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 2.5074949007830583e-05,
+        "control_late_std_mV": 1.4816597285971511e-05,
+        "late_evoked_max_mV": 1.9073486328125e-05,
+        "baseline_mV": -49.07975769042969
+      },
+      "L1": {
+        "on_peak_mV": 9.954544067382812,
+        "opposite_peak_mV": 3.0854759216308594,
+        "opposite_delay_ms": 120.0,
+        "opposite_fwhm_ms": 153,
+        "control_std_mV": 0.15144485235214233,
+        "control_late_std_mV": 0.11862314492464066,
+        "late_evoked_max_mV": 0.8552627563476562,
+        "baseline_mV": -49.12514114379883
+      },
+      "L2": {
+        "on_peak_mV": 4.4243927001953125,
+        "opposite_peak_mV": 0.05794525146484375,
+        "opposite_delay_ms": 700.0,
+        "opposite_fwhm_ms": 41,
+        "control_std_mV": 0.012409183196723461,
+        "control_late_std_mV": 0.01712605729699135,
+        "late_evoked_max_mV": 0.058811187744140625,
+        "baseline_mV": -63.8849983215332
+      },
+      "L3": {
+        "on_peak_mV": 4.287361145019531,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0023773526772856712,
+        "control_late_std_mV": 0.001059620757587254,
+        "late_evoked_max_mV": 0.001739501953125,
+        "baseline_mV": -64.28762817382812
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.044910430908203125,
+        "opposite_delay_ms": 161.0,
+        "opposite_fwhm_ms": 311,
+        "control_std_mV": 0.0003281049430370331,
+        "control_late_std_mV": 0.00020216035773046315,
+        "late_evoked_max_mV": 0.001094818115234375,
+        "baseline_mV": -45.039180755615234
+      },
+      "L5": {
+        "on_peak_mV": 7.024528503417969,
+        "opposite_peak_mV": 3.6103057861328125,
+        "opposite_delay_ms": 206.0,
+        "opposite_fwhm_ms": 216,
+        "control_std_mV": 0.12938092648983002,
+        "control_late_std_mV": 0.13691583275794983,
+        "late_evoked_max_mV": 0.5995826721191406,
+        "baseline_mV": -53.118499755859375
+      },
+      "Mi1": {
+        "on_peak_mV": 13.7987060546875,
+        "opposite_peak_mV": 2.767200469970703,
+        "opposite_delay_ms": 283.0,
+        "opposite_fwhm_ms": 189,
+        "control_std_mV": 0.17615506052970886,
+        "control_late_std_mV": 0.16348132491111755,
+        "late_evoked_max_mV": 0.8006172180175781,
+        "baseline_mV": -49.92716979980469
+      },
+      "Tm3": {
+        "on_peak_mV": 16.967432022094727,
+        "opposite_peak_mV": 3.1838455200195312,
+        "opposite_delay_ms": 322.0,
+        "opposite_fwhm_ms": 164,
+        "control_std_mV": 0.21550321578979492,
+        "control_late_std_mV": 0.21680903434753418,
+        "late_evoked_max_mV": 1.2785301208496094,
+        "baseline_mV": -36.49551010131836
+      },
+      "Mi4": {
+        "on_peak_mV": 16.487865447998047,
+        "opposite_peak_mV": 1.4913215637207031,
+        "opposite_delay_ms": 368.0,
+        "opposite_fwhm_ms": 84,
+        "control_std_mV": 0.16611382365226746,
+        "control_late_std_mV": 0.1258365362882614,
+        "late_evoked_max_mV": 0.9631919860839844,
+        "baseline_mV": -38.20584487915039
+      },
+      "Mi9": {
+        "on_peak_mV": 0.0067138671875,
+        "opposite_peak_mV": 0.34502410888671875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 60,
+        "control_std_mV": 0.011424058116972446,
+        "control_late_std_mV": 0.011865474283695221,
+        "late_evoked_max_mV": 0.03143310546875,
+        "baseline_mV": -70.1252670288086
+      },
+      "T4a": {
+        "on_peak_mV": 10.930093765258789,
+        "opposite_peak_mV": 3.15228271484375,
+        "opposite_delay_ms": 336.0,
+        "opposite_fwhm_ms": 134,
+        "control_std_mV": 0.19476787745952606,
+        "control_late_std_mV": 0.16883151233196259,
+        "late_evoked_max_mV": 1.1648521423339844,
+        "baseline_mV": -36.46855926513672
+      },
+      "T4b": {
+        "on_peak_mV": 10.593517303466797,
+        "opposite_peak_mV": 3.0610580444335938,
+        "opposite_delay_ms": 335.0,
+        "opposite_fwhm_ms": 145,
+        "control_std_mV": 0.20851680636405945,
+        "control_late_std_mV": 0.18274813890457153,
+        "late_evoked_max_mV": 1.2560462951660156,
+        "baseline_mV": -42.41889190673828
+      },
+      "T4c": {
+        "on_peak_mV": 8.880475997924805,
+        "opposite_peak_mV": 3.043720245361328,
+        "opposite_delay_ms": 341.0,
+        "opposite_fwhm_ms": 141,
+        "control_std_mV": 0.21590088307857513,
+        "control_late_std_mV": 0.1737074851989746,
+        "late_evoked_max_mV": 1.303924560546875,
+        "baseline_mV": -38.377864837646484
+      },
+      "T4d": {
+        "on_peak_mV": 9.462976455688477,
+        "opposite_peak_mV": 2.5965538024902344,
+        "opposite_delay_ms": 342.0,
+        "opposite_fwhm_ms": 129,
+        "control_std_mV": 0.21145878732204437,
+        "control_late_std_mV": 0.18727490305900574,
+        "late_evoked_max_mV": 1.1538314819335938,
+        "baseline_mV": -36.68405532836914
+      }
+    },
+    "v_min": -71.93160247802734,
+    "v_max": -1.2711857557296753
+  },
+  {
+    "case": {
+      "name": "balanced_011",
+      "forward_gain": 2.0,
+      "feedback_gain": 3.0,
+      "threshold": "rest"
+    },
+    "score": 2.5595575788896707,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679790496826172,
+        "opposite_peak_mV": 4.07080078125,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 8.526247938789311e-07,
+        "control_late_std_mV": 3.814697265625e-06,
+        "late_evoked_max_mV": 7.62939453125e-06,
+        "baseline_mV": -49.07933807373047
+      },
+      "L1": {
+        "on_peak_mV": 9.795181274414062,
+        "opposite_peak_mV": 3.0806007385253906,
+        "opposite_delay_ms": 102.0,
+        "opposite_fwhm_ms": 138,
+        "control_std_mV": 0.04493614658713341,
+        "control_late_std_mV": 0.0066080354154109955,
+        "late_evoked_max_mV": 0.21561050415039062,
+        "baseline_mV": -50.01173782348633
+      },
+      "L2": {
+        "on_peak_mV": 4.570014953613281,
+        "opposite_peak_mV": 0.006580352783203125,
+        "opposite_delay_ms": 691.0,
+        "opposite_fwhm_ms": 41,
+        "control_std_mV": 0.0012309749145060778,
+        "control_late_std_mV": 0.0002748202532529831,
+        "late_evoked_max_mV": 0.005970001220703125,
+        "baseline_mV": -63.722442626953125
+      },
+      "L3": {
+        "on_peak_mV": 4.29632568359375,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.00016941262583713979,
+        "control_late_std_mV": 4.2141567973885685e-05,
+        "late_evoked_max_mV": 0.00026702880859375,
+        "baseline_mV": -64.28079223632812
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.038509368896484375,
+        "opposite_delay_ms": 1.0,
+        "opposite_fwhm_ms": 320,
+        "control_std_mV": 0.00023007733398117125,
+        "control_late_std_mV": 2.686838161025662e-05,
+        "late_evoked_max_mV": 0.000469207763671875,
+        "baseline_mV": -45.033321380615234
+      },
+      "L5": {
+        "on_peak_mV": 9.02230453491211,
+        "opposite_peak_mV": 3.936481475830078,
+        "opposite_delay_ms": 174.0,
+        "opposite_fwhm_ms": 213,
+        "control_std_mV": 0.04005074501037598,
+        "control_late_std_mV": 0.007777259685099125,
+        "late_evoked_max_mV": 0.11500167846679688,
+        "baseline_mV": -52.094200134277344
+      },
+      "Mi1": {
+        "on_peak_mV": 16.19147491455078,
+        "opposite_peak_mV": 2.4406280517578125,
+        "opposite_delay_ms": 257.0,
+        "opposite_fwhm_ms": 186,
+        "control_std_mV": 0.05460682883858681,
+        "control_late_std_mV": 0.010941728949546814,
+        "late_evoked_max_mV": 0.21323394775390625,
+        "baseline_mV": -49.4658203125
+      },
+      "Tm3": {
+        "on_peak_mV": 17.884384155273438,
+        "opposite_peak_mV": 2.8231277465820312,
+        "opposite_delay_ms": 275.0,
+        "opposite_fwhm_ms": 163,
+        "control_std_mV": 0.07310671359300613,
+        "control_late_std_mV": 0.01731327921152115,
+        "late_evoked_max_mV": 0.2958526611328125,
+        "baseline_mV": -35.98216247558594
+      },
+      "Mi4": {
+        "on_peak_mV": 16.62529182434082,
+        "opposite_peak_mV": 0.5329513549804688,
+        "opposite_delay_ms": 360.0,
+        "opposite_fwhm_ms": 84,
+        "control_std_mV": 0.03914830833673477,
+        "control_late_std_mV": 0.007297641132026911,
+        "late_evoked_max_mV": 0.1919403076171875,
+        "baseline_mV": -38.376033782958984
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00637054443359375,
+        "opposite_peak_mV": 0.42705535888671875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 81,
+        "control_std_mV": 0.0013266109162941575,
+        "control_late_std_mV": 0.00013700731506105512,
+        "late_evoked_max_mV": 0.00676727294921875,
+        "baseline_mV": -70.35208129882812
+      },
+      "T4a": {
+        "on_peak_mV": 12.622224807739258,
+        "opposite_peak_mV": 0.6583404541015625,
+        "opposite_delay_ms": 338.0,
+        "opposite_fwhm_ms": 83,
+        "control_std_mV": 0.046287477016448975,
+        "control_late_std_mV": 0.007063816301524639,
+        "late_evoked_max_mV": 0.23909759521484375,
+        "baseline_mV": -38.73279571533203
+      },
+      "T4b": {
+        "on_peak_mV": 12.073112487792969,
+        "opposite_peak_mV": 0.652374267578125,
+        "opposite_delay_ms": 334.0,
+        "opposite_fwhm_ms": 84,
+        "control_std_mV": 0.0369802825152874,
+        "control_late_std_mV": 0.006528067868202925,
+        "late_evoked_max_mV": 0.16509246826171875,
+        "baseline_mV": -44.541778564453125
+      },
+      "T4c": {
+        "on_peak_mV": 10.48788833618164,
+        "opposite_peak_mV": 0.8244895935058594,
+        "opposite_delay_ms": 343.0,
+        "opposite_fwhm_ms": 97,
+        "control_std_mV": 0.039510373026132584,
+        "control_late_std_mV": 0.009046182967722416,
+        "late_evoked_max_mV": 0.1946258544921875,
+        "baseline_mV": -40.43161392211914
+      },
+      "T4d": {
+        "on_peak_mV": 10.484142303466797,
+        "opposite_peak_mV": 0.8055877685546875,
+        "opposite_delay_ms": 340.0,
+        "opposite_fwhm_ms": 95,
+        "control_std_mV": 0.035787709057331085,
+        "control_late_std_mV": 0.007470536977052689,
+        "late_evoked_max_mV": 0.1588897705078125,
+        "baseline_mV": -38.22966766357422
+      }
+    },
+    "v_min": -71.93160247802734,
+    "v_max": -1.2711857557296753
+  },
+  {
+    "case": {
+      "name": "balanced_012",
+      "forward_gain": 2.0,
+      "feedback_gain": 10.0,
+      "threshold": "saved"
+    },
+    "score": 1.4367050833089559,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.67959213256836,
+        "opposite_peak_mV": 4.070030212402344,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 4.533214814728126e-05,
+        "control_late_std_mV": 1.623789285076782e-05,
+        "late_evoked_max_mV": 8.0108642578125e-05,
+        "baseline_mV": -49.07988739013672
+      },
+      "L1": {
+        "on_peak_mV": 10.063316345214844,
+        "opposite_peak_mV": 2.903766632080078,
+        "opposite_delay_ms": 111.0,
+        "opposite_fwhm_ms": 125,
+        "control_std_mV": 0.18842047452926636,
+        "control_late_std_mV": 0.1792040467262268,
+        "late_evoked_max_mV": 0.7753410339355469,
+        "baseline_mV": -48.899757385253906
+      },
+      "L2": {
+        "on_peak_mV": 4.477542877197266,
+        "opposite_peak_mV": 0.043170928955078125,
+        "opposite_delay_ms": 606.0,
+        "opposite_fwhm_ms": 61,
+        "control_std_mV": 0.02180594950914383,
+        "control_late_std_mV": 0.02661599963903427,
+        "late_evoked_max_mV": 0.06796646118164062,
+        "baseline_mV": -63.898895263671875
+      },
+      "L3": {
+        "on_peak_mV": 4.289787292480469,
+        "opposite_peak_mV": 0.00139617919921875,
+        "opposite_delay_ms": 654.0,
+        "opposite_fwhm_ms": 84,
+        "control_std_mV": 0.0025490319821983576,
+        "control_late_std_mV": 0.002472276333719492,
+        "late_evoked_max_mV": 0.0068511962890625,
+        "baseline_mV": -64.287841796875
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.043346405029296875,
+        "opposite_delay_ms": 176.0,
+        "opposite_fwhm_ms": 311,
+        "control_std_mV": 0.0005205819616094232,
+        "control_late_std_mV": 0.0003489726223051548,
+        "late_evoked_max_mV": 0.001102447509765625,
+        "baseline_mV": -45.04068374633789
+      },
+      "L5": {
+        "on_peak_mV": 6.442596435546875,
+        "opposite_peak_mV": 3.3550796508789062,
+        "opposite_delay_ms": 165.0,
+        "opposite_fwhm_ms": 175,
+        "control_std_mV": 0.13810209929943085,
+        "control_late_std_mV": 0.20109759271144867,
+        "late_evoked_max_mV": 0.5249481201171875,
+        "baseline_mV": -53.29094314575195
+      },
+      "Mi1": {
+        "on_peak_mV": 12.298648834228516,
+        "opposite_peak_mV": 2.079669952392578,
+        "opposite_delay_ms": 187.0,
+        "opposite_fwhm_ms": 181,
+        "control_std_mV": 0.15881480276584625,
+        "control_late_std_mV": 0.2450830340385437,
+        "late_evoked_max_mV": 0.6628952026367188,
+        "baseline_mV": -49.941551208496094
+      },
+      "Tm3": {
+        "on_peak_mV": 15.306447982788086,
+        "opposite_peak_mV": 2.089935302734375,
+        "opposite_delay_ms": 260.0,
+        "opposite_fwhm_ms": 158,
+        "control_std_mV": 0.19982196390628815,
+        "control_late_std_mV": 0.2060168832540512,
+        "late_evoked_max_mV": 0.6264152526855469,
+        "baseline_mV": -36.341796875
+      },
+      "Mi4": {
+        "on_peak_mV": 14.500011444091797,
+        "opposite_peak_mV": 0.4426460266113281,
+        "opposite_delay_ms": 354.0,
+        "opposite_fwhm_ms": 61,
+        "control_std_mV": 0.1625516563653946,
+        "control_late_std_mV": 0.14470919966697693,
+        "late_evoked_max_mV": 0.7360267639160156,
+        "baseline_mV": -37.44399642944336
+      },
+      "Mi9": {
+        "on_peak_mV": 0.002685546875,
+        "opposite_peak_mV": 0.3583221435546875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 47,
+        "control_std_mV": 0.01592656411230564,
+        "control_late_std_mV": 0.013084479607641697,
+        "late_evoked_max_mV": 0.056854248046875,
+        "baseline_mV": -70.17985534667969
+      },
+      "T4a": {
+        "on_peak_mV": 10.01374626159668,
+        "opposite_peak_mV": 2.0822219848632812,
+        "opposite_delay_ms": 302.0,
+        "opposite_fwhm_ms": 128,
+        "control_std_mV": 0.17554518580436707,
+        "control_late_std_mV": 0.18619585037231445,
+        "late_evoked_max_mV": 0.8225746154785156,
+        "baseline_mV": -35.810672760009766
+      },
+      "T4b": {
+        "on_peak_mV": 9.395439147949219,
+        "opposite_peak_mV": 1.77410888671875,
+        "opposite_delay_ms": 315.0,
+        "opposite_fwhm_ms": 138,
+        "control_std_mV": 0.16173450648784637,
+        "control_late_std_mV": 0.13921093940734863,
+        "late_evoked_max_mV": 0.6306076049804688,
+        "baseline_mV": -42.01097869873047
+      },
+      "T4c": {
+        "on_peak_mV": 7.871904373168945,
+        "opposite_peak_mV": 1.956085205078125,
+        "opposite_delay_ms": 301.0,
+        "opposite_fwhm_ms": 140,
+        "control_std_mV": 0.17233805358409882,
+        "control_late_std_mV": 0.13793189823627472,
+        "late_evoked_max_mV": 0.5517044067382812,
+        "baseline_mV": -37.74943542480469
+      },
+      "T4d": {
+        "on_peak_mV": 8.18167495727539,
+        "opposite_peak_mV": 1.6441574096679688,
+        "opposite_delay_ms": 313.0,
+        "opposite_fwhm_ms": 124,
+        "control_std_mV": 0.1640319973230362,
+        "control_late_std_mV": 0.13880302011966705,
+        "late_evoked_max_mV": 0.5587272644042969,
+        "baseline_mV": -36.014190673828125
+      }
+    },
+    "v_min": -71.931884765625,
+    "v_max": -0.6476784944534302
+  },
+  {
+    "case": {
+      "name": "balanced_013",
+      "forward_gain": 2.0,
+      "feedback_gain": 10.0,
+      "threshold": "rest"
+    },
+    "score": 2.2962358846246946,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679786682128906,
+        "opposite_peak_mV": 4.070766448974609,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 1.8599381519379676e-06,
+        "control_late_std_mV": 0.0,
+        "late_evoked_max_mV": 1.1444091796875e-05,
+        "baseline_mV": -49.07935333251953
+      },
+      "L1": {
+        "on_peak_mV": 10.039119720458984,
+        "opposite_peak_mV": 2.6311988830566406,
+        "opposite_delay_ms": 106.0,
+        "opposite_fwhm_ms": 121,
+        "control_std_mV": 0.08276209980249405,
+        "control_late_std_mV": 0.021239912137389183,
+        "late_evoked_max_mV": 0.18445587158203125,
+        "baseline_mV": -50.00371170043945
+      },
+      "L2": {
+        "on_peak_mV": 4.656856536865234,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0031371049117296934,
+        "control_late_std_mV": 0.0006301390239968896,
+        "late_evoked_max_mV": 0.0073394775390625,
+        "baseline_mV": -63.673370361328125
+      },
+      "L3": {
+        "on_peak_mV": 4.295562744140625,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.00022496629389934242,
+        "control_late_std_mV": 5.686991789843887e-05,
+        "late_evoked_max_mV": 0.000457763671875,
+        "baseline_mV": -64.28179168701172
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.037952423095703125,
+        "opposite_delay_ms": 1.0,
+        "opposite_fwhm_ms": 317,
+        "control_std_mV": 0.00031437468715012074,
+        "control_late_std_mV": 5.7435630878899246e-05,
+        "late_evoked_max_mV": 0.000614166259765625,
+        "baseline_mV": -45.034000396728516
+      },
+      "L5": {
+        "on_peak_mV": 8.09210205078125,
+        "opposite_peak_mV": 3.7078628540039062,
+        "opposite_delay_ms": 171.0,
+        "opposite_fwhm_ms": 186,
+        "control_std_mV": 0.06931042671203613,
+        "control_late_std_mV": 0.024753127247095108,
+        "late_evoked_max_mV": 0.16501617431640625,
+        "baseline_mV": -51.7535285949707
+      },
+      "Mi1": {
+        "on_peak_mV": 14.584327697753906,
+        "opposite_peak_mV": 2.2726173400878906,
+        "opposite_delay_ms": 224.0,
+        "opposite_fwhm_ms": 151,
+        "control_std_mV": 0.08748230338096619,
+        "control_late_std_mV": 0.015781395137310028,
+        "late_evoked_max_mV": 0.20493316650390625,
+        "baseline_mV": -48.97928237915039
+      },
+      "Tm3": {
+        "on_peak_mV": 16.188379287719727,
+        "opposite_peak_mV": 2.537525177001953,
+        "opposite_delay_ms": 236.0,
+        "opposite_fwhm_ms": 129,
+        "control_std_mV": 0.12106376141309738,
+        "control_late_std_mV": 0.03161590173840523,
+        "late_evoked_max_mV": 0.24396896362304688,
+        "baseline_mV": -35.26236343383789
+      },
+      "Mi4": {
+        "on_peak_mV": 15.164491653442383,
+        "opposite_peak_mV": 0.2086181640625,
+        "opposite_delay_ms": 550.0,
+        "opposite_fwhm_ms": 95,
+        "control_std_mV": 0.05688381567597389,
+        "control_late_std_mV": 0.009573167189955711,
+        "late_evoked_max_mV": 0.11893081665039062,
+        "baseline_mV": -37.90936279296875
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00392913818359375,
+        "opposite_peak_mV": 0.411041259765625,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 83,
+        "control_std_mV": 0.0012866912875324488,
+        "control_late_std_mV": 0.00024074841348920017,
+        "late_evoked_max_mV": 0.00341033935546875,
+        "baseline_mV": -70.38670349121094
+      },
+      "T4a": {
+        "on_peak_mV": 11.430620193481445,
+        "opposite_peak_mV": 0.1829833984375,
+        "opposite_delay_ms": 538.0,
+        "opposite_fwhm_ms": 89,
+        "control_std_mV": 0.06737992912530899,
+        "control_late_std_mV": 0.0066541265696287155,
+        "late_evoked_max_mV": 0.136962890625,
+        "baseline_mV": -38.224308013916016
+      },
+      "T4b": {
+        "on_peak_mV": 10.860530853271484,
+        "opposite_peak_mV": 0.1467437744140625,
+        "opposite_delay_ms": 292.0,
+        "opposite_fwhm_ms": 42,
+        "control_std_mV": 0.06343267112970352,
+        "control_late_std_mV": 0.005376760382205248,
+        "late_evoked_max_mV": 0.09562301635742188,
+        "baseline_mV": -44.08375930786133
+      },
+      "T4c": {
+        "on_peak_mV": 9.311792373657227,
+        "opposite_peak_mV": 0.19128036499023438,
+        "opposite_delay_ms": 554.0,
+        "opposite_fwhm_ms": 107,
+        "control_std_mV": 0.0664290338754654,
+        "control_late_std_mV": 0.010277597233653069,
+        "late_evoked_max_mV": 0.10673141479492188,
+        "baseline_mV": -39.823822021484375
+      },
+      "T4d": {
+        "on_peak_mV": 9.420965194702148,
+        "opposite_peak_mV": 0.271514892578125,
+        "opposite_delay_ms": 294.0,
+        "opposite_fwhm_ms": 61,
+        "control_std_mV": 0.05975141376256943,
+        "control_late_std_mV": 0.0062320781871676445,
+        "late_evoked_max_mV": 0.10004425048828125,
+        "baseline_mV": -37.60730743408203
+      }
+    },
+    "v_min": -71.931884765625,
+    "v_max": -0.6476784944534302
+  },
+  {
+    "case": {
+      "name": "balanced_014",
+      "forward_gain": 2.0,
+      "feedback_gain": 30.0,
+      "threshold": "saved"
+    },
+    "score": 1.7195611319524822,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679573059082031,
+        "opposite_peak_mV": 4.070018768310547,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 5.3428171668201685e-05,
+        "control_late_std_mV": 6.127468077465892e-05,
+        "late_evoked_max_mV": 0.000133514404296875,
+        "baseline_mV": -49.07997512817383
+      },
+      "L1": {
+        "on_peak_mV": 10.061580657958984,
+        "opposite_peak_mV": 3.1189346313476562,
+        "opposite_delay_ms": 94.0,
+        "opposite_fwhm_ms": 118,
+        "control_std_mV": 0.18377763032913208,
+        "control_late_std_mV": 0.07682802528142929,
+        "late_evoked_max_mV": 0.5748062133789062,
+        "baseline_mV": -49.02705383300781
+      },
+      "L2": {
+        "on_peak_mV": 4.479244232177734,
+        "opposite_peak_mV": 0.046810150146484375,
+        "opposite_delay_ms": 600.0,
+        "opposite_fwhm_ms": 55,
+        "control_std_mV": 0.017790889367461205,
+        "control_late_std_mV": 0.008295661769807339,
+        "late_evoked_max_mV": 0.06674575805664062,
+        "baseline_mV": -63.904083251953125
+      },
+      "L3": {
+        "on_peak_mV": 4.291526794433594,
+        "opposite_peak_mV": 0.0003509521484375,
+        "opposite_delay_ms": 700.0,
+        "opposite_fwhm_ms": 19,
+        "control_std_mV": 0.0025678006932139397,
+        "control_late_std_mV": 0.0017596471589058638,
+        "late_evoked_max_mV": 0.00521087646484375,
+        "baseline_mV": -64.28960418701172
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.04424285888671875,
+        "opposite_delay_ms": 177.0,
+        "opposite_fwhm_ms": 304,
+        "control_std_mV": 0.0005978120607323945,
+        "control_late_std_mV": 0.0003475762205198407,
+        "late_evoked_max_mV": 0.00029754638671875,
+        "baseline_mV": -45.04188919067383
+      },
+      "L5": {
+        "on_peak_mV": 6.394931793212891,
+        "opposite_peak_mV": 3.0879440307617188,
+        "opposite_delay_ms": 155.0,
+        "opposite_fwhm_ms": 170,
+        "control_std_mV": 0.14924733340740204,
+        "control_late_std_mV": 0.048535995185375214,
+        "late_evoked_max_mV": 0.4731559753417969,
+        "baseline_mV": -53.29375457763672
+      },
+      "Mi1": {
+        "on_peak_mV": 11.481525421142578,
+        "opposite_peak_mV": 2.0499191284179688,
+        "opposite_delay_ms": 203.0,
+        "opposite_fwhm_ms": 161,
+        "control_std_mV": 0.18460765480995178,
+        "control_late_std_mV": 0.06310028582811356,
+        "late_evoked_max_mV": 0.5736045837402344,
+        "baseline_mV": -49.93639373779297
+      },
+      "Tm3": {
+        "on_peak_mV": 14.578857421875,
+        "opposite_peak_mV": 2.078094482421875,
+        "opposite_delay_ms": 245.0,
+        "opposite_fwhm_ms": 134,
+        "control_std_mV": 0.18289001286029816,
+        "control_late_std_mV": 0.1372099369764328,
+        "late_evoked_max_mV": 0.6769027709960938,
+        "baseline_mV": -36.3827018737793
+      },
+      "Mi4": {
+        "on_peak_mV": 14.30099105834961,
+        "opposite_peak_mV": 0.13824844360351562,
+        "opposite_delay_ms": 331.0,
+        "opposite_fwhm_ms": 32,
+        "control_std_mV": 0.1805911362171173,
+        "control_late_std_mV": 0.08411858230829239,
+        "late_evoked_max_mV": 0.4885597229003906,
+        "baseline_mV": -37.33209991455078
+      },
+      "Mi9": {
+        "on_peak_mV": 0.002471923828125,
+        "opposite_peak_mV": 0.33896636962890625,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 56,
+        "control_std_mV": 0.009943388402462006,
+        "control_late_std_mV": 0.007676091510802507,
+        "late_evoked_max_mV": 0.04128265380859375,
+        "baseline_mV": -70.18370056152344
+      },
+      "T4a": {
+        "on_peak_mV": 9.522134780883789,
+        "opposite_peak_mV": 1.8720359802246094,
+        "opposite_delay_ms": 284.0,
+        "opposite_fwhm_ms": 122,
+        "control_std_mV": 0.17049209773540497,
+        "control_late_std_mV": 0.05731618031859398,
+        "late_evoked_max_mV": 0.4718360900878906,
+        "baseline_mV": -35.718624114990234
+      },
+      "T4b": {
+        "on_peak_mV": 9.035194396972656,
+        "opposite_peak_mV": 1.85736083984375,
+        "opposite_delay_ms": 302.0,
+        "opposite_fwhm_ms": 133,
+        "control_std_mV": 0.10724636912345886,
+        "control_late_std_mV": 0.04636336863040924,
+        "late_evoked_max_mV": 0.3362312316894531,
+        "baseline_mV": -41.97692108154297
+      },
+      "T4c": {
+        "on_peak_mV": 7.404888153076172,
+        "opposite_peak_mV": 1.8582763671875,
+        "opposite_delay_ms": 299.0,
+        "opposite_fwhm_ms": 128,
+        "control_std_mV": 0.16256950795650482,
+        "control_late_std_mV": 0.035198889672756195,
+        "late_evoked_max_mV": 0.3788719177246094,
+        "baseline_mV": -37.73017120361328
+      },
+      "T4d": {
+        "on_peak_mV": 7.762763977050781,
+        "opposite_peak_mV": 1.6175117492675781,
+        "opposite_delay_ms": 310.0,
+        "opposite_fwhm_ms": 122,
+        "control_std_mV": 0.11112979054450989,
+        "control_late_std_mV": 0.0270861629396677,
+        "late_evoked_max_mV": 0.3433189392089844,
+        "baseline_mV": -36.01686477661133
+      }
+    },
+    "v_min": -71.931884765625,
+    "v_max": -0.6476784944534302
+  },
+  {
+    "case": {
+      "name": "balanced_015",
+      "forward_gain": 2.0,
+      "feedback_gain": 30.0,
+      "threshold": "rest"
+    },
+    "score": 2.029690954258121,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.67978286743164,
+        "opposite_peak_mV": 4.070732116699219,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 3.7131312637939118e-06,
+        "control_late_std_mV": 3.814697265625e-06,
+        "late_evoked_max_mV": 7.62939453125e-06,
+        "baseline_mV": -49.079368591308594
+      },
+      "L1": {
+        "on_peak_mV": 10.04941177368164,
+        "opposite_peak_mV": 2.5723915100097656,
+        "opposite_delay_ms": 101.0,
+        "opposite_fwhm_ms": 110,
+        "control_std_mV": 0.09562579542398453,
+        "control_late_std_mV": 0.017532464116811752,
+        "late_evoked_max_mV": 0.16400527954101562,
+        "baseline_mV": -49.91480255126953
+      },
+      "L2": {
+        "on_peak_mV": 4.6631927490234375,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.003458051709458232,
+        "control_late_std_mV": 0.0009395837550982833,
+        "late_evoked_max_mV": 0.007450103759765625,
+        "baseline_mV": -63.66828155517578
+      },
+      "L3": {
+        "on_peak_mV": 4.2950286865234375,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.00024309632135555148,
+        "control_late_std_mV": 6.318566738627851e-05,
+        "late_evoked_max_mV": 0.00048065185546875,
+        "baseline_mV": -64.28215026855469
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.036373138427734375,
+        "opposite_delay_ms": 1.0,
+        "opposite_fwhm_ms": 321,
+        "control_std_mV": 0.00029456664924509823,
+        "control_late_std_mV": 9.688626596471295e-05,
+        "late_evoked_max_mV": 0.00080108642578125,
+        "baseline_mV": -45.03445816040039
+      },
+      "L5": {
+        "on_peak_mV": 7.9693145751953125,
+        "opposite_peak_mV": 3.6278114318847656,
+        "opposite_delay_ms": 161.0,
+        "opposite_fwhm_ms": 178,
+        "control_std_mV": 0.06936263293027878,
+        "control_late_std_mV": 0.011718886904418468,
+        "late_evoked_max_mV": 0.15414047241210938,
+        "baseline_mV": -51.67648696899414
+      },
+      "Mi1": {
+        "on_peak_mV": 14.189262390136719,
+        "opposite_peak_mV": 2.047260284423828,
+        "opposite_delay_ms": 207.0,
+        "opposite_fwhm_ms": 152,
+        "control_std_mV": 0.09118939936161041,
+        "control_late_std_mV": 0.021530654281377792,
+        "late_evoked_max_mV": 0.166900634765625,
+        "baseline_mV": -48.819087982177734
+      },
+      "Tm3": {
+        "on_peak_mV": 15.560178756713867,
+        "opposite_peak_mV": 2.2097320556640625,
+        "opposite_delay_ms": 220.0,
+        "opposite_fwhm_ms": 128,
+        "control_std_mV": 0.13224107027053833,
+        "control_late_std_mV": 0.027149276807904243,
+        "late_evoked_max_mV": 0.21743011474609375,
+        "baseline_mV": -35.054237365722656
+      },
+      "Mi4": {
+        "on_peak_mV": 14.608366012573242,
+        "opposite_peak_mV": 0.12825393676757812,
+        "opposite_delay_ms": 560.0,
+        "opposite_fwhm_ms": 101,
+        "control_std_mV": 0.06102108955383301,
+        "control_late_std_mV": 0.00882656965404749,
+        "late_evoked_max_mV": 0.11692047119140625,
+        "baseline_mV": -37.737220764160156
+      },
+      "Mi9": {
+        "on_peak_mV": 0.0038604736328125,
+        "opposite_peak_mV": 0.3974456787109375,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 82,
+        "control_std_mV": 0.0021884392481297255,
+        "control_late_std_mV": 0.0005245635402388871,
+        "late_evoked_max_mV": 0.00251007080078125,
+        "baseline_mV": -70.39004516601562
+      },
+      "T4a": {
+        "on_peak_mV": 10.878911972045898,
+        "opposite_peak_mV": 0.09613037109375,
+        "opposite_delay_ms": 559.0,
+        "opposite_fwhm_ms": 88,
+        "control_std_mV": 0.08010713756084442,
+        "control_late_std_mV": 0.01536437589675188,
+        "late_evoked_max_mV": 0.119293212890625,
+        "baseline_mV": -38.04726028442383
+      },
+      "T4b": {
+        "on_peak_mV": 10.327678680419922,
+        "opposite_peak_mV": 0.08501815795898438,
+        "opposite_delay_ms": 578.0,
+        "opposite_fwhm_ms": 71,
+        "control_std_mV": 0.07351133227348328,
+        "control_late_std_mV": 0.012425552122294903,
+        "late_evoked_max_mV": 0.06580734252929688,
+        "baseline_mV": -43.93011474609375
+      },
+      "T4c": {
+        "on_peak_mV": 8.799882888793945,
+        "opposite_peak_mV": 0.16368484497070312,
+        "opposite_delay_ms": 574.0,
+        "opposite_fwhm_ms": 88,
+        "control_std_mV": 0.08087374269962311,
+        "control_late_std_mV": 0.014558794908225536,
+        "late_evoked_max_mV": 0.12636947631835938,
+        "baseline_mV": -39.6336669921875
+      },
+      "T4d": {
+        "on_peak_mV": 8.929224014282227,
+        "opposite_peak_mV": 0.10840225219726562,
+        "opposite_delay_ms": 392.0,
+        "opposite_fwhm_ms": 69,
+        "control_std_mV": 0.07279867678880692,
+        "control_late_std_mV": 0.012677325867116451,
+        "late_evoked_max_mV": 0.08125686645507812,
+        "baseline_mV": -37.423343658447266
+      }
+    },
+    "v_min": -71.931884765625,
+    "v_max": -0.6476784944534302
+  },
+  {
+    "case": {
+      "name": "balanced_016",
+      "forward_gain": 4.0,
+      "feedback_gain": 1.0,
+      "threshold": "saved"
+    },
+    "score": 3.0496951964452803,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.67977523803711,
+        "opposite_peak_mV": 4.070774078369141,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 1.9607174181146547e-05,
+        "control_late_std_mV": 2.2424545022659004e-05,
+        "late_evoked_max_mV": 4.57763671875e-05,
+        "baseline_mV": -49.07941818237305
+      },
+      "L1": {
+        "on_peak_mV": 9.758480072021484,
+        "opposite_peak_mV": 3.142852783203125,
+        "opposite_delay_ms": 115.0,
+        "opposite_fwhm_ms": 167,
+        "control_std_mV": 0.04663500934839249,
+        "control_late_std_mV": 0.037229422479867935,
+        "late_evoked_max_mV": 0.1734771728515625,
+        "baseline_mV": -49.29692840576172
+      },
+      "L2": {
+        "on_peak_mV": 4.383869171142578,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0037688594311475754,
+        "control_late_std_mV": 0.0031540789641439915,
+        "late_evoked_max_mV": 0.008388519287109375,
+        "baseline_mV": -63.994598388671875
+      },
+      "L3": {
+        "on_peak_mV": 4.294944763183594,
+        "opposite_peak_mV": 0.00119781494140625,
+        "opposite_delay_ms": 700.0,
+        "opposite_fwhm_ms": 32,
+        "control_std_mV": 0.0015979717718437314,
+        "control_late_std_mV": 0.00026588665787130594,
+        "late_evoked_max_mV": 0.00485992431640625,
+        "baseline_mV": -64.2846908569336
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.0397186279296875,
+        "opposite_delay_ms": 166.0,
+        "opposite_fwhm_ms": 317,
+        "control_std_mV": 0.00047337275464087725,
+        "control_late_std_mV": 8.418875222560018e-05,
+        "late_evoked_max_mV": 0.001377105712890625,
+        "baseline_mV": -45.03670120239258
+      },
+      "L5": {
+        "on_peak_mV": 8.72701644897461,
+        "opposite_peak_mV": 3.4548187255859375,
+        "opposite_delay_ms": 210.0,
+        "opposite_fwhm_ms": 241,
+        "control_std_mV": 0.042523421347141266,
+        "control_late_std_mV": 0.020234214141964912,
+        "late_evoked_max_mV": 0.19284439086914062,
+        "baseline_mV": -53.46281814575195
+      },
+      "Mi1": {
+        "on_peak_mV": 17.669124603271484,
+        "opposite_peak_mV": 2.679351806640625,
+        "opposite_delay_ms": 317.0,
+        "opposite_fwhm_ms": 221,
+        "control_std_mV": 0.053440384566783905,
+        "control_late_std_mV": 0.02278437837958336,
+        "late_evoked_max_mV": 0.21543502807617188,
+        "baseline_mV": -50.67428970336914
+      },
+      "Tm3": {
+        "on_peak_mV": 21.08348846435547,
+        "opposite_peak_mV": 3.8074798583984375,
+        "opposite_delay_ms": 348.0,
+        "opposite_fwhm_ms": 196,
+        "control_std_mV": 0.07995019108057022,
+        "control_late_std_mV": 0.040736932307481766,
+        "late_evoked_max_mV": 0.35260772705078125,
+        "baseline_mV": -37.88072967529297
+      },
+      "Mi4": {
+        "on_peak_mV": 18.779277801513672,
+        "opposite_peak_mV": 1.2643966674804688,
+        "opposite_delay_ms": 411.0,
+        "opposite_fwhm_ms": 105,
+        "control_std_mV": 0.08911652117967606,
+        "control_late_std_mV": 0.055559754371643066,
+        "late_evoked_max_mV": 0.30625152587890625,
+        "baseline_mV": -39.187564849853516
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00847625732421875,
+        "opposite_peak_mV": 0.4266204833984375,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 60,
+        "control_std_mV": 0.004671244882047176,
+        "control_late_std_mV": 0.0015157642774283886,
+        "late_evoked_max_mV": 0.02031707763671875,
+        "baseline_mV": -70.05541229248047
+      },
+      "T4a": {
+        "on_peak_mV": 13.653175354003906,
+        "opposite_peak_mV": 3.0457916259765625,
+        "opposite_delay_ms": 406.0,
+        "opposite_fwhm_ms": 150,
+        "control_std_mV": 0.07878454774618149,
+        "control_late_std_mV": 0.04815327376127243,
+        "late_evoked_max_mV": 0.5547256469726562,
+        "baseline_mV": -38.33871841430664
+      },
+      "T4b": {
+        "on_peak_mV": 12.975589752197266,
+        "opposite_peak_mV": 2.7167816162109375,
+        "opposite_delay_ms": 400.0,
+        "opposite_fwhm_ms": 157,
+        "control_std_mV": 0.08669885993003845,
+        "control_late_std_mV": 0.04869362339377403,
+        "late_evoked_max_mV": 0.4834747314453125,
+        "baseline_mV": -44.21589279174805
+      },
+      "T4c": {
+        "on_peak_mV": 11.26947021484375,
+        "opposite_peak_mV": 3.1290664672851562,
+        "opposite_delay_ms": 410.0,
+        "opposite_fwhm_ms": 155,
+        "control_std_mV": 0.09081701189279556,
+        "control_late_std_mV": 0.0633404329419136,
+        "late_evoked_max_mV": 0.3875160217285156,
+        "baseline_mV": -40.41151809692383
+      },
+      "T4d": {
+        "on_peak_mV": 11.865219116210938,
+        "opposite_peak_mV": 2.3986854553222656,
+        "opposite_delay_ms": 410.0,
+        "opposite_fwhm_ms": 143,
+        "control_std_mV": 0.0853213295340538,
+        "control_late_std_mV": 0.05312275141477585,
+        "late_evoked_max_mV": 0.5269660949707031,
+        "baseline_mV": -38.73348617553711
+      }
+    },
+    "v_min": -71.931884765625,
+    "v_max": -0.6476784944534302
+  },
+  {
+    "case": {
+      "name": "balanced_017",
+      "forward_gain": 4.0,
+      "feedback_gain": 1.0,
+      "threshold": "rest"
+    },
+    "score": 3.1408334375256057,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679828643798828,
+        "opposite_peak_mV": 4.070960998535156,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 7.62939453125e-06,
+        "control_late_std_mV": 0.0,
+        "late_evoked_max_mV": 3.814697265625e-06,
+        "baseline_mV": -49.079219818115234
+      },
+      "L1": {
+        "on_peak_mV": 9.651802062988281,
+        "opposite_peak_mV": 3.5224075317382812,
+        "opposite_delay_ms": 112.0,
+        "opposite_fwhm_ms": 168,
+        "control_std_mV": 0.009433339349925518,
+        "control_late_std_mV": 0.00024070696963462979,
+        "late_evoked_max_mV": 0.09875869750976562,
+        "baseline_mV": -50.06432342529297
+      },
+      "L2": {
+        "on_peak_mV": 4.451026916503906,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.00023821566719561815,
+        "control_late_std_mV": 1.755540506565012e-05,
+        "late_evoked_max_mV": 0.00211334228515625,
+        "baseline_mV": -63.895896911621094
+      },
+      "L3": {
+        "on_peak_mV": 4.299369812011719,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 4.5600245357491076e-05,
+        "control_late_std_mV": 1.119291664508637e-05,
+        "late_evoked_max_mV": 0.0005645751953125,
+        "baseline_mV": -64.27792358398438
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.040515899658203125,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 321,
+        "control_std_mV": 6.099951860960573e-05,
+        "control_late_std_mV": 3.814697265625e-06,
+        "late_evoked_max_mV": 0.000377655029296875,
+        "baseline_mV": -45.03073501586914
+      },
+      "L5": {
+        "on_peak_mV": 10.358516693115234,
+        "opposite_peak_mV": 4.002174377441406,
+        "opposite_delay_ms": 204.0,
+        "opposite_fwhm_ms": 250,
+        "control_std_mV": 0.007915275171399117,
+        "control_late_std_mV": 0.00010877127351704985,
+        "late_evoked_max_mV": 0.077606201171875,
+        "baseline_mV": -52.70268249511719
+      },
+      "Mi1": {
+        "on_peak_mV": 19.854028701782227,
+        "opposite_peak_mV": 2.5221519470214844,
+        "opposite_delay_ms": 326.0,
+        "opposite_fwhm_ms": 218,
+        "control_std_mV": 0.011463487520813942,
+        "control_late_std_mV": 0.00030032286304049194,
+        "late_evoked_max_mV": 0.1225738525390625,
+        "baseline_mV": -50.38687515258789
+      },
+      "Tm3": {
+        "on_peak_mV": 22.912235260009766,
+        "opposite_peak_mV": 3.768665313720703,
+        "opposite_delay_ms": 342.0,
+        "opposite_fwhm_ms": 203,
+        "control_std_mV": 0.01639416627585888,
+        "control_late_std_mV": 0.0011563582811504602,
+        "late_evoked_max_mV": 0.17815780639648438,
+        "baseline_mV": -37.978492736816406
+      },
+      "Mi4": {
+        "on_peak_mV": 19.624290466308594,
+        "opposite_peak_mV": 1.1457176208496094,
+        "opposite_delay_ms": 422.0,
+        "opposite_fwhm_ms": 110,
+        "control_std_mV": 0.011316719464957714,
+        "control_late_std_mV": 0.00023361144121736288,
+        "late_evoked_max_mV": 0.11165618896484375,
+        "baseline_mV": -39.58092498779297
+      },
+      "Mi9": {
+        "on_peak_mV": 0.01424407958984375,
+        "opposite_peak_mV": 0.5204315185546875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 71,
+        "control_std_mV": 0.0002953476214315742,
+        "control_late_std_mV": 2.0271234461688437e-05,
+        "late_evoked_max_mV": 0.00397491455078125,
+        "baseline_mV": -70.21405029296875
+      },
+      "T4a": {
+        "on_peak_mV": 15.924860000610352,
+        "opposite_peak_mV": 1.4951210021972656,
+        "opposite_delay_ms": 423.0,
+        "opposite_fwhm_ms": 111,
+        "control_std_mV": 0.02888842672109604,
+        "control_late_std_mV": 0.005393614526838064,
+        "late_evoked_max_mV": 0.10765457153320312,
+        "baseline_mV": -40.68508529663086
+      },
+      "T4b": {
+        "on_peak_mV": 15.220392227172852,
+        "opposite_peak_mV": 1.2750892639160156,
+        "opposite_delay_ms": 419.0,
+        "opposite_fwhm_ms": 115,
+        "control_std_mV": 0.016504844650626183,
+        "control_late_std_mV": 0.0028938669711351395,
+        "late_evoked_max_mV": 0.09781265258789062,
+        "baseline_mV": -46.25466537475586
+      },
+      "T4c": {
+        "on_peak_mV": 13.646917343139648,
+        "opposite_peak_mV": 1.6322555541992188,
+        "opposite_delay_ms": 426.0,
+        "opposite_fwhm_ms": 117,
+        "control_std_mV": 0.019581643864512444,
+        "control_late_std_mV": 0.0035997016821056604,
+        "late_evoked_max_mV": 0.08247756958007812,
+        "baseline_mV": -42.691959381103516
+      },
+      "T4d": {
+        "on_peak_mV": 13.724370956420898,
+        "opposite_peak_mV": 1.360107421875,
+        "opposite_delay_ms": 426.0,
+        "opposite_fwhm_ms": 112,
+        "control_std_mV": 0.02033809758722782,
+        "control_late_std_mV": 0.003274013055488467,
+        "late_evoked_max_mV": 0.09638595581054688,
+        "baseline_mV": -40.539451599121094
+      }
+    },
+    "v_min": -71.931884765625,
+    "v_max": -0.6476784944534302
+  },
+  {
+    "case": {
+      "name": "balanced_018",
+      "forward_gain": 4.0,
+      "feedback_gain": 3.0,
+      "threshold": "saved"
+    },
+    "score": 2.300485584125737,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679752349853516,
+        "opposite_peak_mV": 4.070468902587891,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 5.5392109061358497e-05,
+        "control_late_std_mV": 3.506411667331122e-05,
+        "late_evoked_max_mV": 3.814697265625e-05,
+        "baseline_mV": -49.079532623291016
+      },
+      "L1": {
+        "on_peak_mV": 9.804466247558594,
+        "opposite_peak_mV": 3.151519775390625,
+        "opposite_delay_ms": 116.0,
+        "opposite_fwhm_ms": 134,
+        "control_std_mV": 0.14324255287647247,
+        "control_late_std_mV": 0.0916513055562973,
+        "late_evoked_max_mV": 0.7708473205566406,
+        "baseline_mV": -49.26264190673828
+      },
+      "L2": {
+        "on_peak_mV": 4.459556579589844,
+        "opposite_peak_mV": 0.06009674072265625,
+        "opposite_delay_ms": 686.0,
+        "opposite_fwhm_ms": 60,
+        "control_std_mV": 0.01299783494323492,
+        "control_late_std_mV": 0.016422705724835396,
+        "late_evoked_max_mV": 0.053897857666015625,
+        "baseline_mV": -63.84785842895508
+      },
+      "L3": {
+        "on_peak_mV": 4.288841247558594,
+        "opposite_peak_mV": 0.0010833740234375,
+        "opposite_delay_ms": 684.0,
+        "opposite_fwhm_ms": 46,
+        "control_std_mV": 0.0023917832877486944,
+        "control_late_std_mV": 0.0004908234113827348,
+        "late_evoked_max_mV": 0.00284576416015625,
+        "baseline_mV": -64.28643035888672
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.036952972412109375,
+        "opposite_delay_ms": 175.0,
+        "opposite_fwhm_ms": 317,
+        "control_std_mV": 0.0008549512131139636,
+        "control_late_std_mV": 0.00025958658079616725,
+        "late_evoked_max_mV": 0.00397491455078125,
+        "baseline_mV": -45.03868865966797
+      },
+      "L5": {
+        "on_peak_mV": 6.791904449462891,
+        "opposite_peak_mV": 3.6054458618164062,
+        "opposite_delay_ms": 189.0,
+        "opposite_fwhm_ms": 201,
+        "control_std_mV": 0.11022502928972244,
+        "control_late_std_mV": 0.09226386249065399,
+        "late_evoked_max_mV": 0.5170211791992188,
+        "baseline_mV": -52.9315299987793
+      },
+      "Mi1": {
+        "on_peak_mV": 13.9715576171875,
+        "opposite_peak_mV": 2.621143341064453,
+        "opposite_delay_ms": 269.0,
+        "opposite_fwhm_ms": 188,
+        "control_std_mV": 0.1507134735584259,
+        "control_late_std_mV": 0.11609923839569092,
+        "late_evoked_max_mV": 0.7198867797851562,
+        "baseline_mV": -49.75236129760742
+      },
+      "Tm3": {
+        "on_peak_mV": 17.73356819152832,
+        "opposite_peak_mV": 3.411823272705078,
+        "opposite_delay_ms": 281.0,
+        "opposite_fwhm_ms": 171,
+        "control_std_mV": 0.20524878799915314,
+        "control_late_std_mV": 0.19513840973377228,
+        "late_evoked_max_mV": 0.9898338317871094,
+        "baseline_mV": -36.49415588378906
+      },
+      "Mi4": {
+        "on_peak_mV": 16.238658905029297,
+        "opposite_peak_mV": 1.4063377380371094,
+        "opposite_delay_ms": 351.0,
+        "opposite_fwhm_ms": 84,
+        "control_std_mV": 0.1469874531030655,
+        "control_late_std_mV": 0.09248405694961548,
+        "late_evoked_max_mV": 0.7534904479980469,
+        "baseline_mV": -37.85982131958008
+      },
+      "Mi9": {
+        "on_peak_mV": 0.0072784423828125,
+        "opposite_peak_mV": 0.4065704345703125,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 61,
+        "control_std_mV": 0.012721704319119453,
+        "control_late_std_mV": 0.008172895759344101,
+        "late_evoked_max_mV": 0.02924346923828125,
+        "baseline_mV": -70.17800903320312
+      },
+      "T4a": {
+        "on_peak_mV": 11.372867584228516,
+        "opposite_peak_mV": 3.1160202026367188,
+        "opposite_delay_ms": 344.0,
+        "opposite_fwhm_ms": 127,
+        "control_std_mV": 0.16409939527511597,
+        "control_late_std_mV": 0.08331402391195297,
+        "late_evoked_max_mV": 0.9240531921386719,
+        "baseline_mV": -36.84989929199219
+      },
+      "T4b": {
+        "on_peak_mV": 10.994401931762695,
+        "opposite_peak_mV": 2.8131446838378906,
+        "opposite_delay_ms": 337.0,
+        "opposite_fwhm_ms": 139,
+        "control_std_mV": 0.1550261676311493,
+        "control_late_std_mV": 0.10669289529323578,
+        "late_evoked_max_mV": 0.9596977233886719,
+        "baseline_mV": -42.85546875
+      },
+      "T4c": {
+        "on_peak_mV": 9.375656127929688,
+        "opposite_peak_mV": 2.826000213623047,
+        "opposite_delay_ms": 346.0,
+        "opposite_fwhm_ms": 134,
+        "control_std_mV": 0.1998787224292755,
+        "control_late_std_mV": 0.12000835686922073,
+        "late_evoked_max_mV": 1.0196647644042969,
+        "baseline_mV": -38.815956115722656
+      },
+      "T4d": {
+        "on_peak_mV": 9.621452331542969,
+        "opposite_peak_mV": 2.5969619750976562,
+        "opposite_delay_ms": 346.0,
+        "opposite_fwhm_ms": 125,
+        "control_std_mV": 0.20644566416740417,
+        "control_late_std_mV": 0.12228468805551529,
+        "late_evoked_max_mV": 1.0016632080078125,
+        "baseline_mV": -37.054203033447266
+      }
+    },
+    "v_min": -71.93204498291016,
+    "v_max": -0.6476783752441406
+  },
+  {
+    "case": {
+      "name": "balanced_019",
+      "forward_gain": 4.0,
+      "feedback_gain": 3.0,
+      "threshold": "rest"
+    },
+    "score": 2.911972084244086,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679824829101562,
+        "opposite_peak_mV": 4.070991516113281,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 3.814697265625e-06,
+        "control_late_std_mV": 0.0,
+        "late_evoked_max_mV": 7.62939453125e-06,
+        "baseline_mV": -49.079227447509766
+      },
+      "L1": {
+        "on_peak_mV": 9.749565124511719,
+        "opposite_peak_mV": 2.838489532470703,
+        "opposite_delay_ms": 102.0,
+        "opposite_fwhm_ms": 136,
+        "control_std_mV": 0.04232937842607498,
+        "control_late_std_mV": 0.006407686974853277,
+        "late_evoked_max_mV": 0.19459915161132812,
+        "baseline_mV": -50.10268783569336
+      },
+      "L2": {
+        "on_peak_mV": 4.588222503662109,
+        "opposite_peak_mV": 0.00527191162109375,
+        "opposite_delay_ms": 675.0,
+        "opposite_fwhm_ms": 52,
+        "control_std_mV": 0.000825354247353971,
+        "control_late_std_mV": 0.00022588712454307824,
+        "late_evoked_max_mV": 0.00307464599609375,
+        "baseline_mV": -63.7055778503418
+      },
+      "L3": {
+        "on_peak_mV": 4.296684265136719,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0001455475139664486,
+        "control_late_std_mV": 2.981475518026855e-05,
+        "late_evoked_max_mV": 0.00022125244140625,
+        "baseline_mV": -64.2806167602539
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.037548065185546875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 318,
+        "control_std_mV": 0.0002937748795375228,
+        "control_late_std_mV": 2.5715618903632276e-05,
+        "late_evoked_max_mV": 0.00074005126953125,
+        "baseline_mV": -45.032745361328125
+      },
+      "L5": {
+        "on_peak_mV": 8.865570068359375,
+        "opposite_peak_mV": 3.7872314453125,
+        "opposite_delay_ms": 174.0,
+        "opposite_fwhm_ms": 208,
+        "control_std_mV": 0.03283160552382469,
+        "control_late_std_mV": 0.008067971095442772,
+        "late_evoked_max_mV": 0.09059524536132812,
+        "baseline_mV": -51.945098876953125
+      },
+      "Mi1": {
+        "on_peak_mV": 16.290401458740234,
+        "opposite_peak_mV": 2.4167137145996094,
+        "opposite_delay_ms": 254.0,
+        "opposite_fwhm_ms": 178,
+        "control_std_mV": 0.0479927621781826,
+        "control_late_std_mV": 0.007171110715717077,
+        "late_evoked_max_mV": 0.13755035400390625,
+        "baseline_mV": -49.256752014160156
+      },
+      "Tm3": {
+        "on_peak_mV": 18.71044158935547,
+        "opposite_peak_mV": 3.523082733154297,
+        "opposite_delay_ms": 261.0,
+        "opposite_fwhm_ms": 167,
+        "control_std_mV": 0.07126229256391525,
+        "control_late_std_mV": 0.012721298262476921,
+        "late_evoked_max_mV": 0.15913009643554688,
+        "baseline_mV": -35.72886657714844
+      },
+      "Mi4": {
+        "on_peak_mV": 16.583507537841797,
+        "opposite_peak_mV": 0.4324684143066406,
+        "opposite_delay_ms": 357.0,
+        "opposite_fwhm_ms": 78,
+        "control_std_mV": 0.03496909886598587,
+        "control_late_std_mV": 0.0034943341743201017,
+        "late_evoked_max_mV": 0.160400390625,
+        "baseline_mV": -38.203819274902344
+      },
+      "Mi9": {
+        "on_peak_mV": 0.0059814453125,
+        "opposite_peak_mV": 0.42508697509765625,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 83,
+        "control_std_mV": 0.0010245568118989468,
+        "control_late_std_mV": 4.2223815398756415e-05,
+        "late_evoked_max_mV": 0.00554656982421875,
+        "baseline_mV": -70.36473846435547
+      },
+      "T4a": {
+        "on_peak_mV": 12.975410461425781,
+        "opposite_peak_mV": 0.6482353210449219,
+        "opposite_delay_ms": 331.0,
+        "opposite_fwhm_ms": 84,
+        "control_std_mV": 0.04354159161448479,
+        "control_late_std_mV": 0.0045264302752912045,
+        "late_evoked_max_mV": 0.213104248046875,
+        "baseline_mV": -38.96906280517578
+      },
+      "T4b": {
+        "on_peak_mV": 12.499893188476562,
+        "opposite_peak_mV": 0.6069374084472656,
+        "opposite_delay_ms": 325.0,
+        "opposite_fwhm_ms": 82,
+        "control_std_mV": 0.03409811854362488,
+        "control_late_std_mV": 0.003304812591522932,
+        "late_evoked_max_mV": 0.13130569458007812,
+        "baseline_mV": -44.80057907104492
+      },
+      "T4c": {
+        "on_peak_mV": 10.823549270629883,
+        "opposite_peak_mV": 0.8545913696289062,
+        "opposite_delay_ms": 334.0,
+        "opposite_fwhm_ms": 99,
+        "control_std_mV": 0.0391327328979969,
+        "control_late_std_mV": 0.004513992462307215,
+        "late_evoked_max_mV": 0.17800521850585938,
+        "baseline_mV": -40.66331100463867
+      },
+      "T4d": {
+        "on_peak_mV": 10.739139556884766,
+        "opposite_peak_mV": 0.8406295776367188,
+        "opposite_delay_ms": 332.0,
+        "opposite_fwhm_ms": 98,
+        "control_std_mV": 0.03234301134943962,
+        "control_late_std_mV": 0.003086663782596588,
+        "late_evoked_max_mV": 0.13589096069335938,
+        "baseline_mV": -38.443363189697266
+      }
+    },
+    "v_min": -71.93204498291016,
+    "v_max": -0.6476783752441406
+  },
+  {
+    "case": {
+      "name": "balanced_020",
+      "forward_gain": 4.0,
+      "feedback_gain": 10.0,
+      "threshold": "saved"
+    },
+    "score": 1.8300447973631977,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679668426513672,
+        "opposite_peak_mV": 4.070323944091797,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 8.167738269548863e-05,
+        "control_late_std_mV": 4.399542376631871e-05,
+        "late_evoked_max_mV": 0.000125885009765625,
+        "baseline_mV": -49.07959747314453
+      },
+      "L1": {
+        "on_peak_mV": 9.791534423828125,
+        "opposite_peak_mV": 2.817005157470703,
+        "opposite_delay_ms": 108.0,
+        "opposite_fwhm_ms": 117,
+        "control_std_mV": 0.23913995921611786,
+        "control_late_std_mV": 0.09864115715026855,
+        "late_evoked_max_mV": 0.6938285827636719,
+        "baseline_mV": -49.29660415649414
+      },
+      "L2": {
+        "on_peak_mV": 4.520977020263672,
+        "opposite_peak_mV": 0.035770416259765625,
+        "opposite_delay_ms": 580.0,
+        "opposite_fwhm_ms": 70,
+        "control_std_mV": 0.025627292692661285,
+        "control_late_std_mV": 0.019190393388271332,
+        "late_evoked_max_mV": 0.058811187744140625,
+        "baseline_mV": -63.85580825805664
+      },
+      "L3": {
+        "on_peak_mV": 4.2899627685546875,
+        "opposite_peak_mV": 0.00061798095703125,
+        "opposite_delay_ms": 700.0,
+        "opposite_fwhm_ms": 17,
+        "control_std_mV": 0.002606069901958108,
+        "control_late_std_mV": 0.0027546475175768137,
+        "late_evoked_max_mV": 0.00766754150390625,
+        "baseline_mV": -64.28816223144531
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.039215087890625,
+        "opposite_delay_ms": 180.0,
+        "opposite_fwhm_ms": 212,
+        "control_std_mV": 0.0006301666144281626,
+        "control_late_std_mV": 0.0001980881206691265,
+        "late_evoked_max_mV": 0.001720428466796875,
+        "baseline_mV": -45.04121017456055
+      },
+      "L5": {
+        "on_peak_mV": 6.485385894775391,
+        "opposite_peak_mV": 3.3230514526367188,
+        "opposite_delay_ms": 150.0,
+        "opposite_fwhm_ms": 157,
+        "control_std_mV": 0.1602039784193039,
+        "control_late_std_mV": 0.12545549869537354,
+        "late_evoked_max_mV": 0.5351638793945312,
+        "baseline_mV": -53.02904510498047
+      },
+      "Mi1": {
+        "on_peak_mV": 12.31173324584961,
+        "opposite_peak_mV": 2.076862335205078,
+        "opposite_delay_ms": 220.0,
+        "opposite_fwhm_ms": 144,
+        "control_std_mV": 0.19197160005569458,
+        "control_late_std_mV": 0.12999597191810608,
+        "late_evoked_max_mV": 0.5973243713378906,
+        "baseline_mV": -49.758785247802734
+      },
+      "Tm3": {
+        "on_peak_mV": 15.92384147644043,
+        "opposite_peak_mV": 2.5248451232910156,
+        "opposite_delay_ms": 238.0,
+        "opposite_fwhm_ms": 141,
+        "control_std_mV": 0.1818711757659912,
+        "control_late_std_mV": 0.12727037072181702,
+        "late_evoked_max_mV": 0.5687980651855469,
+        "baseline_mV": -36.516357421875
+      },
+      "Mi4": {
+        "on_peak_mV": 14.338340759277344,
+        "opposite_peak_mV": 0.200347900390625,
+        "opposite_delay_ms": 356.0,
+        "opposite_fwhm_ms": 38,
+        "control_std_mV": 0.22206240892410278,
+        "control_late_std_mV": 0.10866738855838776,
+        "late_evoked_max_mV": 0.651031494140625,
+        "baseline_mV": -37.24809646606445
+      },
+      "Mi9": {
+        "on_peak_mV": 0.0036773681640625,
+        "opposite_peak_mV": 0.34593963623046875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 58,
+        "control_std_mV": 0.015108933672308922,
+        "control_late_std_mV": 0.01171247847378254,
+        "late_evoked_max_mV": 0.0303955078125,
+        "baseline_mV": -70.22341918945312
+      },
+      "T4a": {
+        "on_peak_mV": 10.35477066040039,
+        "opposite_peak_mV": 1.8906822204589844,
+        "opposite_delay_ms": 275.0,
+        "opposite_fwhm_ms": 134,
+        "control_std_mV": 0.2410152703523636,
+        "control_late_std_mV": 0.10804205387830734,
+        "late_evoked_max_mV": 0.5904083251953125,
+        "baseline_mV": -36.29377365112305
+      },
+      "T4b": {
+        "on_peak_mV": 9.789493560791016,
+        "opposite_peak_mV": 1.6228981018066406,
+        "opposite_delay_ms": 275.0,
+        "opposite_fwhm_ms": 144,
+        "control_std_mV": 0.214980810880661,
+        "control_late_std_mV": 0.1465287208557129,
+        "late_evoked_max_mV": 0.5866012573242188,
+        "baseline_mV": -42.54716110229492
+      },
+      "T4c": {
+        "on_peak_mV": 8.245983123779297,
+        "opposite_peak_mV": 1.6165199279785156,
+        "opposite_delay_ms": 274.0,
+        "opposite_fwhm_ms": 139,
+        "control_std_mV": 0.23799239099025726,
+        "control_late_std_mV": 0.10196724534034729,
+        "late_evoked_max_mV": 0.72283935546875,
+        "baseline_mV": -38.34321212768555
+      },
+      "T4d": {
+        "on_peak_mV": 8.63239860534668,
+        "opposite_peak_mV": 1.3140640258789062,
+        "opposite_delay_ms": 276.0,
+        "opposite_fwhm_ms": 125,
+        "control_std_mV": 0.2175571471452713,
+        "control_late_std_mV": 0.06750679016113281,
+        "late_evoked_max_mV": 0.5489768981933594,
+        "baseline_mV": -36.53720474243164
+      }
+    },
+    "v_min": -71.93204498291016,
+    "v_max": -0.6476783752441406
+  },
+  {
+    "case": {
+      "name": "balanced_021",
+      "forward_gain": 4.0,
+      "feedback_gain": 10.0,
+      "threshold": "rest"
+    },
+    "score": 2.5386541307216905,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679817199707031,
+        "opposite_peak_mV": 4.071018218994141,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 3.814697265625e-06,
+        "control_late_std_mV": 3.814697265625e-06,
+        "late_evoked_max_mV": 1.1444091796875e-05,
+        "baseline_mV": -49.07923126220703
+      },
+      "L1": {
+        "on_peak_mV": 9.943836212158203,
+        "opposite_peak_mV": 2.5736045837402344,
+        "opposite_delay_ms": 102.0,
+        "opposite_fwhm_ms": 112,
+        "control_std_mV": 0.0907483696937561,
+        "control_late_std_mV": 0.016676567494869232,
+        "late_evoked_max_mV": 0.12662124633789062,
+        "baseline_mV": -50.05110549926758
+      },
+      "L2": {
+        "on_peak_mV": 4.668872833251953,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0029759586323052645,
+        "control_late_std_mV": 0.0003459256258793175,
+        "late_evoked_max_mV": 0.005260467529296875,
+        "baseline_mV": -63.65502166748047
+      },
+      "L3": {
+        "on_peak_mV": 4.295722961425781,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0001991416938835755,
+        "control_late_std_mV": 5.607124694506638e-05,
+        "late_evoked_max_mV": 0.00041961669921875,
+        "baseline_mV": -64.28164672851562
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.0372161865234375,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 308,
+        "control_std_mV": 0.0004079671634826809,
+        "control_late_std_mV": 8.262546907644719e-05,
+        "late_evoked_max_mV": 0.00153350830078125,
+        "baseline_mV": -45.033206939697266
+      },
+      "L5": {
+        "on_peak_mV": 7.9045562744140625,
+        "opposite_peak_mV": 3.635326385498047,
+        "opposite_delay_ms": 162.0,
+        "opposite_fwhm_ms": 179,
+        "control_std_mV": 0.07235464453697205,
+        "control_late_std_mV": 0.010813986882567406,
+        "late_evoked_max_mV": 0.11519241333007812,
+        "baseline_mV": -51.586219787597656
+      },
+      "Mi1": {
+        "on_peak_mV": 14.620182037353516,
+        "opposite_peak_mV": 2.1406707763671875,
+        "opposite_delay_ms": 212.0,
+        "opposite_fwhm_ms": 151,
+        "control_std_mV": 0.09869803488254547,
+        "control_late_std_mV": 0.008892077952623367,
+        "late_evoked_max_mV": 0.14613723754882812,
+        "baseline_mV": -48.70769119262695
+      },
+      "Tm3": {
+        "on_peak_mV": 16.669401168823242,
+        "opposite_peak_mV": 3.0568618774414062,
+        "opposite_delay_ms": 218.0,
+        "opposite_fwhm_ms": 142,
+        "control_std_mV": 0.15322022140026093,
+        "control_late_std_mV": 0.014786687679588795,
+        "late_evoked_max_mV": 0.19001007080078125,
+        "baseline_mV": -34.87865447998047
+      },
+      "Mi4": {
+        "on_peak_mV": 14.964597702026367,
+        "opposite_peak_mV": 0.12811279296875,
+        "opposite_delay_ms": 552.0,
+        "opposite_fwhm_ms": 96,
+        "control_std_mV": 0.06309212744235992,
+        "control_late_std_mV": 0.0055648935958743095,
+        "late_evoked_max_mV": 0.09429931640625,
+        "baseline_mV": -37.68498611450195
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00395965576171875,
+        "opposite_peak_mV": 0.4154510498046875,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 84,
+        "control_std_mV": 0.0014061402762308717,
+        "control_late_std_mV": 0.0004325103072915226,
+        "late_evoked_max_mV": 0.0024261474609375,
+        "baseline_mV": -70.39896392822266
+      },
+      "T4a": {
+        "on_peak_mV": 11.573211669921875,
+        "opposite_peak_mV": 0.16857147216796875,
+        "opposite_delay_ms": 527.0,
+        "opposite_fwhm_ms": 105,
+        "control_std_mV": 0.07719354331493378,
+        "control_late_std_mV": 0.015657439827919006,
+        "late_evoked_max_mV": 0.09700775146484375,
+        "baseline_mV": -38.39854049682617
+      },
+      "T4b": {
+        "on_peak_mV": 11.024295806884766,
+        "opposite_peak_mV": 0.11355209350585938,
+        "opposite_delay_ms": 539.0,
+        "opposite_fwhm_ms": 111,
+        "control_std_mV": 0.07403569668531418,
+        "control_late_std_mV": 0.014233360067009926,
+        "late_evoked_max_mV": 0.051914215087890625,
+        "baseline_mV": -44.30358123779297
+      },
+      "T4c": {
+        "on_peak_mV": 9.470932006835938,
+        "opposite_peak_mV": 0.20076370239257812,
+        "opposite_delay_ms": 558.0,
+        "opposite_fwhm_ms": 116,
+        "control_std_mV": 0.08276813477277756,
+        "control_late_std_mV": 0.008203258737921715,
+        "late_evoked_max_mV": 0.09456634521484375,
+        "baseline_mV": -39.9845085144043
+      },
+      "T4d": {
+        "on_peak_mV": 9.490036010742188,
+        "opposite_peak_mV": 0.20496749877929688,
+        "opposite_delay_ms": 289.0,
+        "opposite_fwhm_ms": 70,
+        "control_std_mV": 0.07280412316322327,
+        "control_late_std_mV": 0.006007898598909378,
+        "late_evoked_max_mV": 0.0645599365234375,
+        "baseline_mV": -37.75759506225586
+      }
+    },
+    "v_min": -71.93204498291016,
+    "v_max": -0.6476783752441406
+  },
+  {
+    "case": {
+      "name": "balanced_022",
+      "forward_gain": 4.0,
+      "feedback_gain": 30.0,
+      "threshold": "saved"
+    },
+    "score": 1.6819375671362382,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679683685302734,
+        "opposite_peak_mV": 4.070354461669922,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 8.842796523822471e-05,
+        "control_late_std_mV": 0.00010085337271448225,
+        "late_evoked_max_mV": 0.000164031982421875,
+        "baseline_mV": -49.079681396484375
+      },
+      "L1": {
+        "on_peak_mV": 9.830863952636719,
+        "opposite_peak_mV": 2.8124923706054688,
+        "opposite_delay_ms": 87.0,
+        "opposite_fwhm_ms": 118,
+        "control_std_mV": 0.243350088596344,
+        "control_late_std_mV": 0.15353262424468994,
+        "late_evoked_max_mV": 0.39160919189453125,
+        "baseline_mV": -49.37277603149414
+      },
+      "L2": {
+        "on_peak_mV": 4.5177001953125,
+        "opposite_peak_mV": 0.0295257568359375,
+        "opposite_delay_ms": 593.0,
+        "opposite_fwhm_ms": 56,
+        "control_std_mV": 0.017672045156359673,
+        "control_late_std_mV": 0.019020820036530495,
+        "late_evoked_max_mV": 0.04608154296875,
+        "baseline_mV": -63.855350494384766
+      },
+      "L3": {
+        "on_peak_mV": 4.2914276123046875,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.0025727541651576757,
+        "control_late_std_mV": 0.002271420555189252,
+        "late_evoked_max_mV": 0.00399017333984375,
+        "baseline_mV": -64.29051971435547
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.03778076171875,
+        "opposite_delay_ms": 176.0,
+        "opposite_fwhm_ms": 221,
+        "control_std_mV": 0.0007203483255580068,
+        "control_late_std_mV": 0.00011441607057349756,
+        "late_evoked_max_mV": 0.001735687255859375,
+        "baseline_mV": -45.041473388671875
+      },
+      "L5": {
+        "on_peak_mV": 6.276882171630859,
+        "opposite_peak_mV": 3.0039901733398438,
+        "opposite_delay_ms": 169.0,
+        "opposite_fwhm_ms": 164,
+        "control_std_mV": 0.17833293974399567,
+        "control_late_std_mV": 0.12743574380874634,
+        "late_evoked_max_mV": 0.225128173828125,
+        "baseline_mV": -53.012718200683594
+      },
+      "Mi1": {
+        "on_peak_mV": 11.67718505859375,
+        "opposite_peak_mV": 1.8843345642089844,
+        "opposite_delay_ms": 183.0,
+        "opposite_fwhm_ms": 132,
+        "control_std_mV": 0.2367021143436432,
+        "control_late_std_mV": 0.1023574098944664,
+        "late_evoked_max_mV": 0.29638671875,
+        "baseline_mV": -49.70396423339844
+      },
+      "Tm3": {
+        "on_peak_mV": 15.436946868896484,
+        "opposite_peak_mV": 2.189208984375,
+        "opposite_delay_ms": 257.0,
+        "opposite_fwhm_ms": 145,
+        "control_std_mV": 0.20892183482646942,
+        "control_late_std_mV": 0.1086101159453392,
+        "late_evoked_max_mV": 0.3407478332519531,
+        "baseline_mV": -36.49342727661133
+      },
+      "Mi4": {
+        "on_peak_mV": 14.106307983398438,
+        "opposite_peak_mV": 0.197662353515625,
+        "opposite_delay_ms": 505.0,
+        "opposite_fwhm_ms": 32,
+        "control_std_mV": 0.260686457157135,
+        "control_late_std_mV": 0.1437705010175705,
+        "late_evoked_max_mV": 0.3729591369628906,
+        "baseline_mV": -37.08211898803711
+      },
+      "Mi9": {
+        "on_peak_mV": 0.00787353515625,
+        "opposite_peak_mV": 0.3406524658203125,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 61,
+        "control_std_mV": 0.011626111343502998,
+        "control_late_std_mV": 0.007967095822095871,
+        "late_evoked_max_mV": 0.01904296875,
+        "baseline_mV": -70.22801208496094
+      },
+      "T4a": {
+        "on_peak_mV": 10.004772186279297,
+        "opposite_peak_mV": 1.4830474853515625,
+        "opposite_delay_ms": 265.0,
+        "opposite_fwhm_ms": 123,
+        "control_std_mV": 0.24557261168956757,
+        "control_late_std_mV": 0.20192065834999084,
+        "late_evoked_max_mV": 0.2655601501464844,
+        "baseline_mV": -36.06953430175781
+      },
+      "T4b": {
+        "on_peak_mV": 9.619930267333984,
+        "opposite_peak_mV": 1.4806289672851562,
+        "opposite_delay_ms": 271.0,
+        "opposite_fwhm_ms": 141,
+        "control_std_mV": 0.1908809095621109,
+        "control_late_std_mV": 0.20535901188850403,
+        "late_evoked_max_mV": 0.3184051513671875,
+        "baseline_mV": -42.4174919128418
+      },
+      "T4c": {
+        "on_peak_mV": 7.951854705810547,
+        "opposite_peak_mV": 1.3632125854492188,
+        "opposite_delay_ms": 267.0,
+        "opposite_fwhm_ms": 134,
+        "control_std_mV": 0.23264756798744202,
+        "control_late_std_mV": 0.1542738825082779,
+        "late_evoked_max_mV": 0.4956321716308594,
+        "baseline_mV": -38.25156784057617
+      },
+      "T4d": {
+        "on_peak_mV": 8.190084457397461,
+        "opposite_peak_mV": 1.1830902099609375,
+        "opposite_delay_ms": 279.0,
+        "opposite_fwhm_ms": 128,
+        "control_std_mV": 0.16196367144584656,
+        "control_late_std_mV": 0.11337494850158691,
+        "late_evoked_max_mV": 0.3202934265136719,
+        "baseline_mV": -36.44577407836914
+      }
+    },
+    "v_min": -71.93204498291016,
+    "v_max": -0.6476783752441406
+  },
+  {
+    "case": {
+      "name": "balanced_023",
+      "forward_gain": 4.0,
+      "feedback_gain": 30.0,
+      "threshold": "rest"
+    },
+    "score": 1.9683617564990803,
+    "cells": {
+      "R1-6": {
+        "on_peak_mV": 14.679821014404297,
+        "opposite_peak_mV": 4.071033477783203,
+        "opposite_delay_ms": 3.0,
+        "opposite_fwhm_ms": 4,
+        "control_std_mV": 3.526141881593503e-06,
+        "control_late_std_mV": 3.814697265625e-06,
+        "late_evoked_max_mV": 1.1444091796875e-05,
+        "baseline_mV": -49.07924270629883
+      },
+      "L1": {
+        "on_peak_mV": 9.941043853759766,
+        "opposite_peak_mV": 2.328857421875,
+        "opposite_delay_ms": 94.0,
+        "opposite_fwhm_ms": 100,
+        "control_std_mV": 0.11376163363456726,
+        "control_late_std_mV": 0.016236621886491776,
+        "late_evoked_max_mV": 0.12404251098632812,
+        "baseline_mV": -49.96537780761719
+      },
+      "L2": {
+        "on_peak_mV": 4.676219940185547,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.003196806414052844,
+        "control_late_std_mV": 0.0008082921267487109,
+        "late_evoked_max_mV": 0.006603240966796875,
+        "baseline_mV": -63.651187896728516
+      },
+      "L3": {
+        "on_peak_mV": 4.294975280761719,
+        "opposite_peak_mV": 0.0,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 0,
+        "control_std_mV": 0.00020261909230612218,
+        "control_late_std_mV": 4.660258491639979e-05,
+        "late_evoked_max_mV": 0.000396728515625,
+        "baseline_mV": -64.28206634521484
+      },
+      "L4": {
+        "on_peak_mV": 0.0,
+        "opposite_peak_mV": 0.03530120849609375,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 314,
+        "control_std_mV": 0.0004001883789896965,
+        "control_late_std_mV": 0.00017683010082691908,
+        "late_evoked_max_mV": 0.001827239990234375,
+        "baseline_mV": -45.033748626708984
+      },
+      "L5": {
+        "on_peak_mV": 7.755481719970703,
+        "opposite_peak_mV": 3.3667831420898438,
+        "opposite_delay_ms": 150.0,
+        "opposite_fwhm_ms": 177,
+        "control_std_mV": 0.07369089871644974,
+        "control_late_std_mV": 0.02142437919974327,
+        "late_evoked_max_mV": 0.1180572509765625,
+        "baseline_mV": -51.526371002197266
+      },
+      "Mi1": {
+        "on_peak_mV": 14.138893127441406,
+        "opposite_peak_mV": 1.7508277893066406,
+        "opposite_delay_ms": 200.0,
+        "opposite_fwhm_ms": 180,
+        "control_std_mV": 0.09911537915468216,
+        "control_late_std_mV": 0.023102961480617523,
+        "late_evoked_max_mV": 0.14667892456054688,
+        "baseline_mV": -48.56489944458008
+      },
+      "Tm3": {
+        "on_peak_mV": 16.083030700683594,
+        "opposite_peak_mV": 2.4739112854003906,
+        "opposite_delay_ms": 205.0,
+        "opposite_fwhm_ms": 152,
+        "control_std_mV": 0.1583404690027237,
+        "control_late_std_mV": 0.0500582754611969,
+        "late_evoked_max_mV": 0.21424102783203125,
+        "baseline_mV": -34.68794631958008
+      },
+      "Mi4": {
+        "on_peak_mV": 14.286111831665039,
+        "opposite_peak_mV": 0.1378936767578125,
+        "opposite_delay_ms": 383.0,
+        "opposite_fwhm_ms": 54,
+        "control_std_mV": 0.06919778883457184,
+        "control_late_std_mV": 0.011961231008172035,
+        "late_evoked_max_mV": 0.09152603149414062,
+        "baseline_mV": -37.51434326171875
+      },
+      "Mi9": {
+        "on_peak_mV": 0.003326416015625,
+        "opposite_peak_mV": 0.3973541259765625,
+        "opposite_delay_ms": 0.0,
+        "opposite_fwhm_ms": 82,
+        "control_std_mV": 0.0023702559992671013,
+        "control_late_std_mV": 0.0005585506442002952,
+        "late_evoked_max_mV": 0.0037841796875,
+        "baseline_mV": -70.40277099609375
+      },
+      "T4a": {
+        "on_peak_mV": 10.983522415161133,
+        "opposite_peak_mV": 0.16259384155273438,
+        "opposite_delay_ms": 560.0,
+        "opposite_fwhm_ms": 75,
+        "control_std_mV": 0.09010014683008194,
+        "control_late_std_mV": 0.01690315455198288,
+        "late_evoked_max_mV": 0.11830520629882812,
+        "baseline_mV": -38.222835540771484
+      },
+      "T4b": {
+        "on_peak_mV": 10.431148529052734,
+        "opposite_peak_mV": 0.15814208984375,
+        "opposite_delay_ms": 566.0,
+        "opposite_fwhm_ms": 76,
+        "control_std_mV": 0.08398280292749405,
+        "control_late_std_mV": 0.014704816974699497,
+        "late_evoked_max_mV": 0.07403564453125,
+        "baseline_mV": -44.156394958496094
+      },
+      "T4c": {
+        "on_peak_mV": 8.921365737915039,
+        "opposite_peak_mV": 0.26263427734375,
+        "opposite_delay_ms": 371.0,
+        "opposite_fwhm_ms": 71,
+        "control_std_mV": 0.09538131207227707,
+        "control_late_std_mV": 0.024279439821839333,
+        "late_evoked_max_mV": 0.12588119506835938,
+        "baseline_mV": -39.790950775146484
+      },
+      "T4d": {
+        "on_peak_mV": 8.94639778137207,
+        "opposite_peak_mV": 0.24152755737304688,
+        "opposite_delay_ms": 376.0,
+        "opposite_fwhm_ms": 79,
+        "control_std_mV": 0.08562137931585312,
+        "control_late_std_mV": 0.018803345039486885,
+        "late_evoked_max_mV": 0.07187271118164062,
+        "baseline_mV": -37.57197570800781
+      }
+    },
+    "v_min": -71.93204498291016,
+    "v_max": -0.6476783752441406
+  }
+]

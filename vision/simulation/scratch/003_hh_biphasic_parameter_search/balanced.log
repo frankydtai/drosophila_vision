@@ -1,0 +1,11 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 0 / 24
+DONE 0 elapsed 18.445200501941144 top [({'name': 'balanced_000', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'balanced_001', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'rest'}, 2.27), ({'name': 'balanced_003', 'forward_gain': 1.0, 'feedback_gain': 3.0, 'threshold': 'rest'}, 2.269)]
+START 6 / 24
+DONE 6 elapsed 36.656609238125384 top [({'name': 'balanced_009', 'forward_gain': 2.0, 'feedback_gain': 1.0, 'threshold': 'rest'}, 2.766), ({'name': 'balanced_008', 'forward_gain': 2.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.656), ({'name': 'balanced_011', 'forward_gain': 2.0, 'feedback_gain': 3.0, 'threshold': 'rest'}, 2.56)]
+START 12 / 24
+DONE 12 elapsed 55.05931805726141 top [({'name': 'balanced_017', 'forward_gain': 4.0, 'feedback_gain': 1.0, 'threshold': 'rest'}, 3.141), ({'name': 'balanced_016', 'forward_gain': 4.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 3.05), ({'name': 'balanced_009', 'forward_gain': 2.0, 'feedback_gain': 1.0, 'threshold': 'rest'}, 2.766)]
+START 18 / 24
+DONE 18 elapsed 73.88820003159344 top [({'name': 'balanced_017', 'forward_gain': 4.0, 'feedback_gain': 1.0, 'threshold': 'rest'}, 3.141), ({'name': 'balanced_016', 'forward_gain': 4.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 3.05), ({'name': 'balanced_019', 'forward_gain': 4.0, 'feedback_gain': 3.0, 'threshold': 'rest'}, 2.912)]
+FINISHED

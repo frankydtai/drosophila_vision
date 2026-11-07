@@ -1,0 +1,11 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874/data/best_param.npz' only (62 z, reset Adam, resume_adam=false)
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/peak_worker.py", line 102, in <module>
+    initial,initial_parts=measure(z);report['initial_cost']=initial;maybe_best(initial,initial_parts,0);persist()
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/peak_worker.py", line 94, in maybe_best
+    ratio_ok=all(peaks[k]/peaks[k[:-2]+'PD']<peak_baseline[k]/peak_baseline[k[:-2]+'PD'] for k in nd_keys)
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd/peak_worker.py", line 94, in <genexpr>
+    ratio_ok=all(peaks[k]/peaks[k[:-2]+'PD']<peak_baseline[k]/peak_baseline[k[:-2]+'PD'] for k in nd_keys)
+KeyError: 'mbar_right_bright_w1_T4b_PD'

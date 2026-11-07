@@ -1,0 +1,19 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 0 / 48
+DONE 0 elapsed 16.39347563497722 top [({'name': 'slow_recovery_005', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0}, 0.005), ({'name': 'slow_recovery_004', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0}, 0.004), ({'name': 'slow_recovery_000', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 0.03, 'cap_pF': 1.0}, 0.0)]
+START 6 / 48
+DONE 6 elapsed 32.30008427426219 top [({'name': 'slow_recovery_006', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 1.0, 'cap_pF': 1.0}, 2.309), ({'name': 'slow_recovery_007', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 1.0, 'cap_pF': 10.0}, 2.199), ({'name': 'slow_recovery_005', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0}, 0.005)]
+START 12 / 48
+DONE 12 elapsed 48.899559592828155 top [({'name': 'slow_recovery_006', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 1.0, 'cap_pF': 1.0}, 2.309), ({'name': 'slow_recovery_007', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 1.0, 'cap_pF': 10.0}, 2.199), ({'name': 'slow_recovery_014', 'membrane': 'current', 'n_rate': 0.1, 'incoming_syn_gain': 1.0, 'cap_pF': 1.0}, 2.151)]
+START 18 / 48
+DONE 18 elapsed 65.05975741799921 top [({'name': 'slow_recovery_023', 'membrane': 'current', 'n_rate': 0.02, 'incoming_syn_gain': 1.0, 'cap_pF': 10.0}, 2.318), ({'name': 'slow_recovery_022', 'membrane': 'current', 'n_rate': 0.02, 'incoming_syn_gain': 1.0, 'cap_pF': 1.0}, 2.311), ({'name': 'slow_recovery_006', 'membrane': 'current', 'n_rate': 1.0, 'incoming_syn_gain': 1.0, 'cap_pF': 1.0}, 2.309)]
+START 24 / 48
+DONE 24 elapsed 79.99516121577471 top [({'name': 'slow_recovery_028', 'membrane': 'graded', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0}, 2.374), ({'name': 'slow_recovery_029', 'membrane': 'graded', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0}, 2.336), ({'name': 'slow_recovery_023', 'membrane': 'current', 'n_rate': 0.02, 'incoming_syn_gain': 1.0, 'cap_pF': 10.0}, 2.318)]
+START 30 / 48
+DONE 30 elapsed 95.74963425379246 top [({'name': 'slow_recovery_028', 'membrane': 'graded', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0}, 2.374), ({'name': 'slow_recovery_029', 'membrane': 'graded', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0}, 2.336), ({'name': 'slow_recovery_023', 'membrane': 'current', 'n_rate': 0.02, 'incoming_syn_gain': 1.0, 'cap_pF': 10.0}, 2.318)]
+START 36 / 48
+DONE 36 elapsed 112.04345012363046 top [({'name': 'slow_recovery_028', 'membrane': 'graded', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0}, 2.374), ({'name': 'slow_recovery_029', 'membrane': 'graded', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0}, 2.336), ({'name': 'slow_recovery_023', 'membrane': 'current', 'n_rate': 0.02, 'incoming_syn_gain': 1.0, 'cap_pF': 10.0}, 2.318)]
+START 42 / 48
+DONE 42 elapsed 128.64830011688173 top [({'name': 'slow_recovery_042', 'membrane': 'graded', 'n_rate': 0.02, 'incoming_syn_gain': 0.1, 'cap_pF': 1.0}, 2.607), ({'name': 'slow_recovery_044', 'membrane': 'graded', 'n_rate': 0.02, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0}, 2.411), ({'name': 'slow_recovery_028', 'membrane': 'graded', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0}, 2.374)]
+FINISHED

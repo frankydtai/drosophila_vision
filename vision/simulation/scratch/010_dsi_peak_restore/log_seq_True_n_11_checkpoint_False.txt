@@ -1,0 +1,24 @@
+Cost: 14.2500  [mbar_right_bright_w1_T4a_PD=4.0000  mbar_right_bright_w1_T4b_ND=1.0000  mbar_left_bright_w1_T4a_ND=0.2500  mbar_left_bright_w1_T4b_PD=9.0000]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 14.2500  [mbar_right_bright_w1_T4a_PD=4.0000  mbar_right_bright_w1_T4b_ND=1.0000  mbar_left_bright_w1_T4a_ND=0.2500  mbar_left_bright_w1_T4b_PD=9.0000]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 13.6857  [mbar_right_bright_w1_T4a_PD=3.8416  mbar_right_bright_w1_T4b_ND=0.9604  mbar_left_bright_w1_T4a_ND=0.2401  mbar_left_bright_w1_T4b_PD=8.6436]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 13.1331  [mbar_right_bright_w1_T4a_PD=3.6865  mbar_right_bright_w1_T4b_ND=0.9216  mbar_left_bright_w1_T4a_ND=0.2304  mbar_left_bright_w1_T4b_PD=8.2946]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 12.5924  [mbar_right_bright_w1_T4a_PD=3.5347  mbar_right_bright_w1_T4b_ND=0.8837  mbar_left_bright_w1_T4a_ND=0.2209  mbar_left_bright_w1_T4b_PD=7.9531]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 12.0639  [mbar_right_bright_w1_T4a_PD=3.3863  mbar_right_bright_w1_T4b_ND=0.8466  mbar_left_bright_w1_T4a_ND=0.2116  mbar_left_bright_w1_T4b_PD=7.6193]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 11.5475  [mbar_right_bright_w1_T4a_PD=3.2414  mbar_right_bright_w1_T4b_ND=0.8104  mbar_left_bright_w1_T4a_ND=0.2026  mbar_left_bright_w1_T4b_PD=7.2932]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 11.0436  [mbar_right_bright_w1_T4a_PD=3.1000  mbar_right_bright_w1_T4b_ND=0.7750  mbar_left_bright_w1_T4a_ND=0.1937  mbar_left_bright_w1_T4b_PD=6.9749]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 10.5523  [mbar_right_bright_w1_T4a_PD=2.9620  mbar_right_bright_w1_T4b_ND=0.7405  mbar_left_bright_w1_T4a_ND=0.1851  mbar_left_bright_w1_T4b_PD=6.6646]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 10.0736  [mbar_right_bright_w1_T4a_PD=2.8277  mbar_right_bright_w1_T4b_ND=0.7069  mbar_left_bright_w1_T4a_ND=0.1767  mbar_left_bright_w1_T4b_PD=6.3623]  DSI: 3.5000  DSI_peak: 0.5500
+Cost: 9.6077  [mbar_right_bright_w1_T4a_PD=2.6969  mbar_right_bright_w1_T4b_ND=0.6742  mbar_left_bright_w1_T4a_ND=0.1686  mbar_left_bright_w1_T4b_PD=6.0680]  DSI: 2.8739  DSI_peak: 0.5500
+Cost: 9.1547  [mbar_right_bright_w1_T4a_PD=2.5697  mbar_right_bright_w1_T4b_ND=0.6424  mbar_left_bright_w1_T4a_ND=0.1606  mbar_left_bright_w1_T4b_PD=5.7819]  DSI: 2.8739  DSI_peak: 0.5500
+
+Initl cost = 14.2500  [mbar_right_bright_w1_T4a_PD=4.0000  mbar_right_bright_w1_T4b_ND=1.0000  mbar_left_bright_w1_T4a_ND=0.2500  mbar_left_bright_w1_T4b_PD=9.0000]
+Final cost = 8.7146  [mbar_right_bright_w1_T4a_PD=2.4462  mbar_right_bright_w1_T4b_ND=0.6116  mbar_left_bright_w1_T4a_ND=0.1529  mbar_left_bright_w1_T4b_PD=5.5040]
+Best  cost = 8.7146  [mbar_right_bright_w1_T4a_PD=2.4462  mbar_right_bright_w1_T4b_ND=0.6116  mbar_left_bright_w1_T4a_ND=0.1529  mbar_left_bright_w1_T4b_PD=5.5040]
+time needed  = 0.04  sec
+
+
+Initl cost = 14.2500  [mbar_right_bright_w1_T4a_PD=4.0000  mbar_right_bright_w1_T4b_ND=1.0000  mbar_left_bright_w1_T4a_ND=0.2500  mbar_left_bright_w1_T4b_PD=9.0000]  DSI: 3.5000  DSI_peak: 0.5500
+Final cost = 8.7146  [mbar_right_bright_w1_T4a_PD=2.4462  mbar_right_bright_w1_T4b_ND=0.6116  mbar_left_bright_w1_T4a_ND=0.1529  mbar_left_bright_w1_T4b_PD=5.5040]  DSI: 2.7371  DSI_peak: 0.5500
+Best  cost = 8.7146  [mbar_right_bright_w1_T4a_PD=2.4462  mbar_right_bright_w1_T4b_ND=0.6116  mbar_left_bright_w1_T4a_ND=0.1529  mbar_left_bright_w1_T4b_PD=5.5040]  DSI: 2.7371  DSI_peak: 0.5500
+time needed  = 0.04  sec
+

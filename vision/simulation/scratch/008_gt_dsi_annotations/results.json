@@ -1,0 +1,25 @@
+{
+  "request_scope": "GT figure only, using the existing DSI numeric annotation format",
+  "production_plot_code_changed": false,
+  "reason": "Existing GT readout calculates raw DSI independently of loss weights and titles test key presence rather than numeric truthiness.",
+  "tests_passed": 12,
+  "cases": {
+    "loss_weights": [
+      0,
+      1
+    ],
+    "raw_dsi": [
+      "zero",
+      "positive",
+      "negative"
+    ],
+    "contrasts": [
+      "bright only",
+      "bright and dark"
+    ]
+  },
+  "source": "/home/yitai/drosophila_vision/vision/simulation/5_figure/2_4_mbar.py",
+  "source_sha256": "2749988547525e15a83e9956c4b5839ca0306c632826019258f371f2af45df01",
+  "preview": "/home/yitai/drosophila_vision/vision/simulation/scratch/008_gt_dsi_annotations/gt_weight_0_gain_0_paired_False.png",
+  "existing_real_zero_weight_example": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/mbar_gt_v.png"
+}

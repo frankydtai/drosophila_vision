@@ -1,0 +1,10 @@
+{
+  "status": "review_only_not_applied",
+  "existing_file_to_change": "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml",
+  "new_rules_file": "/home/yitai/drosophila_vision/vision/simulation/parameters/point_hh_biphasic_gain3/synapse_rules.csv",
+  "rules_source": "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/candidate_gain3/synapse_rules.csv",
+  "initialization_candidate": "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/candidate_gain3",
+  "delta_ms": 1.0,
+  "k_minus_syn": 0.01,
+  "note": "Use the candidate best_param as initialization; older checkpoint values can replace fixed inits. No HH kernel changes. Canonical Ripple files remain unchanged."
+}

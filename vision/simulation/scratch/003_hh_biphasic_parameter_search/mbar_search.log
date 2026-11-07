@@ -1,0 +1,27 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 0 / 38
+DONE 0 seconds 84.90012814011425 top [({'name': 'mbar_sources_001', 'L3_threshold': -70.0, 'L5_threshold': -60.0, 'source_delta': 2.0, 'tuned_L1': True}, 2.134, 6011356), ({'name': 'mbar_previous_gain3', 'tuned_L1': True}, 1.868, 6640110), ({'name': 'mbar_reference'}, 1.681, 7442548)]
+START 4 / 38
+DONE 4 seconds 169.15673995949328 top [({'name': 'mbar_sources_001', 'L3_threshold': -70.0, 'L5_threshold': -60.0, 'source_delta': 2.0, 'tuned_L1': True}, 2.134, 6011356), ({'name': 'mbar_sources_003', 'L3_threshold': -70.0, 'L5_threshold': -60.0, 'source_delta': 4.0, 'tuned_L1': True}, 1.89, 6908213), ({'name': 'mbar_previous_gain3', 'tuned_L1': True}, 1.868, 6640110)]
+START 8 / 38
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/mbar_search.py", line 44, in <module>
+    tr,*_=_traces_from_forward(ss,'mbar','bright',v.numpy(),specs,tokens);curves={};metrics={};scores=[]
+  File "/home/yitai/drosophila_vision/vision/simulation/5_figure/2_4_mbar.py", line 389, in _traces_from_forward
+    grids = mbar_session_t0_grids(
+  File "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/4_pack.py", line 620, in mbar_session_t0_grids
+    sti = build_mbar_signals(
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/mbar_search.py", line 15, in <lambda>
+    mp.build_mbar_signals=lambda *a,**kw:original(*a,**dict(kw,use_cache=False))
+  File "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/2_sti_spec.py", line 597, in build_mbar_signals
+    i_sti_hex = build_i_sti_hex(
+  File "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/2_sti_spec.py", line 353, in build_i_sti_hex
+    fills[t, hex_idx] += _fill(
+  File "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/1_sti_geo.py", line 119, in _fill
+    n_vertex = _fill_vertex_degs(
+  File "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/1_sti_geo.py", line 84, in _fill_vertex_degs
+    vertex_x_degs_post[n_vertex_post], vertex_y_degs_post[n_vertex_post] = x_post, y_post
+KeyboardInterrupt

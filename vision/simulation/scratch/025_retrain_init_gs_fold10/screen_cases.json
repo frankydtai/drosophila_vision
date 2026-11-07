@@ -1,0 +1,62 @@
+[
+  {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "native": false,
+    "resume_adam": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "label": "screen_0003",
+    "lr": 0.0003,
+    "n_iter": 48,
+    "backtrack": false,
+    "verify_initial": true
+  },
+  {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "native": false,
+    "resume_adam": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "label": "screen_0001",
+    "lr": 0.0001,
+    "n_iter": 48,
+    "backtrack": false,
+    "verify_initial": true
+  },
+  {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "native": false,
+    "resume_adam": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "label": "screen_backtrack",
+    "lr": 0.0001,
+    "n_iter": 32,
+    "backtrack": true,
+    "verify_initial": true
+  }
+]

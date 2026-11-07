@@ -1,0 +1,50 @@
+ M vision/simulation/1_neuron/1_4_point_hh.py
+ M vision/simulation/3_task/4_mbar/4_pack.py
+ M vision/simulation/4_train/4_optimization.py
+ M vision/simulation/5_figure/2_4_mbar.py
+ M vision/simulation/conf/config.yaml
+ M vision/simulation/run.log
+ M vision/simulation/run.slurm
+ M vision/simulation/run_init_from.log
+?? vision/simulation/0_logs/34427414.log
+?? vision/simulation/0_logs/34427416.log
+?? vision/simulation/0_logs/34427799.log
+?? vision/simulation/0_logs/34430000.log
+?? vision/simulation/0_logs/34430445.log
+?? vision/simulation/0_logs/34430456.log
+?? vision/simulation/0_logs/34430984.log
+?? vision/simulation/0_logs/34431163.log
+?? vision/simulation/0_logs/34432972.log
+?? vision/simulation/0_runs/point_hh/34427414-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34430000-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/
+?? vision/simulation/0_runs/point_hh/34435454-adam_reset-n_iter-20-lr-0.003-final_cost-469101/
+?? vision/simulation/0_runs/point_hh/34437223-continued_optimization-loss-394150/
+?? vision/simulation/0_runs/point_hh/34437673-continued_optimization-loss-282967/
+?? vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874/
+?? vision/simulation/scratch/001_hh_hplp_upstream_diagnosis/
+?? vision/simulation/scratch/002_t4_pathway_runtime_controls/
+?? vision/simulation/scratch/003_hh_biphasic_parameter_search/
+?? vision/simulation/scratch/004_loss_description_refresh/
+?? vision/simulation/scratch/005_dsi_training_log/
+?? vision/simulation/scratch/006_dsi_every_ten_iters/
+?? vision/simulation/scratch/007_biphasic_mbar_cost_dsi/
+?? vision/simulation/scratch/008_gt_dsi_annotations/
+?? vision/simulation/scratch/009_normalized_dsi_definition/
+?? vision/simulation/scratch/010_dsi_peak_restore/
+?? vision/simulation/scratch/011_redraw_34431163_gt/
+?? vision/simulation/scratch/012_adam_resume_diagnosis/
+?? vision/simulation/scratch/013_save_reset469101/
+?? vision/simulation/scratch/014_continue_469101/
+?? vision/simulation/scratch/015_continue_394150/
+?? vision/simulation/scratch/016_gene_parameter_interpretation/
+?? vision/simulation/scratch/017_gene_training_audit/
+?? vision/simulation/scratch/018_loss_history_696/
+?? vision/simulation/scratch/019_g_context_mode/
+?? vision/simulation/scratch/020_init_from_scratch/
+?? vision/simulation/scratch/021_continue_init_nd/

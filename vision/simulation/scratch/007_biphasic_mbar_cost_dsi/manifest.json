@@ -1,0 +1,15 @@
+{
+  "HH_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "HPLP_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/34381872-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "dt_ms": 1.0,
+  "source_hashes": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_2_hp_lp.py": "ef2803ecafbc7679d200fb5ae491d2bd3e840d820d75cc491e0a12df10c9fbfe",
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "/home/yitai/drosophila_vision/vision/simulation/4_train/3_cost.py": "d9dfd20cb031d8ec1fa1e47524134276b28a4dfef58c3035dd8f80d7e86cfa14",
+    "/home/yitai/drosophila_vision/vision/simulation/4_train/1_param.py": "87084c855e1e20b5323fec854781280ce0eb3f1ec320fc219b0a5cbc534f4fd3",
+    "/home/yitai/drosophila_vision/vision/simulation/4_train/2_session.py": "b6145bb07de7a52ba6ac40924c2b819a6890ac392b4a1afdb4ca1080e359b775",
+    "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/4_pack.py": "b1b5e79a8a334541b5d5a3135358ec353305d19951080c301e843986d47f4e1c"
+  },
+  "reference_notes": "Primary HPLP reference reuses HH moving-bar current geometry and HH learned Gaussian sigma. No retraining."
+}

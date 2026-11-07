@@ -1,0 +1,11 @@
+{
+  "weight": 0.0,
+  "gain": -1.0,
+  "paired": false,
+  "titles": [
+    "right_bright_w1\nDSI=-3.000  DSI_peak=0.000",
+    "left_bright_w1\nDSI=-3.000  DSI_peak=0.000",
+    "right_bright_w1\nDSI=-4.000  DSI_peak=0.000",
+    "left_bright_w1\nDSI=-4.000  DSI_peak=0.000"
+  ]
+}

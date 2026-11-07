@@ -1,0 +1,178 @@
+{
+  "model": "gain3",
+  "cost": 6640109.5,
+  "dsi_raw": {
+    "mbar_DSI_bright_T4a": 481.294921875,
+    "mbar_DSI_bright_T4b": 480.66015625
+  },
+  "waveform_metrics": [
+    {
+      "cell": "R1-6",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 8.793541250173107,
+      "negative_peak_mV": -0.016123016190512374
+    },
+    {
+      "cell": "R1-6",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 8.79376031188417,
+      "negative_peak_mV": -0.015940864580080927
+    },
+    {
+      "cell": "L1",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 0.05990851352358817,
+      "negative_peak_mV": -5.591540030174812
+    },
+    {
+      "cell": "L1",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": -0.02750720020082298,
+      "negative_peak_mV": -5.494353530849281
+    },
+    {
+      "cell": "L2",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": -0.017003230893905652,
+      "negative_peak_mV": -4.244388207283805
+    },
+    {
+      "cell": "L2",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": -0.022912976666020768,
+      "negative_peak_mV": -4.259600017427175
+    },
+    {
+      "cell": "L3",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": -0.012439029249605937,
+      "negative_peak_mV": -4.2112185968450575
+    },
+    {
+      "cell": "L3",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": -0.011271936689723816,
+      "negative_peak_mV": -4.210776801290123
+    },
+    {
+      "cell": "L4",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 0.007326699306389628,
+      "negative_peak_mV": -0.056105838228312166
+    },
+    {
+      "cell": "L4",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 0.005187170244830952,
+      "negative_peak_mV": -0.05165010359880284
+    },
+    {
+      "cell": "L5",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 8.229451762390383,
+      "negative_peak_mV": -0.25765965196073637
+    },
+    {
+      "cell": "L5",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 8.338029268056246,
+      "negative_peak_mV": -0.22575576447195544
+    },
+    {
+      "cell": "Mi1",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 10.480257214081341,
+      "negative_peak_mV": -1.9963021022022787
+    },
+    {
+      "cell": "Mi1",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 10.420262434674619,
+      "negative_peak_mV": -2.2888382568988774
+    },
+    {
+      "cell": "Tm3",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 13.043258554840271,
+      "negative_peak_mV": -1.767545747469498
+    },
+    {
+      "cell": "Tm3",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 12.901312689343627,
+      "negative_peak_mV": -1.817139621512851
+    },
+    {
+      "cell": "Mi4",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 15.134108130933097,
+      "negative_peak_mV": -0.08094587860104241
+    },
+    {
+      "cell": "Mi4",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 15.208781548472597,
+      "negative_peak_mV": -0.10704224644763372
+    },
+    {
+      "cell": "Mi9",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 0.32211583935064425,
+      "negative_peak_mV": -0.4906130546728207
+    },
+    {
+      "cell": "Mi9",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 0.21370547146922547,
+      "negative_peak_mV": -0.551714028473441
+    },
+    {
+      "cell": "T4a",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 11.101293475858036,
+      "negative_peak_mV": -3.901996110373993
+    },
+    {
+      "cell": "T4a",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 8.487883016874832,
+      "negative_peak_mV": -1.7881360625748997
+    },
+    {
+      "cell": "T4b",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 8.264788421672293,
+      "negative_peak_mV": -1.8596222815171757
+    },
+    {
+      "cell": "T4b",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 10.167598898842765,
+      "negative_peak_mV": -3.295356072360562
+    },
+    {
+      "cell": "T4c",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 7.796741279580935,
+      "negative_peak_mV": -2.1039311554526776
+    },
+    {
+      "cell": "T4c",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 7.652793081472236,
+      "negative_peak_mV": -2.1872667012014375
+    },
+    {
+      "cell": "T4d",
+      "condition": "right_bright_w1",
+      "positive_peak_mV": 8.470007287558147,
+      "negative_peak_mV": -1.9194171853084896
+    },
+    {
+      "cell": "T4d",
+      "condition": "left_bright_w1",
+      "positive_peak_mV": 7.762769815830101,
+      "negative_peak_mV": -1.8213790781042078
+    }
+  ]
+}

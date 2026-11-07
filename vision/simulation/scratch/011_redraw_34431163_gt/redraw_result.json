@@ -1,0 +1,24 @@
+{
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "saved_cost": 583273.4375,
+  "device": "CPU",
+  "hostname": "spartan-bm164.hpc.unimelb.edu.au",
+  "DSI": {
+    "T4a": 733.7734375,
+    "T4b": 783.62890625
+  },
+  "DSI_peak": {
+    "T4a": 0.23196008801460266,
+    "T4b": 0.28129905462265015
+  },
+  "panel_titles": [
+    "T4a Cost\nON: 200481.9 @PD 104641.8 @ND\nright_bright_w1\nDSI=733.773  DSI_peak=0.232",
+    "T4a Cost\nON: 200481.9 @PD 104641.8 @ND\nleft_bright_w1\nDSI=733.773  DSI_peak=0.232",
+    "T4b Cost\nON: 239696.9 @PD 38452.9 @ND\nright_bright_w1\nDSI=783.629  DSI_peak=0.281",
+    "T4b Cost\nON: 239696.9 @PD 38452.9 @ND\nleft_bright_w1\nDSI=783.629  DSI_peak=0.281"
+  ],
+  "elapsed_s": 34.2611449547112,
+  "output": "/home/yitai/drosophila_vision/vision/simulation/scratch/011_redraw_34431163_gt/mbar_gt_v.png",
+  "output_sha256": "67fa7de80df0b35b391f0c66d41c8a1883420d654ddc7e42feb1cf0d65077036",
+  "saved_training_files_and_other_figures_unchanged": true
+}

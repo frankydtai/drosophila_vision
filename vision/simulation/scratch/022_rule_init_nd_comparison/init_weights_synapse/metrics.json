@@ -1,0 +1,36 @@
+{
+  "total": 4615499.5,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 1932050.875,
+    "mbar_right_bright_w1_T4b_ND": 128954.25,
+    "mbar_left_bright_w1_T4a_ND": 100356.84375,
+    "mbar_left_bright_w1_T4b_PD": 2454137.5
+  },
+  "groups": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 5.453457832336426,
+      "nd_peak_mV": 4.686657428741455,
+      "nd_pd_ratio": 0.859391889115158,
+      "dsi_peak": 0.0756204819270719
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 4.173274517059326,
+      "nd_peak_mV": 4.061046600341797,
+      "nd_pd_ratio": 0.9731079476658511,
+      "dsi_peak": 0.013629285885398803
+    }
+  },
+  "case": {
+    "label": "init_weights_synapse",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+    "override": "synapse"
+  },
+  "stored_cost": 994279.375,
+  "parameter_summary": {
+    "free_parameters": 62,
+    "at_lower_bound": 0,
+    "at_upper_bound": 4,
+    "zero_gS_edges": 3309,
+    "active_gS_edges": 24515
+  }
+}

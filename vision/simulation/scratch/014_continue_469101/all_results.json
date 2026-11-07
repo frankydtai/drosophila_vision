@@ -1,0 +1,86 @@
+[
+  {
+    "label": "refine_00_resume_backtrack",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/run",
+    "cost": 394149.625,
+    "adam_iter": 14,
+    "case": {
+      "label": "refine_00_resume_backtrack",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/run",
+      "resume_adam": true,
+      "lr": 0.0003,
+      "n_iter": 16,
+      "backtrack": true
+    }
+  },
+  {
+    "label": "refine_01_reset_backtrack",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/run",
+    "cost": 395530.8125,
+    "adam_iter": 16,
+    "case": {
+      "label": "refine_01_reset_backtrack",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/run",
+      "resume_adam": false,
+      "lr": 0.0003,
+      "n_iter": 16,
+      "backtrack": true
+    }
+  },
+  {
+    "label": "screen_00_resume_0.001",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/run",
+    "cost": 456503.8125,
+    "adam_iter": 33,
+    "case": {
+      "label": "screen_00_resume_0.001",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/input_run",
+      "resume_adam": true,
+      "lr": 0.001,
+      "n_iter": 24,
+      "backtrack": false
+    }
+  },
+  {
+    "label": "screen_01_resume_0.0003",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/run",
+    "cost": 439280.0,
+    "adam_iter": 32,
+    "case": {
+      "label": "screen_01_resume_0.0003",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/input_run",
+      "resume_adam": true,
+      "lr": 0.0003,
+      "n_iter": 24,
+      "backtrack": false
+    }
+  },
+  {
+    "label": "screen_02_reset_0.001",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/run",
+    "cost": 410908.90625,
+    "adam_iter": 4,
+    "case": {
+      "label": "screen_02_reset_0.001",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/input_run",
+      "resume_adam": false,
+      "lr": 0.001,
+      "n_iter": 24,
+      "backtrack": false
+    }
+  },
+  {
+    "label": "screen_03_reset_0.0003",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/run",
+    "cost": 397253.875,
+    "adam_iter": 13,
+    "case": {
+      "label": "screen_03_reset_0.0003",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/input_run",
+      "resume_adam": false,
+      "lr": 0.0003,
+      "n_iter": 24,
+      "backtrack": false
+    }
+  }
+]

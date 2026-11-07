@@ -1,0 +1,244 @@
+{
+  "total_network_edges": 27824,
+  "newly_enabled_edge_count": 3309,
+  "newly_enabled_contact_count": 62080,
+  "direct_to_T4_edges": 714,
+  "T4_to_T4_edges": 694,
+  "by_source_type": [
+    {
+      "pre_type": "L2",
+      "edge_count": 1801,
+      "contact_count": 31505.0
+    },
+    {
+      "pre_type": "L1",
+      "edge_count": 418,
+      "contact_count": 23226.0
+    },
+    {
+      "pre_type": "T4a",
+      "edge_count": 374,
+      "contact_count": 2352.0
+    },
+    {
+      "pre_type": "T4b",
+      "edge_count": 307,
+      "contact_count": 1895.0
+    },
+    {
+      "pre_type": "T4c",
+      "edge_count": 186,
+      "contact_count": 1114.0
+    },
+    {
+      "pre_type": "L4",
+      "edge_count": 98,
+      "contact_count": 869.0
+    },
+    {
+      "pre_type": "T4d",
+      "edge_count": 83,
+      "contact_count": 483.0
+    },
+    {
+      "pre_type": "Mi9",
+      "edge_count": 27,
+      "contact_count": 366.0
+    },
+    {
+      "pre_type": "L5",
+      "edge_count": 12,
+      "contact_count": 252.0
+    },
+    {
+      "pre_type": "Mi4",
+      "edge_count": 3,
+      "contact_count": 18.0
+    }
+  ],
+  "by_transmitter": [
+    {
+      "raw_nt_type": "ACH",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 2757,
+      "contact_count": 37621.0
+    },
+    {
+      "raw_nt_type": "GABA",
+      "model_nt_type": "GABA",
+      "e_syn_mV": 0.0,
+      "edge_count": 466,
+      "contact_count": 23687.0
+    },
+    {
+      "raw_nt_type": "GLUT",
+      "model_nt_type": "GLUT",
+      "e_syn_mV": 0.0,
+      "edge_count": 86,
+      "contact_count": 772.0
+    }
+  ],
+  "direct_to_T4_groups": [
+    {
+      "pre_type": "Mi4",
+      "post_type": "T4a",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 1,
+      "contact_count": 6.0,
+      "init_context_gS_sum_nS": 1.7999999999999998
+    },
+    {
+      "pre_type": "Mi4",
+      "post_type": "T4b",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 1,
+      "contact_count": 6.0,
+      "init_context_gS_sum_nS": 1.7999999999999998
+    },
+    {
+      "pre_type": "Mi9",
+      "post_type": "T4a",
+      "model_nt_type": "GABA",
+      "e_syn_mV": 0.0,
+      "edge_count": 5,
+      "contact_count": 43.0,
+      "init_context_gS_sum_nS": 12.899999999999999
+    },
+    {
+      "pre_type": "Mi9",
+      "post_type": "T4b",
+      "model_nt_type": "GABA",
+      "e_syn_mV": 0.0,
+      "edge_count": 6,
+      "contact_count": 56.0,
+      "init_context_gS_sum_nS": 16.8
+    },
+    {
+      "pre_type": "Mi9",
+      "post_type": "T4c",
+      "model_nt_type": "GABA",
+      "e_syn_mV": 0.0,
+      "edge_count": 6,
+      "contact_count": 45.0,
+      "init_context_gS_sum_nS": 13.5
+    },
+    {
+      "pre_type": "Mi9",
+      "post_type": "T4d",
+      "model_nt_type": "GABA",
+      "e_syn_mV": 0.0,
+      "edge_count": 1,
+      "contact_count": 13.0,
+      "init_context_gS_sum_nS": 3.9
+    },
+    {
+      "pre_type": "T4a",
+      "post_type": "T4a",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 246,
+      "contact_count": 1618.0,
+      "init_context_gS_sum_nS": 485.4
+    },
+    {
+      "pre_type": "T4a",
+      "post_type": "T4b",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 2,
+      "contact_count": 11.0,
+      "init_context_gS_sum_nS": 3.3
+    },
+    {
+      "pre_type": "T4a",
+      "post_type": "T4c",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 1,
+      "contact_count": 5.0,
+      "init_context_gS_sum_nS": 1.5
+    },
+    {
+      "pre_type": "T4a",
+      "post_type": "T4d",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 1,
+      "contact_count": 5.0,
+      "init_context_gS_sum_nS": 1.5
+    },
+    {
+      "pre_type": "T4b",
+      "post_type": "T4a",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 2,
+      "contact_count": 10.0,
+      "init_context_gS_sum_nS": 3.0
+    },
+    {
+      "pre_type": "T4b",
+      "post_type": "T4b",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 224,
+      "contact_count": 1400.0,
+      "init_context_gS_sum_nS": 420.0
+    },
+    {
+      "pre_type": "T4b",
+      "post_type": "T4d",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 1,
+      "contact_count": 5.0,
+      "init_context_gS_sum_nS": 1.5
+    },
+    {
+      "pre_type": "T4c",
+      "post_type": "T4c",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 135,
+      "contact_count": 819.0,
+      "init_context_gS_sum_nS": 245.7
+    },
+    {
+      "pre_type": "T4d",
+      "post_type": "T4c",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 2,
+      "contact_count": 13.0,
+      "init_context_gS_sum_nS": 3.9
+    },
+    {
+      "pre_type": "T4d",
+      "post_type": "T4d",
+      "model_nt_type": "ACH",
+      "e_syn_mV": 0.0,
+      "edge_count": 78,
+      "contact_count": 454.0,
+      "init_context_gS_sum_nS": 136.2
+    },
+    {
+      "pre_type": "T4d",
+      "post_type": "T4d",
+      "model_nt_type": "GLUT",
+      "e_syn_mV": 0.0,
+      "edge_count": 2,
+      "contact_count": 11.0,
+      "init_context_gS_sum_nS": 3.3
+    }
+  ],
+  "context_values_are_baselines_before_gene_multiplier": true,
+  "all_newly_enabled_edges_have_fallback_e_syn_mV": 0.0,
+  "all_newly_enabled_edges_have_positive_model_sign": true,
+  "sources": {
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34437673-continued_optimization-loss-282967/data/point_hh_edge_params.csv": "5dbaad263d4bd735ea1808ce695414c38753bab757a4781ba5d6266f39116167",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279/data/point_hh_edge_params.csv": "953b0b08fbc2d676eb3e4b939310013cd074c49cf88774ad67de05bec2a384d0"
+  }
+}

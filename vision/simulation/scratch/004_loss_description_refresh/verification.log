@@ -1,0 +1,91 @@
+{
+  "passed": true,
+  "checks": [
+    "Only removed the description-update iteration condition and its indentation",
+    "Production source compiles",
+    "No extra writes from refresh=False",
+    "Printed totals and visible parts match completed iterations",
+    "10-iteration schedule preserved",
+    "Actual tqdm monitor switches miniters to 1 after 60 seconds",
+    "Zero, short, boundary, and missing-parts cases",
+    "Existing modified config and run files unchanged"
+  ],
+  "cases": [
+    {
+      "case": "fast_0",
+      "iterations": 0,
+      "emitted_iteration_numbers": [],
+      "passed": true
+    },
+    {
+      "case": "fast_1",
+      "iterations": 1,
+      "emitted_iteration_numbers": [
+        1
+      ],
+      "passed": true
+    },
+    {
+      "case": "fast_9",
+      "iterations": 9,
+      "emitted_iteration_numbers": [
+        9
+      ],
+      "passed": true
+    },
+    {
+      "case": "fast_10",
+      "iterations": 10,
+      "emitted_iteration_numbers": [
+        10
+      ],
+      "passed": true
+    },
+    {
+      "case": "fast_11",
+      "iterations": 11,
+      "emitted_iteration_numbers": [
+        10,
+        11
+      ],
+      "passed": true
+    },
+    {
+      "case": "fast_25",
+      "iterations": 25,
+      "emitted_iteration_numbers": [
+        10,
+        20,
+        25
+      ],
+      "passed": true
+    },
+    {
+      "case": "slow_monitor_switch",
+      "iterations": 15,
+      "emitted_iteration_numbers": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "passed": true
+    },
+    {
+      "case": "without_parts",
+      "iterations": 11,
+      "emitted_iteration_numbers": [
+        10,
+        11
+      ],
+      "passed": true
+    }
+  ]
+}

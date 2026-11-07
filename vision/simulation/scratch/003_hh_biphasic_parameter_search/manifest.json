@@ -1,0 +1,22 @@
+{
+  "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "dt_ms": 1.0,
+  "k_minus_syn": 0.01,
+  "experiment": "Existing conductances and release thresholds only; native HH gate rates unchanged; full 5789-node network; paired background control; no retraining.",
+  "source_sha256": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml": "ce9ca48c569f178fe999ae9c312455f279d99ac075045a4c900cbd72cee02b65",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": "218db70ea6f83cb0b6d68097f10712bca934ee0eb50e4f458fa0508c3a47bcbc",
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": "d1fd4e23fc98152af03f3bfc98e7097293959cbd04d0174ef358cb169c9787e9"
+  },
+  "source_unchanged": {
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": true,
+    "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": true,
+    "/home/yitai/drosophila_vision/vision/simulation/conf/config.yaml": true,
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz": true,
+    "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/train_opts.json": true
+  },
+  "n_cases": 49,
+  "batch_equivalence_max_error": 7.62939453125e-06
+}

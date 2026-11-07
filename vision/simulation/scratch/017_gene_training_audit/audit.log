@@ -1,0 +1,39 @@
+actual_training_model_import "/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/copy/vision/simulation/1_neuron/1_4_point_hh.py"
+current_and_training_model_code_match true
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+all_gene_coefficients_shared true
+direct_conductances_not_trainable true
+trainable_slots {"a_gt": 10, "a_sti_mid": 1, "v_th_syn": 1, "k_minus_syn": 1, "gene_gNa_para": 1, "gene_gNa_tipE": 1, "gene_gNa_Teh1": 1, "gene_gNa_Teh2": 1, "gene_gNa_Teh3": 1, "gene_gNa_Teh4": 1, "gene_gK_Sh": 1, "gene_gK_Shal": 1, "gene_gK_Shab": 1, "gene_gK_Shaw": 1, "gene_gK_eag": 1, "gene_gK_sei": 1, "gene_gK_Elk": 1, "gene_gLeak_Ork1": 1, "gene_gLeak_Irk1": 1, "gene_gLeak_Irk2": 1, "gene_gLeak_Irk3": 1, "gene_gLeak_ClC-a": 1, "gene_gLeak_pHCl-1": 1, "gene_gS_brp": 1, "gene_gS_Rim": 1, "gene_gS_Liprin-alpha": 1, "gene_gS_Syt1": 1, "gene_gS_Syt7": 1, "gene_gS_Sytbeta": 1, "gene_gS_nSyb": 1, "gene_gS_Syx1A": 1, "gene_gS_Snap25": 1, "gene_gS_Csp": 1, "gene_gS_cpx": 1, "gene_gS_shi": 1, "gene_gS_Syn": 1, "gene_gS_Syp": 1, "gene_gS_Vap33": 1, "gene_gS_ChAT": 1, "gene_gS_VAChT": 1, "gene_gS_nAChRalpha1": 1, "gene_gS_nAChRalpha2": 1, "gene_gS_nAChRbeta1": 1, "gene_gS_Gad1": 1, "gene_gS_VGAT": 1, "gene_gS_Rdl": 1, "gene_gS_Lcch3": 1, "gene_gS_Grd": 1, "gene_gS_Hdc": 1, "gene_gS_ort": 1, "gene_gS_HisCl1": 1, "gene_gS_VGlut": 1, "gene_gS_GluClalpha": 1}
+62_parameters_49_gene_coefficients {"n_z": 62, "n_gene": 49}
+checkpoint_has_coefficients_not_effective_conductances true
+saved_gene_values_all_finite_and_shared true
+from '/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/run' -> '/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/run/data/best_param.npz' + '/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/run/data/best_adam.npz' (62 z, adam_iter=16, resume_adam=true)
+resume_preserves_context_object true
+resume_loads_absolute_gene_weights true
+gene_weights_change_in_final_continuation {"max_absolute_change": 0.00030753854662179947, "inherited_adam_iter": 16}
+source_and_final_fixed_context_identical true
+source_hash_matches_ion_rules true
+source_hash_matches_synapse_rules true
+source_hash_matches_connections true
+source_hash_matches_expression true
+repeated_forward_does_not_compound true
+context_baseline_not_mutated true
+zero_gene_weights_recover_curated_baseline true
+direct_G_values_ignored_in_gene_mode true
+fold_bounds_gNa {"min": 0.2753230631351471, "max": 3.712228536605835, "allowed": [0.25, 4.0]}
+fold_bounds_gK {"min": 0.2887045443058014, "max": 1.7823008298873901, "allowed": [0.2857142857142857, 3.5]}
+fold_bounds_gLeak {"min": 0.33334195613861084, "max": 1.302231788635254, "allowed": [0.3333333333333333, 3.0]}
+fold_bounds_gS {"min": 0.16699622571468353, "max": 2.1177802085876465, "allowed": [0.16666666666666666, 6.0]}
+zero_baseline_edges_remain_zero {"n_zero_edges": 3309}
+all_49_mapping_gradients_match_finite_difference true
+finite_mapping_output_gradient_beta_-2.0 true
+finite_mapping_output_gradient_beta_0.0 true
+finite_mapping_output_gradient_beta_2.0 true
+finite_mapping_output_gradient_beta_-10000.0 true
+finite_mapping_output_gradient_beta_10000.0 true
+doubling_curated_baseline_doubles_output true
+identical_expression_different_baselines_produce_different_G [1.0, 2.0, 3.0]
+full_saved_objective_evaluation_started true
+full_saved_loss_reproduced {"reproduced": 282966.9375, "saved": 282966.9375, "absolute_difference": 0.0}
+full_saved_objective_backward_started true

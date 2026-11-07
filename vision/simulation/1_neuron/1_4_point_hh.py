@@ -221,8 +221,22 @@ def build_point_hh_context(
     connections_path,
     area_um2: float = 100.0,
     capacitance_uF_cm2: float = 1.0,
+    g_context_mode: str = "rule",
+    g_inits: Mapping[str, float] | None = None,
 ) -> PointHHContext:
     """Build fixed node/edge tensors in the exact loaded network order."""
+    g_context_mode = str(g_context_mode).lower()
+    if g_context_mode not in ("rule", "init"):
+        raise ValueError("point_hh.g_context_mode must be rule|init")
+    if g_context_mode == "init":
+        try:
+            g_inits = {
+                name: float(g_inits[name]) for name in ("gNa", "gK", "gLeak", "gS")
+            }
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("init G context requires gNa/gK/gLeak/gS init values") from exc
+        if any(not np.isfinite(value) or value < 0 for value in g_inits.values()):
+            raise ValueError("init G context conductances must be finite and non-negative")
     ion_path = Path(ion_rules_path).expanduser().resolve()
     synapse_path = Path(synapse_rules_path).expanduser().resolve()
     connection_path = Path(connections_path).expanduser().resolve()
@@ -253,6 +267,8 @@ def build_point_hh_context(
         for column in MEMBRANE_COLUMNS:
             density = float(source[column])
             value = density * area_um2 * 10.0 if column.startswith("g") else density
+            if g_context_mode == "init" and column.startswith("g"):
+                value = g_inits[column]
             cell_values[column].append(value)
             type_row[column] = value
         cell_values["cap"].append(type_row["cap_pF"])
@@ -281,6 +297,8 @@ def build_point_hh_context(
         model_nt = "Histamine" if pre == "R1-6" else raw_nt
         rule, resolution = _resolve_synapse_rule(rules, pre, post, model_nt)
         if rule is None:
+            if g_context_mode == "init":
+                resolution = "unresolved_init"
             values = {
                 "gS": 0.0,
                 "e_syn": 0.0,
@@ -294,6 +312,8 @@ def build_point_hh_context(
         # Curated gS is uS per contact.  The kernel consumes nS per aggregated
         # network edge, so multiply by 1000 and by the original contact count.
         g_s_nS = float(values["gS"]) * 1000.0 * float(edge_n_syn[edge_index])
+        if g_context_mode == "init":
+            g_s_nS = g_inits["gS"] * float(edge_n_syn[edge_index])
         edge_values["gS"].append(g_s_nS)
         edge_values["e_syn"].append(float(values["e_syn"]))
         edge_values["v_th_syn"].append(float(values["v_th"]))
@@ -337,6 +357,7 @@ def build_point_hh_context(
         )
     provenance = {
         "mapping_version": "point_hh_curated_v1",
+        "g_context_mode": g_context_mode,
         "units": {"time": "ms", "voltage": "mV", "current": "pA",
                   "capacitance": "pF", "conductance": "nS"},
         "area_um2": area_um2,
@@ -357,6 +378,10 @@ def build_point_hh_context(
             "network": str(connectome.source_json),
         },
     }
+    if g_context_mode == "init":
+        provenance["g_inits"] = dict(g_inits)
+        provenance["contact_scaling"] = "gS_nS = params.gS.init * network_n_syn"
+        provenance["unresolved_synapse_policy"] = "gS=params.gS.init*network_n_syn"
     return PointHHContext(
         params=params,
         type_rows=tuple(type_rows),
@@ -947,7 +972,11 @@ def _build_gene_context(context, connectome, gene):
         "ion_version": "v6", "synapse_version": "transmitter_v1",
         "coefficient_scope": "shared_across_all_neuron_types_and_edges",
         "coefficient_names": list(GENE_PARAM_NAMES),
-        "baseline": "curated_conductances_with_contact_counts_already_applied",
+        "baseline": (
+            "init_conductances_with_contact_counts_already_applied"
+            if context.provenance.get("g_context_mode") == "init" else
+            "curated_conductances_with_contact_counts_already_applied"
+        ),
         "expression": {"path": str(path), "sha256": _sha256(path)},
         "max_fold_changes": dict(gene["max_fold_changes"]),
         "feature_scaler": scaler,
@@ -961,7 +990,14 @@ def build_context(connectome, opts):
     if not isinstance(point_hh, dict):
         raise ValueError("point_hh model requires train_opts['point_hh']")
     gene = _gene_options(opts)
-    cache_key = json.dumps(point_hh, sort_keys=True)
+    g_inits = None
+    if str(point_hh.get("g_context_mode", "rule")).lower() == "init":
+        entries = opts.get("params") or {}
+        g_inits = {
+            name: (entries.get(name) or {}).get("init")
+            for name in ("gNa", "gK", "gLeak", "gS")
+        }
+    cache_key = json.dumps((point_hh, g_inits), sort_keys=True)
     context = getattr(connectome, "_point_hh_context", None)
     if (
         context is None
@@ -974,6 +1010,8 @@ def build_context(connectome, opts):
             connections_path=point_hh.get("connections"),
             area_um2=point_hh.get("area_um2", 100.0),
             capacitance_uF_cm2=point_hh.get("capacitance_uF_cm2", 1.0),
+            g_context_mode=point_hh.get("g_context_mode", "rule"),
+            g_inits=g_inits,
         )
         if gene is not None:
             context = _build_gene_context(context, connectome, gene)

@@ -1,0 +1,229 @@
+[
+  {
+    "label": "mbar_initial_00_0.003",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_00_0.003/run",
+    "cost": 1851093.625,
+    "adam_iter": 77,
+    "case": {
+      "label": "mbar_initial_00_0.003",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread_native_100/run",
+      "native": false,
+      "required_source_steps": 100,
+      "resume_adam": false,
+      "lr": 0.003,
+      "n_iter": 80,
+      "backtrack": false,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      }
+    }
+  },
+  {
+    "label": "mbar_initial_01_0.001",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run",
+    "cost": 1509479.75,
+    "adam_iter": 80,
+    "case": {
+      "label": "mbar_initial_01_0.001",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread_native_100/run",
+      "native": false,
+      "required_source_steps": 100,
+      "resume_adam": false,
+      "lr": 0.001,
+      "n_iter": 80,
+      "backtrack": false,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      }
+    }
+  },
+  {
+    "label": "refine_00_resume",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/refine_00_resume/run",
+    "cost": 2113074.75,
+    "adam_iter": 20,
+    "case": {
+      "label": "refine_00_resume",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/early_refine_seed/run",
+      "native": false,
+      "resume_adam": true,
+      "lr": 0.0003,
+      "n_iter": 32,
+      "backtrack": true,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      }
+    }
+  },
+  {
+    "label": "refine_01_reset",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/refine_01_reset/run",
+    "cost": 2115212.5,
+    "adam_iter": 11,
+    "case": {
+      "label": "refine_01_reset",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/early_refine_seed/run",
+      "native": false,
+      "resume_adam": false,
+      "lr": 0.0003,
+      "n_iter": 32,
+      "backtrack": true,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      }
+    }
+  },
+  {
+    "label": "extend_00_adam",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/extend_00_adam/run",
+    "cost": 1781990.5,
+    "adam_iter": 135,
+    "case": {
+      "label": "extend_00_adam",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_00_0.003/run",
+      "native": false,
+      "resume_adam": true,
+      "lr": 0.003,
+      "n_iter": 80,
+      "backtrack": false,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      }
+    }
+  },
+  {
+    "label": "extend_01_backtrack",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/extend_01_backtrack/run",
+    "cost": 1822783.0,
+    "adam_iter": 31,
+    "case": {
+      "label": "extend_01_backtrack",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_00_0.003/run",
+      "native": false,
+      "resume_adam": true,
+      "lr": 0.001,
+      "n_iter": 32,
+      "backtrack": true,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      }
+    }
+  },
+  {
+    "label": "extend_02_reset",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/extend_02_reset/run",
+    "cost": 1851093.625,
+    "adam_iter": 0,
+    "case": {
+      "label": "extend_02_reset",
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_00_0.003/run",
+      "native": false,
+      "resume_adam": false,
+      "lr": 0.001,
+      "n_iter": 40,
+      "backtrack": false,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      }
+    }
+  },
+  {
+    "label": "polish_00_adam",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/polish_00_adam/run",
+    "cost": 1002873.5625,
+    "adam_iter": 133,
+    "case": {
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run",
+      "native": false,
+      "resume_adam": true,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      },
+      "label": "polish_00_adam",
+      "lr": 0.001,
+      "n_iter": 64,
+      "backtrack": false
+    }
+  },
+  {
+    "label": "polish_01_backtrack",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/polish_01_backtrack/run",
+    "cost": 1445214.25,
+    "adam_iter": 21,
+    "case": {
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run",
+      "native": false,
+      "resume_adam": true,
+      "tasks": [
+        "mbar"
+      ],
+      "contrasts": [
+        "bright"
+      ],
+      "part_cost_scales": {
+        "mbar": 1.0,
+        "mbar_DSI": 0.0
+      },
+      "label": "polish_01_backtrack",
+      "lr": 0.0003,
+      "n_iter": 32,
+      "backtrack": true
+    }
+  }
+]

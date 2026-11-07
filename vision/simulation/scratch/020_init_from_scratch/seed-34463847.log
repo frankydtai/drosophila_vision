@@ -1,0 +1,6 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+wrote /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/early_refine_seed/run/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/early_refine_seed/run/param.csv (best run #0, cost=2130424.2500)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/early_refine_seed/run/point_hh_synapse_params.csv
+SEED_VALIDATED {"source_case": "mbar_initial_00_0.003", "captured_cost": 2130424.25, "captured_adam_iter": 9, "source_iterations_observed": 37, "mode": "init", "native_spread_steps": 100, "additional_optimizer_iterations": 0}

@@ -1,0 +1,243 @@
+{
+  "mode": "resume",
+  "lr": 0.003,
+  "device": "cpu",
+  "hardware": "spartan-bm175.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "initial_adam_iter": 79,
+  "records": [
+    {
+      "iter": 0,
+      "cost": 583273.75,
+      "grad_norm": 24286221.47786141,
+      "gradient_dot_step": -1742.353887188789,
+      "adam_iter": 80,
+      "step_norm": 0.0023086195533152895
+    },
+    {
+      "iter": 1,
+      "cost": 594099.125,
+      "grad_norm": 15299642.457772294,
+      "gradient_dot_step": -5083.680873554402,
+      "adam_iter": 81,
+      "step_norm": 0.0022021894099937076
+    },
+    {
+      "iter": 2,
+      "cost": 594153.125,
+      "grad_norm": 18783010.99425659,
+      "gradient_dot_step": -4839.110563780254,
+      "adam_iter": 82,
+      "step_norm": 0.002107618542065338
+    },
+    {
+      "iter": 3,
+      "cost": 603628.0,
+      "grad_norm": 14637828.76584386,
+      "gradient_dot_step": -6609.837519089546,
+      "adam_iter": 83,
+      "step_norm": 0.0020508154645429858
+    },
+    {
+      "iter": 4,
+      "cost": 596737.25,
+      "grad_norm": 19554398.99159718,
+      "gradient_dot_step": -9477.555663115178,
+      "adam_iter": 84,
+      "step_norm": 0.0020098980371194147
+    },
+    {
+      "iter": 5,
+      "cost": 634567.25,
+      "grad_norm": 15224426.86145569,
+      "gradient_dot_step": -6295.140229580586,
+      "adam_iter": 85,
+      "step_norm": 0.002004486449456083
+    },
+    {
+      "iter": 6,
+      "cost": 648117.0625,
+      "grad_norm": 16102173.271376867,
+      "gradient_dot_step": -8083.706058524489,
+      "adam_iter": 86,
+      "step_norm": 0.0019997989203873142
+    },
+    {
+      "iter": 7,
+      "cost": 640376.875,
+      "grad_norm": 17052455.81448195,
+      "gradient_dot_step": -7550.869324288791,
+      "adam_iter": 87,
+      "step_norm": 0.0019690744617715883
+    },
+    {
+      "iter": 8,
+      "cost": 633178.625,
+      "grad_norm": 18040341.021737967,
+      "gradient_dot_step": -7460.083941751696,
+      "adam_iter": 88,
+      "step_norm": 0.001937911958527977
+    },
+    {
+      "iter": 9,
+      "cost": 626111.5,
+      "grad_norm": 16178062.306946289,
+      "gradient_dot_step": -7475.958432642731,
+      "adam_iter": 89,
+      "step_norm": 0.0019206981298099603
+    },
+    {
+      "iter": 10,
+      "cost": 619599.0625,
+      "grad_norm": 10586155.29678553,
+      "gradient_dot_step": -5892.9690368566135,
+      "adam_iter": 90,
+      "step_norm": 0.001875256973038634
+    },
+    {
+      "iter": 11,
+      "cost": 611608.4375,
+      "grad_norm": 13624090.00434979,
+      "gradient_dot_step": -5902.15970928889,
+      "adam_iter": 91,
+      "step_norm": 0.0018370571677735707
+    },
+    {
+      "iter": 12,
+      "cost": 606412.0625,
+      "grad_norm": 10129981.903961299,
+      "gradient_dot_step": -5396.030919373387,
+      "adam_iter": 92,
+      "step_norm": 0.001766347761407006
+    },
+    {
+      "iter": 13,
+      "cost": 610388.375,
+      "grad_norm": 76074181.46105935,
+      "gradient_dot_step": -46408.75187238154,
+      "adam_iter": 93,
+      "step_norm": 0.0021992783492480648
+    },
+    {
+      "iter": 14,
+      "cost": 607418.375,
+      "grad_norm": 11765440.240027102,
+      "gradient_dot_step": -6939.923881006,
+      "adam_iter": 94,
+      "step_norm": 0.002167850310376902
+    },
+    {
+      "iter": 15,
+      "cost": 646508.25,
+      "grad_norm": 19557950.055338494,
+      "gradient_dot_step": -4371.27557705128,
+      "adam_iter": 95,
+      "step_norm": 0.0021064483533624724
+    },
+    {
+      "iter": 16,
+      "cost": 679850.25,
+      "grad_norm": 14991098.795744209,
+      "gradient_dot_step": -7914.717115211983,
+      "adam_iter": 96,
+      "step_norm": 0.0021072707531648457
+    },
+    {
+      "iter": 17,
+      "cost": 682922.6875,
+      "grad_norm": 14947869.81852654,
+      "gradient_dot_step": -7305.356537805369,
+      "adam_iter": 97,
+      "step_norm": 0.00207386467779512
+    },
+    {
+      "iter": 18,
+      "cost": 704613.3125,
+      "grad_norm": 14012670.281894093,
+      "gradient_dot_step": -6759.28282799716,
+      "adam_iter": 98,
+      "step_norm": 0.0020125980977093783
+    },
+    {
+      "iter": 19,
+      "cost": 699820.875,
+      "grad_norm": 25566383.649220526,
+      "gradient_dot_step": -6455.356222567849,
+      "adam_iter": 99,
+      "step_norm": 0.0018991535955071076
+    }
+  ],
+  "adam_roundtrip_exact": true,
+  "adam_finite": true,
+  "adam_v_nonnegative": true,
+  "initial_cost": 583273.75,
+  "gradient_norm": 24286221.47786141,
+  "gradient_finite": true,
+  "repeat_forward_costs": [
+    583273.75,
+    583273.75
+  ],
+  "probes": [
+    {
+      "reset": false,
+      "clamped_coordinates": 0,
+      "gradient_dot_full_step": -1742.353887188789,
+      "step_norm": 0.0023086195533152895,
+      "trials": [
+        {
+          "lr_equivalent": 0.003,
+          "cost": 594099.125
+        },
+        {
+          "lr_equivalent": 0.00030000000000000003,
+          "cost": 583100.5625
+        },
+        {
+          "lr_equivalent": 3e-05,
+          "cost": 583256.8125
+        },
+        {
+          "lr_equivalent": 3e-06,
+          "cost": 583271.25
+        },
+        {
+          "lr_equivalent": -3e-05,
+          "cost": 583292.6875
+        }
+      ]
+    },
+    {
+      "reset": true,
+      "clamped_coordinates": 0,
+      "gradient_dot_full_step": -184734.38414443916,
+      "step_norm": 0.021633077528923343,
+      "trials": [
+        {
+          "lr_equivalent": 0.003,
+          "cost": 602568.8125
+        },
+        {
+          "lr_equivalent": 0.00030000000000000003,
+          "cost": 568819.6875
+        },
+        {
+          "lr_equivalent": 3e-05,
+          "cost": 581642.0
+        },
+        {
+          "lr_equivalent": 3e-06,
+          "cost": 583092.75
+        },
+        {
+          "lr_equivalent": -3e-05,
+          "cost": 593529.5625
+        }
+      ]
+    }
+  ],
+  "manual_adam_update_max_error": 0.0,
+  "elapsed_s": 491.94504345953465,
+  "final_cost": 695509.25,
+  "best_cost": 583273.75,
+  "copy_files_unchanged": true
+}

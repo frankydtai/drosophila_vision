@@ -1,0 +1,8 @@
+{
+  "planned_grid_cases": 38,
+  "grid_cases_completed": 8,
+  "remaining_grid_cases_run": false,
+  "representative_cases_completed": 2,
+  "reason": "Broad extension pruned after its completed cases did not reproduce strong HPLP-like moving-bar reverse peaks; two centered operating-point representatives were then fully tested.",
+  "main_candidate_validation_complete": true
+}

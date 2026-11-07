@@ -1,0 +1,87 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+from '/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread_native_100/run' -> '/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread_native_100/run/data/best_param.npz' only (62 z, reset Adam, resume_adam=false)
+STEP {"iter": 0, "cost": 9058330.0, "grad_norm": 1443058204.0678227, "lr": 0.001, "adam_iter": 1} BEST 9058330.0
+STEP {"iter": 1, "cost": 6122392.5, "grad_norm": 1621622988.038818, "lr": 0.001, "adam_iter": 2} BEST 6122392.5
+STEP {"iter": 2, "cost": 4163595.25, "grad_norm": 238536294.23317242, "lr": 0.001, "adam_iter": 3} BEST 4163595.25
+STEP {"iter": 3, "cost": 4738407.0, "grad_norm": 1157541727.023084, "lr": 0.001, "adam_iter": 4} BEST 4163595.25
+STEP {"iter": 4, "cost": 5207816.0, "grad_norm": 1732883531.775628, "lr": 0.001, "adam_iter": 5} BEST 4163595.25
+STEP {"iter": 5, "cost": 4451272.0, "grad_norm": 986758823.1952819, "lr": 0.001, "adam_iter": 6} BEST 4163595.25
+STEP {"iter": 6, "cost": 3667915.5, "grad_norm": 550570856.9597483, "lr": 0.001, "adam_iter": 7} BEST 3667915.5
+STEP {"iter": 7, "cost": 3326827.0, "grad_norm": 817200253.9093587, "lr": 0.001, "adam_iter": 8} BEST 3326827.0
+STEP {"iter": 8, "cost": 3251884.5, "grad_norm": 303777939.7433904, "lr": 0.001, "adam_iter": 9} BEST 3251884.5
+STEP {"iter": 9, "cost": 3178525.0, "grad_norm": 871056437.3857973, "lr": 0.001, "adam_iter": 10} BEST 3178525.0
+STEP {"iter": 10, "cost": 2936231.25, "grad_norm": 972018160.029091, "lr": 0.001, "adam_iter": 11} BEST 2936231.25
+STEP {"iter": 11, "cost": 2736851.5, "grad_norm": 316361980.7134665, "lr": 0.001, "adam_iter": 12} BEST 2736851.5
+STEP {"iter": 12, "cost": 2606144.0, "grad_norm": 144288042.60197714, "lr": 0.001, "adam_iter": 13} BEST 2606144.0
+STEP {"iter": 13, "cost": 2619010.5, "grad_norm": 404998346.65276945, "lr": 0.001, "adam_iter": 14} BEST 2606144.0
+STEP {"iter": 14, "cost": 2574778.5, "grad_norm": 301256793.81386346, "lr": 0.001, "adam_iter": 15} BEST 2574778.5
+STEP {"iter": 15, "cost": 2500061.25, "grad_norm": 295942696.822675, "lr": 0.001, "adam_iter": 16} BEST 2500061.25
+STEP {"iter": 16, "cost": 2418798.0, "grad_norm": 308149488.45671475, "lr": 0.001, "adam_iter": 17} BEST 2418798.0
+STEP {"iter": 17, "cost": 2323466.25, "grad_norm": 256605608.67706367, "lr": 0.001, "adam_iter": 18} BEST 2323466.25
+STEP {"iter": 18, "cost": 2224650.25, "grad_norm": 82500908.7909666, "lr": 0.001, "adam_iter": 19} BEST 2224650.25
+STEP {"iter": 19, "cost": 2159411.5, "grad_norm": 154625194.09296814, "lr": 0.001, "adam_iter": 20} BEST 2159411.5
+STEP {"iter": 20, "cost": 2182785.25, "grad_norm": 168356519.6870523, "lr": 0.001, "adam_iter": 21} BEST 2159411.5
+STEP {"iter": 21, "cost": 2170921.5, "grad_norm": 545974776.4269009, "lr": 0.001, "adam_iter": 22} BEST 2159411.5
+STEP {"iter": 22, "cost": 2168317.5, "grad_norm": 446662891.0623592, "lr": 0.001, "adam_iter": 23} BEST 2159411.5
+STEP {"iter": 23, "cost": 2135539.75, "grad_norm": 356996524.4306432, "lr": 0.001, "adam_iter": 24} BEST 2135539.75
+STEP {"iter": 24, "cost": 2178995.0, "grad_norm": 95146321.98951693, "lr": 0.001, "adam_iter": 25} BEST 2135539.75
+STEP {"iter": 25, "cost": 2147604.0, "grad_norm": 105318812.63937682, "lr": 0.001, "adam_iter": 26} BEST 2135539.75
+STEP {"iter": 26, "cost": 2175637.0, "grad_norm": 46320680.260153465, "lr": 0.001, "adam_iter": 27} BEST 2135539.75
+STEP {"iter": 27, "cost": 2203868.75, "grad_norm": 150018865.98111907, "lr": 0.001, "adam_iter": 28} BEST 2135539.75
+STEP {"iter": 28, "cost": 2227930.0, "grad_norm": 73120442.14020193, "lr": 0.001, "adam_iter": 29} BEST 2135539.75
+STEP {"iter": 29, "cost": 2227717.0, "grad_norm": 223670182.20079294, "lr": 0.001, "adam_iter": 30} BEST 2135539.75
+STEP {"iter": 30, "cost": 2275709.0, "grad_norm": 274351763.55430776, "lr": 0.001, "adam_iter": 31} BEST 2135539.75
+STEP {"iter": 31, "cost": 2276842.75, "grad_norm": 71703822.3300809, "lr": 0.001, "adam_iter": 32} BEST 2135539.75
+STEP {"iter": 32, "cost": 2270130.0, "grad_norm": 71093546.47861147, "lr": 0.001, "adam_iter": 33} BEST 2135539.75
+STEP {"iter": 33, "cost": 2248639.25, "grad_norm": 188761917.11765465, "lr": 0.001, "adam_iter": 34} BEST 2135539.75
+STEP {"iter": 34, "cost": 2196129.0, "grad_norm": 61969293.57452028, "lr": 0.001, "adam_iter": 35} BEST 2135539.75
+STEP {"iter": 35, "cost": 2127624.75, "grad_norm": 339641006.1111379, "lr": 0.001, "adam_iter": 36} BEST 2127624.75
+STEP {"iter": 36, "cost": 2165829.5, "grad_norm": 199690862.71965894, "lr": 0.001, "adam_iter": 37} BEST 2127624.75
+STEP {"iter": 37, "cost": 2222780.5, "grad_norm": 496021819.11080915, "lr": 0.001, "adam_iter": 38} BEST 2127624.75
+STEP {"iter": 38, "cost": 2276424.0, "grad_norm": 241252320.06922492, "lr": 0.001, "adam_iter": 39} BEST 2127624.75
+STEP {"iter": 39, "cost": 2267334.5, "grad_norm": 497218274.54463875, "lr": 0.001, "adam_iter": 40} BEST 2127624.75
+STEP {"iter": 40, "cost": 2323450.5, "grad_norm": 214621014.67879376, "lr": 0.001, "adam_iter": 41} BEST 2127624.75
+STEP {"iter": 41, "cost": 2536460.75, "grad_norm": 265775855.15574053, "lr": 0.001, "adam_iter": 42} BEST 2127624.75
+STEP {"iter": 42, "cost": 2737077.0, "grad_norm": 504048472.9394842, "lr": 0.001, "adam_iter": 43} BEST 2127624.75
+STEP {"iter": 43, "cost": 2755057.5, "grad_norm": 3174859951.9955273, "lr": 0.001, "adam_iter": 44} BEST 2127624.75
+STEP {"iter": 44, "cost": 2338893.5, "grad_norm": 124394385.94585896, "lr": 0.001, "adam_iter": 45} BEST 2127624.75
+STEP {"iter": 45, "cost": 2320675.5, "grad_norm": 269265408.86058545, "lr": 0.001, "adam_iter": 46} BEST 2127624.75
+STEP {"iter": 46, "cost": 2491069.0, "grad_norm": 607335012.7455095, "lr": 0.001, "adam_iter": 47} BEST 2127624.75
+STEP {"iter": 47, "cost": 2363387.5, "grad_norm": 387464206.3506756, "lr": 0.001, "adam_iter": 48} BEST 2127624.75
+STEP {"iter": 48, "cost": 2453926.5, "grad_norm": 455239369.97186124, "lr": 0.001, "adam_iter": 49} BEST 2127624.75
+STEP {"iter": 49, "cost": 2445936.5, "grad_norm": 225480664.73700583, "lr": 0.001, "adam_iter": 50} BEST 2127624.75
+STEP {"iter": 50, "cost": 2350993.75, "grad_norm": 644086109.7192048, "lr": 0.001, "adam_iter": 51} BEST 2127624.75
+STEP {"iter": 51, "cost": 2355026.5, "grad_norm": 757550444.0222833, "lr": 0.001, "adam_iter": 52} BEST 2127624.75
+STEP {"iter": 52, "cost": 2268921.25, "grad_norm": 307299610.33128476, "lr": 0.001, "adam_iter": 53} BEST 2127624.75
+STEP {"iter": 53, "cost": 2146668.75, "grad_norm": 383522601.45936257, "lr": 0.001, "adam_iter": 54} BEST 2127624.75
+STEP {"iter": 54, "cost": 2036091.0, "grad_norm": 156330694.50777358, "lr": 0.001, "adam_iter": 55} BEST 2036091.0
+STEP {"iter": 55, "cost": 1943277.0, "grad_norm": 259339149.83950326, "lr": 0.001, "adam_iter": 56} BEST 1943277.0
+STEP {"iter": 56, "cost": 1889048.625, "grad_norm": 114940244.58574708, "lr": 0.001, "adam_iter": 57} BEST 1889048.625
+STEP {"iter": 57, "cost": 1954411.875, "grad_norm": 42542477.2218203, "lr": 0.001, "adam_iter": 58} BEST 1889048.625
+STEP {"iter": 58, "cost": 1958439.5, "grad_norm": 1089378195.2443209, "lr": 0.001, "adam_iter": 59} BEST 1889048.625
+STEP {"iter": 59, "cost": 1818580.25, "grad_norm": 54277025.28970524, "lr": 0.001, "adam_iter": 60} BEST 1818580.25
+STEP {"iter": 60, "cost": 1803579.5, "grad_norm": 88672239.53730379, "lr": 0.001, "adam_iter": 61} BEST 1803579.5
+STEP {"iter": 61, "cost": 1805221.25, "grad_norm": 164744779.30754593, "lr": 0.001, "adam_iter": 62} BEST 1803579.5
+STEP {"iter": 62, "cost": 1773479.75, "grad_norm": 86969612.12981558, "lr": 0.001, "adam_iter": 63} BEST 1773479.75
+STEP {"iter": 63, "cost": 1773561.25, "grad_norm": 152821149.37955996, "lr": 0.001, "adam_iter": 64} BEST 1773479.75
+STEP {"iter": 64, "cost": 1765237.375, "grad_norm": 524865224.11430264, "lr": 0.001, "adam_iter": 65} BEST 1765237.375
+STEP {"iter": 65, "cost": 1739568.0, "grad_norm": 100011839.6685615, "lr": 0.001, "adam_iter": 66} BEST 1739568.0
+STEP {"iter": 66, "cost": 1706634.125, "grad_norm": 93062911.44002317, "lr": 0.001, "adam_iter": 67} BEST 1706634.125
+STEP {"iter": 67, "cost": 1681242.375, "grad_norm": 116439418.57128735, "lr": 0.001, "adam_iter": 68} BEST 1681242.375
+STEP {"iter": 68, "cost": 1654249.25, "grad_norm": 105740187.78575066, "lr": 0.001, "adam_iter": 69} BEST 1654249.25
+STEP {"iter": 69, "cost": 1683558.125, "grad_norm": 590652497.2616742, "lr": 0.001, "adam_iter": 70} BEST 1654249.25
+STEP {"iter": 70, "cost": 1654233.5, "grad_norm": 74154034.58177732, "lr": 0.001, "adam_iter": 71} BEST 1654233.5
+STEP {"iter": 71, "cost": 1636049.25, "grad_norm": 142425101.39657462, "lr": 0.001, "adam_iter": 72} BEST 1636049.25
+STEP {"iter": 72, "cost": 1611455.0, "grad_norm": 194434282.80459854, "lr": 0.001, "adam_iter": 73} BEST 1611455.0
+STEP {"iter": 73, "cost": 1597461.125, "grad_norm": 27192375.170509845, "lr": 0.001, "adam_iter": 74} BEST 1597461.125
+STEP {"iter": 74, "cost": 1592414.25, "grad_norm": 286476775.67272466, "lr": 0.001, "adam_iter": 75} BEST 1592414.25
+STEP {"iter": 75, "cost": 1532504.75, "grad_norm": 86749086.52258138, "lr": 0.001, "adam_iter": 76} BEST 1532504.75
+STEP {"iter": 76, "cost": 1537091.25, "grad_norm": 92184410.50623359, "lr": 0.001, "adam_iter": 77} BEST 1532504.75
+STEP {"iter": 77, "cost": 1530392.5, "grad_norm": 75980630.81493066, "lr": 0.001, "adam_iter": 78} BEST 1530392.5
+STEP {"iter": 78, "cost": 1528970.25, "grad_norm": 100349121.41823727, "lr": 0.001, "adam_iter": 79} BEST 1528970.25
+STEP {"iter": 79, "cost": 1515226.25, "grad_norm": 67631169.40612626, "lr": 0.001, "adam_iter": 80} BEST 1515226.25
+wrote /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run/param.csv (best run #0, cost=1509479.7500)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run/point_hh_synapse_params.csv
+DONE mbar_initial_01_0.001 1509479.75 completed

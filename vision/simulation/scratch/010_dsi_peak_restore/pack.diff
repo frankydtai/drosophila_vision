@@ -1,0 +1,45 @@
+--- /home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/4_pack.py
++++ pack.candidate.py
+@@ -186,6 +186,42 @@
+         key: -dsi
+         for key, dsi in dsi_values(pack, trace, b_offset=b_offset).items()
+     }
++
++
++def dsi_peak_values(pack, trace, bias_gt, *, b_offset=0, eps=1e-8):
++    """Normalized peaks of baseline-relative, aligned PD/ND mean traces.
++
++    Average each direction over selected entries on its common transit window,
++    take its nonnegative peak, then return (R_PD-R_ND)/(R_PD+R_ND+eps).
++    """
++    if pack.dsi_t0s is None or pack.dsi_n_ts is None:
++        raise ValueError("moving-bar DSI requires per-entry transit windows")
++    stops = pack.dsi_t0s + pack.dsi_n_ts
++    if bool((pack.dsi_t0s < 0).any()) or bool((stops > trace.shape[1]).any()):
++        raise ValueError("moving-bar DSI window is outside the simulated trace")
++    # Current hex_dsi_window spans [-T, 3T], including both endpoints.
++    before = (pack.dsi_n_ts - 1) // 4
++    first_sti = pack.dsi_t0s + before
++    offsets = torch.arange(
++        -int(before.max()), int((pack.dsi_n_ts - 1 - before).max()) + 1,
++        device=trace.device,
++    )
++    ts = first_sti[:, None] + offsets[None, :]
++    valid = (ts >= pack.dsi_t0s[:, None]) & (ts < stops[:, None])
++    response = trace[
++        pack.entry_bs[:, None] + int(b_offset),
++        ts.clamp(min=0, max=trace.shape[1] - 1),
++        pack.entry_nodes[:, None],
++    ] - bias_gt[:, None]
++    parts = {}
++    for key, pd, nd in dsi_groups(pack):
++        pd_mean = response[pd].mean(dim=0)
++        nd_mean = response[nd].mean(dim=0)
++        r_pd = pd_mean.masked_fill(~valid[pd].all(dim=0), -torch.inf).amax().clamp_min(0.0)
++        r_nd = nd_mean.masked_fill(~valid[nd].all(dim=0), -torch.inf).amax().clamp_min(0.0)
++        dsi = (r_pd - r_nd) / (r_pd + r_nd + eps)
++        parts[key] = dsi
++    return parts
+ 
+ 
+ def _mbar_cost_part_plot_specs(

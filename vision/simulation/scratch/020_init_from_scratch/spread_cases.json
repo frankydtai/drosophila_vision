@@ -1,0 +1,23 @@
+[
+  {
+    "label": "spread_native_100",
+    "native": true,
+    "seed": 0,
+    "source": null,
+    "resume_adam": false,
+    "lr": 0.003,
+    "n_iter": 100,
+    "backtrack": false,
+    "tasks": [
+      "spread"
+    ],
+    "contrasts": [
+      "bright",
+      "dark"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  }
+]

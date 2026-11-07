@@ -1,0 +1,27 @@
+{
+  "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427799-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0",
+  "dt_ms": 1.0,
+  "k_minus_syn": 0.01,
+  "changes": {
+    "name": "gain6",
+    "forward_gain": 6.0,
+    "forward_threshold_mV": -51.0,
+    "forward_delta_mV": 0.5
+  },
+  "kernel_modified": false,
+  "optimizer_history_copied": false,
+  "physically_reloaded_max_errors": {
+    "cap": 0.0,
+    "gNa": 0.0,
+    "gK": 0.0,
+    "gLeak": 0.0,
+    "eNa": 0.0,
+    "eK": 0.0,
+    "eLeak": 0.0,
+    "gS": 3.0517578125e-05,
+    "e_syn": 0.0,
+    "v_th_syn": 0.0,
+    "delta_syn": 0.0,
+    "k_minus_syn": 0.0
+  }
+}

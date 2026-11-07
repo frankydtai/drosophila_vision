@@ -1,0 +1,51 @@
+{
+  "selected_cost": 469100.78125,
+  "parameter_roundtrip_exact": true,
+  "selected_adam_iter": 20,
+  "images": {
+    "cost.png": {
+      "width": 2192,
+      "height": 1346,
+      "bytes": 189206,
+      "sha256": "849cc10099cefa705849cfe73ea585cafab42fc1b38c47d1567d7d005958c94f"
+    },
+    "spread_gt_v.png": {
+      "width": 2159,
+      "height": 991,
+      "bytes": 181442,
+      "sha256": "7c517a3987a35dc94edb490b067f6669e0b015bd1c872c71f60e1bb1243d9f4c"
+    },
+    "spread_all_v.png": {
+      "width": 2102,
+      "height": 1295,
+      "bytes": 190766,
+      "sha256": "0c416ae1df8d82e3164afc888783738ca4192696e557f357a9d9ada754a1377b"
+    },
+    "mbar_gt_v.png": {
+      "width": 851,
+      "height": 542,
+      "bytes": 72350,
+      "sha256": "54a3095ade71bf70b1a338abb4de8f102ff3ea7a541837e246e553992b1b59c1"
+    },
+    "mbar_all_v.png": {
+      "width": 854,
+      "height": 2303,
+      "bytes": 197965,
+      "sha256": "3e9d8dd8eba07c408361e60113e62f974bbba36777d8059560f25064445434cf"
+    },
+    "sbar_gt_v.png": {
+      "width": 860,
+      "height": 405,
+      "bytes": 65243,
+      "sha256": "57e69f03168d74ca03fcca55e40b21e95548f24f4fb547dbb277764e35cb0226"
+    },
+    "sbar_all_v.png": {
+      "width": 860,
+      "height": 1830,
+      "bytes": 208021,
+      "sha256": "e15d4b9104895a40bdb522d5f61055da80a2975cb32fed2df0efc11d03625f95"
+    }
+  },
+  "protected_files_unchanged": true,
+  "elapsed_s": 53.06657973304391
+}

@@ -1,0 +1,55 @@
+{
+  "selected_run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/polish_00_adam/run",
+  "g_context_mode": "init",
+  "spread_iterations": 100,
+  "selected_cost": 1002873.5625,
+  "selected_adam_iter": 133,
+  "parameter_roundtrip_exact": true,
+  "adam_moments_roundtrip_exact": true,
+  "images": {
+    "cost.png": {
+      "width": 2214,
+      "height": 1346,
+      "bytes": 199665,
+      "sha256": "a59ba4f88662bcecf6295dc65e53848b48c12a534058e773df0fb4ed15127d98"
+    },
+    "spread_gt_v.png": {
+      "width": 2159,
+      "height": 991,
+      "bytes": 185761,
+      "sha256": "e457943a933b3d1c7ae8cfb0d973746f16110a5cbf2ba4fd75819f9e38864456"
+    },
+    "spread_all_v.png": {
+      "width": 2102,
+      "height": 1295,
+      "bytes": 196421,
+      "sha256": "46cc19da42843c387cae1c61f8da6c99d5f07bc32970ae1772f9971a2dab108d"
+    },
+    "mbar_gt_v.png": {
+      "width": 862,
+      "height": 542,
+      "bytes": 74251,
+      "sha256": "fc6e10983a1924f72f3679f3bdfabb1991f2545f6b3d4af97430b62b679127c9"
+    },
+    "mbar_all_v.png": {
+      "width": 864,
+      "height": 2303,
+      "bytes": 206598,
+      "sha256": "fdde6db3618d2c5a6266dc03a346101b30643747f52221afc01ed46531cd6e73"
+    },
+    "sbar_gt_v.png": {
+      "width": 860,
+      "height": 405,
+      "bytes": 68869,
+      "sha256": "3e50ff141db059e8e52f442097d18db86d43979e71683de8b4a592818bffd8d0"
+    },
+    "sbar_all_v.png": {
+      "width": 860,
+      "height": 1830,
+      "bytes": 209621,
+      "sha256": "8f9cd0ca406fc703b7559082f78a169f8fba12bbb972b1167dc8fff9c9824feb"
+    }
+  },
+  "protected_files_unchanged": true,
+  "elapsed_s": 64.42644728533924
+}

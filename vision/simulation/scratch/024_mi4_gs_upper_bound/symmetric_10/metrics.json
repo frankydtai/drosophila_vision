@@ -1,0 +1,80 @@
+{
+  "total": 855181.625,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 241290.3125,
+    "mbar_right_bright_w1_T4b_ND": 92273.3671875,
+    "mbar_left_bright_w1_T4a_ND": 159429.34375,
+    "mbar_left_bright_w1_T4b_PD": 362188.625
+  },
+  "groups": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 13.706896781921387,
+      "nd_peak_mV": 8.64940071105957,
+      "nd_pd_ratio": 0.6310254500834671,
+      "dsi_peak": 0.22622243554360721
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 13.26961612701416,
+      "nd_peak_mV": 7.793823719024658,
+      "nd_pd_ratio": 0.5873435707878591,
+      "dsi_peak": 0.25996667426662556
+    }
+  },
+  "case": {
+    "label": "symmetric_10",
+    "upper_fold": 10,
+    "kind": "symmetric",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  "parameter_summary": {
+    "free_parameters": 62,
+    "at_lower_bound": 0,
+    "at_upper_bound": 4,
+    "zero_gS_edges": 0,
+    "active_gS_edges": 27824
+  },
+  "mi4_output": {
+    "mbar_right_bright_w1_T4a_PD": {
+      "nominal_total_gS_nS": 16.554262161254883,
+      "peak_weighted_open_fraction": 0.8528128862380981,
+      "baseline_weighted_open_fraction": 0.5528795719146729,
+      "peak_open_conductance_nS": 14.117688179016113,
+      "peak_outward_current_pA": 254.57431030273438,
+      "peak_evoked_outward_current_pA": 114.79594421386719,
+      "evoked_current_integral_pA_ms": 32366.21484375
+    },
+    "mbar_right_bright_w1_T4b_ND": {
+      "nominal_total_gS_nS": 19.47612762451172,
+      "peak_weighted_open_fraction": 0.8848336338996887,
+      "baseline_weighted_open_fraction": 0.5926672220230103,
+      "peak_open_conductance_nS": 17.23313331604004,
+      "peak_outward_current_pA": 272.40020751953125,
+      "peak_evoked_outward_current_pA": 138.74606323242188,
+      "evoked_current_integral_pA_ms": 33824.19140625
+    },
+    "mbar_left_bright_w1_T4a_ND": {
+      "nominal_total_gS_nS": 16.554262161254883,
+      "peak_weighted_open_fraction": 0.8527883887290955,
+      "baseline_weighted_open_fraction": 0.5528795719146729,
+      "peak_open_conductance_nS": 14.11728286743164,
+      "peak_outward_current_pA": 286.5713806152344,
+      "peak_evoked_outward_current_pA": 146.7930145263672,
+      "evoked_current_integral_pA_ms": 40375.44921875
+    },
+    "mbar_left_bright_w1_T4b_PD": {
+      "nominal_total_gS_nS": 19.47612762451172,
+      "peak_weighted_open_fraction": 0.8906767964363098,
+      "baseline_weighted_open_fraction": 0.5926672220230103,
+      "peak_open_conductance_nS": 17.346935272216797,
+      "peak_outward_current_pA": 255.70213317871094,
+      "peak_evoked_outward_current_pA": 122.04798889160156,
+      "evoked_current_integral_pA_ms": 30264.033203125
+    },
+    "source_voltage_summary": {
+      "baseline_mean_mV": -40.51830291748047,
+      "maximum_spatial_mean_mV": -33.78776550292969
+    }
+  },
+  "nominal_per_contact_gS_upper_nS": 3.0,
+  "nominal_per_contact_gS_lower_nS": 0.03
+}

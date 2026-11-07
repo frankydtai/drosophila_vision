@@ -1,0 +1,11 @@
+--- a/vision/simulation/conf/config.yaml
++++ b/vision/simulation/conf/config.yaml
+@@ -127,7 +127,7 @@
+     expression: /home/yitai/Ripple/3_T4T5_mcHH_model/gene_2_param/expr_matrix_subset_all_curated.csv
+     # null fits the feature scaler on the current network types.
+     training_types: null
+-    max_fold_changes: {gNa: 4.0, gK: 3.5, gLeak: 3.0, gS: 6.0}
++    max_fold_changes: {gNa: 4.0, gK: 3.5, gLeak: 3.0, gS: 10.0}
+     params:
+       # One scalar per gene link, shared across all neuron types.
+       gene_gNa_para: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}

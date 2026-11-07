@@ -1,0 +1,47 @@
+{
+  "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_4_point_hh.py": {
+    "initial": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+    "current": "65ef4c9d80848eadcc7c8c4d4a6017238a60f8247308d4b9c7c590f6a37311cd",
+    "unchanged": true
+  },
+  "/home/yitai/drosophila_vision/vision/simulation/1_neuron/1_2_hp_lp.py": {
+    "initial": "ef2803ecafbc7679d200fb5ae491d2bd3e840d820d75cc491e0a12df10c9fbfe",
+    "current": "ef2803ecafbc7679d200fb5ae491d2bd3e840d820d75cc491e0a12df10c9fbfe",
+    "unchanged": true
+  },
+  "/home/yitai/drosophila_vision/vision/simulation/1_neuron/4_forward.py": {
+    "initial": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "current": "ab44fc083459cef54e7d780b2a43330142174fa7de831d5b07efc440b5b0f923",
+    "unchanged": true
+  },
+  "/home/yitai/drosophila_vision/vision/simulation/4_train/3_cost.py": {
+    "initial": "d9dfd20cb031d8ec1fa1e47524134276b28a4dfef58c3035dd8f80d7e86cfa14",
+    "current": "d9dfd20cb031d8ec1fa1e47524134276b28a4dfef58c3035dd8f80d7e86cfa14",
+    "unchanged": true
+  },
+  "/home/yitai/drosophila_vision/vision/simulation/4_train/1_param.py": {
+    "initial": "87084c855e1e20b5323fec854781280ce0eb3f1ec320fc219b0a5cbc534f4fd3",
+    "current": "87084c855e1e20b5323fec854781280ce0eb3f1ec320fc219b0a5cbc534f4fd3",
+    "unchanged": true
+  },
+  "/home/yitai/drosophila_vision/vision/simulation/4_train/2_session.py": {
+    "initial": "b6145bb07de7a52ba6ac40924c2b819a6890ac392b4a1afdb4ca1080e359b775",
+    "current": "b6145bb07de7a52ba6ac40924c2b819a6890ac392b4a1afdb4ca1080e359b775",
+    "unchanged": true
+  },
+  "/home/yitai/drosophila_vision/vision/simulation/3_task/4_mbar/4_pack.py": {
+    "initial": "b1b5e79a8a334541b5d5a3135358ec353305d19951080c301e843986d47f4e1c",
+    "current": "03637f65788200b0220aaa23ac08e9faff68fff3a426fb5a512beb4d6fa54d4e",
+    "unchanged": false
+  },
+  "mbar_pack_existing_functions_unchanged": true,
+  "mbar_pack_added_functions": [
+    "dsi_peak_values"
+  ],
+  "saved_parameter_files_unchanged": {
+    "HH/train_opts.json": true,
+    "HH/best_param.npz": true,
+    "HPLP/train_opts.json": true,
+    "HPLP/best_param.npz": true
+  }
+}

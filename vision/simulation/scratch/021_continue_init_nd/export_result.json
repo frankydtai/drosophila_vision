@@ -1,0 +1,75 @@
+{
+  "folder": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+  "cost": 994279.375,
+  "previous_cost": 1002873.5625,
+  "improvement_percent": 0.8569562327055524,
+  "nd_loss_before": 594820.015625,
+  "nd_loss_after": 576710.484375,
+  "selection_tradeoff": "ND_peaks_and_total_lower_but_at_least_one_ND_PD_ratio_did_not_improve",
+  "ND_before": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 15.036992073059082,
+      "nd_peak_mV": 11.029266357421875,
+      "nd_pd_ratio": 0.7334755716991019,
+      "dsi_peak": 0.1537514762538071
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 14.765630722045898,
+      "nd_peak_mV": 9.975295066833496,
+      "nd_pd_ratio": 0.6755752771156488,
+      "dsi_peak": 0.19361990307692423
+    }
+  },
+  "ND_after": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 14.79284381866455,
+      "nd_peak_mV": 10.843286514282227,
+      "nd_pd_ratio": 0.7330089229091261,
+      "dsi_peak": 0.1540621478962389
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 14.527135848999023,
+      "nd_peak_mV": 9.937688827514648,
+      "nd_pd_ratio": 0.6840776413748064,
+      "dsi_peak": 0.18759370158145156
+    }
+  },
+  "images": [
+    "cost.png",
+    "spread_gt_v.png",
+    "spread_all_v.png",
+    "mbar_gt_v.png",
+    "mbar_all_v.png",
+    "sbar_gt_v.png",
+    "sbar_all_v.png",
+    "nd_comparison.png"
+  ],
+  "parameters_and_adam_verified": true,
+  "protected_files_unchanged": true,
+  "total_additional_iterations": 190,
+  "files": {
+    "param.csv": "6c76e4cc17479de24fc9e654fe1a72f4da66aef2a2d6ddeaaea83319c407074a",
+    "point_hh_synapse_params.csv": "cd5f5842140298e8fcab79926e0caad945767d68c3aed220b92136617c1789d3",
+    "cost.png": "3196ed49da472245f9050d0cf08f75b708d79c90b45e09e3f8ab2adafebc8a44",
+    "spread_gt_v.png": "511e31fee93a3fcd13312e3d9a796c51fa9efda85fa0093a33cc26c61acf28cf",
+    "spread_all_v.png": "889868f182984c8c7feb2e39da9df2b2b9aac873ef441a2ced895b8be4227518",
+    "mbar_gt_v.png": "15aadff6766c47d1f201f8cd4c38925a82da1886285a16b05fd5ce93b8c95983",
+    "mbar_all_v.png": "e3c7557efa4d3d8789de622d9975b0610a15626016b04377f6258e8ae63dfbaf",
+    "sbar_gt_v.png": "5b4d226bfc1577da8f36c2c60500027241df59ac0089eee04da1e5be02a26662",
+    "sbar_all_v.png": "d0b6e95f283666887cfe10abc883e91764d308a5bc5e5dda351befbf6c07d401",
+    "nd_comparison.png": "3a4c8af92a5cad81d33309d3b48080bc60c5ee284191ebbc30be36dcebbc15a7",
+    "nd_comparison.pdf": "439a9616a30864c128b73072cf48fb7e9ae729b34d6d4acade95eaa35246b295",
+    "data/train_opts.json": "3872f379956e1fd8876c2715bd99915dd44877038675f97843e1ca7cbfcdc9ad",
+    "data/point_hh_context.json": "04387f6df4c5ac34209ef7cecbc7f4c9018dc9a632e6945de813951e4215d5f1",
+    "data/point_hh_type_params.csv": "a41ffa0d0e482cf747fb15755e6e7620287f027e1390c355a6d80644da79743e",
+    "data/point_hh_edge_params.csv": "953b0b08fbc2d676eb3e4b939310013cd074c49cf88774ad67de05bec2a384d0",
+    "data/train_point_hh.npy": "4b945df298262b52ef93f563dcab3ddf486c18d7f8fa686a56a6611649584763",
+    "data/best_costs.npy": "7e175d4f14ac5045c7a5382c6e7b50ddfa6b9e6717366f5df85842f8274fdc0b",
+    "data/costs.npy": "89497087bb3eadf61b2b6041257ee1da78aad0b5a96f34843a5150a09860427e",
+    "data/best_costs_by_part.npz": "c2d8aadc8e39df7c0e1030f778571d2b123f6343f0ca5f2dc4dc69203b0c11c2",
+    "data/costs_by_part.npz": "1834ffbfe3c470d49256d22131d2a9795b1bba658e030ad0454f385a2829ad0e",
+    "data/best_param.npz": "0ab15fc7338bf47c1c2ef73950eb89c518082da9725ace781caa5c13c6274176",
+    "data/best_adam.npz": "ef8c46fdc099c289b94b0f21eba8d5296fe80b89e9470d570ebcd46bc4546ce1",
+    "data/nd_optimization_metrics.json": "e5e0ae723eea7548d77d0045aae2f0bba3dca2f84b5d369e0eef28e4f216e786"
+  }
+}

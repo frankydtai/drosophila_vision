@@ -1,0 +1,191 @@
+{
+  "case": {
+    "label": "screen_02_reset_0.001",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/input_run",
+    "resume_adam": false,
+    "lr": 0.001,
+    "n_iter": 24,
+    "backtrack": false
+  },
+  "hostname": "spartan-bm163.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "records": [
+    {
+      "iter": 0,
+      "cost": 469100.78125,
+      "grad_norm": 24531366.045450788,
+      "lr": 0.001,
+      "adam_iter": 1
+    },
+    {
+      "iter": 1,
+      "cost": 483063.96875,
+      "grad_norm": 25349298.02565177,
+      "lr": 0.001,
+      "adam_iter": 2
+    },
+    {
+      "iter": 2,
+      "cost": 471284.15625,
+      "grad_norm": 65446641.9009196,
+      "lr": 0.001,
+      "adam_iter": 3
+    },
+    {
+      "iter": 3,
+      "cost": 432258.65625,
+      "grad_norm": 14851386.048716359,
+      "lr": 0.001,
+      "adam_iter": 4
+    },
+    {
+      "iter": 4,
+      "cost": 410908.90625,
+      "grad_norm": 403828568.7162919,
+      "lr": 0.001,
+      "adam_iter": 5
+    },
+    {
+      "iter": 5,
+      "cost": 435999.6875,
+      "grad_norm": 44044952.85999522,
+      "lr": 0.001,
+      "adam_iter": 6
+    },
+    {
+      "iter": 6,
+      "cost": 428533.8125,
+      "grad_norm": 29779589.488383796,
+      "lr": 0.001,
+      "adam_iter": 7
+    },
+    {
+      "iter": 7,
+      "cost": 450641.125,
+      "grad_norm": 108567866.93488577,
+      "lr": 0.001,
+      "adam_iter": 8
+    },
+    {
+      "iter": 8,
+      "cost": 458983.9375,
+      "grad_norm": 84140512.7720474,
+      "lr": 0.001,
+      "adam_iter": 9
+    },
+    {
+      "iter": 9,
+      "cost": 458777.71875,
+      "grad_norm": 25897406.290095363,
+      "lr": 0.001,
+      "adam_iter": 10
+    },
+    {
+      "iter": 10,
+      "cost": 443705.5625,
+      "grad_norm": 73576416.8422331,
+      "lr": 0.001,
+      "adam_iter": 11
+    },
+    {
+      "iter": 11,
+      "cost": 426653.3125,
+      "grad_norm": 24767127.189909995,
+      "lr": 0.001,
+      "adam_iter": 12
+    },
+    {
+      "iter": 12,
+      "cost": 416487.96875,
+      "grad_norm": 64495230.102255784,
+      "lr": 0.001,
+      "adam_iter": 13
+    },
+    {
+      "iter": 13,
+      "cost": 422795.78125,
+      "grad_norm": 360288003.89219934,
+      "lr": 0.001,
+      "adam_iter": 14
+    },
+    {
+      "iter": 14,
+      "cost": 433761.78125,
+      "grad_norm": 3622889665.7218966,
+      "lr": 0.001,
+      "adam_iter": 15
+    },
+    {
+      "iter": 15,
+      "cost": 492758.9375,
+      "grad_norm": 120105017.72325124,
+      "lr": 0.001,
+      "adam_iter": 16
+    },
+    {
+      "iter": 16,
+      "cost": 489863.78125,
+      "grad_norm": 84604391.24609175,
+      "lr": 0.001,
+      "adam_iter": 17
+    },
+    {
+      "iter": 17,
+      "cost": 514593.78125,
+      "grad_norm": 56931198.19878119,
+      "lr": 0.001,
+      "adam_iter": 18
+    },
+    {
+      "iter": 18,
+      "cost": 531674.5,
+      "grad_norm": 55397540.30535939,
+      "lr": 0.001,
+      "adam_iter": 19
+    },
+    {
+      "iter": 19,
+      "cost": 568714.0,
+      "grad_norm": 68543672.73683661,
+      "lr": 0.001,
+      "adam_iter": 20
+    },
+    {
+      "iter": 20,
+      "cost": 650594.0,
+      "grad_norm": 55943155.58747447,
+      "lr": 0.001,
+      "adam_iter": 21
+    },
+    {
+      "iter": 21,
+      "cost": 676505.5,
+      "grad_norm": 47464052.99214825,
+      "lr": 0.001,
+      "adam_iter": 22
+    },
+    {
+      "iter": 22,
+      "cost": 719439.125,
+      "grad_norm": 49337405.257827505,
+      "lr": 0.001,
+      "adam_iter": 23
+    },
+    {
+      "iter": 23,
+      "cost": 729721.6875,
+      "grad_norm": 46759873.6960989,
+      "lr": 0.001,
+      "adam_iter": 24
+    }
+  ],
+  "initial_cost": 469100.78125,
+  "best_cost": 410908.90625,
+  "best_at": 4,
+  "elapsed_s": 643.9171080496162,
+  "stop_reason": "completed",
+  "current_lr": 0.001,
+  "terminal_cost": 754609.5625,
+  "selected_adam_iter": 4,
+  "complete": true
+}

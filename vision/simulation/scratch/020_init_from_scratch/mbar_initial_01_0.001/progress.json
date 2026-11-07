@@ -1,0 +1,595 @@
+{
+  "case": {
+    "label": "mbar_initial_01_0.001",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/spread_native_100/run",
+    "native": false,
+    "required_source_steps": 100,
+    "resume_adam": false,
+    "lr": 0.001,
+    "n_iter": 80,
+    "backtrack": false,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  },
+  "hostname": "spartan-bm175.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128",
+  "records": [
+    {
+      "iter": 0,
+      "cost": 9058330.0,
+      "grad_norm": 1443058204.0678227,
+      "lr": 0.001,
+      "adam_iter": 1
+    },
+    {
+      "iter": 1,
+      "cost": 6122392.5,
+      "grad_norm": 1621622988.038818,
+      "lr": 0.001,
+      "adam_iter": 2
+    },
+    {
+      "iter": 2,
+      "cost": 4163595.25,
+      "grad_norm": 238536294.23317242,
+      "lr": 0.001,
+      "adam_iter": 3
+    },
+    {
+      "iter": 3,
+      "cost": 4738407.0,
+      "grad_norm": 1157541727.023084,
+      "lr": 0.001,
+      "adam_iter": 4
+    },
+    {
+      "iter": 4,
+      "cost": 5207816.0,
+      "grad_norm": 1732883531.775628,
+      "lr": 0.001,
+      "adam_iter": 5
+    },
+    {
+      "iter": 5,
+      "cost": 4451272.0,
+      "grad_norm": 986758823.1952819,
+      "lr": 0.001,
+      "adam_iter": 6
+    },
+    {
+      "iter": 6,
+      "cost": 3667915.5,
+      "grad_norm": 550570856.9597483,
+      "lr": 0.001,
+      "adam_iter": 7
+    },
+    {
+      "iter": 7,
+      "cost": 3326827.0,
+      "grad_norm": 817200253.9093587,
+      "lr": 0.001,
+      "adam_iter": 8
+    },
+    {
+      "iter": 8,
+      "cost": 3251884.5,
+      "grad_norm": 303777939.7433904,
+      "lr": 0.001,
+      "adam_iter": 9
+    },
+    {
+      "iter": 9,
+      "cost": 3178525.0,
+      "grad_norm": 871056437.3857973,
+      "lr": 0.001,
+      "adam_iter": 10
+    },
+    {
+      "iter": 10,
+      "cost": 2936231.25,
+      "grad_norm": 972018160.029091,
+      "lr": 0.001,
+      "adam_iter": 11
+    },
+    {
+      "iter": 11,
+      "cost": 2736851.5,
+      "grad_norm": 316361980.7134665,
+      "lr": 0.001,
+      "adam_iter": 12
+    },
+    {
+      "iter": 12,
+      "cost": 2606144.0,
+      "grad_norm": 144288042.60197714,
+      "lr": 0.001,
+      "adam_iter": 13
+    },
+    {
+      "iter": 13,
+      "cost": 2619010.5,
+      "grad_norm": 404998346.65276945,
+      "lr": 0.001,
+      "adam_iter": 14
+    },
+    {
+      "iter": 14,
+      "cost": 2574778.5,
+      "grad_norm": 301256793.81386346,
+      "lr": 0.001,
+      "adam_iter": 15
+    },
+    {
+      "iter": 15,
+      "cost": 2500061.25,
+      "grad_norm": 295942696.822675,
+      "lr": 0.001,
+      "adam_iter": 16
+    },
+    {
+      "iter": 16,
+      "cost": 2418798.0,
+      "grad_norm": 308149488.45671475,
+      "lr": 0.001,
+      "adam_iter": 17
+    },
+    {
+      "iter": 17,
+      "cost": 2323466.25,
+      "grad_norm": 256605608.67706367,
+      "lr": 0.001,
+      "adam_iter": 18
+    },
+    {
+      "iter": 18,
+      "cost": 2224650.25,
+      "grad_norm": 82500908.7909666,
+      "lr": 0.001,
+      "adam_iter": 19
+    },
+    {
+      "iter": 19,
+      "cost": 2159411.5,
+      "grad_norm": 154625194.09296814,
+      "lr": 0.001,
+      "adam_iter": 20
+    },
+    {
+      "iter": 20,
+      "cost": 2182785.25,
+      "grad_norm": 168356519.6870523,
+      "lr": 0.001,
+      "adam_iter": 21
+    },
+    {
+      "iter": 21,
+      "cost": 2170921.5,
+      "grad_norm": 545974776.4269009,
+      "lr": 0.001,
+      "adam_iter": 22
+    },
+    {
+      "iter": 22,
+      "cost": 2168317.5,
+      "grad_norm": 446662891.0623592,
+      "lr": 0.001,
+      "adam_iter": 23
+    },
+    {
+      "iter": 23,
+      "cost": 2135539.75,
+      "grad_norm": 356996524.4306432,
+      "lr": 0.001,
+      "adam_iter": 24
+    },
+    {
+      "iter": 24,
+      "cost": 2178995.0,
+      "grad_norm": 95146321.98951693,
+      "lr": 0.001,
+      "adam_iter": 25
+    },
+    {
+      "iter": 25,
+      "cost": 2147604.0,
+      "grad_norm": 105318812.63937682,
+      "lr": 0.001,
+      "adam_iter": 26
+    },
+    {
+      "iter": 26,
+      "cost": 2175637.0,
+      "grad_norm": 46320680.260153465,
+      "lr": 0.001,
+      "adam_iter": 27
+    },
+    {
+      "iter": 27,
+      "cost": 2203868.75,
+      "grad_norm": 150018865.98111907,
+      "lr": 0.001,
+      "adam_iter": 28
+    },
+    {
+      "iter": 28,
+      "cost": 2227930.0,
+      "grad_norm": 73120442.14020193,
+      "lr": 0.001,
+      "adam_iter": 29
+    },
+    {
+      "iter": 29,
+      "cost": 2227717.0,
+      "grad_norm": 223670182.20079294,
+      "lr": 0.001,
+      "adam_iter": 30
+    },
+    {
+      "iter": 30,
+      "cost": 2275709.0,
+      "grad_norm": 274351763.55430776,
+      "lr": 0.001,
+      "adam_iter": 31
+    },
+    {
+      "iter": 31,
+      "cost": 2276842.75,
+      "grad_norm": 71703822.3300809,
+      "lr": 0.001,
+      "adam_iter": 32
+    },
+    {
+      "iter": 32,
+      "cost": 2270130.0,
+      "grad_norm": 71093546.47861147,
+      "lr": 0.001,
+      "adam_iter": 33
+    },
+    {
+      "iter": 33,
+      "cost": 2248639.25,
+      "grad_norm": 188761917.11765465,
+      "lr": 0.001,
+      "adam_iter": 34
+    },
+    {
+      "iter": 34,
+      "cost": 2196129.0,
+      "grad_norm": 61969293.57452028,
+      "lr": 0.001,
+      "adam_iter": 35
+    },
+    {
+      "iter": 35,
+      "cost": 2127624.75,
+      "grad_norm": 339641006.1111379,
+      "lr": 0.001,
+      "adam_iter": 36
+    },
+    {
+      "iter": 36,
+      "cost": 2165829.5,
+      "grad_norm": 199690862.71965894,
+      "lr": 0.001,
+      "adam_iter": 37
+    },
+    {
+      "iter": 37,
+      "cost": 2222780.5,
+      "grad_norm": 496021819.11080915,
+      "lr": 0.001,
+      "adam_iter": 38
+    },
+    {
+      "iter": 38,
+      "cost": 2276424.0,
+      "grad_norm": 241252320.06922492,
+      "lr": 0.001,
+      "adam_iter": 39
+    },
+    {
+      "iter": 39,
+      "cost": 2267334.5,
+      "grad_norm": 497218274.54463875,
+      "lr": 0.001,
+      "adam_iter": 40
+    },
+    {
+      "iter": 40,
+      "cost": 2323450.5,
+      "grad_norm": 214621014.67879376,
+      "lr": 0.001,
+      "adam_iter": 41
+    },
+    {
+      "iter": 41,
+      "cost": 2536460.75,
+      "grad_norm": 265775855.15574053,
+      "lr": 0.001,
+      "adam_iter": 42
+    },
+    {
+      "iter": 42,
+      "cost": 2737077.0,
+      "grad_norm": 504048472.9394842,
+      "lr": 0.001,
+      "adam_iter": 43
+    },
+    {
+      "iter": 43,
+      "cost": 2755057.5,
+      "grad_norm": 3174859951.9955273,
+      "lr": 0.001,
+      "adam_iter": 44
+    },
+    {
+      "iter": 44,
+      "cost": 2338893.5,
+      "grad_norm": 124394385.94585896,
+      "lr": 0.001,
+      "adam_iter": 45
+    },
+    {
+      "iter": 45,
+      "cost": 2320675.5,
+      "grad_norm": 269265408.86058545,
+      "lr": 0.001,
+      "adam_iter": 46
+    },
+    {
+      "iter": 46,
+      "cost": 2491069.0,
+      "grad_norm": 607335012.7455095,
+      "lr": 0.001,
+      "adam_iter": 47
+    },
+    {
+      "iter": 47,
+      "cost": 2363387.5,
+      "grad_norm": 387464206.3506756,
+      "lr": 0.001,
+      "adam_iter": 48
+    },
+    {
+      "iter": 48,
+      "cost": 2453926.5,
+      "grad_norm": 455239369.97186124,
+      "lr": 0.001,
+      "adam_iter": 49
+    },
+    {
+      "iter": 49,
+      "cost": 2445936.5,
+      "grad_norm": 225480664.73700583,
+      "lr": 0.001,
+      "adam_iter": 50
+    },
+    {
+      "iter": 50,
+      "cost": 2350993.75,
+      "grad_norm": 644086109.7192048,
+      "lr": 0.001,
+      "adam_iter": 51
+    },
+    {
+      "iter": 51,
+      "cost": 2355026.5,
+      "grad_norm": 757550444.0222833,
+      "lr": 0.001,
+      "adam_iter": 52
+    },
+    {
+      "iter": 52,
+      "cost": 2268921.25,
+      "grad_norm": 307299610.33128476,
+      "lr": 0.001,
+      "adam_iter": 53
+    },
+    {
+      "iter": 53,
+      "cost": 2146668.75,
+      "grad_norm": 383522601.45936257,
+      "lr": 0.001,
+      "adam_iter": 54
+    },
+    {
+      "iter": 54,
+      "cost": 2036091.0,
+      "grad_norm": 156330694.50777358,
+      "lr": 0.001,
+      "adam_iter": 55
+    },
+    {
+      "iter": 55,
+      "cost": 1943277.0,
+      "grad_norm": 259339149.83950326,
+      "lr": 0.001,
+      "adam_iter": 56
+    },
+    {
+      "iter": 56,
+      "cost": 1889048.625,
+      "grad_norm": 114940244.58574708,
+      "lr": 0.001,
+      "adam_iter": 57
+    },
+    {
+      "iter": 57,
+      "cost": 1954411.875,
+      "grad_norm": 42542477.2218203,
+      "lr": 0.001,
+      "adam_iter": 58
+    },
+    {
+      "iter": 58,
+      "cost": 1958439.5,
+      "grad_norm": 1089378195.2443209,
+      "lr": 0.001,
+      "adam_iter": 59
+    },
+    {
+      "iter": 59,
+      "cost": 1818580.25,
+      "grad_norm": 54277025.28970524,
+      "lr": 0.001,
+      "adam_iter": 60
+    },
+    {
+      "iter": 60,
+      "cost": 1803579.5,
+      "grad_norm": 88672239.53730379,
+      "lr": 0.001,
+      "adam_iter": 61
+    },
+    {
+      "iter": 61,
+      "cost": 1805221.25,
+      "grad_norm": 164744779.30754593,
+      "lr": 0.001,
+      "adam_iter": 62
+    },
+    {
+      "iter": 62,
+      "cost": 1773479.75,
+      "grad_norm": 86969612.12981558,
+      "lr": 0.001,
+      "adam_iter": 63
+    },
+    {
+      "iter": 63,
+      "cost": 1773561.25,
+      "grad_norm": 152821149.37955996,
+      "lr": 0.001,
+      "adam_iter": 64
+    },
+    {
+      "iter": 64,
+      "cost": 1765237.375,
+      "grad_norm": 524865224.11430264,
+      "lr": 0.001,
+      "adam_iter": 65
+    },
+    {
+      "iter": 65,
+      "cost": 1739568.0,
+      "grad_norm": 100011839.6685615,
+      "lr": 0.001,
+      "adam_iter": 66
+    },
+    {
+      "iter": 66,
+      "cost": 1706634.125,
+      "grad_norm": 93062911.44002317,
+      "lr": 0.001,
+      "adam_iter": 67
+    },
+    {
+      "iter": 67,
+      "cost": 1681242.375,
+      "grad_norm": 116439418.57128735,
+      "lr": 0.001,
+      "adam_iter": 68
+    },
+    {
+      "iter": 68,
+      "cost": 1654249.25,
+      "grad_norm": 105740187.78575066,
+      "lr": 0.001,
+      "adam_iter": 69
+    },
+    {
+      "iter": 69,
+      "cost": 1683558.125,
+      "grad_norm": 590652497.2616742,
+      "lr": 0.001,
+      "adam_iter": 70
+    },
+    {
+      "iter": 70,
+      "cost": 1654233.5,
+      "grad_norm": 74154034.58177732,
+      "lr": 0.001,
+      "adam_iter": 71
+    },
+    {
+      "iter": 71,
+      "cost": 1636049.25,
+      "grad_norm": 142425101.39657462,
+      "lr": 0.001,
+      "adam_iter": 72
+    },
+    {
+      "iter": 72,
+      "cost": 1611455.0,
+      "grad_norm": 194434282.80459854,
+      "lr": 0.001,
+      "adam_iter": 73
+    },
+    {
+      "iter": 73,
+      "cost": 1597461.125,
+      "grad_norm": 27192375.170509845,
+      "lr": 0.001,
+      "adam_iter": 74
+    },
+    {
+      "iter": 74,
+      "cost": 1592414.25,
+      "grad_norm": 286476775.67272466,
+      "lr": 0.001,
+      "adam_iter": 75
+    },
+    {
+      "iter": 75,
+      "cost": 1532504.75,
+      "grad_norm": 86749086.52258138,
+      "lr": 0.001,
+      "adam_iter": 76
+    },
+    {
+      "iter": 76,
+      "cost": 1537091.25,
+      "grad_norm": 92184410.50623359,
+      "lr": 0.001,
+      "adam_iter": 77
+    },
+    {
+      "iter": 77,
+      "cost": 1530392.5,
+      "grad_norm": 75980630.81493066,
+      "lr": 0.001,
+      "adam_iter": 78
+    },
+    {
+      "iter": 78,
+      "cost": 1528970.25,
+      "grad_norm": 100349121.41823727,
+      "lr": 0.001,
+      "adam_iter": 79
+    },
+    {
+      "iter": 79,
+      "cost": 1515226.25,
+      "grad_norm": 67631169.40612626,
+      "lr": 0.001,
+      "adam_iter": 80
+    }
+  ],
+  "initial_cost": 9058330.0,
+  "best_cost": 1509479.75,
+  "best_at": 80,
+  "elapsed_s": 2568.4595038909465,
+  "stop_reason": "completed",
+  "current_lr": 0.001,
+  "terminal_cost": 1509479.75,
+  "selected_adam_iter": 80,
+  "complete": true
+}

@@ -1,0 +1,260 @@
+[
+  {
+    "case": {
+      "name": "mbar_centered_native",
+      "L3_threshold": -65.0,
+      "L5_threshold": -55.0,
+      "source_delta": 2.0,
+      "tuned_L1": false
+    },
+    "score": 1.0736757283556972,
+    "cost": 6159873.25,
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 547.44921875,
+      "mbar_DSI_bright_T4b": 424.197265625
+    },
+    "metrics": {
+      "R1-6__right_bright_w1": {
+        "positive_peak_mV": 8.793636914249646,
+        "negative_peak_mV": -0.016976049896378242
+      },
+      "R1-6__left_bright_w1": {
+        "positive_peak_mV": 8.793621940498419,
+        "negative_peak_mV": -0.016991783682470896
+      },
+      "L1__right_bright_w1": {
+        "positive_peak_mV": 1.859942397667588,
+        "negative_peak_mV": -5.322770586561553
+      },
+      "L1__left_bright_w1": {
+        "positive_peak_mV": 1.8446156323051994,
+        "negative_peak_mV": -5.167691370520117
+      },
+      "L2__right_bright_w1": {
+        "positive_peak_mV": 0.0074265800291613004,
+        "negative_peak_mV": -3.9744717248899377
+      },
+      "L2__left_bright_w1": {
+        "positive_peak_mV": 0.003215283850991568,
+        "negative_peak_mV": -3.979910247210185
+      },
+      "L3__right_bright_w1": {
+        "positive_peak_mV": -0.007546019684582461,
+        "negative_peak_mV": -4.1905258249233555
+      },
+      "L3__left_bright_w1": {
+        "positive_peak_mV": -0.007088030196442219,
+        "negative_peak_mV": -4.192979716912831
+      },
+      "L4__right_bright_w1": {
+        "positive_peak_mV": 0.0011281251267263315,
+        "negative_peak_mV": -0.07705016067595949
+      },
+      "L4__left_bright_w1": {
+        "positive_peak_mV": 0.0018273871680349885,
+        "negative_peak_mV": -0.06835696059646068
+      },
+      "L5__right_bright_w1": {
+        "positive_peak_mV": 5.841454679726908,
+        "negative_peak_mV": -1.4442690675497687
+      },
+      "L5__left_bright_w1": {
+        "positive_peak_mV": 5.712929723623603,
+        "negative_peak_mV": -1.5438173448048076
+      },
+      "Mi1__right_bright_w1": {
+        "positive_peak_mV": 12.881119055422872,
+        "negative_peak_mV": -1.6752359844560445
+      },
+      "Mi1__left_bright_w1": {
+        "positive_peak_mV": 12.917328099501347,
+        "negative_peak_mV": -1.8827502392254232
+      },
+      "Tm3__right_bright_w1": {
+        "positive_peak_mV": 15.1611436844113,
+        "negative_peak_mV": -0.8947477087321545
+      },
+      "Tm3__left_bright_w1": {
+        "positive_peak_mV": 15.199295108787048,
+        "negative_peak_mV": -0.8273343788863912
+      },
+      "Mi4__right_bright_w1": {
+        "positive_peak_mV": 15.97162294635784,
+        "negative_peak_mV": -0.32112247333756727
+      },
+      "Mi4__left_bright_w1": {
+        "positive_peak_mV": 15.941074109896363,
+        "negative_peak_mV": -0.2715486201414734
+      },
+      "Mi9__right_bright_w1": {
+        "positive_peak_mV": 0.12095625679439337,
+        "negative_peak_mV": -4.076383169800792
+      },
+      "Mi9__left_bright_w1": {
+        "positive_peak_mV": 0.0766124700752755,
+        "negative_peak_mV": -3.9898121465342413
+      },
+      "T4a__right_bright_w1": {
+        "positive_peak_mV": 13.450382414350234,
+        "negative_peak_mV": -2.2466413489825996
+      },
+      "T4a__left_bright_w1": {
+        "positive_peak_mV": 11.576847814285465,
+        "negative_peak_mV": -0.9437519770117433
+      },
+      "T4b__right_bright_w1": {
+        "positive_peak_mV": 11.011902067010737,
+        "negative_peak_mV": -0.4228279047734915
+      },
+      "T4b__left_bright_w1": {
+        "positive_peak_mV": 12.53112932688504,
+        "negative_peak_mV": -1.5525167908500137
+      },
+      "T4c__right_bright_w1": {
+        "positive_peak_mV": 9.473120908537567,
+        "negative_peak_mV": -0.23355052275964283
+      },
+      "T4c__left_bright_w1": {
+        "positive_peak_mV": 10.023830578353873,
+        "negative_peak_mV": -0.3076257325114824
+      },
+      "T4d__right_bright_w1": {
+        "positive_peak_mV": 10.260274547607828,
+        "negative_peak_mV": -0.30674801225170967
+      },
+      "T4d__left_bright_w1": {
+        "positive_peak_mV": 10.597240069464725,
+        "negative_peak_mV": 0.040300333185150805
+      }
+    }
+  },
+  {
+    "case": {
+      "name": "mbar_centered_tuned",
+      "L3_threshold": -65.0,
+      "L5_threshold": -55.0,
+      "source_delta": 2.0,
+      "tuned_L1": true
+    },
+    "score": 0.7195640275292865,
+    "cost": 6823545.875,
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 134.86328125,
+      "mbar_DSI_bright_T4b": 398.421875
+    },
+    "metrics": {
+      "R1-6__right_bright_w1": {
+        "positive_peak_mV": 8.793574291518809,
+        "negative_peak_mV": -0.016242340050062865
+      },
+      "R1-6__left_bright_w1": {
+        "positive_peak_mV": 8.793409419596934,
+        "negative_peak_mV": -0.015849520659251937
+      },
+      "L1__right_bright_w1": {
+        "positive_peak_mV": 0.29840913296326477,
+        "negative_peak_mV": -5.498496566129916
+      },
+      "L1__left_bright_w1": {
+        "positive_peak_mV": 0.2881987137296633,
+        "negative_peak_mV": -5.4468534152033214
+      },
+      "L2__right_bright_w1": {
+        "positive_peak_mV": -0.0060538393042435246,
+        "negative_peak_mV": -4.146384335455529
+      },
+      "L2__left_bright_w1": {
+        "positive_peak_mV": -0.019354162210966308,
+        "negative_peak_mV": -4.141617768072116
+      },
+      "L3__right_bright_w1": {
+        "positive_peak_mV": -0.012434132965836397,
+        "negative_peak_mV": -4.202440782844562
+      },
+      "L3__left_bright_w1": {
+        "positive_peak_mV": -0.009811639632857805,
+        "negative_peak_mV": -4.207049220455218
+      },
+      "L4__right_bright_w1": {
+        "positive_peak_mV": 0.001180243328143149,
+        "negative_peak_mV": -0.058120353280912695
+      },
+      "L4__left_bright_w1": {
+        "positive_peak_mV": 0.002429435320578932,
+        "negative_peak_mV": -0.05440920605603594
+      },
+      "L5__right_bright_w1": {
+        "positive_peak_mV": 5.99166898631519,
+        "negative_peak_mV": -0.3445533744585916
+      },
+      "L5__left_bright_w1": {
+        "positive_peak_mV": 5.898316510443578,
+        "negative_peak_mV": -0.3386602584687566
+      },
+      "Mi1__right_bright_w1": {
+        "positive_peak_mV": 3.9179775972622934,
+        "negative_peak_mV": -1.487592718188047
+      },
+      "Mi1__left_bright_w1": {
+        "positive_peak_mV": 4.751202336482514,
+        "negative_peak_mV": -1.8891759211767578
+      },
+      "Tm3__right_bright_w1": {
+        "positive_peak_mV": 7.959061636338461,
+        "negative_peak_mV": -0.31063866567959764
+      },
+      "Tm3__left_bright_w1": {
+        "positive_peak_mV": 8.446231300620333,
+        "negative_peak_mV": -0.8265502524714989
+      },
+      "Mi4__right_bright_w1": {
+        "positive_peak_mV": 13.754176513599294,
+        "negative_peak_mV": -0.185428117353851
+      },
+      "Mi4__left_bright_w1": {
+        "positive_peak_mV": 14.106214701621962,
+        "negative_peak_mV": -0.2441307847050993
+      },
+      "Mi9__right_bright_w1": {
+        "positive_peak_mV": 0.18310192164387473,
+        "negative_peak_mV": -2.929860386758385
+      },
+      "Mi9__left_bright_w1": {
+        "positive_peak_mV": 0.1621700018026928,
+        "negative_peak_mV": -2.783489568617057
+      },
+      "T4a__right_bright_w1": {
+        "positive_peak_mV": 11.374873400173435,
+        "negative_peak_mV": -1.1747807554282588
+      },
+      "T4a__left_bright_w1": {
+        "positive_peak_mV": 9.81974578093952,
+        "negative_peak_mV": -0.6611885983378869
+      },
+      "T4b__right_bright_w1": {
+        "positive_peak_mV": 9.569845939806015,
+        "negative_peak_mV": 0.062342691892759206
+      },
+      "T4b__left_bright_w1": {
+        "positive_peak_mV": 10.28639269326456,
+        "negative_peak_mV": -0.6082199806659219
+      },
+      "T4c__right_bright_w1": {
+        "positive_peak_mV": 7.9765530624958885,
+        "negative_peak_mV": -0.024389081229301723
+      },
+      "T4c__left_bright_w1": {
+        "positive_peak_mV": 8.285824789102804,
+        "negative_peak_mV": 0.18824868627034164
+      },
+      "T4d__right_bright_w1": {
+        "positive_peak_mV": 8.396605494299955,
+        "negative_peak_mV": 0.10799674748233912
+      },
+      "T4d__left_bright_w1": {
+        "positive_peak_mV": 8.005071629253493,
+        "negative_peak_mV": -0.2202312490396281
+      }
+    }
+  }
+]

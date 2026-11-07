@@ -1,0 +1,5 @@
+pre_root_id,post_root_id,syn_count,nt_type
+20,10,4,ACH
+20,30,2,ACH
+10,40,3,GLUT
+50,60,5,GABA

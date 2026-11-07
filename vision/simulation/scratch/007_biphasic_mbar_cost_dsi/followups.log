@@ -1,0 +1,59 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START {'name': 'fine_negative_0.02', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.02}
+DONE fine_negative_0.02 1702771 {'mbar_DSI_bright_T4a': -87.51953125, 'mbar_DSI_bright_T4b': -43.2109375} seconds 21.114570925943553
+START {'name': 'fine_negative_0.05', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.05}
+DONE fine_negative_0.05 1671081 {'mbar_DSI_bright_T4a': -73.5234375, 'mbar_DSI_bright_T4b': -35.7578125} seconds 27.13682605046779
+START {'name': 'fine_negative_0.1', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.1}
+DONE fine_negative_0.1 1676285 {'mbar_DSI_bright_T4a': -50.447265625, 'mbar_DSI_bright_T4b': -22.84765625} seconds 33.21255741175264
+START {'name': 'fine_negative_0.2', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.2}
+DONE fine_negative_0.2 1856138 {'mbar_DSI_bright_T4a': -7.009765625, 'mbar_DSI_bright_T4b': 4.5703125} seconds 39.188850216567516
+START {'name': 'fine_negative_0.3', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.3}
+DONE fine_negative_0.3 2199214 {'mbar_DSI_bright_T4a': 31.015625, 'mbar_DSI_bright_T4b': 32.267578125} seconds 45.217056868597865
+START {'name': 'phase_negative_-150', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.2, 'shift_ms': -150}
+DONE phase_negative_-150 1820482 {'mbar_DSI_bright_T4a': 9.375, 'mbar_DSI_bright_T4b': -54.92578125} seconds 51.188311111181974
+START {'name': 'phase_negative_-100', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.2, 'shift_ms': -100}
+DONE phase_negative_-100 1717966 {'mbar_DSI_bright_T4a': 6.611328125, 'mbar_DSI_bright_T4b': -22.080078125} seconds 57.160116012208164
+START {'name': 'phase_negative_-50', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.2, 'shift_ms': -50}
+DONE phase_negative_-50 1736131 {'mbar_DSI_bright_T4a': 6.580078125, 'mbar_DSI_bright_T4b': -3.8515625} seconds 63.121734029613435
+START {'name': 'phase_negative_+50', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.2, 'shift_ms': 50}
+DONE phase_negative_+50 1941188 {'mbar_DSI_bright_T4a': -42.46484375, 'mbar_DSI_bright_T4b': 17.947265625} seconds 69.11875342112035
+START {'name': 'phase_negative_+100', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.2, 'shift_ms': 100}
+DONE phase_negative_+100 1962540 {'mbar_DSI_bright_T4a': -86.439453125, 'mbar_DSI_bright_T4b': 35.77734375} seconds 75.11318448185921
+START {'name': 'ratio_exc_0.25', 'probability_sources': ['Mi1', 'Tm3'], 'dose': 0.25}
+DONE ratio_exc_0.25 1650981 {'mbar_DSI_bright_T4a': -70.58203125, 'mbar_DSI_bright_T4b': -41.15625} seconds 83.25800715852529
+START {'name': 'ratio_exc_0.5', 'probability_sources': ['Mi1', 'Tm3'], 'dose': 0.5}
+DONE ratio_exc_0.5 1814291 {'mbar_DSI_bright_T4a': -29.423828125, 'mbar_DSI_bright_T4b': -36.603515625} seconds 91.38128081895411
+START {'name': 'ratio_exc_1', 'probability_sources': ['Mi1', 'Tm3'], 'dose': 1.0}
+DONE ratio_exc_1 3953707 {'mbar_DSI_bright_T4a': 182.611328125, 'mbar_DSI_bright_T4b': -61.048828125} seconds 99.42016617767513
+START {'name': 'ratio_Mi9_None_False', 'probability_sources': ['Mi9'], 'mi9_threshold': None, 'mi9_full_ratio': False, 'dose': 1.0}
+DONE ratio_Mi9_None_False 1739247 {'mbar_DSI_bright_T4a': -103.771484375, 'mbar_DSI_bright_T4b': -50.6796875} seconds 105.51685505826026
+START {'name': 'ratio_Mi9_None_True', 'probability_sources': ['Mi9'], 'mi9_threshold': None, 'mi9_full_ratio': True, 'dose': 1.0}
+DONE ratio_Mi9_None_True 1738694 {'mbar_DSI_bright_T4a': -104.32421875, 'mbar_DSI_bright_T4b': -52.02734375} seconds 111.6575190788135
+START {'name': 'ratio_Mi9_-55.0_False', 'probability_sources': ['Mi9'], 'mi9_threshold': -55.0, 'mi9_full_ratio': False, 'dose': 1.0}
+DONE ratio_Mi9_-55.0_False 1742985 {'mbar_DSI_bright_T4a': -106.19921875, 'mbar_DSI_bright_T4b': -47.216796875} seconds 117.71575241815299
+START {'name': 'ratio_Mi9_-55.0_True', 'probability_sources': ['Mi9'], 'mi9_threshold': -55.0, 'mi9_full_ratio': True, 'dose': 1.0}
+DONE ratio_Mi9_-55.0_True 1741439 {'mbar_DSI_bright_T4a': -108.98046875, 'mbar_DSI_bright_T4b': -50.12890625} seconds 123.75764780025929
+START {'name': 'ratio_Mi9_-60.0_False', 'probability_sources': ['Mi9'], 'mi9_threshold': -60.0, 'mi9_full_ratio': False, 'dose': 1.0}
+DONE ratio_Mi9_-60.0_False 1809171 {'mbar_DSI_bright_T4a': -109.76953125, 'mbar_DSI_bright_T4b': -40.77734375} seconds 129.79258245509118
+START {'name': 'ratio_Mi9_-60.0_True', 'probability_sources': ['Mi9'], 'mi9_threshold': -60.0, 'mi9_full_ratio': True, 'dose': 1.0}
+DONE ratio_Mi9_-60.0_True 1804999 {'mbar_DSI_bright_T4a': -117.009765625, 'mbar_DSI_bright_T4b': -46.837890625} seconds 135.8163289502263
+START {'name': 'ratio_Mi9_-65.0_False', 'probability_sources': ['Mi9'], 'mi9_threshold': -65.0, 'mi9_full_ratio': False, 'dose': 1.0}
+DONE ratio_Mi9_-65.0_False 2018967 {'mbar_DSI_bright_T4a': -101.603515625, 'mbar_DSI_bright_T4b': -21.146484375} seconds 141.96659746579826
+START {'name': 'ratio_Mi9_-65.0_True', 'probability_sources': ['Mi9'], 'mi9_threshold': -65.0, 'mi9_full_ratio': True, 'dose': 1.0}
+DONE ratio_Mi9_-65.0_True 2007352 {'mbar_DSI_bright_T4a': -115.939453125, 'mbar_DSI_bright_T4b': -32.232421875} seconds 148.07489813119173
+START {'name': 'ratio_joint_None_0.25', 'probability_sources': ['Mi9', 'Mi1', 'Tm3'], 'mi9_threshold': None, 'mi9_full_ratio': True, 'dose': 0.25}
+DONE ratio_joint_None_0.25 1645914 {'mbar_DSI_bright_T4a': -71.337890625, 'mbar_DSI_bright_T4b': -41.609375} seconds 156.6400127336383
+START {'name': 'ratio_joint_None_0.5', 'probability_sources': ['Mi9', 'Mi1', 'Tm3'], 'mi9_threshold': None, 'mi9_full_ratio': True, 'dose': 0.5}
+DONE ratio_joint_None_0.5 1794769 {'mbar_DSI_bright_T4a': -31.3671875, 'mbar_DSI_bright_T4b': -37.837890625} seconds 165.19924112781882
+START {'name': 'ratio_joint_-55.0_0.25', 'probability_sources': ['Mi9', 'Mi1', 'Tm3'], 'mi9_threshold': -55.0, 'mi9_full_ratio': True, 'dose': 0.25}
+DONE ratio_joint_-55.0_0.25 1613627 {'mbar_DSI_bright_T4a': -66.880859375, 'mbar_DSI_bright_T4b': -48.046875} seconds 173.74827973823994
+START {'name': 'ratio_joint_-55.0_0.5', 'probability_sources': ['Mi9', 'Mi1', 'Tm3'], 'mi9_threshold': -55.0, 'mi9_full_ratio': True, 'dose': 0.5}
+DONE ratio_joint_-55.0_0.5 1733756 {'mbar_DSI_bright_T4a': -28.822265625, 'mbar_DSI_bright_T4b': -42.79296875} seconds 182.2933867201209
+START {'name': 'ratio_joint_-60.0_0.25', 'probability_sources': ['Mi9', 'Mi1', 'Tm3'], 'mi9_threshold': -60.0, 'mi9_full_ratio': True, 'dose': 0.25}
+DONE ratio_joint_-60.0_0.25 1620996 {'mbar_DSI_bright_T4a': -61.9140625, 'mbar_DSI_bright_T4b': -40.171875} seconds 190.8459712639451
+START {'name': 'ratio_joint_-60.0_0.5', 'probability_sources': ['Mi9', 'Mi1', 'Tm3'], 'mi9_threshold': -60.0, 'mi9_full_ratio': True, 'dose': 0.5}
+DONE ratio_joint_-60.0_0.5 1702033 {'mbar_DSI_bright_T4a': -25.54296875, 'mbar_DSI_bright_T4b': -35.880859375} seconds 199.4387687947601
+FOLLOWUPS_FINISHED

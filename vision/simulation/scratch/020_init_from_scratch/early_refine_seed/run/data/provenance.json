@@ -1,0 +1,9 @@
+{
+  "source_case": "mbar_initial_00_0.003",
+  "captured_cost": 2130424.25,
+  "captured_adam_iter": 9,
+  "source_iterations_observed": 37,
+  "mode": "init",
+  "native_spread_steps": 100,
+  "additional_optimizer_iterations": 0
+}

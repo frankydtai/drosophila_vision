@@ -1,0 +1,93 @@
+{
+  "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+  "no_training": true,
+  "proposed_config_change": "point_hh.gene.max_fold_changes.gS: 6.0 -> 10.0",
+  "original_loss": 994279.375,
+  "proposed_loss": 855180.6875,
+  "loss_improvement_percent": 13.989899720086218,
+  "original_per_contact_range_nS": [
+    0.05,
+    1.8
+  ],
+  "proposed_per_contact_range_nS": [
+    0.03,
+    3.0
+  ],
+  "response_changes": {
+    "mbar_DSI_bright_T4a": {
+      "nd_peak_change_percent": -20.232620727686257,
+      "pd_peak_change_percent": -7.340997320619436,
+      "before": {
+        "pd_peak_mV": 14.79284381866455,
+        "nd_peak_mV": 10.843286514282227,
+        "nd_pd_ratio": 0.7330089229091261,
+        "dsi_peak": 0.1540621478962389
+      },
+      "after": {
+        "pd_peak_mV": 13.706901550292969,
+        "nd_peak_mV": 8.649405479431152,
+        "nd_pd_ratio": 0.6310255784427284,
+        "dsi_peak": 0.2262223390417448
+      }
+    },
+    "mbar_DSI_bright_T4b": {
+      "nd_peak_change_percent": -21.573085043964635,
+      "pd_peak_change_percent": -8.65634998568222,
+      "before": {
+        "pd_peak_mV": 14.527135848999023,
+        "nd_peak_mV": 9.937688827514648,
+        "nd_pd_ratio": 0.6840776413748064,
+        "dsi_peak": 0.18759370158145156
+      },
+      "after": {
+        "pd_peak_mV": 13.26961612701416,
+        "nd_peak_mV": 7.793822765350342,
+        "nd_pd_ratio": 0.5873434989188384,
+        "dsi_peak": 0.259966731313239
+      }
+    }
+  },
+  "baseline_Mi4_release": {
+    "mbar_right_bright_w1_T4a_PD": {
+      "nominal_total_gS_nS": 10.184990882873535,
+      "peak_weighted_open_fraction": 0.8789462447166443,
+      "baseline_weighted_open_fraction": 0.5955718755722046,
+      "peak_open_conductance_nS": 8.952059745788574,
+      "peak_outward_current_pA": 241.56182861328125,
+      "peak_evoked_outward_current_pA": 111.12171936035156,
+      "evoked_current_integral_pA_ms": 33251.078125
+    },
+    "mbar_right_bright_w1_T4b_ND": {
+      "nominal_total_gS_nS": 11.966279983520508,
+      "peak_weighted_open_fraction": 0.9172770380973816,
+      "baseline_weighted_open_fraction": 0.6383677124977112,
+      "peak_open_conductance_nS": 10.976393699645996,
+      "peak_outward_current_pA": 265.09161376953125,
+      "peak_evoked_outward_current_pA": 136.7592315673828,
+      "evoked_current_integral_pA_ms": 37159.921875
+    },
+    "mbar_left_bright_w1_T4a_ND": {
+      "nominal_total_gS_nS": 10.184990882873535,
+      "peak_weighted_open_fraction": 0.8787232041358948,
+      "baseline_weighted_open_fraction": 0.5955718755722046,
+      "peak_open_conductance_nS": 8.949788093566895,
+      "peak_outward_current_pA": 261.2438659667969,
+      "peak_evoked_outward_current_pA": 130.8037567138672,
+      "evoked_current_integral_pA_ms": 40629.7734375
+    },
+    "mbar_left_bright_w1_T4b_PD": {
+      "nominal_total_gS_nS": 11.966279983520508,
+      "peak_weighted_open_fraction": 0.9113178849220276,
+      "baseline_weighted_open_fraction": 0.6383677124977112,
+      "peak_open_conductance_nS": 10.905084609985352,
+      "peak_outward_current_pA": 251.3186492919922,
+      "peak_evoked_outward_current_pA": 122.98626708984375,
+      "evoked_current_integral_pA_ms": 32470.419921875
+    },
+    "source_voltage_summary": {
+      "baseline_mean_mV": -37.50341796875,
+      "maximum_spatial_mean_mV": -30.137020111083984
+    }
+  },
+  "temporary_runtime_vs_native_loss_difference": -0.9375
+}

@@ -1,0 +1,38 @@
+{
+  "folder": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34437223-continued_optimization-loss-394150",
+  "cost": 394149.625,
+  "improvement_percent": 15.977623411813491,
+  "images": [
+    "cost.png",
+    "spread_gt_v.png",
+    "spread_all_v.png",
+    "mbar_gt_v.png",
+    "mbar_all_v.png",
+    "sbar_gt_v.png",
+    "sbar_all_v.png"
+  ],
+  "parameters_and_adam_verified": true,
+  "protected_files_unchanged": true,
+  "files": {
+    "param.csv": "170f04395c6ad395bc89fd68cc4872791bcfbe58dcc55a25fcf4bc070a5fa316",
+    "point_hh_synapse_params.csv": "2d72569f72015fdf1c1615b0c149535a639debfd8ba08bd0a892d41a484ea13f",
+    "cost.png": "c37fea9ee89646026f749410b595003b6a1ca62e833315c75542e26e745ad70a",
+    "spread_gt_v.png": "713d536e0f607cb7300ebe3c80573ba51c29a843a70f8b5020df2c1bbb5dfb56",
+    "spread_all_v.png": "dbc7eff8824e3d2adc73f70868563c748309524510d2e749b35706189ff8bf6f",
+    "mbar_gt_v.png": "1ff983faf8210b14f0989e23a20dced820dec0da60444170404b6e540ecb7fca",
+    "mbar_all_v.png": "fa06810b65cadc983447710970682e612863b0f5529225719480575d31e68a32",
+    "sbar_gt_v.png": "6096785d65c6dda1838c2f92362d0e2d920b7540aa275f486a634be6c8cd429f",
+    "sbar_all_v.png": "9e38fee11bf790b3651bcb0580e29cfe33408eba07e8b56bfa6fb866b5744a4a",
+    "data/train_opts.json": "d3396c53e6998b8d94e19c87965ebbbbc9f038b5851a727ed91560e138775641",
+    "data/point_hh_context.json": "4d8e7ff486e4deb43de2878c577d8a6c20fdcae81758589576f5408e535561df",
+    "data/point_hh_type_params.csv": "21f48121fc453714cd4f448e7a56eff6b6d3495aea91d91b44444cc6667c5018",
+    "data/point_hh_edge_params.csv": "5dbaad263d4bd735ea1808ce695414c38753bab757a4781ba5d6266f39116167",
+    "data/train_point_hh.npy": "8ba715351a37c50af0dedd01a326038ce03bc536f817362c20910fdfb4fa76e8",
+    "data/best_costs.npy": "84ef763a8bc19500dcbce43635a67127051f1375877a6a91fe2b44d7a5eb71b6",
+    "data/costs.npy": "9f71e1a2f8c36705165553abb79cdc2aee80478a28b2b7db71a508f3677b2470",
+    "data/best_costs_by_part.npz": "9bf1236192b9f1d9845130e50fa5a2c4d26f4cc113eb6aaae707d39a9df5c536",
+    "data/costs_by_part.npz": "89a4204cf6e18be04152c891caf5696805bd827d6c9cfbf7a96289fab35f8e6d",
+    "data/best_param.npz": "997aa760f209a1bae8fd6449158465dbce83b9869c061faae042bdc7d44fd939",
+    "data/best_adam.npz": "a4c0b7ce33d124e87a5ea479f0e5b306358ed677bb5bd8f922cf05b8d8503b06"
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "rule": {
+    "total": 282966.9375,
+    "parts": {
+      "mbar_right_bright_w1_T4a_PD": 77714.296875,
+      "mbar_right_bright_w1_T4b_ND": 58815.421875,
+      "mbar_left_bright_w1_T4a_ND": 74291.8125,
+      "mbar_left_bright_w1_T4b_PD": 72145.40625
+    },
+    "groups": {
+      "mbar_DSI_bright_T4a": {
+        "pd_peak_mV": 18.1391544342041,
+        "nd_peak_mV": 9.012392044067383,
+        "nd_pd_ratio": 0.496847417929976,
+        "dsi_peak": 0.33614153043102574
+      },
+      "mbar_DSI_bright_T4b": {
+        "pd_peak_mV": 17.176284790039062,
+        "nd_peak_mV": 6.642186164855957,
+        "nd_pd_ratio": 0.38670680220136544,
+        "dsi_peak": 0.44226594732755276
+      }
+    },
+    "case": {
+      "label": "rule_best",
+      "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34437673-continued_optimization-loss-282967",
+      "override": null
+    },
+    "stored_cost": 282966.9375,
+    "parameter_summary": {
+      "free_parameters": 62,
+      "at_lower_bound": 0,
+      "at_upper_bound": 3,
+      "zero_gS_edges": 3309,
+      "active_gS_edges": 24515
+    }
+  },
+  "init": {
+    "total": 994279.375,
+    "parts": {
+      "mbar_right_bright_w1_T4a_PD": 178565.671875,
+      "mbar_right_bright_w1_T4b_ND": 241680.765625,
+      "mbar_left_bright_w1_T4a_ND": 335029.71875,
+      "mbar_left_bright_w1_T4b_PD": 239003.265625
+    },
+    "groups": {
+      "mbar_DSI_bright_T4a": {
+        "pd_peak_mV": 14.79284381866455,
+        "nd_peak_mV": 10.843286514282227,
+        "nd_pd_ratio": 0.7330089229091261,
+        "dsi_peak": 0.1540621478962389
+      },
+      "mbar_DSI_bright_T4b": {
+        "pd_peak_mV": 14.527135848999023,
+        "nd_peak_mV": 9.937688827514648,
+        "nd_pd_ratio": 0.6840776413748064,
+        "dsi_peak": 0.18759370158145156
+      }
+    },
+    "case": {
+      "label": "init_best",
+      "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+      "override": null
+    },
+    "stored_cost": 994279.375,
+    "parameter_summary": {
+      "free_parameters": 62,
+      "at_lower_bound": 0,
+      "at_upper_bound": 4,
+      "zero_gS_edges": 0,
+      "active_gS_edges": 27824
+    }
+  },
+  "unresolved_mask_only": {
+    "total": 754946.125,
+    "parts": {
+      "mbar_right_bright_w1_T4a_PD": 128128.765625,
+      "mbar_right_bright_w1_T4b_ND": 99215.296875,
+      "mbar_left_bright_w1_T4a_ND": 256005.09375,
+      "mbar_left_bright_w1_T4b_PD": 271597.0
+    },
+    "groups": {
+      "mbar_DSI_bright_T4a": {
+        "pd_peak_mV": 16.136363983154297,
+        "nd_peak_mV": 10.535177230834961,
+        "nd_pd_ratio": 0.6528842087246702,
+        "dsi_peak": 0.21000611495527094
+      },
+      "mbar_DSI_bright_T4b": {
+        "pd_peak_mV": 14.289812088012695,
+        "nd_peak_mV": 8.552732467651367,
+        "nd_pd_ratio": 0.5985195896890767,
+        "dsi_peak": 0.2511576415608733
+      }
+    },
+    "case": {
+      "label": "init_weights_close_unresolved",
+      "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+      "override": "close_unresolved"
+    },
+    "stored_cost": 994279.375,
+    "parameter_summary": {
+      "free_parameters": 62,
+      "at_lower_bound": 0,
+      "at_upper_bound": 4,
+      "zero_gS_edges": 3309,
+      "active_gS_edges": 24515
+    }
+  },
+  "mask_only_loss_improvement_percent": 24.071026314912746,
+  "controlled_cases": 8,
+  "all_evaluations_no_training": true
+}

@@ -1,0 +1,54 @@
+{
+  "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+  "records": "/home/yitai/drosophila_vision/vision/simulation/scratch/021_continue_init_nd",
+  "g_context_mode": "init",
+  "phase": "complete",
+  "selection": "both individual ND losses and original total must decrease; select smallest ND loss sum",
+  "original_weights_unchanged": true,
+  "code_snapshot_from": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/copy",
+  "formal_changes_since_previous_snapshot": [],
+  "screen_job": "34466727",
+  "baseline_job": "34466738",
+  "probe_job": "34466806",
+  "refine_job": "34466827",
+  "assessment_job": "34467034",
+  "early_response": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 14.79284381866455,
+      "nd_peak_mV": 10.843286514282227,
+      "nd_pd_ratio": 0.7330089229091261,
+      "dsi_peak": 0.1540621478962389
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 14.527135848999023,
+      "nd_peak_mV": 9.937688827514648,
+      "nd_pd_ratio": 0.6840776413748064,
+      "dsi_peak": 0.18759370158145156
+    }
+  },
+  "peak_job": "34467024",
+  "peak_objective": "Temporary ND peak penalty plus PD peak preservation; reported loss remains original MSE",
+  "peak_initial_attempt": "34466997",
+  "peak_initial_error": "PD/ND pairing indexed the same direction; corrected to same-cell opposite direction before any gradient iteration",
+  "peak_backtrack_job": "34467100",
+  "ratio_job": "34467160",
+  "ratio_objective": "original_MSE/source_MSE + .5*sum(((ND/PD)/(source_ND/source_PD))^2) + 20*sum((PD/source_PD-1)^2), original MSE decreases required by line search",
+  "finalize_job": "34467240",
+  "iterations_by_case": {
+    "nd_reset_0003": 40,
+    "nd_resume_001": 40,
+    "nd_resume_0003": 40,
+    "nd_backtrack_resume": 12,
+    "nd_backtrack_reset": 24,
+    "nd_peak_constrained": 24,
+    "nd_peak_backtrack": 6,
+    "nd_ratio_backtrack": 4
+  },
+  "total_additional_iterations": 190,
+  "protected_files_unchanged": 78,
+  "selected_case": "nd_resume_0003",
+  "selected_cost": 994279.375,
+  "selection_tradeoff": "ND_peaks_and_total_lower_but_at_least_one_ND_PD_ratio_did_not_improve",
+  "result_folder": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+  "result_cost": 994279.375
+}

@@ -1,0 +1,28 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+DONE grid_neg_d0.1_t-75 1607422.359375 {'mbar_DSI_bright_T4a': -44.080078125, 'mbar_DSI_bright_T4b': -32.171875}
+DONE grid_neg_d0.15_t-75 1634078.0 {'mbar_DSI_bright_T4a': -17.720703125, 'mbar_DSI_bright_T4b': -22.373046875}
+DONE grid_neg_d0.2_t-75 1709776.859375 {'mbar_DSI_bright_T4a': 7.953125, 'mbar_DSI_bright_T4b': -11.6640625}
+DONE grid_neg_d0.25_t-75 1827538.125 {'mbar_DSI_bright_T4a': 32.662109375, 'mbar_DSI_bright_T4b': -0.107421875}
+DONE grid_neg_d0.1_t-50 1620386.984375 {'mbar_DSI_bright_T4a': -44.802734375, 'mbar_DSI_bright_T4b': -27.5078125}
+DONE grid_neg_d0.15_t-50 1654357.34375 {'mbar_DSI_bright_T4a': -18.77734375, 'mbar_DSI_bright_T4b': -15.99609375}
+DONE grid_neg_d0.2_t-50 1736130.8125 {'mbar_DSI_bright_T4a': 6.580078125, 'mbar_DSI_bright_T4b': -3.8515625}
+DONE grid_neg_d0.25_t-50 1858180.296875 {'mbar_DSI_bright_T4a': 31.01953125, 'mbar_DSI_bright_T4b': 8.859375}
+DONE grid_neg_d0.1_t-25 1647345.125 {'mbar_DSI_bright_T4a': -46.91015625, 'mbar_DSI_bright_T4b': -24.560546875}
+DONE grid_neg_d0.15_t-25 1695806.203125 {'mbar_DSI_bright_T4a': -22.1953125, 'mbar_DSI_bright_T4b': -11.8359375}
+DONE grid_neg_d0.2_t-25 1791935.5625 {'mbar_DSI_bright_T4a': 1.625, 'mbar_DSI_bright_T4b': 1.53125}
+DONE grid_neg_d0.25_t-25 1927815.328125 {'mbar_DSI_bright_T4a': 24.333984375, 'mbar_DSI_bright_T4b': 15.2734375}
+DONE k001_baseline 7442548.125 {'mbar_DSI_bright_T4a': 684.76171875, 'mbar_DSI_bright_T4b': 410.36328125}
+DONE k001_small_negative 7126231.5 {'mbar_DSI_bright_T4a': 684.173828125, 'mbar_DSI_bright_T4b': 424.486328125}
+DONE k001_negative_1 4410062.9375 {'mbar_DSI_bright_T4a': 733.01171875, 'mbar_DSI_bright_T4b': 510.71484375}
+FULL_START {'name': 'full_small_negative', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.05, 'check_conditional': True}
+DONE full_small_negative 1671081.4375 {'mbar_DSI_bright_T4a': -73.5234375, 'mbar_DSI_bright_T4b': -35.7578125}
+FULL_START {'name': 'full_phase_negative', 'negative_sources': ['Mi1', 'Tm3'], 'dose': 0.2, 'shift_ms': -50, 'check_conditional': True}
+DONE full_phase_negative 1736130.8125 {'mbar_DSI_bright_T4a': 6.580078125, 'mbar_DSI_bright_T4b': -3.8515625}
+FULL_START {'name': 'full_L1_rebound_half', 'rebound_sources': ['L1'], 'dose': 0.5}
+DONE full_L1_rebound_half 2597064.46875 {'mbar_DSI_bright_T4a': -274.390625, 'mbar_DSI_bright_T4b': -150.7265625}
+FULL_START {'name': 'full_L1_rebound', 'rebound_sources': ['L1'], 'dose': 1.0}
+DONE full_L1_rebound 4487672.3125 {'mbar_DSI_bright_T4a': -528.84765625, 'mbar_DSI_bright_T4b': -91.81640625}
+FULL_START {'name': 'full_L2_rebound', 'rebound_sources': ['L2'], 'dose': 1.0}
+DONE full_L2_rebound 1740471.875 {'mbar_DSI_bright_T4a': -96.8515625, 'mbar_DSI_bright_T4b': -48.01171875}
+VALIDATION_FINISHED

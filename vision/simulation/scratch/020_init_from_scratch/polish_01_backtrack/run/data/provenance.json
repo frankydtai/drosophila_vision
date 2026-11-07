@@ -1,0 +1,35 @@
+{
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run",
+  "native_initialization": false,
+  "random_seed": null,
+  "g_context_mode": "init",
+  "optimization_case": {
+    "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/020_init_from_scratch/mbar_initial_01_0.001/run",
+    "native": false,
+    "resume_adam": true,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    },
+    "label": "polish_01_backtrack",
+    "lr": 0.0003,
+    "n_iter": 32,
+    "backtrack": true
+  },
+  "selected_cost": 1445214.25,
+  "selected_update": 32,
+  "selected_adam_iter": 21,
+  "selection": "lowest_measured_loss",
+  "terminal_cost": 1445214.25,
+  "job": "34464938",
+  "array_task": "4",
+  "device": "cpu",
+  "hostname": "spartan-bm165.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128"
+}

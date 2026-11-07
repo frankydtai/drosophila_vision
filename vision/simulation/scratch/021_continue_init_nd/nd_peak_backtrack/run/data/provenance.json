@@ -1,0 +1,48 @@
+{
+  "source_run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+  "native_initialization": false,
+  "random_seed": null,
+  "g_context_mode": "init",
+  "optimization_case": {
+    "label": "nd_peak_backtrack",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "resume_adam": false,
+    "lr": 0.0001,
+    "n_iter": 24,
+    "backtrack": true,
+    "nd_peak_weight": 0.5,
+    "pd_peak_weight": 20.0,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  },
+  "selected_cost": 1002873.5625,
+  "selected_update": 0,
+  "selected_adam_iter": 0,
+  "selection": "lowest_normalized_ND_peaks_with_original_total_ND_losses_and_ND_PD_ratios_improved",
+  "training_objective": "original_MSE/source_MSE + ND_peak_weight*sum((ND/source_ND)^2) + PD_peak_weight*sum((PD/source_PD-1)^2)",
+  "optimizer_state_objective": "temporary_peak_objective_reset_Adam_when_returning_to_plain_MSE",
+  "selected_peaks": {
+    "mbar_right_bright_w1_T4a_PD": 15.036992073059082,
+    "mbar_right_bright_w1_T4b_ND": 9.975296020507812,
+    "mbar_left_bright_w1_T4a_ND": 11.029264450073242,
+    "mbar_left_bright_w1_T4b_PD": 14.765629768371582
+  },
+  "selected_nd": 594820.015625,
+  "source_total": 1002873.5625,
+  "source_nd": 594820.015625,
+  "terminal_cost": 997649.125,
+  "job": "34467100",
+  "array_task": "1",
+  "device": "cpu",
+  "hostname": "spartan-bm177.hpc.unimelb.edu.au",
+  "torch_version": "2.8.0+cu128"
+}

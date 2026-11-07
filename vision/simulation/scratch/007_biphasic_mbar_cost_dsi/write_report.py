@@ -1,0 +1,48 @@
+from pathlib import Path
+import json
+OUT=Path(__file__).resolve().parent
+records=[]
+for fn in ['intervention_results.json','followup_results.json','validation_results.json','k001_extension_results.json']:records.extend(json.loads((OUT/fn).read_text()))
+by={r['case']['name']:r for r in records};base=by['saved_baseline'];kb=by['k001_baseline'];keys=['mbar_DSI_bright_T4a','mbar_DSI_bright_T4b']
+lines=['问题：增大 biphasic 能否改善指定 Point HH 的 mbar cost 与 mbar DSI？','',
+'结论：可以，但效果依赖释放动力学、负相幅度和相位，不能把“波形更双相”等同于拟合或方向选择性更好。',
+'原存档 k_minus=0.0445319004 时，小幅 Mi1/Tm3 负相可同时降低成本并提高两类 DSI；完整 HPLP 负相则严重过度抑制。固定 k_minus=0.01 后，同样的完整负相使成本约下降40.7%，两类原始及归一化峰值 DSI 均上升。此为运行时因果信号试验，尚不是用原生参数训练得到的模型。', '',
+'对象与比较控制：',
+'HH：34427799；HPLP模板：34381872。所有主试验均为 1 ms，原 HH 左右移动亮条、原监督中心、T4a/T4b、冻结已保存参数，不重训。',
+'主要 HPLP 模板使用相同 HH 刺激电流和 HH 学到的 Gaussian 宽度。匹配后 HPLP cost=1,389,648.52，不能引用其自有宽度下的584,649.56作为本试验公平基准。',
+'存档实际保存 k=0.04453，与用户当前希望的0.01分别建立基准；绝不把改变k与恢复负相的效应混算。', '',
+'指标：',
+'cost：项目原来的 mbar waveform MSE 成本，越低越好；所有样本的 mean_only_cost 等于 total，SD-band cost=0。故成本恶化并非由方差惩罚引起。',
+'原始 DSI：项目 dsi_values，PD平均电压曲线样本和减ND平均电压曲线样本和；不归一化、不乘dt、不扣背景。另计算扣背景的同指标，结论一致。',
+'峰值 DSI：按本地刺激对齐，以-350至-180ms均值作基线，在-150至576ms窗口取非负PD/ND群体峰值，计算(PD-ND)/(PD+ND)。这是明确窗口下的额外方向选择指标，不与原始DSI混用。', '',
+'实验表：case | cost | 相对同k基准变化 | 原始DSI a/b | 峰值DSI a/b']
+selected=['saved_baseline','fine_negative_0.05','grid_neg_d0.1_t-75','excitatory_negative_1','Mi9_restore','Mi9_frozen','Mi4_frozen','full_L1_rebound_half','full_L1_rebound','full_L2_rebound','k001_baseline','k001_negative_0.5','k001_negative_1','k001_negative_1.5','k001_negative_2','full_k001_negative_1']
+for name in selected:
+ r=by[name];bc=kb['cost'] if r['case'].get('k_label')=='HH_k001' else base['cost'];lines.append(f"{name} | {r['cost']:,.3f} | {100*(r['cost']/bc-1):+.3f}% | {r['dsi_raw'][keys[0]]:.6f}/{r['dsi_raw'][keys[1]]:.6f} | {r['peak_metrics']['T4a']['peak_DSI']:.6f}/{r['peak_metrics']['T4b']['peak_DSI']:.6f}")
+lines += ['',
+'干预的准确含义：',
+'Mi1/Tm3负相：只对这两种来源传入T4a/b的连接，在突触读取膜电位处设置 V_eff = V_HH + alpha * [min(DeltaV_HPLP,0)-min(DeltaV_HH,0)]；DeltaV相对于各自无刺激背景轨迹。原始HH突触门控公式和k保持不变。它是理想化的有效输入替换，未让真实上游膜电位自行产生该负相。',
+'phase/grid 的负时间偏移表示模板负相提前；这是离线时序敏感性分析，不能直接部署为读取未来信号的模型。10%/-75ms得到7.64%的成本改善，是测试网格内的示例，不是已证明的全局最优。',
+'另测有效输出比例：将 HPLP 的relu(V-v_th)相对背景变化转成HH s_inf的分数变化，保留HH释放动力学；有效背景阈值>1mV，模板比例截到0至2。该测试也支持小幅负相有效，排除了仅照搬mV标度的部分问题；未覆盖全部非线性传递形式。',
+'Mi9：分别测背景冻结、完全移除、HPLP超极化替换、有效输出比例替换、释放阈值-55/-60/-65mV和与兴奋负相的组合。',
+'L1/L2：完整网络中只恢复该来源输出读取电位的正向反弹，保留HH负向成分；全网络自由演化。L1测半幅和全幅，L2全幅为阴性对照。', '',
+'机制解释与先前结论的修正：',
+'1. Mi1/Tm3为兴奋输入；它们的负相主要减少背景兴奋，即withdrawal of excitation，并不是把兴奋性突触改为抑制性。合适时序的负相可削弱拖尾及部分ND响应；太大则让T4出现目标不需要的负向过冲。原k下完整负相将T4a PD负峰从约-3.8mV推到-13.6mV，cost升至3.91倍，尽管原始DSI转正。',
+'2. HH释放满足 s_inf=sigmoid((Vpre-theta)/delta)，tau=(1-s_inf)/k。k从0.04453到0.01使其最大时间常数从约22.5ms变为100ms（实际值随s_inf而变）。因此相同电压负相经过不同k会产生不同有效输出与尾部。k=0.01下完整负相让PD/ND正峰都略降，而ND下降更多，归一化DSI也确实提高。',
+'3. 这不是原存档的整体修复：k=0.01加完整负相的cost=441万，仍高于原存档174万；即使2倍负相的365万也仍高于原存档。它证明在固定慢k背景下补负相有用，不证明把原存档改成慢k后总性能更好。',
+'4. Mi9在HPLP中关键，不代表HH只补它就够。HH基准Mi9背景总导纳仅约0.545/0.253nS(T4a/b)，其释放已偏低，可撤掉的背景抑制容量有限。只冻结Mi9或补超极化均仅小幅改变cost，未恢复方向选择；降低阈值虽增加抑制容量，同时改变T4工作点，也未让“恢复Mi9”成为单独有效的修复。某些组合可降低cost，但不能把收益归因于Mi9本身。',
+'5. 先前“L1/L2反弹缺失”的描述不能直接作为参数优化建议。L1半幅/全幅反弹分别使cost升至260/449万，原始DSI两类均更差。L2的1801条输出连接中非零gS为0，所以L2反弹对这份HH模型没有实际传出作用；阴性对照逐点完全无变化。',
+'6. 原k下小幅负相主要改善时间积分和尾部，正峰分离改善有限。不能仅因raw DSI变正就声称重现了HPLP强方向选择性。', '',
+'验证与边界：',
+f'共{len(records)}个冻结参数/运行时条件（含重复、零剂量与阴性对照），另有三组模型/动力学基准及对应背景前向。',
+'采用原生HH step精确条件重放：修改的T4a/b节点共653个，所有681条输出边gS=0；上游对它们不形成有效反馈，5129条传入边的下游积分可独立计算。基准与完整网络最大误差7.63e-6mV；重复/零剂量逐点相同。',
+'完整网络另复核5%负相、20%提前50ms负相、k=0.01完整负相，均与对应条件重放逐点完全一致；L1/L2反弹全部使用完整网络。所有输出finite，所有k/阈值试验均重新解原生背景稳态。',
+'本研究只涉及这份固定网络、亮条左右移动、该监督位置；未验证暗条、其他速度、泛化、训练收敛或所有可能参数。未把HP膜电位模板当成可以由现有HH共享参数直接实现的证据。',
+'既有003原生参数候选（L1->Mi1/Tm3 gS*3, threshold=-51mV, delta=0.5mV,k=0.01）可生成明显双相脉冲，但移动条cost仅降至664万，原始DSI a下降、b上升；故“脉冲双相漂亮”尚不足以推荐正式替换。', '',
+'下一步最有依据的方向：',
+'在固定k=0.01的前提下，针对Mi1/Tm3通路的背景工作点、适应/负相强度与相位做参数可实现性和重训验证；同时以mbar cost、T4a/b原始及峰值DSI共同筛选，不能以双相峰幅作唯一目标。当前没有经验证可直接写入正式配置、且优于原存档全部目标的一组参数。', '',
+'文件与完整性：',
+'脚本、日志、全部结果、图像仅新增在本007目录；没有由本任务修改正式代码、主配置、已保存参数或提交训练。',
+'运行期间其他窗口在mbar pack新增了dsi_peak_values函数。source_audit.json确认原有函数AST未改变，原生动力学/成本文件及源run参数保持不变；完整网络复核的原始指标与初始基准一致。',
+'全部明细：all_results.csv / *_results.json；实验条件与源哈希：manifest.json / source_audit.json；逐点验证：conditional_equivalence.json及validation_results.json；原始重放数组：*_full.npy / *_background.npy。']
+(OUT/'research_report.txt').write_text('\n'.join(lines)+'\n');print('report_written',len(records))

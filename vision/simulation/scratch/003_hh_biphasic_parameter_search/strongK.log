@@ -1,0 +1,15 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+START 0 / 36
+DONE 0 elapsed 15.130198743194342 top [({'name': 'strongK_000', 'n_rate': 1.0, 'incoming_syn_gain': 0.03, 'cap_pF': 1.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.0), ({'name': 'strongK_001', 'n_rate': 1.0, 'incoming_syn_gain': 0.03, 'cap_pF': 1.0, 'gNa_nS': 10.0, 'gK_nS': 20.0, 'gLeak_nS': 4.0}, 0.0), ({'name': 'strongK_002', 'n_rate': 1.0, 'incoming_syn_gain': 0.03, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.0)]
+START 6 / 36
+DONE 6 elapsed 30.647255583666265 top [({'name': 'strongK_010', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.035), ({'name': 'strongK_008', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.034), ({'name': 'strongK_011', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 20.0, 'gLeak_nS': 4.0}, 0.002)]
+START 12 / 36
+DONE 12 elapsed 46.2421288061887 top [({'name': 'strongK_010', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.035), ({'name': 'strongK_008', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.034), ({'name': 'strongK_011', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 20.0, 'gLeak_nS': 4.0}, 0.002)]
+START 18 / 36
+DONE 18 elapsed 61.70017856173217 top [({'name': 'strongK_010', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.035), ({'name': 'strongK_008', 'n_rate': 1.0, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.034), ({'name': 'strongK_022', 'n_rate': 0.1, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.032)]
+START 24 / 36
+DONE 24 elapsed 77.14487350080162 top [({'name': 'strongK_028', 'n_rate': 0.02, 'incoming_syn_gain': 0.1, 'cap_pF': 1.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.219), ({'name': 'strongK_029', 'n_rate': 0.02, 'incoming_syn_gain': 0.1, 'cap_pF': 1.0, 'gNa_nS': 10.0, 'gK_nS': 20.0, 'gLeak_nS': 4.0}, 0.217), ({'name': 'strongK_026', 'n_rate': 0.02, 'incoming_syn_gain': 0.03, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.037)]
+START 30 / 36
+DONE 30 elapsed 93.47725888900459 top [({'name': 'strongK_035', 'n_rate': 0.02, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 20.0, 'gLeak_nS': 4.0}, 0.708), ({'name': 'strongK_033', 'n_rate': 0.02, 'incoming_syn_gain': 0.3, 'cap_pF': 1.0, 'gNa_nS': 10.0, 'gK_nS': 20.0, 'gLeak_nS': 4.0}, 0.697), ({'name': 'strongK_034', 'n_rate': 0.02, 'incoming_syn_gain': 0.3, 'cap_pF': 10.0, 'gNa_nS': 10.0, 'gK_nS': 10.0, 'gLeak_nS': 4.0}, 0.646)]
+FINISHED

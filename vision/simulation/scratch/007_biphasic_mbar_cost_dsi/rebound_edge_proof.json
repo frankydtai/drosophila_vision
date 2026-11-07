@@ -1,0 +1,10 @@
+{
+  "L1": {
+    "n_edges": 2167,
+    "nonzero_edges": 1749
+  },
+  "L2": {
+    "n_edges": 1801,
+    "nonzero_edges": 0
+  }
+}

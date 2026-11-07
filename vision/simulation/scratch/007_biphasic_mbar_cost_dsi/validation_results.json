@@ -1,0 +1,3235 @@
+[
+  {
+    "cost": 1607422.359375,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 418451.5625,
+      "mbar_right_bright_w1_T4b_ND": 152826.515625,
+      "mbar_left_bright_w1_T4a_ND": 424792.96875,
+      "mbar_left_bright_w1_T4b_PD": 611351.3125
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -44.080078125,
+      "mbar_DSI_bright_T4b": -32.171875
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.869529504073185,
+        "ND_peak": 11.831145925970592,
+        "peak_DSI": 0.07931245167664921
+      },
+      "T4b": {
+        "PD_peak": 11.333222293839356,
+        "ND_peak": 10.162260281530884,
+        "peak_DSI": 0.05447479526001305
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.869529504073185,
+        "trough": -5.029390887003693
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.831145925970592,
+        "trough": -2.3866249838509503
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.162260281530884,
+        "trough": -0.547591058789088
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.333222293839356,
+        "trough": -3.4096323643918325
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1607422.359375,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -44.07861328125,
+      "mbar_DSI_bright_T4b": -32.172607421875
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.1_t-75",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.1,
+      "shift_ms": -75
+    }
+  },
+  {
+    "cost": 1634078.0,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 464052.5,
+      "mbar_right_bright_w1_T4b_ND": 137586.0,
+      "mbar_left_bright_w1_T4a_ND": 400040.6875,
+      "mbar_left_bright_w1_T4b_PD": 632398.8125
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -17.720703125,
+      "mbar_DSI_bright_T4b": -22.373046875
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.842293716976254,
+        "ND_peak": 11.759953672150374,
+        "peak_DSI": 0.08133426777643973
+      },
+      "T4b": {
+        "PD_peak": 11.283513970540255,
+        "ND_peak": 10.069435999051429,
+        "peak_DSI": 0.056857622633770574
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.842293716976254,
+        "trough": -5.592331941747787
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.759953672150374,
+        "trough": -2.387068227838249
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.069435999051429,
+        "trough": -0.8955184692031963
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.283513970540255,
+        "trough": -3.970829913791583
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1634078.0,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -17.7178955078125,
+      "mbar_DSI_bright_T4b": -22.3739013671875
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.15_t-75",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.15,
+      "shift_ms": -75
+    }
+  },
+  {
+    "cost": 1709776.859375,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 518785.34375,
+      "mbar_right_bright_w1_T4b_ND": 135068.859375,
+      "mbar_left_bright_w1_T4a_ND": 392565.96875,
+      "mbar_left_bright_w1_T4b_PD": 663356.6875
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 7.953125,
+      "mbar_DSI_bright_T4b": -11.6640625
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.813164636547594,
+        "ND_peak": 11.688005414265398,
+        "peak_DSI": 0.08333575353788306
+      },
+      "T4b": {
+        "PD_peak": 11.229977790057365,
+        "ND_peak": 9.980276271391226,
+        "peak_DSI": 0.058919686442491806
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.813164636547594,
+        "trough": -6.122798205286962
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.688005414265398,
+        "trough": -2.3873657466538845
+      },
+      "T4b__right_bright_w1": {
+        "peak": 9.980276271391226,
+        "trough": -1.2787699759113522
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.229977790057365,
+        "trough": -4.491929677045569
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1709776.859375,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 7.9520263671875,
+      "mbar_DSI_bright_T4b": -11.66455078125
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.2_t-75",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.2,
+      "shift_ms": -75
+    }
+  },
+  {
+    "cost": 1827538.125,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 581447.25,
+      "mbar_right_bright_w1_T4b_ND": 143191.03125,
+      "mbar_left_bright_w1_T4a_ND": 399360.53125,
+      "mbar_left_bright_w1_T4b_PD": 703539.3125
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 32.662109375,
+      "mbar_DSI_bright_T4b": -0.107421875
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.777523125623446,
+        "ND_peak": 11.610586855434939,
+        "peak_DSI": 0.08535240598080047
+      },
+      "T4b": {
+        "PD_peak": 11.165030789647794,
+        "ND_peak": 9.889463349447638,
+        "peak_DSI": 0.060584093437400365
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.777523125623446,
+        "trough": -6.624711293269122
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.610586855434939,
+        "trough": -2.387527196943161
+      },
+      "T4b__right_bright_w1": {
+        "peak": 9.889463349447638,
+        "trough": -1.7025406670923289
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.165030789647794,
+        "trough": -4.977933018348125
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1827538.125,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 32.6624755859375,
+      "mbar_DSI_bright_T4b": -0.1060791015625
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.25_t-75",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.25,
+      "shift_ms": -75
+    }
+  },
+  {
+    "cost": 1620386.984375,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 402694.125,
+      "mbar_right_bright_w1_T4b_ND": 171641.828125,
+      "mbar_left_bright_w1_T4a_ND": 458812.21875,
+      "mbar_left_bright_w1_T4b_PD": 587238.8125
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -44.802734375,
+      "mbar_DSI_bright_T4b": -27.5078125
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.866863977400438,
+        "ND_peak": 11.862979955130491,
+        "peak_DSI": 0.07788170140186443
+      },
+      "T4b": {
+        "PD_peak": 11.364912303080278,
+        "ND_peak": 10.215928719854396,
+        "peak_DSI": 0.05324090854498295
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.866863977400438,
+        "trough": -5.200264633799215
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.862979955130491,
+        "trough": -2.38398765120796
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.215928719854396,
+        "trough": -0.7443134986675588
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.364912303080278,
+        "trough": -3.525069558816874
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1620386.984375,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -44.802001953125,
+      "mbar_DSI_bright_T4b": -27.5086669921875
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.1_t-50",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.1,
+      "shift_ms": -50
+    }
+  },
+  {
+    "cost": 1654357.34375,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 440047.3125,
+      "mbar_right_bright_w1_T4b_ND": 165788.28125,
+      "mbar_left_bright_w1_T4a_ND": 451703.25,
+      "mbar_left_bright_w1_T4b_PD": 596818.5
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -18.77734375,
+      "mbar_DSI_bright_T4b": -15.99609375
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.838186527320982,
+        "ND_peak": 11.80403920262998,
+        "peak_DSI": 0.0793280328358958
+      },
+      "T4b": {
+        "PD_peak": 11.330688787088516,
+        "ND_peak": 10.142674356911414,
+        "peak_DSI": 0.055325028604522805
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.838186527320982,
+        "trough": -5.82984134092046
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.80403920262998,
+        "trough": -2.383304895166802
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.142674356911414,
+        "trough": -1.1932443630962553
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.330688787088516,
+        "trough": -4.130352132948751
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1654357.34375,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -18.777587890625,
+      "mbar_DSI_bright_T4b": -15.9964599609375
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.15_t-50",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.15,
+      "shift_ms": -50
+    }
+  },
+  {
+    "cost": 1736130.8125,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 486060.28125,
+      "mbar_right_bright_w1_T4b_ND": 172111.3125,
+      "mbar_left_bright_w1_T4a_ND": 461387.65625,
+      "mbar_left_bright_w1_T4b_PD": 616571.5625
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 6.580078125,
+      "mbar_DSI_bright_T4b": -3.8515625
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.807235319324707,
+        "ND_peak": 11.742388667530836,
+        "peak_DSI": 0.08081710528719203
+      },
+      "T4b": {
+        "PD_peak": 11.290974517189738,
+        "ND_peak": 10.068903282666412,
+        "peak_DSI": 0.057213400094056566
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.807235319324707,
+        "trough": -6.418240262750999
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.742388667530836,
+        "trough": -2.3826018707837022
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.068903282666412,
+        "trough": -1.6648137668424283
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.290974517189738,
+        "trough": -4.688203207074579
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1736130.8125,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 6.579345703125,
+      "mbar_DSI_bright_T4b": -3.849853515625
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.2_t-50",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.2,
+      "shift_ms": -50
+    }
+  },
+  {
+    "cost": 1858180.296875,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 539581.625,
+      "mbar_right_bright_w1_T4b_ND": 188343.765625,
+      "mbar_left_bright_w1_T4a_ND": 484527.90625,
+      "mbar_left_bright_w1_T4b_PD": 645727.0
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 31.01953125,
+      "mbar_DSI_bright_T4b": 8.859375
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.769403426498808,
+        "ND_peak": 11.673155433532951,
+        "peak_DSI": 0.0823913979917679
+      },
+      "T4b": {
+        "PD_peak": 11.239989908978291,
+        "ND_peak": 9.987976684044646,
+        "peak_DSI": 0.05897942317966281
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.769403426498808,
+        "trough": -6.971684450957248
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.673155433532951,
+        "trough": -2.8747494133118963
+      },
+      "T4b__right_bright_w1": {
+        "peak": 9.987976684044646,
+        "trough": -2.1512008209615345
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.239989908978291,
+        "trough": -5.205769788909748
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1858180.296875,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 31.0203857421875,
+      "mbar_DSI_bright_T4b": 8.86083984375
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.25_t-50",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.25,
+      "shift_ms": -50
+    }
+  },
+  {
+    "cost": 1647345.125,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 389818.28125,
+      "mbar_right_bright_w1_T4b_ND": 192742.71875,
+      "mbar_left_bright_w1_T4a_ND": 494645.125,
+      "mbar_left_bright_w1_T4b_PD": 570139.0
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -46.91015625,
+      "mbar_DSI_bright_T4b": -24.560546875
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.885744050159136,
+        "ND_peak": 11.913244216220576,
+        "peak_DSI": 0.07645648013682182
+      },
+      "T4b": {
+        "PD_peak": 11.401727606983695,
+        "ND_peak": 10.284254201364291,
+        "peak_DSI": 0.051529758509215096
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.885744050159136,
+        "trough": -5.324211681132695
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.913244216220576,
+        "trough": -2.3833187203503314
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.284254201364291,
+        "trough": -0.9516778705186084
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.401727606983695,
+        "trough": -3.5842726330465666
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1647345.125,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -46.910400390625,
+      "mbar_DSI_bright_T4b": -24.56201171875
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.1_t-25",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.1,
+      "shift_ms": -25
+    }
+  },
+  {
+    "cost": 1695806.203125,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 421257.25,
+      "mbar_right_bright_w1_T4b_ND": 196959.578125,
+      "mbar_left_bright_w1_T4a_ND": 504994.9375,
+      "mbar_left_bright_w1_T4b_PD": 572594.4375
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -22.1953125,
+      "mbar_DSI_bright_T4b": -11.8359375
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.867868667341348,
+        "ND_peak": 11.878099446154337,
+        "peak_DSI": 0.07728469220561184
+      },
+      "T4b": {
+        "PD_peak": 11.386786039131675,
+        "ND_peak": 10.243036696912505,
+        "peak_DSI": 0.05287835023785069
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.867868667341348,
+        "trough": -5.999928603627765
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.878099446154337,
+        "trough": -2.3823152800500083
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.243036696912505,
+        "trough": -1.4960255029264715
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.386786039131675,
+        "trough": -4.214032969559298
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1695806.203125,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -22.1954345703125,
+      "mbar_DSI_bright_T4b": -11.836669921875
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.15_t-25",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.15,
+      "shift_ms": -25
+    }
+  },
+  {
+    "cost": 1791935.5625,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 461661.9375,
+      "mbar_right_bright_w1_T4b_ND": 212867.25,
+      "mbar_left_bright_w1_T4a_ND": 531513.5,
+      "mbar_left_bright_w1_T4b_PD": 585892.875
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 1.625,
+      "mbar_DSI_bright_T4b": 1.53125
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.848310162888367,
+        "ND_peak": 11.840551390827592,
+        "peak_DSI": 0.07815678276993741
+      },
+      "T4b": {
+        "PD_peak": 11.367431742100905,
+        "ND_peak": 10.199066649723441,
+        "peak_DSI": 0.054175001947482565
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.848310162888367,
+        "trough": -6.627692358096702
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.840551390827592,
+        "trough": -2.680311475503437
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.199066649723441,
+        "trough": -2.0502611011927314
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.367431742100905,
+        "trough": -4.793269598716485
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1791935.5625,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 1.626220703125,
+      "mbar_DSI_bright_T4b": 1.5330810546875
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.2_t-25",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.2,
+      "shift_ms": -25
+    }
+  },
+  {
+    "cost": 1927815.328125,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 509834.84375,
+      "mbar_right_bright_w1_T4b_ND": 238132.109375,
+      "mbar_left_bright_w1_T4a_ND": 570807.3125,
+      "mbar_left_bright_w1_T4b_PD": 609041.0625
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 24.333984375,
+      "mbar_DSI_bright_T4b": 15.2734375
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.823393869323422,
+        "ND_peak": 11.801431985557596,
+        "peak_DSI": 0.07890636585070422
+      },
+      "T4b": {
+        "PD_peak": 11.339204238809963,
+        "ND_peak": 10.145455317330367,
+        "peak_DSI": 0.05556285024485863
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.823393869323422,
+        "trough": -7.2161117087941875
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.801431985557596,
+        "trough": -3.35374810223837
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.145455317330367,
+        "trough": -2.595377698459373
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.339204238809963,
+        "trough": -5.3305443819740645
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1927815.328125,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 24.335205078125,
+      "mbar_DSI_bright_T4b": 15.271728515625
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "grid_neg_d0.25_t-25",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.25,
+      "shift_ms": -25
+    }
+  },
+  {
+    "cost": 7442548.125,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 2273313.75,
+      "mbar_right_bright_w1_T4b_ND": 1213906.375,
+      "mbar_left_bright_w1_T4a_ND": 1752270.0,
+      "mbar_left_bright_w1_T4b_PD": 2203058.0
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 684.76171875,
+      "mbar_DSI_bright_T4b": 410.36328125
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 14.328598570822805,
+        "ND_peak": 11.103538350808165,
+        "peak_DSI": 0.12681043004575868
+      },
+      "T4b": {
+        "PD_peak": 11.71389608982075,
+        "ND_peak": 10.264590627561148,
+        "peak_DSI": 0.06594200414687354
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.794021879847797,
+        "trough": -0.01676165645324801
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.79399844126388,
+        "trough": -0.01678199680588932
+      },
+      "L1__right_bright_w1": {
+        "peak": 2.151858660857208,
+        "trough": -6.2705813666851355
+      },
+      "L1__left_bright_w1": {
+        "peak": 2.21214721239118,
+        "trough": -6.266625933486168
+      },
+      "L2__right_bright_w1": {
+        "peak": -0.008173915556852762,
+        "trough": -4.159295199142775
+      },
+      "L2__left_bright_w1": {
+        "peak": -0.01079099272374151,
+        "trough": -4.18695417344091
+      },
+      "L3__right_bright_w1": {
+        "peak": -0.013522698460519678,
+        "trough": -4.203743032913479
+      },
+      "L3__left_bright_w1": {
+        "peak": -0.012699029976829479,
+        "trough": -4.2077027856078075
+      },
+      "L4__right_bright_w1": {
+        "peak": -0.00028654642395054,
+        "trough": -0.041762394256018354
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.0016679157334351657,
+        "trough": -0.04831375932460702
+      },
+      "L5__right_bright_w1": {
+        "peak": 7.959308181436782,
+        "trough": -2.5548536553734493
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.100113285691364,
+        "trough": -2.639866091915657
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.58463506105015,
+        "trough": -1.917951447755513
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.826126130553376,
+        "trough": -2.0660174647012965
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.937807213570718,
+        "trough": -1.5766596063690699
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.736237418091292,
+        "trough": -1.582088201547407
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.710128020018935,
+        "trough": -0.6436067840862165
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.45190125539236,
+        "trough": -0.8326043155987719
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.37814772535531915,
+        "trough": -0.5383817381476064
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.2714387933125977,
+        "trough": -0.5099335573131185
+      },
+      "T4a__right_bright_w1": {
+        "peak": 14.328598570822805,
+        "trough": -4.045948512613904
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.103538350808165,
+        "trough": -1.5631012678593876
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.264590627561148,
+        "trough": -1.2267540816033176
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.71389608982075,
+        "trough": -3.1007699944224214
+      },
+      "T4c__right_bright_w1": {
+        "peak": 8.656760043780618,
+        "trough": -1.840111877566791
+      },
+      "T4c__left_bright_w1": {
+        "peak": 8.69231399378139,
+        "trough": -1.9002696487188118
+      },
+      "T4d__right_bright_w1": {
+        "peak": 10.041948433917785,
+        "trough": -1.401324382855833
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.315629261071944,
+        "trough": -1.2188497768486926
+      }
+    },
+    "mean_only_cost": 7442548.125,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 684.759765625,
+      "mbar_DSI_bright_T4b": 410.36474609375
+    },
+    "tonic_T4_mV": {
+      "T4a": -39.09673309326172,
+      "T4b": -44.784297943115234
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5098248720169067,
+      "T4b": 0.22581718862056732
+    },
+    "case": {
+      "name": "k001_baseline",
+      "k_label": "HH_k001"
+    }
+  },
+  {
+    "cost": 7126231.5,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 2183401.5,
+      "mbar_right_bright_w1_T4b_ND": 1144945.25,
+      "mbar_left_bright_w1_T4a_ND": 1672462.0,
+      "mbar_left_bright_w1_T4b_PD": 2125422.75
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 684.173828125,
+      "mbar_DSI_bright_T4b": 424.486328125
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 14.314145465369137,
+        "ND_peak": 11.076362737696321,
+        "peak_DSI": 0.12751941401794825
+      },
+      "T4b": {
+        "PD_peak": 11.693073543594252,
+        "ND_peak": 10.220782977268122,
+        "peak_DSI": 0.06718537035799627
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.794021879847797,
+        "trough": -0.01676165645324801
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.79399844126388,
+        "trough": -0.01678199680588932
+      },
+      "L1__right_bright_w1": {
+        "peak": 2.151858660857208,
+        "trough": -6.2705813666851355
+      },
+      "L1__left_bright_w1": {
+        "peak": 2.21214721239118,
+        "trough": -6.266625933486168
+      },
+      "L2__right_bright_w1": {
+        "peak": -0.008173915556852762,
+        "trough": -4.159295199142775
+      },
+      "L2__left_bright_w1": {
+        "peak": -0.01079099272374151,
+        "trough": -4.18695417344091
+      },
+      "L3__right_bright_w1": {
+        "peak": -0.013522698460519678,
+        "trough": -4.203743032913479
+      },
+      "L3__left_bright_w1": {
+        "peak": -0.012699029976829479,
+        "trough": -4.2077027856078075
+      },
+      "L4__right_bright_w1": {
+        "peak": -0.00028654642395054,
+        "trough": -0.041762394256018354
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.0016679157334351657,
+        "trough": -0.04831375932460702
+      },
+      "L5__right_bright_w1": {
+        "peak": 7.959308181436782,
+        "trough": -2.5548536553734493
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.100113285691364,
+        "trough": -2.639866091915657
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.58463506105015,
+        "trough": -1.917951447755513
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.826126130553376,
+        "trough": -2.0660174647012965
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.937807213570718,
+        "trough": -1.5766596063690699
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.736237418091292,
+        "trough": -1.582088201547407
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.710128020018935,
+        "trough": -0.6436067840862165
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.45190125539236,
+        "trough": -0.8326043155987719
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.37814772535531915,
+        "trough": -0.5383817381476064
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.2714387933125977,
+        "trough": -0.5099335573131185
+      },
+      "T4a__right_bright_w1": {
+        "peak": 14.314145465369137,
+        "trough": -4.180063459931034
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.076362737696321,
+        "trough": -1.5636762787388534
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.220782977268122,
+        "trough": -1.3230165781422443
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.693073543594252,
+        "trough": -3.243193661328135
+      },
+      "T4c__right_bright_w1": {
+        "peak": 8.656760043780618,
+        "trough": -1.840111877566791
+      },
+      "T4c__left_bright_w1": {
+        "peak": 8.69231399378139,
+        "trough": -1.9002696487188118
+      },
+      "T4d__right_bright_w1": {
+        "peak": 10.041948433917785,
+        "trough": -1.401324382855833
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.315629261071944,
+        "trough": -1.2188497768486926
+      }
+    },
+    "mean_only_cost": 7126231.5,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 684.17236328125,
+      "mbar_DSI_bright_T4b": 424.4873046875
+    },
+    "tonic_T4_mV": {
+      "T4a": -39.09673309326172,
+      "T4b": -44.784297943115234
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5098248720169067,
+      "T4b": 0.22581718862056732
+    },
+    "case": {
+      "name": "k001_small_negative",
+      "k_label": "HH_k001",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.05
+    }
+  },
+  {
+    "cost": 4410062.9375,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 1389343.0,
+      "mbar_right_bright_w1_T4b_ND": 610699.4375,
+      "mbar_left_bright_w1_T4a_ND": 1003338.25,
+      "mbar_left_bright_w1_T4b_PD": 1406682.25
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 733.01171875,
+      "mbar_DSI_bright_T4b": 510.71484375
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.972840544063079,
+        "ND_peak": 10.571718459344154,
+        "peak_DSI": 0.1385692887880685
+      },
+      "T4b": {
+        "PD_peak": 11.247087565755677,
+        "ND_peak": 9.532498844776946,
+        "peak_DSI": 0.0825131302954929
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.794021879847797,
+        "trough": -0.01676165645324801
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.79399844126388,
+        "trough": -0.01678199680588932
+      },
+      "L1__right_bright_w1": {
+        "peak": 2.151858660857208,
+        "trough": -6.2705813666851355
+      },
+      "L1__left_bright_w1": {
+        "peak": 2.21214721239118,
+        "trough": -6.266625933486168
+      },
+      "L2__right_bright_w1": {
+        "peak": -0.008173915556852762,
+        "trough": -4.159295199142775
+      },
+      "L2__left_bright_w1": {
+        "peak": -0.01079099272374151,
+        "trough": -4.18695417344091
+      },
+      "L3__right_bright_w1": {
+        "peak": -0.013522698460519678,
+        "trough": -4.203743032913479
+      },
+      "L3__left_bright_w1": {
+        "peak": -0.012699029976829479,
+        "trough": -4.2077027856078075
+      },
+      "L4__right_bright_w1": {
+        "peak": -0.00028654642395054,
+        "trough": -0.041762394256018354
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.0016679157334351657,
+        "trough": -0.04831375932460702
+      },
+      "L5__right_bright_w1": {
+        "peak": 7.959308181436782,
+        "trough": -2.5548536553734493
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.100113285691364,
+        "trough": -2.639866091915657
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.58463506105015,
+        "trough": -1.917951447755513
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.826126130553376,
+        "trough": -2.0660174647012965
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.937807213570718,
+        "trough": -1.5766596063690699
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.736237418091292,
+        "trough": -1.582088201547407
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.710128020018935,
+        "trough": -0.6436067840862165
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.45190125539236,
+        "trough": -0.8326043155987719
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.37814772535531915,
+        "trough": -0.5383817381476064
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.2714387933125977,
+        "trough": -0.5099335573131185
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.972840544063079,
+        "trough": -5.454439225575356
+      },
+      "T4a__left_bright_w1": {
+        "peak": 10.571718459344154,
+        "trough": -2.949366205436263
+      },
+      "T4b__right_bright_w1": {
+        "peak": 9.532498844776946,
+        "trough": -2.866377651222095
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.247087565755677,
+        "trough": -5.087029638829293
+      },
+      "T4c__right_bright_w1": {
+        "peak": 8.656760043780618,
+        "trough": -1.840111877566791
+      },
+      "T4c__left_bright_w1": {
+        "peak": 8.69231399378139,
+        "trough": -1.9002696487188118
+      },
+      "T4d__right_bright_w1": {
+        "peak": 10.041948433917785,
+        "trough": -1.401324382855833
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.315629261071944,
+        "trough": -1.2188497768486926
+      }
+    },
+    "mean_only_cost": 4410062.9375,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 733.01318359375,
+      "mbar_DSI_bright_T4b": 510.712646484375
+    },
+    "tonic_T4_mV": {
+      "T4a": -39.09673309326172,
+      "T4b": -44.784297943115234
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5098248720169067,
+      "T4b": 0.22581718862056732
+    },
+    "case": {
+      "name": "k001_negative_1",
+      "k_label": "HH_k001",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 1.0
+    }
+  },
+  {
+    "cost": 1671081.4375,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 363272.78125,
+      "mbar_right_bright_w1_T4b_ND": 213549.78125,
+      "mbar_left_bright_w1_T4a_ND": 520984.3125,
+      "mbar_left_bright_w1_T4b_PD": 573274.5625
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -73.5234375,
+      "mbar_DSI_bright_T4b": -35.7578125
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.908959634475664,
+        "ND_peak": 11.969862569149594,
+        "peak_DSI": 0.07492988089135022
+      },
+      "T4b": {
+        "PD_peak": 11.4257427567591,
+        "ND_peak": 10.351393623131173,
+        "peak_DSI": 0.049333811153426756
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.908959634475664,
+        "trough": -4.615906687464815
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.969862569149594,
+        "trough": -2.384123634520911
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.351393623131173,
+        "trough": -0.5638355568077031
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.4257427567591,
+        "trough": -2.887967128394628
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1671081.4375,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -73.52490234375,
+      "mbar_DSI_bright_T4b": -35.75634765625
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "full_small_negative",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.05,
+      "check_conditional": true
+    },
+    "conditional_max_abs_error_mV": 0.0
+  },
+  {
+    "cost": 1736130.8125,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 486060.28125,
+      "mbar_right_bright_w1_T4b_ND": 172111.3125,
+      "mbar_left_bright_w1_T4a_ND": 461387.65625,
+      "mbar_left_bright_w1_T4b_PD": 616571.5625
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": 6.580078125,
+      "mbar_DSI_bright_T4b": -3.8515625
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.807235319324707,
+        "ND_peak": 11.742388667530836,
+        "peak_DSI": 0.08081710528719203
+      },
+      "T4b": {
+        "PD_peak": 11.290974517189738,
+        "ND_peak": 10.068903282666412,
+        "peak_DSI": 0.057213400094056566
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.807235319324707,
+        "trough": -6.418240262750999
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.742388667530836,
+        "trough": -2.3826018707837022
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.068903282666412,
+        "trough": -1.6648137668424283
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.290974517189738,
+        "trough": -4.688203207074579
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1736130.8125,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": 6.579345703125,
+      "mbar_DSI_bright_T4b": -3.849853515625
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "full_phase_negative",
+      "negative_sources": [
+        "Mi1",
+        "Tm3"
+      ],
+      "dose": 0.2,
+      "shift_ms": -50,
+      "check_conditional": true
+    },
+    "conditional_max_abs_error_mV": 0.0
+  },
+  {
+    "cost": 2597064.46875,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 524850.125,
+      "mbar_right_bright_w1_T4b_ND": 497356.21875,
+      "mbar_left_bright_w1_T4a_ND": 1068554.25,
+      "mbar_left_bright_w1_T4b_PD": 506303.875
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -274.390625,
+      "mbar_DSI_bright_T4b": -150.7265625
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 14.815608697160133,
+        "ND_peak": 13.048564416829809,
+        "peak_DSI": 0.06341635451019838
+      },
+      "T4b": {
+        "PD_peak": 12.330870310329882,
+        "ND_peak": 11.469199024098316,
+        "peak_DSI": 0.03620457042052007
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087435653137,
+        "trough": -0.0014913225866095559
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068333573851,
+        "trough": -0.0015777869913407017
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.27514860555519505,
+        "trough": -3.4755811829109646
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.018549247069486796,
+        "trough": -3.5383258147032564
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.01136346986417891,
+        "trough": -4.188726391034663
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.01196966752389983,
+        "trough": -4.19943976008436
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.003092177052295142,
+        "trough": -4.290218382128174
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0032012050004652792,
+        "trough": -4.290100666514618
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.0013954778948601643,
+        "trough": -0.051856508338836704
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.0054833662856736964,
+        "trough": -0.05865734940335443
+      },
+      "L5__right_bright_w1": {
+        "peak": 9.476948181958157,
+        "trough": -2.5972530559064566
+      },
+      "L5__left_bright_w1": {
+        "peak": 9.686134342986769,
+        "trough": -2.9585952858087623
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 16.64204656613387,
+        "trough": -3.232642095216711
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 17.019609741409695,
+        "trough": -3.578037190817682
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 16.963466443642663,
+        "trough": -3.7912148345154506
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 17.107097385188027,
+        "trough": -4.180913042793222
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 19.1790004241951,
+        "trough": -2.9568729553915176
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 19.308141424447843,
+        "trough": -3.3388191811010657
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.22332347004414999,
+        "trough": -0.6195977595529456
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.21707927367523894,
+        "trough": -0.4254564996538477
+      },
+      "T4a__right_bright_w1": {
+        "peak": 14.815608697160133,
+        "trough": -8.34557802222212
+      },
+      "T4a__left_bright_w1": {
+        "peak": 13.048564416829809,
+        "trough": -4.022320804333624
+      },
+      "T4b__right_bright_w1": {
+        "peak": 11.469199024098316,
+        "trough": -3.2815994955231886
+      },
+      "T4b__left_bright_w1": {
+        "peak": 12.330870310329882,
+        "trough": -5.808978865468248
+      },
+      "T4c__right_bright_w1": {
+        "peak": 8.733094760544756,
+        "trough": -2.5489889165377733
+      },
+      "T4c__left_bright_w1": {
+        "peak": 8.853358550548485,
+        "trough": -2.649605336933668
+      },
+      "T4d__right_bright_w1": {
+        "peak": 10.241629652404072,
+        "trough": -2.331328749073627
+      },
+      "T4d__left_bright_w1": {
+        "peak": 10.289005132154987,
+        "trough": -2.7768170783013986
+      }
+    },
+    "mean_only_cost": 2597064.46875,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -274.3916015625,
+      "mbar_DSI_bright_T4b": -150.728759765625
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "full_L1_rebound_half",
+      "rebound_sources": [
+        "L1"
+      ],
+      "dose": 0.5
+    }
+  },
+  {
+    "cost": 4487672.3125,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 848514.5625,
+      "mbar_right_bright_w1_T4b_ND": 977067.0,
+      "mbar_left_bright_w1_T4a_ND": 1860816.25,
+      "mbar_left_bright_w1_T4b_PD": 801274.5
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -528.84765625,
+      "mbar_DSI_bright_T4b": -91.81640625
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 15.176234612244755,
+        "ND_peak": 14.109967425415022,
+        "peak_DSI": 0.036408517070892196
+      },
+      "T4b": {
+        "PD_peak": 13.223496869632594,
+        "ND_peak": 13.013368635969751,
+        "peak_DSI": 0.008008892434882299
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087718850844,
+        "trough": -0.0019122415111638702
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.77706860808042,
+        "trough": -0.002040540729332463
+      },
+      "L1__right_bright_w1": {
+        "peak": 3.9563917408827507,
+        "trough": -1.7538365884559468
+      },
+      "L1__left_bright_w1": {
+        "peak": 5.383345619073339,
+        "trough": -1.8472572446187456
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.10521927522843555,
+        "trough": -4.035669757141221
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.11889651982545502,
+        "trough": -4.0595621405653475
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027917769467507014,
+        "trough": -4.289783776208964
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0020821615066921595,
+        "trough": -4.28977267228079
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.0025991894891959078,
+        "trough": -0.051083017822278975
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.00877794271850263,
+        "trough": -0.0705632139591259
+      },
+      "L5__right_bright_w1": {
+        "peak": 12.524158886165566,
+        "trough": -4.131719349488563
+      },
+      "L5__left_bright_w1": {
+        "peak": 12.419495427681603,
+        "trough": -4.553014398420302
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 22.306180663130824,
+        "trough": -4.030536037765927
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 22.06626068891371,
+        "trough": -4.28473766518848
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 19.44133373910568,
+        "trough": -5.084824904251867
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 19.658430800998385,
+        "trough": -4.988085426429436
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 21.914897245643886,
+        "trough": -2.663622584576977
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 22.12201752293974,
+        "trough": -2.938592978132334
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.31699521251651674,
+        "trough": -0.56146205492783
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.3938916369234562,
+        "trough": -0.319924167945004
+      },
+      "T4a__right_bright_w1": {
+        "peak": 15.176234612244755,
+        "trough": -8.300175915043425
+      },
+      "T4a__left_bright_w1": {
+        "peak": 14.109967425415022,
+        "trough": -4.673924864676785
+      },
+      "T4b__right_bright_w1": {
+        "peak": 13.013368635969751,
+        "trough": -3.445392943752502
+      },
+      "T4b__left_bright_w1": {
+        "peak": 13.223496869632594,
+        "trough": -5.1454687822187
+      },
+      "T4c__right_bright_w1": {
+        "peak": 9.828341515155884,
+        "trough": -2.6785823173885817
+      },
+      "T4c__left_bright_w1": {
+        "peak": 9.784212137013355,
+        "trough": -2.5261227017317154
+      },
+      "T4d__right_bright_w1": {
+        "peak": 11.34413864416538,
+        "trough": -3.1185650585011615
+      },
+      "T4d__left_bright_w1": {
+        "peak": 11.092148826385504,
+        "trough": -1.908405821927154
+      }
+    },
+    "mean_only_cost": 4487672.3125,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -528.84814453125,
+      "mbar_DSI_bright_T4b": -91.818359375
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "full_L1_rebound",
+      "rebound_sources": [
+        "L1"
+      ],
+      "dose": 1.0
+    }
+  },
+  {
+    "cost": 1740471.875,
+    "cost_parts": {
+      "mbar_right_bright_w1_T4a_PD": 363673.375,
+      "mbar_right_bright_w1_T4b_ND": 230796.0625,
+      "mbar_left_bright_w1_T4a_ND": 538594.5,
+      "mbar_left_bright_w1_T4b_PD": 607407.9375
+    },
+    "dsi_raw": {
+      "mbar_DSI_bright_T4a": -96.8515625,
+      "mbar_DSI_bright_T4b": -48.01171875
+    },
+    "peak_metrics": {
+      "T4a": {
+        "PD_peak": 13.920714473463583,
+        "ND_peak": 11.981864581813138,
+        "peak_DSI": 0.07485161564463884
+      },
+      "T4b": {
+        "PD_peak": 11.434951698981997,
+        "ND_peak": 10.363958727802995,
+        "peak_DSI": 0.04913057351082284
+      }
+    },
+    "waveform_metrics": {
+      "R1-6__right_bright_w1": {
+        "peak": 8.777087212967764,
+        "trough": -0.0013145418665629904
+      },
+      "R1-6__left_bright_w1": {
+        "peak": 8.777068071141429,
+        "trough": -0.001333202014755841
+      },
+      "L1__right_bright_w1": {
+        "peak": 0.195078387116979,
+        "trough": -4.370354867297834
+      },
+      "L1__left_bright_w1": {
+        "peak": 0.28292609854187845,
+        "trough": -4.408048592221014
+      },
+      "L2__right_bright_w1": {
+        "peak": 0.014434058671156436,
+        "trough": -4.222243750753108
+      },
+      "L2__left_bright_w1": {
+        "peak": 0.009648277684533468,
+        "trough": -4.237987727912994
+      },
+      "L3__right_bright_w1": {
+        "peak": 0.0027219548897363666,
+        "trough": -4.289703606830599
+      },
+      "L3__left_bright_w1": {
+        "peak": 0.0026253754767537885,
+        "trough": -4.290787491423288
+      },
+      "L4__right_bright_w1": {
+        "peak": 0.00017749131582434075,
+        "trough": -0.05215656839344973
+      },
+      "L4__left_bright_w1": {
+        "peak": 0.002493750970565145,
+        "trough": -0.054129491965476006
+      },
+      "L5__right_bright_w1": {
+        "peak": 8.421190481929969,
+        "trough": -0.22120559594716838
+      },
+      "L5__left_bright_w1": {
+        "peak": 8.536601131031404,
+        "trough": -0.31545551764168067
+      },
+      "Mi1__right_bright_w1": {
+        "peak": 14.8569171451553,
+        "trough": -0.09815321935596444
+      },
+      "Mi1__left_bright_w1": {
+        "peak": 14.935296796534615,
+        "trough": -0.16909037874591348
+      },
+      "Tm3__right_bright_w1": {
+        "peak": 15.764273133297522,
+        "trough": -0.07352620387763409
+      },
+      "Tm3__left_bright_w1": {
+        "peak": 15.67351967692332,
+        "trough": -0.025614296139451653
+      },
+      "Mi4__right_bright_w1": {
+        "peak": 17.693775569142186,
+        "trough": -0.11844798149738978
+      },
+      "Mi4__left_bright_w1": {
+        "peak": 17.93290471536471,
+        "trough": -0.0987065325429981
+      },
+      "Mi9__right_bright_w1": {
+        "peak": 0.13843486415201767,
+        "trough": -0.4913230870908336
+      },
+      "Mi9__left_bright_w1": {
+        "peak": 0.11105793099690686,
+        "trough": -0.38081417397692974
+      },
+      "T4a__right_bright_w1": {
+        "peak": 13.920714473463583,
+        "trough": -3.8001622312999004
+      },
+      "T4a__left_bright_w1": {
+        "peak": 11.981864581813138,
+        "trough": -2.3852895498878226
+      },
+      "T4b__right_bright_w1": {
+        "peak": 10.363958727802995,
+        "trough": -0.5245385907373006
+      },
+      "T4b__left_bright_w1": {
+        "peak": 11.434951698981997,
+        "trough": -2.1542938501069173
+      },
+      "T4c__right_bright_w1": {
+        "peak": 7.8956162082734025,
+        "trough": -0.1559994849468751
+      },
+      "T4c__left_bright_w1": {
+        "peak": 7.953789295700133,
+        "trough": -0.05149168963779971
+      },
+      "T4d__right_bright_w1": {
+        "peak": 9.532315530139844,
+        "trough": -0.0911293630035459
+      },
+      "T4d__left_bright_w1": {
+        "peak": 9.480131289829252,
+        "trough": -0.039556044867197215
+      }
+    },
+    "mean_only_cost": 1740471.875,
+    "sd_band_cost": 0.0,
+    "dsi_baseline_subtracted": {
+      "mbar_DSI_bright_T4a": -96.853759765625,
+      "mbar_DSI_bright_T4b": -48.0126953125
+    },
+    "tonic_T4_mV": {
+      "T4a": -36.671539306640625,
+      "T4b": -42.66725540161133
+    },
+    "tonic_Mi9_conductance_nS": {
+      "T4a": 0.5448764562606812,
+      "T4b": 0.2527318000793457
+    },
+    "case": {
+      "name": "full_L2_rebound",
+      "rebound_sources": [
+        "L2"
+      ],
+      "dose": 1.0
+    },
+    "max_abs_difference_from_saved_mV": 0.0
+  }
+]

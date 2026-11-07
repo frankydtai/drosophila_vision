@@ -31,3 +31,7 @@ vision/simulation/logs/training_26307646.err
 # LC18 model: large Matlab files
 LC18_model/**/*.mat
 
+
+# Oversized scratch dumps (GitHub 100MB limit)
+vision/simulation/scratch/007_biphasic_mbar_cost_dsi/*_background.npy
+vision/simulation/scratch/007_biphasic_mbar_cost_dsi/*_full.npy

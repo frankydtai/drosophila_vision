@@ -1,0 +1,49 @@
+--- /home/yitai/drosophila_vision/vision/simulation/4_train/4_optimization.py
++++ optimization.candidate.py
+@@ -18,8 +18,8 @@
+ from torch import nn
+ from tqdm import tqdm
+ 
+-from task.mbar.pack import dsi_groups, dsi_values
+-from train.cost import forward_pack, session_cost_part_keys
++from task.mbar.pack import dsi_groups, dsi_peak_values, dsi_values
++from train.cost import forward_pack, gt_affine_from_pack, session_cost_part_keys
+ from train.cost import (
+     backward_part_sums,
+     calc_cost_parts,
+@@ -73,8 +73,9 @@
+ 
+ 
+ def _calc_dsi(z, session):
+-    """Mean raw moving-bar DSI across cell/contrast groups, independent of loss scales."""
++    """Mean raw DSI and normalized DSI_peak, independent of loss scales."""
+     values = []
++    peak_values = []
+     with torch.no_grad():
+         for pack in session.iter_packs():
+             if not any(True for _ in dsi_groups(pack)):
+@@ -82,11 +83,22 @@
+             params = params_from_z(z, session)
+             trace = forward_pack(session, params, pack.i_sti, pack)
+             values.extend(float(value.item()) for value in dsi_values(pack, trace).values())
+-    return sum(values) / len(values) if values else None
++            _, bias_gt = gt_affine_from_pack(params, pack, session)
++            peak_values.extend(
++                float(value.item())
++                for value in dsi_peak_values(pack, trace, bias_gt).values()
++            )
++    return (
++        (sum(values) / len(values), sum(peak_values) / len(peak_values))
++        if values else None
++    )
+ 
+ 
+ def _fmt_dsi(dsi):
+-    return "" if dsi is None else f"  DSI: {dsi:.4f}"
++    if dsi is None:
++        return ""
++    value, peak = dsi
++    return f"  DSI: {value:.4f}  DSI_peak: {peak:.4f}"
+ 
+ 
+ _TQDM_REFRESH_INTERVAL = 10

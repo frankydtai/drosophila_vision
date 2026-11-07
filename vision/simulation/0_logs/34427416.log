@@ -1,0 +1,395 @@
+Job ID: 34427416
+Node:   spartan-gpgpu103
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-2e5d58f3-8563-83f9-bfa7-91c0be0a3db5)
+cuda: True NVIDIA A100 80GB PCIe
+Start:  Fri 06 Nov 2026 18:15:57 AEDT
+==== config ====
+{'RUN_NAME': '34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0',
+ 'RUN_PATH': 'point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0',
+ 'MODEL': {'delta_ms': 1.0,
+           'delta_ms_pre': 1.0,
+           'cap': 40.0,
+           'g_leak': 1.0,
+           'e_exc': 10.0,
+           'e_inh': -70.0,
+           'e_h': 50.0,
+           'h_g_max': 100.0,
+           'gt_amp': 20.0,
+           'v_clamp': 100.0,
+           'a_syn_exc': 0.001,
+           'a_syn_inh': 0.001,
+           'euler': 'im'},
+ 'POINT_HH': {'ion_rules': '/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv',
+              'synapse_rules': '/home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv',
+              'connections': '/home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz',
+              'area_um2': 100.0,
+              'capacitance_uF_cm2': 1.0,
+              'v_min_mV': -120.0,
+              'v_max_mV': 80.0,
+              'gene_mode': 'on',
+              'gene': {'version': 'v6',
+                       'expression': '/home/yitai/Ripple/3_T4T5_mcHH_model/gene_2_param/expr_matrix_subset_all_curated.csv',
+                       'training_types': None,
+                       'max_fold_changes': {'gNa': 4.0, 'gK': 3.5, 'gLeak': 3.0, 'gS': 6.0},
+                       'params': {'gene_gNa_para': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_tipE': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_Teh1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_Teh2': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_Teh3': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gNa_Teh4': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Sh': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Shal': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Shab': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Shaw': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_eag': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_sei': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gK_Elk': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_Ork1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_Irk1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_Irk2': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_Irk3': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gLeak_ClC-a': {'lo': -2.0,
+                                                       'hi': 2.0,
+                                                       'init': 0.0,
+                                                       'jit': 0.0,
+                                                       'mode': 'shared'},
+                                  'gene_gLeak_pHCl-1': {'lo': -2.0,
+                                                        'hi': 2.0,
+                                                        'init': 0.0,
+                                                        'jit': 0.0,
+                                                        'mode': 'shared'},
+                                  'gene_gS_brp': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Rim': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Liprin-alpha': {'lo': -2.0,
+                                                           'hi': 2.0,
+                                                           'init': 0.0,
+                                                           'jit': 0.0,
+                                                           'mode': 'shared'},
+                                  'gene_gS_Syt1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Syt7': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Sytbeta': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_nSyb': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Syx1A': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Snap25': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Csp': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_cpx': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_shi': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Syn': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Syp': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Vap33': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_ChAT': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_VAChT': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_nAChRalpha1': {'lo': -2.0,
+                                                          'hi': 2.0,
+                                                          'init': 0.0,
+                                                          'jit': 0.0,
+                                                          'mode': 'shared'},
+                                  'gene_gS_nAChRalpha2': {'lo': -2.0,
+                                                          'hi': 2.0,
+                                                          'init': 0.0,
+                                                          'jit': 0.0,
+                                                          'mode': 'shared'},
+                                  'gene_gS_nAChRbeta1': {'lo': -2.0,
+                                                         'hi': 2.0,
+                                                         'init': 0.0,
+                                                         'jit': 0.0,
+                                                         'mode': 'shared'},
+                                  'gene_gS_Gad1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_VGAT': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Rdl': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Lcch3': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Grd': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_Hdc': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_ort': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_HisCl1': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_VGlut': {'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.0, 'mode': 'shared'},
+                                  'gene_gS_GluClalpha': {'lo': -2.0,
+                                                         'hi': 2.0,
+                                                         'init': 0.0,
+                                                         'jit': 0.0,
+                                                         'mode': 'shared'}}}},
+ 'NEURON_SCHEMA': {'model': 'point_hh',
+                   'filter': 'none',
+                   'syn_mode': 'per_cell',
+                   'a_lo': 0.1,
+                   'a_hi': 10.0,
+                   'h_cells': ['L1', 'L2', 'L4', 'L5'],
+                   'params': {'a_gt': {'lo': 0.5,
+                                       'hi': 1.0,
+                                       'init': 1.0,
+                                       'jit': 0.1,
+                                       'mode': 'indi',
+                                       'modes': {'fixed': ['T4a', 'T4b', 'T4c', 'T4d']}},
+                              'bias_gt': {'lo': -200.0, 'hi': 200.0, 'init': 0.0, 'jit': 1.0, 'mode': 'indi'},
+                              'syn_strength_cell': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'fixed'},
+                              'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'gNa': {'lo': 0.001, 'hi': 30.0, 'init': 3.0, 'jit': 0.0, 'mode': 'indi'},
+                              'gK': {'lo': 0.001, 'hi': 20.0, 'init': 1.0, 'jit': 0.0, 'mode': 'indi'},
+                              'gLeak': {'lo': 0.001, 'hi': 10.0, 'init': 1.2, 'jit': 0.0, 'mode': 'indi'},
+                              'gS': {'lo': 0.0001, 'hi': 3.0, 'init': 0.3, 'jit': 0.0, 'mode': 'indi'},
+                              'v_th_syn': {'lo': -80.0, 'hi': -20.0, 'init': -45.0, 'jit': 0.0, 'mode': 'shared'},
+                              'delta_syn': {'lo': 0.5, 'hi': 20.0, 'init': 4.0, 'jit': 0.0, 'mode': 'fixed'},
+                              'k_minus_syn': {'lo': 0.001, 'hi': 2.0, 'init': 0.01, 'jit': 0.0, 'mode': 'shared'},
+                              'a_in': {'lo': 0.01, 'hi': 100.0, 'init': 5.0, 'jit': 0.1, 'mode': 'shared'},
+                              'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'e_leak': {'lo': -100.0, 'hi': 50.0, 'init': -52.0, 'jit': 1.0, 'mode': 'fixed'},
+                              'v_th': {'lo': -100.0,
+                                       'hi': 100.0,
+                                       'init': -45.0,
+                                       'inits': {'L1': -60.0, 'L2': -60.0, 'L3': -60.0},
+                                       'jit': 0.0,
+                                       'mode': 'fixed',
+                                       'modes': {'indi': ['L1', 'L2', 'L3']}},
+                              'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 10.0, 'jit': 2.0, 'mode': 'indi'},
+                              'tau_hp_rise': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'tau_hp_fall': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'mode': 'indi'},
+                              'a_h': {'lo': 0.0,
+                                      'hi': 1.0,
+                                      'init': 0.0,
+                                      'inits': {'L1': 0.5, 'L2': 0.5},
+                                      'jit': 0.1,
+                                      'mode': 'fixed',
+                                      'modes': {'indi': ['L1', 'L2']}},
+                              'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'a_h_rev': {'lo': 0.0,
+                                          'hi': 1.0,
+                                          'init': 0.0,
+                                          'jit': 0.1,
+                                          'mode': 'fixed',
+                                          'modes': {'indi': ['L1', 'L2', 'L4', 'L5']}},
+                              'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'mode': 'shared'},
+                              'v_mid_h_tau_rev': {'lo': -70.0,
+                                                  'hi': -40.0,
+                                                  'init': -50.0,
+                                                  'jit': 5.0,
+                                                  'mode': 'shared'},
+                              'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'mode': 'shared'},
+                              'v_th_ca': {'lo': -100.0, 'hi': 100.0, 'init': -50.0, 'jit': 0.0, 'mode': 'indi'},
+                              'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'mode': 'indi'},
+                              'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 10.0, 'mode': 'indi'},
+                              'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'mode': 'indi'},
+                              'a_sti_mid': {'lo': 0.5, 'hi': 2.0, 'init': 1, 'jit': 0.05, 'mode': 'shared'}}},
+ 'NEURON_FORWARD': {'pre_grad': True},
+ 'NETWORK_PATH': {'network': 'right_min_neuron1_r10_filtered'},
+ 'SPREAD_INPUT_SPEC': {'ms_pre': 324.0, 'ms_sti': 160.0, 'ms_response': 600.0, 'ms_post': 0.0},
+ 'SPREAD_GT': {'spread_gt_mode': 'pos'},
+ 'SPOT_INPUT_GEO': {'spot_radius': 1.0, 'fully_inside': True, 'multi_spot': True, 'shift_radius': 1.0},
+ 'SPOT_PACK': {'spot_cost_radii': [0, 1, 2],
+               'a_sti_radii': [1, 2],
+               'spot_cost_radius_scale': {0: 1.0, 1: 0.3333333333333333, 2: 0.3333333333333333}},
+ 'SBAR_INPUT_GEO': {'multi_bar': False, 'bar_dist': 4, 'shift_mid': 2},
+ 'SBAR_GT': {'sbar_gt_w': 2},
+ 'SBAR_PACK': {'a_sti_mids': [0.5, 1.0, 1.5, 2.0]},
+ 'MBAR_INPUT_SPEC': {'ms_pre': 324.0, 'bar_ws_deg': [2.25], 'bar_directions': ['right', 'left']},
+ 'TRAIN_CONFIG': {'tasks': ['spread', 'sbar'],
+                  'contrasts': ['bright', 'dark'],
+                  'i_sti': {'bright': 40.0, 'dark': 0.0},
+                  'gt_by_task': {'spread': ['L1',
+                                            'L2',
+                                            'L3',
+                                            'L4',
+                                            'L5',
+                                            'Mi1',
+                                            'Mi4',
+                                            'Mi9',
+                                            'Tm3',
+                                            'T4a',
+                                            'T4b',
+                                            'T4c',
+                                            'T4d'],
+                                 'sbar': ['T4a', 'T4b', 'T4c', 'T4d'],
+                                 'mbar': ['T4a', 'T4b']},
+                  'cost_radius': None,
+                  'cost_mid': None},
+ 'VAL_FROM': {'bias_gt': {'source': 'v_onset', 'enabled': True},
+              'v_th_ca': {'source': 'v_th', 'enabled': False},
+              'a_ca': {'source': 'a_out', 'enabled': False},
+              'a_h_rev': {'source': 'a_h', 'enabled': False},
+              'v_mid_h_g_rev': {'source': 'v_mid_h_g', 'enabled': False},
+              'h_slope_rev': {'source': 'h_slope', 'enabled': False},
+              'v_mid_h_tau_rev': {'source': 'v_mid_h_tau', 'enabled': False}},
+ 'TRAIN_OPTIMIZATION': {'part_cost_scales': {'spread': 0,
+                                             'sbar': 0,
+                                             'sbar_bright_T4a_mid+0': 0,
+                                             'sbar_bright_T4a_mid-1': 0,
+                                             'sbar_bright_T4a_mid-2': 0,
+                                             'sbar_bright_T4a_mid+1': 0,
+                                             'sbar_bright_T4a_mid+2': 1},
+                        'cost_norm': 'a_gt2',
+                        'a_lsd': 1.0,
+                        'cost_entry_reduce': 'mean_trace',
+                        'cost_ms': None,
+                        'pre_steady': 'solve',
+                        'pre_steady_n_iter': 50,
+                        'pre_steady_damp': 0.1,
+                        'n_run': 1,
+                        'n_iter': 0,
+                        'lrs': [0.003],
+                        'checkpoint_interval': 100},
+ 'TRAIN_SESSION': {'fp': 32, 'sequential': False},
+ 'FIGURE_PLOT': {'tasks': ['spread', 'mbar', 'sbar'],
+                 'sbar_figure_cells': ['R1-6',
+                                       'R7',
+                                       'R8',
+                                       'L1',
+                                       'L2',
+                                       'L3',
+                                       'L4',
+                                       'L5',
+                                       'Mi1',
+                                       'Mi4',
+                                       'Mi9',
+                                       'Tm3',
+                                       'T4a'],
+                 'html': False,
+                 'plot_right_only': False,
+                 'x': None,
+                 'y': None,
+                 'align_xy': None,
+                 'ms_shown': None},
+ 'FIGURE_PLOT_STI_SPOT': {'spot_radii': [0.5, 1.0, 1.5, 2.0], 'output': None},
+ 'FIGURE_PLOT_STI_MBAR': {'output': None,
+                          'gif': False,
+                          'gif_output': None,
+                          't_stride': 2,
+                          't': None,
+                          'direction': 'left'},
+ 'ANALYZE_RUNS': ['point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0'],
+ 'ANALYZE_CELL_DYNAMICS': {'cells': None,
+                           'spec': None,
+                           'mid': None,
+                           'node': None,
+                           'radius': 0,
+                           't_rel_start': None,
+                           't_rel_stop': None,
+                           'figure': True,
+                           'json': False,
+                           'a_mid': None},
+ 'ANALYZE_SYN_SIGN': {'bins': 20, 'after_train': False, 'post': False},
+ 'ANALYZE_TRACE': {'trace_osc_min_f': 0.5,
+                   'trace_osc_max_f': 20.0,
+                   'trace_osc_peak_threshold': 0.5,
+                   'trace_osc_z_threshold': 2.0,
+                   'trace_osc_snr_min': 2.0,
+                   'trace_drift_min_slope_mv_over_s': 1.0,
+                   'trace_drift_min_r': 0.5,
+                   'trace_baseline_ms': 200.0,
+                   'trace_flat_max_abs': 0.5,
+                   'trace_flat_v_peak_to_peak_max': 1.0,
+                   'trace_flat_abs_mean': 0.2,
+                   'check': None,
+                   'baseline_ms_shown': None},
+ 'ANALYZE_COST_PART': {'part': None,
+                       'cost_norm': None,
+                       'stride': 1,
+                       'per_node': False,
+                       'csv': None,
+                       'print_parts': False}}
+==== end config ====
+[2026-11-06 18:16:37,838][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
+param_modes:
+  a_gt                  indi=10/shared=0/fixed=4/frozen=0 (10)
+  bias_gt               indi=0/shared=0/fixed=0/frozen=14 (0)
+  a_sti_mid             indi=0/shared=1/fixed=0/frozen=0 (1)
+  v_th_syn              indi=0/shared=101/fixed=0/frozen=0 (1)
+  delta_syn             indi=0/shared=0/fixed=101/frozen=0 (0)
+  k_minus_syn           indi=0/shared=101/fixed=0/frozen=0 (1)
+  gene_gNa_para         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_tipE         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_Teh1         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_Teh2         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_Teh3         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gNa_Teh4         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Sh            indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Shal          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Shab          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Shaw          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_eag           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_sei           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gK_Elk           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_Ork1       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_Irk1       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_Irk2       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_Irk3       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_ClC-a      indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gLeak_pHCl-1     indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_brp           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Rim           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Liprin-alpha  indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syt1          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syt7          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Sytbeta       indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_nSyb          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syx1A         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Snap25        indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Csp           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_cpx           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_shi           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syn           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Syp           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Vap33         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_ChAT          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_VAChT         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_nAChRalpha1   indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_nAChRalpha2   indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_nAChRbeta1    indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Gad1          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_VGAT          indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Rdl           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Lcch3         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Grd           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_Hdc           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_ort           indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_HisCl1        indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_VGlut         indi=0/shared=14/fixed=0/frozen=0 (1)
+  gene_gS_GluClalpha    indi=0/shared=14/fixed=0/frozen=0 (1)
+device=cuda, model=point_hh, syn_mode=per_cell, euler=implicit, pre_steady=solve, a_lsd=1.0, cost_entry_reduce=mean_trace, n_run=1, n_iter=100, lrs=[0.003], n_z=62, fname=train_point_hh.npy
+checkpoint_interval=100
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_param.npz' + '/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_adam.npz' (62 z, adam_iter=79, same objective)
+
+round 0
+
+  0%|          | 0/100 [00:00<?, ?it/s] Cost: 583273.4375  [mbar_right_bright_w1_T4a_PD=200481.9688  mbar_right_bright_w1_T4b_ND=38452.8789  mbar_left_bright_w1_T4a_ND=104641.7891  mbar_left_bright_w1_T4b_PD=239696.8125]  DSI: 758.7021  DSI_peak: 0.2566  0%|          | 0/100 [01:00<?, ?it/s] Cost: 564452.2500  [mbar_right_bright_w1_T4a_PD=190218.5625  mbar_right_bright_w1_T4b_ND=39390.2656  mbar_left_bright_w1_T4a_ND=108577.6641  mbar_left_bright_w1_T4b_PD=226265.7500]  DSI: 758.7021  DSI_peak: 0.2566:   6%|▌         | 6/100 [01:11<18:46, 11.99s/it] Cost: 552259.6250  [mbar_right_bright_w1_T4a_PD=181270.1875  mbar_right_bright_w1_T4b_ND=41020.0625  mbar_left_bright_w1_T4a_ND=106569.0781  mbar_left_bright_w1_T4b_PD=223400.3125]  DSI: 758.7021  DSI_peak: 0.2566:   7%|▋         | 7/100 [01:24<18:38, 12.03s/it] Cost: 546024.1875  [mbar_right_bright_w1_T4a_PD=177353.8125  mbar_right_bright_w1_T4b_ND=38859.2500  mbar_left_bright_w1_T4a_ND=103288.4375  mbar_left_bright_w1_T4b_PD=226522.6875]  DSI: 758.7021  DSI_peak: 0.2566:   8%|▊         | 8/100 [01:36<18:30, 12.07s/it] Cost: 531224.7500  [mbar_right_bright_w1_T4a_PD=173564.3438  mbar_right_bright_w1_T4b_ND=35853.4648  mbar_left_bright_w1_T4a_ND=96963.5000  mbar_left_bright_w1_T4b_PD=224843.4688]  DSI: 758.7021  DSI_peak: 0.2566:    9%|▉         | 9/100 [01:48<18:17, 12.06s/it] Cost: 528053.0000  [mbar_right_bright_w1_T4a_PD=171166.4062  mbar_right_bright_w1_T4b_ND=35581.0469  mbar_left_bright_w1_T4a_ND=94537.4375  mbar_left_bright_w1_T4b_PD=226768.1562]  DSI: 758.7021  DSI_peak: 0.2566:  10%|█         | 10/100 [02:04<19:37, 13.08s/it] Cost: 517625.6875  [mbar_right_bright_w1_T4a_PD=169401.1875  mbar_right_bright_w1_T4b_ND=34581.8477  mbar_left_bright_w1_T4a_ND=91547.2344  mbar_left_bright_w1_T4b_PD=222095.4375]  DSI: 801.7324  DSI_peak: 0.2749:  11%|█         | 11/100 [02:16<18:57, 12.78s/it] Cost: 512352.5625  [mbar_right_bright_w1_T4a_PD=166941.4688  mbar_right_bright_w1_T4b_ND=33123.7695  mbar_left_bright_w1_T4a_ND=93203.3359  mbar_left_bright_w1_T4b_PD=219083.9844]  DSI: 801.7324  DSI_peak: 0.2749:  12%|█▏        | 12/100 [02:28<18:30, 12.62s/it] Cost: 510726.3750  [mbar_right_bright_w1_T4a_PD=167497.1250  mbar_right_bright_w1_T4b_ND=34957.4688  mbar_left_bright_w1_T4a_ND=90187.6719  mbar_left_bright_w1_T4b_PD=218084.1250]  DSI: 801.7324  DSI_peak: 0.2749:  13%|█▎        | 13/100 [02:40<18:04, 12.47s/it] Cost: 519533.0312  [mbar_right_bright_w1_T4a_PD=167533.6406  mbar_right_bright_w1_T4b_ND=35067.7656  mbar_left_bright_w1_T4a_ND=86147.0000  mbar_left_bright_w1_T4b_PD=230784.6250]  DSI: 801.7324  DSI_peak: 0.2749:  14%|█▍        | 14/100 [02:52<17:42, 12.36s/it] Cost: 589435.0000  [mbar_right_bright_w1_T4a_PD=193982.0938  mbar_right_bright_w1_T4b_ND=37610.2266  mbar_left_bright_w1_T4a_ND=94334.8672  mbar_left_bright_w1_T4b_PD=263507.7812]  DSI: 801.7324  DSI_peak: 0.2749:  15%|█▌        | 15/100 [03:05<17:27, 12.32s/it] Cost: 611394.2500  [mbar_right_bright_w1_T4a_PD=207986.5000  mbar_right_bright_w1_T4b_ND=35232.5156  mbar_left_bright_w1_T4a_ND=99363.1172  mbar_left_bright_w1_T4b_PD=268812.1562]  DSI: 801.7324  DSI_peak: 0.2749:  16%|█▌        | 16/100 [03:17<17:10, 12.27s/it] Cost: 631864.3750  [mbar_right_bright_w1_T4a_PD=222299.3750  mbar_right_bright_w1_T4b_ND=35841.9805  mbar_left_bright_w1_T4a_ND=99262.9531  mbar_left_bright_w1_T4b_PD=274460.0938]  DSI: 801.7324  DSI_peak: 0.2749:  17%|█▋        | 17/100 [03:29<16:55, 12.23s/it] Cost: 656662.6875  [mbar_right_bright_w1_T4a_PD=229461.4375  mbar_right_bright_w1_T4b_ND=35226.0391  mbar_left_bright_w1_T4a_ND=102273.4531  mbar_left_bright_w1_T4b_PD=289701.7500]  DSI: 801.7324  DSI_peak: 0.2749:  18%|█▊        | 18/100 [03:41<16:39, 12.19s/it] Cost: 652248.5000  [mbar_right_bright_w1_T4a_PD=226121.1562  mbar_right_bright_w1_T4b_ND=35576.5234  mbar_left_bright_w1_T4a_ND=102431.1094  mbar_left_bright_w1_T4b_PD=288119.6562]  DSI: 801.7324  DSI_peak: 0.2749:  19%|█▉        | 19/100 [03:53<16:26, 12.18s/it] Cost: 662979.8750  [mbar_right_bright_w1_T4a_PD=228494.4531  mbar_right_bright_w1_T4b_ND=36328.5352  mbar_left_bright_w1_T4a_ND=109143.6406  mbar_left_bright_w1_T4b_PD=289013.2500]  DSI: 801.7324  DSI_peak: 0.2749:  20%|██        | 20/100 [04:09<17:42, 13.29s/it] Cost: 656301.3125  [mbar_right_bright_w1_T4a_PD=225141.3750  mbar_right_bright_w1_T4b_ND=36684.2188  mbar_left_bright_w1_T4a_ND=110083.1016  mbar_left_bright_w1_T4b_PD=284392.6250]  DSI: 645.1523  DSI_peak: 0.2394:  21%|██        | 21/100 [04:21<17:00, 12.91s/it] Cost: 640989.2500  [mbar_right_bright_w1_T4a_PD=218541.5156  mbar_right_bright_w1_T4b_ND=36672.4453  mbar_left_bright_w1_T4a_ND=109675.8203  mbar_left_bright_w1_T4b_PD=276099.4375]  DSI: 645.1523  DSI_peak: 0.2394:  22%|██▏       | 22/100 [04:33<16:26, 12.65s/it] Cost: 621247.5000  [mbar_right_bright_w1_T4a_PD=212321.2812  mbar_right_bright_w1_T4b_ND=36767.0234  mbar_left_bright_w1_T4a_ND=108986.5156  mbar_left_bright_w1_T4b_PD=263172.7188]  DSI: 645.1523  DSI_peak: 0.2394:  23%|██▎       | 23/100 [04:45<16:02, 12.50s/it] Cost: 591882.0625  [mbar_right_bright_w1_T4a_PD=200074.4062  mbar_right_bright_w1_T4b_ND=37337.7891  mbar_left_bright_w1_T4a_ND=106026.2031  mbar_left_bright_w1_T4b_PD=248443.7031]  DSI: 645.1523  DSI_peak: 0.2394:  24%|██▍       | 24/100 [04:57<15:41, 12.39s/it] Cost: 584657.3750  [mbar_right_bright_w1_T4a_PD=197764.2969  mbar_right_bright_w1_T4b_ND=37606.4062  mbar_left_bright_w1_T4a_ND=107813.2656  mbar_left_bright_w1_T4b_PD=241473.3750]  DSI: 645.1523  DSI_peak: 0.2394:  25%|██▌       | 25/100 [05:10<15:24, 12.33s/it] Cost: 559056.1250  [mbar_right_bright_w1_T4a_PD=181443.1406  mbar_right_bright_w1_T4b_ND=39925.2891  mbar_left_bright_w1_T4a_ND=109407.2812  mbar_left_bright_w1_T4b_PD=228280.3750]  DSI: 645.1523  DSI_peak: 0.2394:  26%|██▌       | 26/100 [05:21<15:04, 12.22s/it] Cost: 555904.4375  [mbar_right_bright_w1_T4a_PD=179616.5938  mbar_right_bright_w1_T4b_ND=40521.3281  mbar_left_bright_w1_T4a_ND=111264.9062  mbar_left_bright_w1_T4b_PD=224501.6250]  DSI: 645.1523  DSI_peak: 0.2394:  27%|██▋       | 27/100 [05:34<14:52, 12.22s/it] Cost: 552633.8750  [mbar_right_bright_w1_T4a_PD=177870.2188  mbar_right_bright_w1_T4b_ND=41190.9609  mbar_left_bright_w1_T4a_ND=112260.1328  mbar_left_bright_w1_T4b_PD=221312.5938]  DSI: 645.1523  DSI_peak: 0.2394:  28%|██▊       | 28/100 [05:46<14:39, 12.21s/it] Cost: 552832.4375  [mbar_right_bright_w1_T4a_PD=179441.9219  mbar_right_bright_w1_T4b_ND=39254.4102  mbar_left_bright_w1_T4a_ND=108046.0703  mbar_left_bright_w1_T4b_PD=226090.0156]  DSI: 645.1523  DSI_peak: 0.2394:  29%|██▉       | 29/100 [05:58<14:23, 12.17s/it] Cost: 561851.6250  [mbar_right_bright_w1_T4a_PD=180687.7812  mbar_right_bright_w1_T4b_ND=43531.8359  mbar_left_bright_w1_T4a_ND=109925.1250  mbar_left_bright_w1_T4b_PD=227706.8438]  DSI: 645.1523  DSI_peak: 0.2394:  30%|███       | 30/100 [06:14<15:33, 13.33s/it] Cost: 580812.6250  [mbar_right_bright_w1_T4a_PD=187530.3438  mbar_right_bright_w1_T4b_ND=40699.2266  mbar_left_bright_w1_T4a_ND=114645.5312  mbar_left_bright_w1_T4b_PD=237937.5000]  DSI: 725.3418  DSI_peak: 0.2534:  31%|███       | 31/100 [06:26<14:50, 12.90s/it] Cost: 622313.1250  [mbar_right_bright_w1_T4a_PD=203656.2812  mbar_right_bright_w1_T4b_ND=42628.5117  mbar_left_bright_w1_T4a_ND=118526.8750  mbar_left_bright_w1_T4b_PD=257501.4531]  DSI: 725.3418  DSI_peak: 0.2534:  32%|███▏      | 32/100 [06:38<14:20, 12.66s/it] Cost: 657699.7500  [mbar_right_bright_w1_T4a_PD=209197.4062  mbar_right_bright_w1_T4b_ND=43469.1641  mbar_left_bright_w1_T4a_ND=116136.6484  mbar_left_bright_w1_T4b_PD=288896.5000]  DSI: 725.3418  DSI_peak: 0.2534:  33%|███▎      | 33/100 [06:50<13:57, 12.49s/it] Cost: 671952.1250  [mbar_right_bright_w1_T4a_PD=210596.9844  mbar_right_bright_w1_T4b_ND=52384.2031  mbar_left_bright_w1_T4a_ND=119983.9922  mbar_left_bright_w1_T4b_PD=288986.9375]  DSI: 725.3418  DSI_peak: 0.2534:  34%|███▍      | 34/100 [07:02<13:34, 12.34s/it] Cost: 740459.1250  [mbar_right_bright_w1_T4a_PD=224590.5938  mbar_right_bright_w1_T4b_ND=56009.1406  mbar_left_bright_w1_T4a_ND=131678.7656  mbar_left_bright_w1_T4b_PD=328180.5938]  DSI: 725.3418  DSI_peak: 0.2534:  35%|███▌      | 35/100 [07:14<13:19, 12.29s/it] Cost: 769824.3750  [mbar_right_bright_w1_T4a_PD=237937.2500  mbar_right_bright_w1_T4b_ND=54531.2695  mbar_left_bright_w1_T4a_ND=132614.7188  mbar_left_bright_w1_T4b_PD=344741.1250]  DSI: 725.3418  DSI_peak: 0.2534:  36%|███▌      | 36/100 [07:26<13:02, 12.23s/it] Cost: 846244.6250  [mbar_right_bright_w1_T4a_PD=260588.7031  mbar_right_bright_w1_T4b_ND=55827.4336  mbar_left_bright_w1_T4a_ND=143916.5156  mbar_left_bright_w1_T4b_PD=385912.0312]  DSI: 725.3418  DSI_peak: 0.2534:  37%|███▋      | 37/100 [07:39<12:50, 12.23s/it] Cost: 895167.6250  [mbar_right_bright_w1_T4a_PD=276244.8438  mbar_right_bright_w1_T4b_ND=58278.8125  mbar_left_bright_w1_T4a_ND=151795.3438  mbar_left_bright_w1_T4b_PD=408848.6250]  DSI: 725.3418  DSI_peak: 0.2534:  38%|███▊      | 38/100 [07:51<12:37, 12.21s/it] Cost: 999194.1250  [mbar_right_bright_w1_T4a_PD=304812.2188  mbar_right_bright_w1_T4b_ND=71546.3047  mbar_left_bright_w1_T4a_ND=170182.2188  mbar_left_bright_w1_T4b_PD=452653.3750]  DSI: 725.3418  DSI_peak: 0.2534:  39%|███▉      | 39/100 [08:03<12:21, 12.16s/it] Cost: 1014054.0625  [mbar_right_bright_w1_T4a_PD=307547.1250  mbar_right_bright_w1_T4b_ND=66814.6484  mbar_left_bright_w1_T4a_ND=168231.3906  mbar_left_bright_w1_T4b_PD=471460.8750]  DSI: 725.3418  DSI_peak: 0.2534:  40%|████      | 40/100 [08:19<13:17, 13.28s/it] Cost: 1028007.0000  [mbar_right_bright_w1_T4a_PD=307412.5312  mbar_right_bright_w1_T4b_ND=66040.7969  mbar_left_bright_w1_T4a_ND=165487.2812  mbar_left_bright_w1_T4b_PD=489066.3750]  DSI: 363.7480  DSI_peak: 0.1529:  41%|████      | 41/100 [08:31<12:40, 12.89s/it] Cost: 1025373.9375  [mbar_right_bright_w1_T4a_PD=306595.4375  mbar_right_bright_w1_T4b_ND=64922.7969  mbar_left_bright_w1_T4a_ND=163816.7969  mbar_left_bright_w1_T4b_PD=490038.8750]  DSI: 363.7480  DSI_peak: 0.1529:  42%|████▏     | 42/100 [08:43<12:13, 12.65s/it] Cost: 1022564.1250  [mbar_right_bright_w1_T4a_PD=305160.2188  mbar_right_bright_w1_T4b_ND=64816.2617  mbar_left_bright_w1_T4a_ND=163361.2812  mbar_left_bright_w1_T4b_PD=489226.3750]  DSI: 363.7480  DSI_peak: 0.1529:  43%|████▎     | 43/100 [08:55<11:50, 12.46s/it] Cost: 1002900.8125  [mbar_right_bright_w1_T4a_PD=303039.3125  mbar_right_bright_w1_T4b_ND=64209.5352  mbar_left_bright_w1_T4a_ND=164236.5000  mbar_left_bright_w1_T4b_PD=471415.4375]  DSI: 363.7480  DSI_peak: 0.1529:  44%|████▍     | 44/100 [09:07<11:31, 12.36s/it] Cost: 981139.6250  [mbar_right_bright_w1_T4a_PD=297520.3125  mbar_right_bright_w1_T4b_ND=66932.6875  mbar_left_bright_w1_T4a_ND=164727.0625  mbar_left_bright_w1_T4b_PD=451959.5625]  DSI: 363.7480  DSI_peak: 0.1529:   45%|████▌     | 45/100 [09:19<11:18, 12.34s/it] Cost: 978021.8750  [mbar_right_bright_w1_T4a_PD=295083.2500  mbar_right_bright_w1_T4b_ND=67832.2812  mbar_left_bright_w1_T4a_ND=166601.7344  mbar_left_bright_w1_T4b_PD=448504.5938]  DSI: 363.7480  DSI_peak: 0.1529:  46%|████▌     | 46/100 [09:31<11:03, 12.29s/it] Cost: 975085.1250  [mbar_right_bright_w1_T4a_PD=292843.5938  mbar_right_bright_w1_T4b_ND=68631.6094  mbar_left_bright_w1_T4a_ND=168620.7969  mbar_left_bright_w1_T4b_PD=444989.1562]  DSI: 363.7480  DSI_peak: 0.1529:  47%|████▋     | 47/100 [09:43<10:47, 12.21s/it] Cost: 978676.1875  [mbar_right_bright_w1_T4a_PD=294840.6562  mbar_right_bright_w1_T4b_ND=68700.9609  mbar_left_bright_w1_T4a_ND=172552.9688  mbar_left_bright_w1_T4b_PD=442581.5625]  DSI: 363.7480  DSI_peak: 0.1529:  48%|████▊     | 48/100 [09:55<10:32, 12.17s/it] Cost: 1011504.8750  [mbar_right_bright_w1_T4a_PD=296224.0625  mbar_right_bright_w1_T4b_ND=68473.0469  mbar_left_bright_w1_T4a_ND=175179.8125  mbar_left_bright_w1_T4b_PD=471627.9688]  DSI: 363.7480  DSI_peak: 0.1529:  49%|████▉     | 49/100 [10:08<10:20, 12.16s/it] Cost: 1007221.8750  [mbar_right_bright_w1_T4a_PD=293115.3750  mbar_right_bright_w1_T4b_ND=69098.4297  mbar_left_bright_w1_T4a_ND=176643.3750  mbar_left_bright_w1_T4b_PD=468364.6562]  DSI: 363.7480  DSI_peak: 0.1529:  50%|█████     | 50/100 [10:24<11:05, 13.30s/it] Cost: 1012270.0000  [mbar_right_bright_w1_T4a_PD=296248.1250  mbar_right_bright_w1_T4b_ND=70826.9531  mbar_left_bright_w1_T4a_ND=177412.2188  mbar_left_bright_w1_T4b_PD=467782.7188]  DSI: 359.0205  DSI_peak: 0.1526:  51%|█████     | 51/100 [10:36<10:32, 12.90s/it] Cost: 1029870.3750  [mbar_right_bright_w1_T4a_PD=293855.6250  mbar_right_bright_w1_T4b_ND=77621.8906  mbar_left_bright_w1_T4a_ND=179118.6875  mbar_left_bright_w1_T4b_PD=479274.1562]  DSI: 359.0205  DSI_peak: 0.1526:  52%|█████▏    | 52/100 [10:48<10:06, 12.63s/it] Cost: 1049928.2500  [mbar_right_bright_w1_T4a_PD=300839.5312  mbar_right_bright_w1_T4b_ND=78435.0781  mbar_left_bright_w1_T4a_ND=188859.9062  mbar_left_bright_w1_T4b_PD=481793.8125]  DSI: 359.0205  DSI_peak: 0.1526:  53%|█████▎    | 53/100 [11:00<09:47, 12.49s/it] Cost: 1047639.4375  [mbar_right_bright_w1_T4a_PD=300049.0000  mbar_right_bright_w1_T4b_ND=77207.0234  mbar_left_bright_w1_T4a_ND=188199.4844  mbar_left_bright_w1_T4b_PD=482183.9375]  DSI: 359.0205  DSI_peak: 0.1526:  54%|█████▍    | 54/100 [11:12<09:28, 12.37s/it] Cost: 1045144.4375  [mbar_right_bright_w1_T4a_PD=298438.4688  mbar_right_bright_w1_T4b_ND=76277.5000  mbar_left_bright_w1_T4a_ND=188394.6094  mbar_left_bright_w1_T4b_PD=482033.8750]  DSI: 359.0205  DSI_peak: 0.1526:  55%|█████▌    | 55/100 [11:24<09:13, 12.30s/it] Cost: 1041561.1875  [mbar_right_bright_w1_T4a_PD=297631.4062  mbar_right_bright_w1_T4b_ND=74833.4297  mbar_left_bright_w1_T4a_ND=186105.7188  mbar_left_bright_w1_T4b_PD=482990.6250]  DSI: 359.0205  DSI_peak: 0.1526:  56%|█████▌    | 56/100 [11:36<08:58, 12.23s/it] Cost: 1040189.8750  [mbar_right_bright_w1_T4a_PD=298657.0312  mbar_right_bright_w1_T4b_ND=73659.1641  mbar_left_bright_w1_T4a_ND=184229.8125  mbar_left_bright_w1_T4b_PD=483643.8750]  DSI: 359.0205  DSI_peak: 0.1526:  57%|█████▋    | 57/100 [11:48<08:44, 12.19s/it] Cost: 1036989.1250  [mbar_right_bright_w1_T4a_PD=298078.0000  mbar_right_bright_w1_T4b_ND=72489.1406  mbar_left_bright_w1_T4a_ND=182168.5156  mbar_left_bright_w1_T4b_PD=484253.5312]  DSI: 359.0205  DSI_peak: 0.1526:  58%|█████▊    | 58/100 [12:00<08:31, 12.17s/it] Cost: 1035634.4375  [mbar_right_bright_w1_T4a_PD=298902.0000  mbar_right_bright_w1_T4b_ND=71236.2656  mbar_left_bright_w1_T4a_ND=179531.9375  mbar_left_bright_w1_T4b_PD=485964.2500]  DSI: 359.0205  DSI_peak: 0.1526:  59%|█████▉    | 59/100 [12:12<08:19, 12.18s/it] Cost: 1034502.9375  [mbar_right_bright_w1_T4a_PD=299633.0312  mbar_right_bright_w1_T4b_ND=69811.6406  mbar_left_bright_w1_T4a_ND=177596.8594  mbar_left_bright_w1_T4b_PD=487461.3750]  DSI: 359.0205  DSI_peak: 0.1526:  60%|██████    | 60/100 [12:28<08:53, 13.34s/it] Cost: 1031955.5000  [mbar_right_bright_w1_T4a_PD=299408.1875  mbar_right_bright_w1_T4b_ND=68777.1094  mbar_left_bright_w1_T4a_ND=175820.7500  mbar_left_bright_w1_T4b_PD=487949.4375]  DSI: 340.0068  DSI_peak: 0.1526:  61%|██████    | 61/100 [12:40<08:22, 12.89s/it] Cost: 1012214.7500  [mbar_right_bright_w1_T4a_PD=296789.1875  mbar_right_bright_w1_T4b_ND=66545.5781  mbar_left_bright_w1_T4a_ND=174778.2812  mbar_left_bright_w1_T4b_PD=474101.7500]  DSI: 340.0068  DSI_peak: 0.1526:  62%|██████▏   | 62/100 [12:52<08:01, 12.67s/it] Cost: 1010177.6875  [mbar_right_bright_w1_T4a_PD=295432.7500  mbar_right_bright_w1_T4b_ND=66683.5781  mbar_left_bright_w1_T4a_ND=175609.7656  mbar_left_bright_w1_T4b_PD=472451.6250]  DSI: 340.0068  DSI_peak: 0.1526:  63%|██████▎   | 63/100 [13:05<07:43, 12.52s/it] Cost: 1007412.8750  [mbar_right_bright_w1_T4a_PD=293312.5000  mbar_right_bright_w1_T4b_ND=67143.4609  mbar_left_bright_w1_T4a_ND=177322.6562  mbar_left_bright_w1_T4b_PD=469634.2500]  DSI: 340.0068  DSI_peak: 0.1526:  64%|██████▍   | 64/100 [13:17<07:24, 12.35s/it] Cost: 1022252.2500  [mbar_right_bright_w1_T4a_PD=292790.0625  mbar_right_bright_w1_T4b_ND=69856.7969  mbar_left_bright_w1_T4a_ND=180374.4062  mbar_left_bright_w1_T4b_PD=479231.0000]  DSI: 340.0068  DSI_peak: 0.1526:  65%|██████▌   | 65/100 [13:29<07:09, 12.28s/it] Cost: 1019632.3125  [mbar_right_bright_w1_T4a_PD=290160.5625  mbar_right_bright_w1_T4b_ND=71013.7734  mbar_left_bright_w1_T4a_ND=183300.1250  mbar_left_bright_w1_T4b_PD=475157.8125]  DSI: 340.0068  DSI_peak: 0.1526:  66%|██████▌   | 66/100 [13:41<06:56, 12.26s/it] Cost: 1070837.5000  [mbar_right_bright_w1_T4a_PD=303418.0000  mbar_right_bright_w1_T4b_ND=78820.6250  mbar_left_bright_w1_T4a_ND=202571.6562  mbar_left_bright_w1_T4b_PD=486027.2812]  DSI: 340.0068  DSI_peak: 0.1526:  67%|██████▋   | 67/100 [13:53<06:42, 12.20s/it] Cost: 1068927.7500  [mbar_right_bright_w1_T4a_PD=301116.0000  mbar_right_bright_w1_T4b_ND=80242.3125  mbar_left_bright_w1_T4a_ND=205721.0312  mbar_left_bright_w1_T4b_PD=481848.4062]  DSI: 340.0068  DSI_peak: 0.1526:  68%|██████▊   | 68/100 [14:05<06:29, 12.18s/it] Cost: 1067075.2500  [mbar_right_bright_w1_T4a_PD=298941.1250  mbar_right_bright_w1_T4b_ND=81351.0625  mbar_left_bright_w1_T4a_ND=208314.1875  mbar_left_bright_w1_T4b_PD=478468.8750]  DSI: 340.0068  DSI_peak: 0.1526:  69%|██████▉   | 69/100 [14:17<06:16, 12.14s/it] Cost: 1065218.0000  [mbar_right_bright_w1_T4a_PD=297154.8750  mbar_right_bright_w1_T4b_ND=82018.8125  mbar_left_bright_w1_T4a_ND=210139.5938  mbar_left_bright_w1_T4b_PD=475904.8125]  DSI: 340.0068  DSI_peak: 0.1526:  70%|███████   | 70/100 [14:33<06:39, 13.31s/it] Cost: 1063222.5000  [mbar_right_bright_w1_T4a_PD=295327.5000  mbar_right_bright_w1_T4b_ND=82482.7109  mbar_left_bright_w1_T4a_ND=211768.4062  mbar_left_bright_w1_T4b_PD=473643.8750]  DSI: 323.6953  DSI_peak: 0.1413:  71%|███████   | 71/100 [14:45<06:13, 12.86s/it] Cost: 1071821.5000  [mbar_right_bright_w1_T4a_PD=304318.0312  mbar_right_bright_w1_T4b_ND=82580.9453  mbar_left_bright_w1_T4a_ND=213243.9688  mbar_left_bright_w1_T4b_PD=471678.5625]  DSI: 323.6953  DSI_peak: 0.1413:  72%|███████▏  | 72/100 [14:57<05:53, 12.63s/it] Cost: 1067619.8750  [mbar_right_bright_w1_T4a_PD=302776.0000  mbar_right_bright_w1_T4b_ND=82010.8438  mbar_left_bright_w1_T4a_ND=213086.7344  mbar_left_bright_w1_T4b_PD=469746.3125]  DSI: 323.6953  DSI_peak: 0.1413:  73%|███████▎  | 73/100 [15:09<05:36, 12.48s/it] Cost: 1099607.6250  [mbar_right_bright_w1_T4a_PD=311042.0625  mbar_right_bright_w1_T4b_ND=88157.3125  mbar_left_bright_w1_T4a_ND=225745.3125  mbar_left_bright_w1_T4b_PD=474662.9375]  DSI: 323.6953  DSI_peak: 0.1413:  74%|███████▍  | 74/100 [15:21<05:22, 12.39s/it] Cost: 1160946.2500  [mbar_right_bright_w1_T4a_PD=329239.6250  mbar_right_bright_w1_T4b_ND=93024.6562  mbar_left_bright_w1_T4a_ND=234810.8750  mbar_left_bright_w1_T4b_PD=503871.1875]  DSI: 323.6953  DSI_peak: 0.1413:  75%|███████▌  | 75/100 [15:34<05:07, 12.32s/it] Cost: 1209453.1250  [mbar_right_bright_w1_T4a_PD=345273.3438  mbar_right_bright_w1_T4b_ND=93424.2031  mbar_left_bright_w1_T4a_ND=242777.2812  mbar_left_bright_w1_T4b_PD=527978.2500]  DSI: 323.6953  DSI_peak: 0.1413:  76%|███████▌  | 76/100 [15:46<04:53, 12.24s/it] Cost: 1212501.2500  [mbar_right_bright_w1_T4a_PD=348431.3750  mbar_right_bright_w1_T4b_ND=91361.4922  mbar_left_bright_w1_T4a_ND=241968.6562  mbar_left_bright_w1_T4b_PD=530739.6875]  DSI: 323.6953  DSI_peak: 0.1413:  77%|███████▋  | 77/100 [15:58<04:40, 12.21s/it] Cost: 1162043.3750  [mbar_right_bright_w1_T4a_PD=333655.8750  mbar_right_bright_w1_T4b_ND=91067.8125  mbar_left_bright_w1_T4a_ND=233922.0625  mbar_left_bright_w1_T4b_PD=503397.6250]  DSI: 323.6953  DSI_peak: 0.1413:  78%|███████▊  | 78/100 [16:10<04:28, 12.19s/it] Cost: 1091641.7500  [mbar_right_bright_w1_T4a_PD=309987.2500  mbar_right_bright_w1_T4b_ND=87267.1875  mbar_left_bright_w1_T4a_ND=220892.8750  mbar_left_bright_w1_T4b_PD=473494.4375]  DSI: 323.6953  DSI_peak: 0.1413:  79%|███████▉  | 79/100 [16:22<04:15, 12.15s/it] Cost: 1087282.6250  [mbar_right_bright_w1_T4a_PD=303354.6875  mbar_right_bright_w1_T4b_ND=89511.9688  mbar_left_bright_w1_T4a_ND=229575.3438  mbar_left_bright_w1_T4b_PD=464840.6250]  DSI: 323.6953  DSI_peak: 0.1413:  80%|████████  | 80/100 [16:38<04:25, 13.29s/it] Cost: 1052846.1250  [mbar_right_bright_w1_T4a_PD=292911.8438  mbar_right_bright_w1_T4b_ND=84426.5781  mbar_left_bright_w1_T4a_ND=220081.1406  mbar_left_bright_w1_T4b_PD=455426.5625]  DSI: 348.1064  DSI_peak: 0.1444:  81%|████████  | 81/100 [16:50<04:05, 12.90s/it] Cost: 1054190.5000  [mbar_right_bright_w1_T4a_PD=291917.2500  mbar_right_bright_w1_T4b_ND=85711.4297  mbar_left_bright_w1_T4a_ND=221080.4688  mbar_left_bright_w1_T4b_PD=455481.3750]  DSI: 348.1064  DSI_peak: 0.1444:  82%|████████▏ | 82/100 [17:02<03:47, 12.64s/it] Cost: 1053061.6250  [mbar_right_bright_w1_T4a_PD=291612.3125  mbar_right_bright_w1_T4b_ND=85483.5938  mbar_left_bright_w1_T4a_ND=220502.8125  mbar_left_bright_w1_T4b_PD=455462.8750]  DSI: 348.1064  DSI_peak: 0.1444:  83%|████████▎ | 83/100 [17:14<03:32, 12.50s/it] Cost: 1051320.5000  [mbar_right_bright_w1_T4a_PD=291620.2500  mbar_right_bright_w1_T4b_ND=84214.2031  mbar_left_bright_w1_T4a_ND=219106.0781  mbar_left_bright_w1_T4b_PD=456380.0000]  DSI: 348.1064  DSI_peak: 0.1444:  84%|████████▍ | 84/100 [17:26<03:18, 12.40s/it] Cost: 1046930.8750  [mbar_right_bright_w1_T4a_PD=291881.3750  mbar_right_bright_w1_T4b_ND=81998.6719  mbar_left_bright_w1_T4a_ND=216874.5312  mbar_left_bright_w1_T4b_PD=456176.2500]  DSI: 348.1064  DSI_peak: 0.1444:  85%|████████▌ | 85/100 [17:38<03:04, 12.32s/it] Cost: 1077779.3750  [mbar_right_bright_w1_T4a_PD=301000.9375  mbar_right_bright_w1_T4b_ND=86478.9062  mbar_left_bright_w1_T4a_ND=225831.4375  mbar_left_bright_w1_T4b_PD=464468.1250]  DSI: 348.1064  DSI_peak: 0.1444:  86%|████████▌ | 86/100 [17:50<02:51, 12.22s/it] Cost: 1078628.2500  [mbar_right_bright_w1_T4a_PD=304731.9375  mbar_right_bright_w1_T4b_ND=83584.5469  mbar_left_bright_w1_T4a_ND=218124.8594  mbar_left_bright_w1_T4b_PD=472186.8438]  DSI: 348.1064  DSI_peak: 0.1444:  87%|████████▋ | 87/100 [18:03<02:38, 12.23s/it] Cost: 1129811.8750  [mbar_right_bright_w1_T4a_PD=317770.8125  mbar_right_bright_w1_T4b_ND=91133.1328  mbar_left_bright_w1_T4a_ND=228835.1562  mbar_left_bright_w1_T4b_PD=492072.7812]  DSI: 348.1064  DSI_peak: 0.1444:  88%|████████▊ | 88/100 [18:15<02:26, 12.18s/it] Cost: 1184178.2500  [mbar_right_bright_w1_T4a_PD=329859.0938  mbar_right_bright_w1_T4b_ND=88178.5000  mbar_left_bright_w1_T4a_ND=239159.7812  mbar_left_bright_w1_T4b_PD=526980.8125]  DSI: 348.1064  DSI_peak: 0.1444:  89%|████████▉ | 89/100 [18:27<02:13, 12.17s/it] Cost: 1183769.8750  [mbar_right_bright_w1_T4a_PD=330113.5938  mbar_right_bright_w1_T4b_ND=87397.8984  mbar_left_bright_w1_T4a_ND=238350.7500  mbar_left_bright_w1_T4b_PD=527907.6250]  DSI: 348.1064  DSI_peak: 0.1444:  90%|█████████ | 90/100 [18:43<02:12, 13.29s/it] Cost: 1181726.0000  [mbar_right_bright_w1_T4a_PD=328721.2188  mbar_right_bright_w1_T4b_ND=88005.5625  mbar_left_bright_w1_T4a_ND=239277.7500  mbar_left_bright_w1_T4b_PD=525721.5000]  DSI: 272.8594  DSI_peak: 0.1221:  91%|█████████ | 91/100 [18:55<01:55, 12.88s/it] Cost: 1124679.6250  [mbar_right_bright_w1_T4a_PD=315654.7500  mbar_right_bright_w1_T4b_ND=90457.9922  mbar_left_bright_w1_T4a_ND=228435.6406  mbar_left_bright_w1_T4b_PD=490131.2188]  DSI: 272.8594  DSI_peak: 0.1221:  92%|█████████▏| 92/100 [19:07<01:41, 12.65s/it] Cost: 1071531.5000  [mbar_right_bright_w1_T4a_PD=301995.8125  mbar_right_bright_w1_T4b_ND=81943.8906  mbar_left_bright_w1_T4a_ND=216948.3906  mbar_left_bright_w1_T4b_PD=470643.5000]  DSI: 272.8594  DSI_peak: 0.1221:  93%|█████████▎| 93/100 [19:19<01:27, 12.50s/it] Cost: 1070049.1250  [mbar_right_bright_w1_T4a_PD=300650.2500  mbar_right_bright_w1_T4b_ND=83835.7500  mbar_left_bright_w1_T4a_ND=218156.1250  mbar_left_bright_w1_T4b_PD=467407.0000]  DSI: 272.8594  DSI_peak: 0.1221:  94%|█████████▍| 94/100 [19:31<01:14, 12.38s/it] Cost: 1068067.1250  [mbar_right_bright_w1_T4a_PD=297069.0938  mbar_right_bright_w1_T4b_ND=84867.5938  mbar_left_bright_w1_T4a_ND=224329.5938  mbar_left_bright_w1_T4b_PD=461800.8750]  DSI: 272.8594  DSI_peak: 0.1221:  95%|█████████▌| 95/100 [19:43<01:01, 12.28s/it] Cost: 1032454.8125  [mbar_right_bright_w1_T4a_PD=287430.4688  mbar_right_bright_w1_T4b_ND=77777.7500  mbar_left_bright_w1_T4a_ND=212179.2656  mbar_left_bright_w1_T4b_PD=455067.3125]  DSI: 272.8594  DSI_peak: 0.1221:  96%|█████████▌| 96/100 [19:55<00:49, 12.26s/it] Cost: 1031767.0625  [mbar_right_bright_w1_T4a_PD=286816.3125  mbar_right_bright_w1_T4b_ND=77871.7812  mbar_left_bright_w1_T4a_ND=211982.0156  mbar_left_bright_w1_T4b_PD=455096.9375]  DSI: 272.8594  DSI_peak: 0.1221:  97%|█████████▋| 97/100 [20:07<00:36, 12.22s/it] Cost: 1030891.5000  [mbar_right_bright_w1_T4a_PD=286777.9688  mbar_right_bright_w1_T4b_ND=77172.5000  mbar_left_bright_w1_T4a_ND=210967.0469  mbar_left_bright_w1_T4b_PD=455973.9688]  DSI: 272.8594  DSI_peak: 0.1221:  98%|█████████▊| 98/100 [20:20<00:24, 12.21s/it] Cost: 1063495.7500  [mbar_right_bright_w1_T4a_PD=295733.0000  mbar_right_bright_w1_T4b_ND=83272.4062  mbar_left_bright_w1_T4a_ND=221917.7812  mbar_left_bright_w1_T4b_PD=462572.6250]  DSI: 272.8594  DSI_peak: 0.1221:  99%|█████████▉| 99/100 [20:32<00:12, 12.18s/it] Cost: 1063196.8750  [mbar_right_bright_w1_T4a_PD=299387.0312  mbar_right_bright_w1_T4b_ND=81598.3984  mbar_left_bright_w1_T4a_ND=214372.4375  mbar_left_bright_w1_T4b_PD=467838.9688]  DSI: 272.8594  DSI_peak: 0.1221: wrote checkpoint best_adam_iter_00100.npz
+wrote checkpoint csv: /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/csv/param_00100.csv
+wrote checkpoint csv: /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/csv/point_hh_synapse_params_00100.csv
+plot device=cuda (NVIDIA A100 80GB PCIe)
+1 trained set(s); costs min=510726.3750 max=510726.3750; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/png/spread_gt_v_00100.png: prep=1.1s  plot_s=0.3s  save=0.6s  elapsed_s=2.0s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/png/spread_all_v_00100.png: prep=0.0s  plot_s=0.1s  save=0.7s  elapsed_s=0.8s
+[2026-11-06 18:37:55,072][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
+[2026-11-06 18:37:59,311][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/png/mbar_gt_v_00100.png: prep=4.3s  plot_s=0.1s  save=0.2s  elapsed_s=4.6s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/png/mbar_all_v_00100.png: prep=0.0s  plot_s=0.4s  save=1.2s  elapsed_s=1.7s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/png/sbar_gt_v_00100.png: prep=1.8s  plot_s=0.3s  save=0.4s  elapsed_s=2.4s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/png/sbar_all_v_00100.png: prep=0.0s  plot_s=1.2s  save=2.1s  elapsed_s=3.2s
+wrote checkpoint png: /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/png/*_00100.png
+wrote checkpoint best_param_iter_00100.npz (cost=510726.3750)
+100%|██████████| 100/100 [21:12<00:00, 20.72s/it] Cost: 1062477.7500  [mbar_right_bright_w1_T4a_PD=167497.2188  mbar_right_bright_w1_T4b_ND=34957.4609  mbar_left_bright_w1_T4a_ND=90187.6641  mbar_left_bright_w1_T4b_PD=218084.1094]  DSI: 313.9746  DSI_peak: 0.1447: 100%|██████████| 100/100 [21:12<00:00, 12.73s/it] Cost: 1062477.7500  [mbar_right_bright_w1_T4a_PD=167497.2188  mbar_right_bright_w1_T4b_ND=34957.4609  mbar_left_bright_w1_T4a_ND=90187.6641  mbar_left_bright_w1_T4b_PD=218084.1094]  DSI: 313.9746  DSI_peak: 0.1447: 
+
+Initl cost = 583273.4375  [mbar_right_bright_w1_T4a_PD=200481.9688  mbar_right_bright_w1_T4b_ND=38452.8789  mbar_left_bright_w1_T4a_ND=104641.7891  mbar_left_bright_w1_T4b_PD=239696.8125]  DSI: 758.7021  DSI_peak: 0.2566
+Final cost = 510726.3750  [mbar_right_bright_w1_T4a_PD=167496.8281  mbar_right_bright_w1_T4b_ND=34957.5742  mbar_left_bright_w1_T4a_ND=90187.6875  mbar_left_bright_w1_T4b_PD=218084.2812]  DSI: 816.7070  DSI_peak: 0.2793
+Best  cost = 510726.3750  [mbar_right_bright_w1_T4a_PD=167497.1250  mbar_right_bright_w1_T4b_ND=34957.4688  mbar_left_bright_w1_T4a_ND=90187.6719  mbar_left_bright_w1_T4b_PD=218084.1250]
+time needed  = 1303.47  sec
+
+done in 0.36 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/param.csv (best run #0, cost=510726.2188)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/point_hh_synapse_params.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:85: UserWarning: Data has no positive values, and therefore cannot be log-scaled.
+  ax.set_yscale('log')
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_panel.py:860: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/cost.png: prep=0.0s  plot_s=0.1s  save=0.8s  elapsed_s=0.9s
+plot device=cuda (NVIDIA A100 80GB PCIe)
+1 trained set(s); costs min=510726.2188 max=510726.2188; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/spread_gt_v.png: prep=1.0s  plot_s=0.1s  save=0.6s  elapsed_s=1.8s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/spread_all_v.png: prep=0.0s  plot_s=0.3s  save=0.7s  elapsed_s=0.9s
+[2026-11-06 18:38:33,375][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
+[2026-11-06 18:38:37,509][task.mbar.sti_spec][INFO] - Loaded moving-bar i_sti_hex from cache /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/mbar_cache/9125daaeb406988a.npz
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/mbar_gt_v.png: prep=4.3s  plot_s=0.1s  save=0.2s  elapsed_s=4.5s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/mbar_all_v.png: prep=0.0s  plot_s=0.4s  save=1.3s  elapsed_s=1.7s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/sbar_gt_v.png: prep=2.3s  plot_s=0.1s  save=0.4s  elapsed_s=2.8s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34427416-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0/sbar_all_v.png: prep=0.0s  plot_s=1.3s  save=2.1s  elapsed_s=3.4s

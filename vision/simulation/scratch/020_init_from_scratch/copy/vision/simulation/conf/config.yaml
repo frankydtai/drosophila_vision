@@ -1,0 +1,400 @@
+# ---------------------------------------------------------------------------
+# 0.0   run (RUN_NAME / RUN_PATH)
+# ---------------------------------------------------------------------------
+run_name: |-
+ 34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0
+run_path: point_hh/${run_name}
+
+# ---------------------------------------------------------------------------
+# 1.1.1   neuron.borst / MODEL (session scalars; not packed into z)
+# ---------------------------------------------------------------------------
+delta_ms: 1.0
+delta_ms_pre: 1.0
+cap: 40.0
+g_leak: 1.0
+e_exc: 10.0
+e_inh: -70.0
+e_h: 50.0
+h_g_max: 100.0
+gt_amp: 20.0
+v_clamp: 100.0
+a_syn_exc: 0.001
+a_syn_inh: 0.001
+euler: "im"
+
+# ---------------------------------------------------------------------------
+# 1.3   neuron.schema (trainable schema pack spec)
+# ---------------------------------------------------------------------------
+model: point_hh
+filter: "none"
+syn_mode: "per_cell"
+a_lo: 0.1
+a_hi: 10.0
+h_cells: [L1, L2, L4, L5]
+params:
+  a_gt:
+    lo: 0.5
+    hi: 1.0
+    init: 1.0
+    jit: 0.1
+    mode: "indi"
+    modes:
+      fixed: [T4a, T4b, T4c, T4d]
+  bias_gt: {lo: -200.0, hi: 200.0, init: 0.0, jit: 1.0, mode: "indi"}
+  syn_strength_cell:
+    lo: 0.1
+    hi: 10.0
+    init: 1.0
+    #inits: {"Tm3:T4a": 0.0, "Mi4:T4a": 0.0, "Mi9:T4a": 0.0, "T4a:T4a": 0.0, "T4b:T4a": 0.0, "Tm2:T4a": 0.0, "T5a:T4a": 0.0, "C3:T4a": 0.0, "Mi10:T4a": 0.0, "TmY15:T4a": 0.0}
+    jit: 0.1
+    mode: "fixed"
+      #fixed: ["Tm3:T4a", "Mi4:T4a", "Mi9:T4a", "T4a:T4a", "T4b:T4a", "Tm2:T4a", "T5a:T4a", "C3:T4a", "Mi10:T4a", "TmY15:T4a"]
+  syn_strength_edge: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
+  # Point HH: membrane conductances in nS; gS in nS per anatomical contact.
+  gNa: {lo: 0.001, hi: 30.0, init: 3.0, jit: 0.0, mode: "indi"}
+  gK: {lo: 0.001, hi: 20.0, init: 1.0, jit: 0.0, mode: "indi"}
+  gLeak: {lo: 0.001, hi: 10.0, init: 1.2, jit: 0.0, mode: "indi"}
+  gS: {lo: 0.0001, hi: 3.0, init: 0.3, jit: 0.0, mode: "indi"}
+  v_th_syn: {lo: -80.0, hi: -20.0, init: -45.0, jit: 0.0, mode: "shared"}
+  delta_syn: {lo: 0.5, hi: 20.0, init: 4.0, jit: 0.0, mode: "fixed"}
+  k_minus_syn: {lo: 0.001, hi: 2.0, init: 0.01, jit: 0.0, mode: "shared"}
+  a_in: {lo: 0.01, hi: 100.0, init: 5.0, jit: 0.1, mode: "shared"}
+  a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
+  e_leak: {lo: -100.0, hi: 50.0, init: -52.0, jit: 1.0, mode: "fixed"}
+  v_th:
+    lo: -100.0
+    hi: 100.0
+    init: -45.0
+    inits: {L1: -60.0, L2: -60.0, L3: -60.0}
+    jit: 0.0
+    mode: "fixed"
+    modes:
+      indi: [L1, L2, L3]
+  tau_lp: {lo: 10.0, hi: 100.0, init: 10.0, jit: 2.0, mode: "indi"}
+  tau_hp_rise: {lo: 100.0, hi: 500.0, init: 200.0, jit: 20.0, mode: "indi"}
+  tau_hp_fall: {lo: 100.0, hi: 500.0, init: 200.0, jit: 20.0, mode: "indi"}
+  a_h:
+    lo: 0.0
+    hi: 1.0
+    init: 0.0
+    inits: {L1: 0.5, L2: 0.5}
+    jit: 0.1
+    mode: "fixed"
+    modes:
+      indi: [L1, L2]
+  v_mid_h_g: {lo: -70.0, hi: -30.0, init: -50.0, jit: 5.0, mode: "shared"}
+  v_mid_h_tau: {lo: -70.0, hi: -40.0, init: -50.0, jit: 5.0, mode: "shared"}
+  h_slope: {lo: -0.4, hi: -0.2, init: -0.25, jit: 0.02, mode: "shared"}
+  a_h_rev:
+    lo: 0.0
+    hi: 1.0
+    init: 0.0
+    jit: 0.1
+    mode: "fixed"
+    modes:
+      indi: ${h_cells}
+  v_mid_h_g_rev: {lo: -70.0, hi: -30.0, init: -50.0, jit: 5.0, mode: "shared"}
+  v_mid_h_tau_rev: {lo: -70.0, hi: -40.0, init: -50.0, jit: 5.0, mode: "shared"}
+  h_slope_rev: {lo: -0.4, hi: -0.2, init: -0.25, jit: 0.02, mode: "shared"}
+  v_th_ca: {lo: -100.0, hi: 100.0, init: -50.0, jit: 0.0, mode: "indi"}
+  a_ca: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
+  tau_ca: {lo: 100.0, hi: 1000.0, init: 350.0, jit: 10.0, mode: "indi"}
+  a_sti_radius: {lo: 0.0, hi: 1.0, init: 0.0, jit: 0.05, mode: "indi"}
+  # Scalar Gaussian σ: surround A(d)=exp(-0.5*(d/σ)^2) at a_sti_mids (Gruntman21 new light σ init).
+  a_sti_mid: {lo: 0.5, hi: 2.0, init: 1, jit: 0.05, mode: "shared"}
+
+# ---------------------------------------------------------------------------
+# 1.4   neuron.forward (model booleans; not packed into z)
+# ---------------------------------------------------------------------------
+pre_grad: true
+
+# Curated Point-HH baseline (used only when model=point_hh).
+# Physical trainable parameters use the existing params block above.
+point_hh:
+  ion_rules: /home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv
+  synapse_rules: /home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv
+  connections: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz
+  area_um2: 100.0
+  capacitance_uF_cm2: 1.0
+  v_min_mV: -120.0
+  v_max_mV: 80.0
+  # Off: train the existing G entries; On: train shared V6 gene coefficients.
+  gene_mode: "on"
+  # G baseline: curated rule tables or params.*.init (nS; gS per contact).
+  g_context_mode: "init"
+  gene:
+    version: "v6"
+    expression: /home/yitai/Ripple/3_T4T5_mcHH_model/gene_2_param/expr_matrix_subset_all_curated.csv
+    # null fits the feature scaler on the current network types.
+    training_types: null
+    max_fold_changes: {gNa: 4.0, gK: 3.5, gLeak: 3.0, gS: 6.0}
+    params:
+      # One scalar per gene link, shared across all neuron types.
+      gene_gNa_para: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_tipE: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_Teh1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_Teh2: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_Teh3: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gNa_Teh4: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Sh: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Shal: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Shab: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Shaw: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_eag: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_sei: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gK_Elk: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_Ork1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_Irk1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_Irk2: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_Irk3: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_ClC-a: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gLeak_pHCl-1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_brp: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Rim: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Liprin-alpha: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syt1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syt7: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Sytbeta: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_nSyb: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syx1A: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Snap25: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Csp: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_cpx: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_shi: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syn: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Syp: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Vap33: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_ChAT: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_VAChT: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_nAChRalpha1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_nAChRalpha2: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_nAChRbeta1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Gad1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_VGAT: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Rdl: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Lcch3: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Grd: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_Hdc: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_ort: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_HisCl1: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_VGlut: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+      gene_gS_GluClalpha: {lo: -2.0, hi: 2.0, init: 0.0, jit: 0.0, mode: "shared"}
+
+# ---------------------------------------------------------------------------
+# 2.1   network.path
+# ---------------------------------------------------------------------------
+network: "right_min_neuron1_r10_filtered"
+
+# ---------------------------------------------------------------------------
+# 3.1.1   task.spread.sti_spec
+# ---------------------------------------------------------------------------
+i_sti:
+  bright: 40.0
+  dark: 0.0
+contrasts: [bright, dark]
+ms_pre: 324.0
+ms_sti: 160.0
+ms_response: 600.0
+ms_post: 0.0
+
+# ---------------------------------------------------------------------------
+# 3.1.2   task.spread.gt
+# ---------------------------------------------------------------------------
+spread_gt_mode: "pos"
+
+# ---------------------------------------------------------------------------
+# 3.2.1   task.spot.sti_geo
+# ---------------------------------------------------------------------------
+spot_radius: 1.0
+fully_inside: true
+multi_spot: true
+shift_radius: 1.0
+
+# ---------------------------------------------------------------------------
+# 3.2.4   task.spot.pack (only scales here; literals live in task.spot.gt)
+# ---------------------------------------------------------------------------
+spot_cost_radii: [0, 1, 2]
+a_sti_radii: [1, 2]
+spot_cost_radius_scale:
+  0: 1.0
+  1: 0.3333333333333333
+  2: 0.3333333333333333
+
+# ---------------------------------------------------------------------------
+# 3.3.1   task.sbar.sti_geo (hex map only; bar math → task.mbar.sti_geo)
+# ---------------------------------------------------------------------------
+multi_bar: false
+bar_dist: 4
+# S-bar hex-shift radius projected onto the bar-normal mid axis (0 disables).
+shift_mid: 2
+
+# ---------------------------------------------------------------------------
+# 3.3.3   task.sbar.gt
+# ---------------------------------------------------------------------------
+# Width (LED columns) of the Gruntman static-bar training GT: 1 or 2.
+sbar_gt_w: 2
+
+# ---------------------------------------------------------------------------
+# 3.3.4   task.sbar.pack
+# ---------------------------------------------------------------------------
+a_sti_mids: [0.5, 1, 1.5, 2]
+bar_ws_deg: [2.25]
+bar_directions: [right,left]
+
+# ---------------------------------------------------------------------------
+# 4.2   train.session
+# ---------------------------------------------------------------------------
+tasks: [spread,sbar]
+gt_by_task:
+  spread: [L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a, T4b, T4c, T4d]
+  sbar: [T4a,T4b,T4c,T4d]
+  mbar: [T4a,T4b]
+cost_radius: null
+cost_mid: null
+
+# ---------------------------------------------------------------------------
+# 4.1   train.param (plot/analyze live vals; Hydra param_vals.a_h.L1=0.8)
+# ---------------------------------------------------------------------------
+param_vals: {}
+
+# ---------------------------------------------------------------------------
+# 4.1   train.param (val_from)
+# ---------------------------------------------------------------------------
+val_from:
+  bias_gt: {source: "v_onset", enabled: true}
+  v_th_ca: {source: "v_th", enabled: false}
+  a_ca: {source: "a_out", enabled: false}
+  a_h_rev: {source: "a_h", enabled: false}
+  v_mid_h_g_rev: {source: "v_mid_h_g", enabled: false}
+  h_slope_rev: {source: "h_slope", enabled: false}
+  v_mid_h_tau_rev: {source: "v_mid_h_tau", enabled: false}
+
+# ---------------------------------------------------------------------------
+# 4.3   train.cost
+# ---------------------------------------------------------------------------
+# Task keys apply to every fine part in that task; a full part key overrides it.
+# mbar_DSI scales all moving-bar DSI parts (target 1); exact keys override it.
+# Example DSI-only: {mbar: 0, mbar_DSI: 1}.
+# sbar: only mid=0; |mid| 0.5–2 scale 0 via task default.
+part_cost_scales:
+  spread: 0
+  sbar: 0
+  sbar_bright_T4a_mid+0: 0
+  sbar_bright_T4a_mid-1: 0
+  sbar_bright_T4a_mid-2: 0
+  sbar_bright_T4a_mid+1: 0
+  sbar_bright_T4a_mid+2: 1
+cost_norm: "a_gt2"
+# Fixed manual weight; it is not included in the trainable parameter schema.
+# Ltotal = Lmean + a_lsd * Lsd
+a_lsd: 1.0
+# Reduce cost entries within each fine part before comparing with GT.
+# ``mean_trace``: weighted mean trace vs weighted mean GT (default for new runs);
+#                 packs with GT SD (sbar) also match mean_v±SD to gt_aff±|a_gt|·gt_std.
+# ``entry_sse``: legacy behavior, compare every entry trace with GT separately.
+cost_entry_reduce: "mean_trace"
+# cost_ms: post-onset cost sample times (spread + spot; same for every radius).
+#   null — full post-onset window (no sparse cost_ts)
+#   interval — scalar ms step: cost_ms: 10.0  → 0, 10, 20, … ms until ms_response
+#   explicit — list of ms: cost_ms: [0, 160]
+cost_ms: null
+pre_steady: "solve"
+pre_steady_n_iter: 50
+pre_steady_damp: 0.1
+
+# ---------------------------------------------------------------------------
+# 4.4   train.optimization
+# ---------------------------------------------------------------------------
+n_run: 1
+n_iter: 0
+lrs: [0.003]
+checkpoint_interval: 100
+
+# ---------------------------------------------------------------------------
+# 4.5   train.implementation
+# ---------------------------------------------------------------------------
+init_from: null
+# Adam under init_from: auto = resume only when train objective matches source;
+# true/false force resume or reset (objective = tasks/contrasts/i_sti/
+# part_cost_scales/cost_norm/a_lsd/cost_entry_reduce/cost_ms).
+resume_adam: auto
+
+# ---------------------------------------------------------------------------
+# 4.2   train.session
+# ---------------------------------------------------------------------------
+fp: 32
+sequential: false
+
+# ---------------------------------------------------------------------------
+# 5.3   figure.plot_sti.spot
+# ---------------------------------------------------------------------------
+spot_radii: [0.5, 1.0, 1.5, 2.0]
+spot_plot_output: null
+
+# ---------------------------------------------------------------------------
+# 5.3.1   figure.plot_sti.mbar
+# ---------------------------------------------------------------------------
+mbar_plot_output: null
+mbar_plot_gif: false
+mbar_plot_gif_output: null
+mbar_plot_t_stride: 2
+mbar_plot_t: null
+mbar_plot_direction: left
+
+# ---------------------------------------------------------------------------
+# 5.4   figure.plot
+# ---------------------------------------------------------------------------
+# Tasks to plot after training or when re-plotting; independent of train `tasks`.
+figure_tasks: [spread, mbar, sbar]
+# Rows for sbar ``plot_all`` / ``*_all_v.png``.
+sbar_figure_cells: [R1-6, R7, R8, L1, L2, L3, L4, L5, Mi1, Mi4, Mi9, Tm3, T4a]
+html: false
+plot_right_only: false
+x: null
+y: null
+align_xy: null
+ms_shown: null
+
+# ---------------------------------------------------------------------------
+# 6   analyze
+# ---------------------------------------------------------------------------
+analyze_runs: null
+cells: null
+spec: null
+mid: null
+node: null
+radius: 0
+t_rel_start: null
+t_rel_stop: null
+analyze_figure: true
+analyze_json: false
+post: false
+check: null
+baseline_ms_shown: null
+part: null
+analyze_cost_norm: null
+stride: 1
+per_node: false
+cost_part_csv: null
+print_parts: false
+bins: 20
+after_train: false
+
+trace_osc_min_f: 0.5
+trace_osc_max_f: 20.0
+trace_osc_peak_threshold: 0.5
+trace_osc_z_threshold: 2.0
+trace_osc_snr_min: 2.0
+trace_drift_min_slope_mv_over_s: 1.0
+trace_drift_min_r: 0.5
+trace_baseline_ms: 200.0
+trace_flat_max_abs: 0.5
+trace_flat_v_peak_to_peak_max: 1.0
+trace_flat_abs_mean: 0.2
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

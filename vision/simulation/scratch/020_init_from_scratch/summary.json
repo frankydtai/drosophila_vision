@@ -1,0 +1,112 @@
+[
+  {
+    "label": "extend_00_adam",
+    "n": 55,
+    "initial": 1851093.625,
+    "best": 1815352.5,
+    "last": 1844041.75,
+    "terminal": null,
+    "complete": false,
+    "lr": 0.003,
+    "stop": "completed"
+  },
+  {
+    "label": "extend_01_backtrack",
+    "n": 32,
+    "initial": 1851093.625,
+    "best": 1822783.0,
+    "last": 1825171.5,
+    "terminal": 1822783.0,
+    "complete": true,
+    "lr": 7.361018878798306e-05,
+    "stop": "completed"
+  },
+  {
+    "label": "extend_02_reset",
+    "n": 40,
+    "initial": 1851093.625,
+    "best": 1851093.625,
+    "last": 2435833.0,
+    "terminal": 2952790.0,
+    "complete": true,
+    "lr": 0.001,
+    "stop": "completed"
+  },
+  {
+    "label": "mbar_initial_00_0.003",
+    "n": 80,
+    "initial": 9058330.0,
+    "best": 1851093.625,
+    "last": 1927329.25,
+    "terminal": 2210148.5,
+    "complete": true,
+    "lr": 0.003,
+    "stop": "completed"
+  },
+  {
+    "label": "mbar_initial_01_0.001",
+    "n": 80,
+    "initial": 9058330.0,
+    "best": 1509479.75,
+    "last": 1515226.25,
+    "terminal": 1509479.75,
+    "complete": true,
+    "lr": 0.001,
+    "stop": "completed"
+  },
+  {
+    "label": "polish_00_adam",
+    "n": 1,
+    "initial": 1509479.75,
+    "best": 1509479.75,
+    "last": 1509479.75,
+    "terminal": null,
+    "complete": false,
+    "lr": 0.001,
+    "stop": "completed"
+  },
+  {
+    "label": "polish_01_backtrack",
+    "n": 1,
+    "initial": 1509479.75,
+    "best": 1507276.25,
+    "last": 1509479.75,
+    "terminal": null,
+    "complete": false,
+    "lr": 0.0003,
+    "stop": "completed"
+  },
+  {
+    "label": "refine_00_resume",
+    "n": 12,
+    "initial": 2130424.25,
+    "best": 2113074.75,
+    "last": 2113074.75,
+    "terminal": 2113074.75,
+    "complete": true,
+    "lr": 3e-08,
+    "stop": "no_improving_step"
+  },
+  {
+    "label": "refine_01_reset",
+    "n": 12,
+    "initial": 2130424.25,
+    "best": 2115212.5,
+    "last": 2115212.5,
+    "terminal": 2115212.5,
+    "complete": true,
+    "lr": 3e-08,
+    "stop": "no_improving_step"
+  },
+  {
+    "label": "spread_native_100",
+    "n": 100,
+    "initial": 8091284.0,
+    "best": 3187424.25,
+    "last": 3286744.25,
+    "terminal": 3318229.5,
+    "complete": true,
+    "lr": 0.003,
+    "stop": "completed"
+  }
+]

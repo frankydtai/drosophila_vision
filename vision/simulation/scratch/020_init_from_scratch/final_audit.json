@@ -1,0 +1,13 @@
+{
+  "folder": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+  "cost": 1002873.5625,
+  "images": 7,
+  "parameters_and_adam_verified": true,
+  "protected_files_unchanged": 78,
+  "git_status_added": [
+    "?? vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874/"
+  ],
+  "git_status_removed": [],
+  "total_computed_iterations": 532,
+  "selected_adam_iter": 133
+}

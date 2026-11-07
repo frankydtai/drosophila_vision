@@ -1,0 +1,34 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{
+  "full_saved_objective_evaluation_started": true,
+  "full_saved_loss_reproduced": {
+    "reproduced": 282966.9375,
+    "saved": 282966.9375,
+    "absolute_difference": 0.0
+  },
+  "full_saved_objective_backward_started": true,
+  "full_objective_backward": {
+    "completed": false,
+    "exit_code": 137,
+    "reason": "process killed by system; cause not established"
+  },
+  "short_HH_path_backward": {
+    "passed": true,
+    "steps": 12,
+    "n_nodes": 5789,
+    "n_edges": 27824,
+    "loss": 2851.791259765625,
+    "gradient_norm": 9767.699026221257,
+    "all_62_gradients_finite": true,
+    "scope": "synthetic short stimulus and voltage-square objective; not the full experimental loss gradient"
+  },
+  "short_path_gene_gradient_summary": {
+    "n_total": 49,
+    "n_nonzero": 49
+  },
+  "formal_files_unchanged_during_completion": {
+    "passed": true,
+    "n_files": 51
+  }
+}

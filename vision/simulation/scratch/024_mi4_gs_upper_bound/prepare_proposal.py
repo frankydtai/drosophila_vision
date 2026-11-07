@@ -1,0 +1,10 @@
+from pathlib import Path
+import difflib,json,ast
+O=Path(__file__).resolve().parent;R=O.parents[3];p=R/'vision/simulation/conf/config.yaml';before=p.read_text();old='max_fold_changes: {gNa: 4.0, gK: 3.5, gLeak: 3.0, gS: 6.0}';new=old.replace('gS: 6.0','gS: 10.0');assert before.count(old)==1;after=before.replace(old,new)
+(O/'proposed_config.yaml').write_text(after);(O/'proposed_gS_fold_10.patch').write_text(''.join(difflib.unified_diff(before.splitlines(True),after.splitlines(True),fromfile='a/vision/simulation/conf/config.yaml',tofile='b/vision/simulation/conf/config.yaml')))
+from omegaconf import OmegaConf
+original=OmegaConf.to_container(OmegaConf.load(p),resolve=True);proposed=OmegaConf.to_container(OmegaConf.load(O/'proposed_config.yaml'),resolve=True);assert proposed['point_hh']['gene']['max_fold_changes']['gS']==10;proposed['point_hh']['gene']['max_fold_changes']['gS']=6.;assert proposed==original
+p=O/'response_metrics.py';s=p.read_text().replace('def evaluate(run, snapshot=None, override=None):','def evaluate(run, snapshot=None, override=None, gs_fold=None):');old="run=Path(run);opts=json.loads((run/'data/train_opts.json').read_text());opts['device']='cpu';session=train.resolve_session(opts)";new="run=Path(run);opts=json.loads((run/'data/train_opts.json').read_text());opts['device']='cpu'\n if gs_fold is not None:opts['point_hh']['gene']['max_fold_changes']['gS']=gs_fold\n session=train.resolve_session(opts)";assert old in s;s=s.replace(old,new);ast.parse(s);p.write_text(s)
+p=O/'worker.py';s=p.read_text().replace("if case['upper_fold']!=6:","if case['upper_fold']!=6 and case['kind']!='native_symmetric':");s=s.replace("metrics,curves=evaluate(case['run']);", "metrics,curves=evaluate(case['run'],gs_fold=case['upper_fold'] if case['kind']=='native_symmetric' else None);");ast.parse(s);p.write_text(s)
+p=O/'cases.json';cases=json.loads(p.read_text());assert len(cases)==11;c=dict(cases[5]);c.update(label='configured_10',upper_fold=10,kind='native_symmetric');cases.append(c);p.write_text(json.dumps(cases,indent=2)+'\n')
+print('Prepared one-value configuration proposal and verification using the unmodified model implementation.')

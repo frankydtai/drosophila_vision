@@ -1,0 +1,22 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+BATCH_EQUIVALENCE 7.62939453125e-06
+START BATCH 0 / 49
+DONE BATCH 0 elapsed 17.478971261531115 top [({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_004', 'forward_gain': 0.3, 'feedback_gain': 1.0, 'threshold': 'saved'}, 1.595), ({'name': 'feedback_grid_000', 'forward_gain': 0.3, 'feedback_gain': 0.3, 'threshold': 'saved'}, 0.986)]
+START BATCH 6 / 49
+DONE BATCH 6 elapsed 32.95493406523019 top [({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_008', 'forward_gain': 0.3, 'feedback_gain': 3.0, 'threshold': 'saved'}, 1.793), ({'name': 'feedback_grid_004', 'forward_gain': 0.3, 'feedback_gain': 1.0, 'threshold': 'saved'}, 1.595)]
+START BATCH 12 / 49
+DONE BATCH 12 elapsed 49.28000220749527 top [({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_016', 'forward_gain': 1.0, 'feedback_gain': 0.3, 'threshold': 'saved'}, 1.869), ({'name': 'feedback_grid_008', 'forward_gain': 0.3, 'feedback_gain': 3.0, 'threshold': 'saved'}, 1.793)]
+START BATCH 18 / 49
+DONE BATCH 18 elapsed 64.44817554485053 top [({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_020', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_016', 'forward_gain': 1.0, 'feedback_gain': 0.3, 'threshold': 'saved'}, 1.869)]
+START BATCH 24 / 49
+DONE BATCH 24 elapsed 80.54213426820934 top [({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_020', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_024', 'forward_gain': 1.0, 'feedback_gain': 3.0, 'threshold': 'saved'}, 2.274)]
+START BATCH 30 / 49
+DONE BATCH 30 elapsed 95.83383580762893 top [({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_020', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309), ({'name': 'feedback_grid_024', 'forward_gain': 1.0, 'feedback_gain': 3.0, 'threshold': 'saved'}, 2.274)]
+START BATCH 36 / 49
+DONE BATCH 36 elapsed 112.32981722988188 top [({'name': 'feedback_grid_036', 'forward_gain': 3.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.61), ({'name': 'feedback_grid_040', 'forward_gain': 3.0, 'feedback_gain': 3.0, 'threshold': 'saved'}, 2.444), ({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309)]
+START BATCH 42 / 49
+DONE BATCH 42 elapsed 127.60953574255109 top [({'name': 'feedback_grid_036', 'forward_gain': 3.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.61), ({'name': 'feedback_grid_040', 'forward_gain': 3.0, 'feedback_gain': 3.0, 'threshold': 'saved'}, 2.444), ({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309)]
+START BATCH 48 / 49
+DONE BATCH 48 elapsed 130.28640789724886 top [({'name': 'feedback_grid_036', 'forward_gain': 3.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.61), ({'name': 'feedback_grid_040', 'forward_gain': 3.0, 'feedback_gain': 3.0, 'threshold': 'saved'}, 2.444), ({'name': 'reference', 'forward_gain': 1.0, 'feedback_gain': 1.0, 'threshold': 'saved'}, 2.309)]
+FINISHED

@@ -1,0 +1,10 @@
+........................................................................ [ 69%]
+...............................                                          [100%]
+=============================== warnings summary ===============================
+tests/test_mbar_vertical_direction.py::test_c_d_real_pack_assigns_expected_gt_and_zero_loss
+  /home/yitai/drosophila_vision/vision/simulation/tests/test_mbar_vertical_direction.py:136: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+  Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:835.)
+    assert float(loss)==0.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+103 passed, 1 warning in 8.09s

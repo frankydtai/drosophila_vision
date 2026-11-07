@@ -1,0 +1,49 @@
+{
+  "folder": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279",
+  "cost": 994279.375,
+  "images": [
+    "cost.png",
+    "spread_gt_v.png",
+    "spread_all_v.png",
+    "mbar_gt_v.png",
+    "mbar_all_v.png",
+    "sbar_gt_v.png",
+    "sbar_all_v.png",
+    "nd_comparison.png"
+  ],
+  "selection_tradeoff": "ND_peaks_and_total_lower_but_at_least_one_ND_PD_ratio_did_not_improve",
+  "git_added": [
+    "?? vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279/"
+  ],
+  "git_removed": [],
+  "protected_files_unchanged": 78,
+  "parameters_and_adam_verified": true,
+  "ND_before": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 15.036992073059082,
+      "nd_peak_mV": 11.029266357421875,
+      "nd_pd_ratio": 0.7334755716991019,
+      "dsi_peak": 0.1537514762538071
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 14.765630722045898,
+      "nd_peak_mV": 9.975295066833496,
+      "nd_pd_ratio": 0.6755752771156488,
+      "dsi_peak": 0.19361990307692423
+    }
+  },
+  "ND_after": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 14.79284381866455,
+      "nd_peak_mV": 10.843286514282227,
+      "nd_pd_ratio": 0.7330089229091261,
+      "dsi_peak": 0.1540621478962389
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 14.527135848999023,
+      "nd_peak_mV": 9.937688827514648,
+      "nd_pd_ratio": 0.6840776413748064,
+      "dsi_peak": 0.18759370158145156
+    }
+  }
+}

@@ -1,0 +1,65 @@
+[
+  {
+    "label": "nd_peak_constrained",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "resume_adam": false,
+    "lr": 0.0001,
+    "n_iter": 24,
+    "backtrack": false,
+    "nd_peak_weight": 0.5,
+    "pd_peak_weight": 20.0,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  },
+  {
+    "label": "nd_peak_backtrack",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "resume_adam": false,
+    "lr": 0.0001,
+    "n_iter": 24,
+    "backtrack": true,
+    "nd_peak_weight": 0.5,
+    "pd_peak_weight": 20.0,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  },
+  {
+    "label": "nd_ratio_backtrack",
+    "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34464939-init_from_scratch-spread100-mbar-loss-1002874",
+    "native": false,
+    "resume_adam": false,
+    "lr": 0.0001,
+    "n_iter": 16,
+    "backtrack": true,
+    "nd_peak_weight": 0.5,
+    "pd_peak_weight": 20.0,
+    "tasks": [
+      "mbar"
+    ],
+    "contrasts": [
+      "bright"
+    ],
+    "part_cost_scales": {
+      "mbar": 1.0,
+      "mbar_DSI": 0.0
+    }
+  }
+]

@@ -1,0 +1,223 @@
+{
+  "total_iterations": 696,
+  "phase_counts": {
+    "A": 100,
+    "B": 200,
+    "C": 70,
+    "D": 20,
+    "E": 128,
+    "F": 178
+  },
+  "trial_count": 22,
+  "moving_bar_iterations": 596,
+  "spread_iterations": 100,
+  "final_best_loss": 282966.9375,
+  "parallel_order": "case-ID order within each phase",
+  "samples": "Loss before and after each optimization iteration; endpoint evaluations do not add iterations.",
+  "objectives_comparable_across_switch": false,
+  "source_files_unchanged": true,
+  "image_size": [
+    3002,
+    1482
+  ],
+  "segments": [
+    {
+      "name": "34430456",
+      "phase": "A",
+      "objective": "spread",
+      "start": 0,
+      "end": 100,
+      "terminal": 3974346.25,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430456-run-n_iter-100-tasks-spread-contrasts-bright,-dark-part_cost_scales-mbar-1,mbar_DSI-0"
+    },
+    {
+      "name": "34430984",
+      "phase": "B",
+      "objective": "moving-bar",
+      "start": 100,
+      "end": 150,
+      "terminal": 1086564.375,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34430984-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+    },
+    {
+      "name": "34431163",
+      "phase": "B",
+      "objective": "moving-bar",
+      "start": 150,
+      "end": 250,
+      "terminal": 583273.4375,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34431163-run_init_from-n_iter-100-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+    },
+    {
+      "name": "34432972",
+      "phase": "B",
+      "objective": "moving-bar",
+      "start": 250,
+      "end": 300,
+      "terminal": 2774708.0,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34432972-run_init_from-n_iter-50-tasks-mbar-contrasts-bright-part_cost_scales-mbar-1,mbar_DSI-0"
+    },
+    {
+      "name": "diagnosis resume",
+      "phase": "C",
+      "objective": "moving-bar",
+      "start": 300,
+      "end": 320,
+      "terminal": 695509.25,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume.json"
+    },
+    {
+      "name": "diagnosis reset",
+      "phase": "C",
+      "objective": "moving-bar",
+      "start": 320,
+      "end": 340,
+      "terminal": 469100.78125,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset.json"
+    },
+    {
+      "name": "diagnosis resume_small",
+      "phase": "C",
+      "objective": "moving-bar",
+      "start": 340,
+      "end": 360,
+      "terminal": 557135.25,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/resume_small.json"
+    },
+    {
+      "name": "diagnosis reset_small",
+      "phase": "C",
+      "objective": "moving-bar",
+      "start": 360,
+      "end": 370,
+      "terminal": 527635.9375,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/012_adam_resume_diagnosis/reset_small.json"
+    },
+    {
+      "name": "replay reset 20",
+      "phase": "D",
+      "objective": "moving-bar",
+      "start": 370,
+      "end": 390,
+      "terminal": 469100.78125,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/013_save_reset469101"
+    },
+    {
+      "name": "screen_00_resume_0.001",
+      "phase": "E",
+      "objective": "moving-bar",
+      "start": 390,
+      "end": 414,
+      "terminal": 486276.375,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_00_resume_0.001/progress.json"
+    },
+    {
+      "name": "screen_01_resume_0.0003",
+      "phase": "E",
+      "objective": "moving-bar",
+      "start": 414,
+      "end": 438,
+      "terminal": 444459.1875,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_01_resume_0.0003/progress.json"
+    },
+    {
+      "name": "screen_02_reset_0.001",
+      "phase": "E",
+      "objective": "moving-bar",
+      "start": 438,
+      "end": 462,
+      "terminal": 754609.5625,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_02_reset_0.001/progress.json"
+    },
+    {
+      "name": "screen_03_reset_0.0003",
+      "phase": "E",
+      "objective": "moving-bar",
+      "start": 462,
+      "end": 486,
+      "terminal": 403213.34375,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/screen_03_reset_0.0003/progress.json"
+    },
+    {
+      "name": "refine_00_resume_backtrack",
+      "phase": "E",
+      "objective": "moving-bar",
+      "start": 486,
+      "end": 502,
+      "terminal": 394149.625,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_00_resume_backtrack/progress.json"
+    },
+    {
+      "name": "refine_01_reset_backtrack",
+      "phase": "E",
+      "objective": "moving-bar",
+      "start": 502,
+      "end": 518,
+      "terminal": 395530.8125,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/refine_01_reset_backtrack/progress.json"
+    },
+    {
+      "name": "screen_00_resume_small_backtrack",
+      "phase": "F",
+      "objective": "moving-bar",
+      "start": 518,
+      "end": 536,
+      "terminal": 394131.6875,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_00_resume_small_backtrack/progress.json"
+    },
+    {
+      "name": "screen_01_reset_0.0003",
+      "phase": "F",
+      "objective": "moving-bar",
+      "start": 536,
+      "end": 568,
+      "terminal": 368541.34375,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_01_reset_0.0003/progress.json"
+    },
+    {
+      "name": "screen_02_reset_0.001",
+      "phase": "F",
+      "objective": "moving-bar",
+      "start": 568,
+      "end": 600,
+      "terminal": 557199.3125,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_02_reset_0.001/progress.json"
+    },
+    {
+      "name": "screen_03_reset_0.003",
+      "phase": "F",
+      "objective": "moving-bar",
+      "start": 600,
+      "end": 632,
+      "terminal": 381899.46875,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/screen_03_reset_0.003/progress.json"
+    },
+    {
+      "name": "refine_00_resume_backtrack",
+      "phase": "F",
+      "objective": "moving-bar",
+      "start": 632,
+      "end": 648,
+      "terminal": 293074.8125,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_00_resume_backtrack/progress.json"
+    },
+    {
+      "name": "refine_01_reset_backtrack",
+      "phase": "F",
+      "objective": "moving-bar",
+      "start": 648,
+      "end": 664,
+      "terminal": 290132.09375,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/refine_01_reset_backtrack/progress.json"
+    },
+    {
+      "name": "extend_00_resume_backtrack",
+      "phase": "F",
+      "objective": "moving-bar",
+      "start": 664,
+      "end": 696,
+      "terminal": 282966.9375,
+      "source": "/home/yitai/drosophila_vision/vision/simulation/scratch/015_continue_394150/extend_00_resume_backtrack/progress.json"
+    }
+  ]
+}

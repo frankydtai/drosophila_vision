@@ -1,0 +1,48 @@
+{
+  "screen_0003": {
+    "total": 586778.4375,
+    "parts": {
+      "mbar_right_bright_w1_T4a_PD": 90130.0234375,
+      "mbar_right_bright_w1_T4b_ND": 104563.0703125,
+      "mbar_left_bright_w1_T4a_ND": 200410.4375,
+      "mbar_left_bright_w1_T4b_PD": 191674.90625
+    },
+    "groups": {
+      "mbar_DSI_bright_T4a": {
+        "pd_peak_mV": 16.291629791259766,
+        "nd_peak_mV": 10.256080627441406,
+        "nd_pd_ratio": 0.6295306705866623,
+        "dsi_peak": 0.22734725768641903
+      },
+      "mbar_DSI_bright_T4b": {
+        "pd_peak_mV": 15.128402709960938,
+        "nd_peak_mV": 8.626338005065918,
+        "nd_pd_ratio": 0.5702081158499377,
+        "dsi_peak": 0.2737165090606422
+      }
+    }
+  },
+  "screen_0001": {
+    "total": 672006.125,
+    "parts": {
+      "mbar_right_bright_w1_T4a_PD": 143564.546875,
+      "mbar_right_bright_w1_T4b_ND": 89223.5859375,
+      "mbar_left_bright_w1_T4a_ND": 162919.5625,
+      "mbar_left_bright_w1_T4b_PD": 276298.46875
+    },
+    "groups": {
+      "mbar_DSI_bright_T4a": {
+        "pd_peak_mV": 15.072770118713379,
+        "nd_peak_mV": 9.411604881286621,
+        "nd_pd_ratio": 0.6244110941227572,
+        "dsi_peak": 0.2312154275988096
+      },
+      "mbar_DSI_bright_T4b": {
+        "pd_peak_mV": 13.987784385681152,
+        "nd_peak_mV": 7.992114067077637,
+        "nd_pd_ratio": 0.5713638305190712,
+        "dsi_peak": 0.27277970954971253
+      }
+    }
+  }
+}

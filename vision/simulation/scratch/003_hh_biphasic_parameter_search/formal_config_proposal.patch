@@ -1,0 +1,24 @@
+--- a/vision/simulation/conf/config.yaml
++++ b/vision/simulation/conf/config.yaml
+@@ -55,9 +55,9 @@
+   gK: {lo: 0.001, hi: 20.0, init: 1.0, jit: 0.0, mode: "indi"}
+   gLeak: {lo: 0.001, hi: 10.0, init: 1.2, jit: 0.0, mode: "indi"}
+   gS: {lo: 0.0001, hi: 3.0, init: 0.3, jit: 0.0, mode: "indi"}
+-  v_th_syn: {lo: -80.0, hi: -20.0, init: -45.0, jit: 0.0, mode: "shared"}
+-  delta_syn: {lo: 0.5, hi: 20.0, init: 4.0, jit: 0.0, mode: "fixed"}
+-  k_minus_syn: {lo: 0.001, hi: 2.0, init: 0.01, jit: 0.0, mode: "shared"}
++  v_th_syn: {lo: -80.0, hi: -20.0, init: -45.0, jit: 0.0, mode: "shared", inits: {"L1:Mi1": -51.0, "L1:Tm3": -51.0}, modes: {fixed: ["L1:Mi1", "L1:Tm3"]}}
++  delta_syn: {lo: 0.5, hi: 20.0, init: 4.0, jit: 0.0, mode: "fixed", inits: {"L1:Mi1": 0.5, "L1:Tm3": 0.5}}
++  k_minus_syn: {lo: 0.001, hi: 2.0, init: 0.01, jit: 0.0, mode: "fixed"}
+   a_in: {lo: 0.01, hi: 100.0, init: 5.0, jit: 0.1, mode: "shared"}
+   a_out: {lo: 0.1, hi: 10.0, init: 1.0, jit: 0.1, mode: "indi"}
+   e_leak: {lo: -100.0, hi: 50.0, init: -52.0, jit: 1.0, mode: "fixed"}
+@@ -112,7 +112,7 @@
+ # Physical trainable parameters use the existing params block above.
+ point_hh:
+   ion_rules: /home/yitai/Ripple/configs/parameters/t4t5/curated/v1/ion_channel_rules.csv
+-  synapse_rules: /home/yitai/Ripple/configs/parameters/t4t5/curated/v1/synapse_rules.csv
++  synapse_rules: /home/yitai/drosophila_vision/vision/simulation/parameters/point_hh_biphasic_gain3/synapse_rules.csv
+   connections: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1/connections.csv.gz
+   area_um2: 100.0
+   capacitance_uF_cm2: 1.0

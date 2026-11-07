@@ -1,0 +1,70 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+{
+  "total": 1347443.75,
+  "parts": {
+    "mbar_right_bright_w1_T4a_PD": 428620.34375,
+    "mbar_right_bright_w1_T4b_ND": 93987.7109375,
+    "mbar_left_bright_w1_T4a_ND": 193247.90625,
+    "mbar_left_bright_w1_T4b_PD": 631587.75
+  },
+  "groups": {
+    "mbar_DSI_bright_T4a": {
+      "pd_peak_mV": 12.72998332977295,
+      "nd_peak_mV": 10.053910255432129,
+      "nd_pd_ratio": 0.7897818869815794,
+      "dsi_peak": 0.11745459849338508
+    },
+    "mbar_DSI_bright_T4b": {
+      "pd_peak_mV": 11.616878509521484,
+      "nd_peak_mV": 8.485498428344727,
+      "nd_pd_ratio": 0.7304456546902681,
+      "dsi_peak": 0.15577163284211232
+    }
+  },
+  "case": {
+    "label": "upper_only_12",
+    "upper_fold": 12,
+    "kind": "upper_only",
+    "run": "/home/yitai/drosophila_vision/vision/simulation/0_runs/point_hh/34466728-init_nd_optimization-loss-994279"
+  },
+  "parameter_summary": {
+    "free_parameters": 62,
+    "at_lower_bound": 0,
+    "at_upper_bound": 4,
+    "zero_gS_edges": 0,
+    "active_gS_edges": 27824
+  },
+  "mi4_output": {
+    "mbar_right_bright_w1_T4a_PD": {
+      "peak_open_conductance_nS": 17.657209396362305,
+      "peak_outward_current_pA": 321.5996398925781,
+      "peak_evoked_outward_current_pA": 122.10173034667969,
+      "evoked_current_integral_pA_ms": 20081.328125
+    },
+    "mbar_right_bright_w1_T4b_ND": {
+      "peak_open_conductance_nS": 21.568008422851562,
+      "peak_outward_current_pA": 335.24737548828125,
+      "peak_evoked_outward_current_pA": 157.46331787109375,
+      "evoked_current_integral_pA_ms": 31668.259765625
+    },
+    "mbar_left_bright_w1_T4a_ND": {
+      "peak_open_conductance_nS": 17.507614135742188,
+      "peak_outward_current_pA": 344.3975830078125,
+      "peak_evoked_outward_current_pA": 144.89967346191406,
+      "evoked_current_integral_pA_ms": 24145.8125
+    },
+    "mbar_left_bright_w1_T4b_PD": {
+      "peak_open_conductance_nS": 21.357431411743164,
+      "peak_outward_current_pA": 322.8998718261719,
+      "peak_evoked_outward_current_pA": 145.11581420898438,
+      "evoked_current_integral_pA_ms": 29380.09765625
+    },
+    "source_voltage_summary": {
+      "baseline_mean_mV": -34.02242660522461,
+      "maximum_spatial_mean_mV": -29.718305587768555
+    }
+  },
+  "nominal_per_contact_gS_upper_nS": 3.5999999999999996,
+  "nominal_per_contact_gS_lower_nS": 0.049999999999999996
+}

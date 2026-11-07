@@ -1,0 +1,31 @@
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+PROTOCOL_DONE reference standard [('Mi1', 16.535, -2.453, 242), ('Tm3', 18.391, -2.406, 184), ('T4a', 11.822, -2.933, 188)]
+PROTOCOL_DONE gain3 standard [('Mi1', 9.243, -4.884, 254), ('Tm3', 12.622, -5.052, 247), ('T4a', 8.845, -6.665, 226)]
+PROTOCOL_DONE gain6 standard [('Mi1', 9.0, -5.273, 263), ('Tm3', 11.706, -5.802, 256), ('T4a', 9.195, -7.114, 237)]
+PROTOCOL_DONE gain6 repeat [('Mi1', 9.0, -5.273, 263), ('Tm3', 11.706, -5.802, 256), ('T4a', 9.195, -7.114, 237)]
+PROTOCOL_DONE gain3 long_warmup [('Mi1', 9.079, -4.948, 262), ('Tm3', 12.258, -5.373, 246), ('T4a', 8.773, -6.766, 230)]
+PROTOCOL_DONE gain3 short_pulse [('Mi1', 8.798, -5.703, 333), ('Tm3', 12.122, -6.156, 314), ('T4a', 8.302, -7.49, 274)]
+PROTOCOL_DONE gain3 long_pulse [('Mi1', 11.497, -4.584, 273), ('Tm3', 13.797, -4.509, 282), ('T4a', 8.845, -6.664, 243)]
+PROTOCOL_DONE gain3 weak_bright [('Mi1', 4.403, -3.279, 189), ('Tm3', 8.432, -2.599, 181), ('T4a', 6.927, -4.135, 195)]
+PROTOCOL_DONE gain3 dark [('Mi1', 0.0, -9.351, 14), ('Tm3', 0.0, -18.383, 0), ('T4a', 0.0, -13.788, 0)]
+PROTOCOL_DONE gain3 zero [('Mi1', 0.0, 0.0, 0), ('Tm3', 0.0, 0.0, 0), ('T4a', 0.0, 0.0, 0)]
+PROTOCOL_DONE gain6 long_warmup [('Mi1', 8.516, -5.099, 268), ('Tm3', 10.925, -5.605, 269), ('T4a', 9.141, -7.284, 233)]
+PROTOCOL_DONE gain6 short_pulse [('Mi1', 9.0, -5.978, 375), ('Tm3', 11.706, -7.644, 342), ('T4a', 8.595, -8.211, 323)]
+PROTOCOL_DONE gain6 long_pulse [('Mi1', 9.355, -4.51, 276), ('Tm3', 11.927, -5.165, 274), ('T4a', 9.195, -6.739, 247)]
+PROTOCOL_DONE gain6 weak_bright [('Mi1', 4.647, -3.5, 197), ('Tm3', 7.531, -3.441, 173), ('T4a', 7.087, -4.748, 221)]
+PROTOCOL_DONE gain6 dark [('Mi1', 0.0, -9.305, 23), ('Tm3', 0.0, -18.985, 0), ('T4a', 0.0, -14.667, 0)]
+PROTOCOL_DONE gain6 zero [('Mi1', 0.0, 0.0, 0), ('Tm3', 0.0, 0.0, 0), ('T4a', 0.0, 0.0, 0)]
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+MBAR_DONE reference 7442548.125 {'mbar_DSI_bright_T4a': 684.76171875, 'mbar_DSI_bright_T4b': 410.365234375}
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+MBAR_DONE gain3 6640109.5 {'mbar_DSI_bright_T4a': 481.294921875, 'mbar_DSI_bright_T4b': 480.66015625}
+network: /home/yitai/drosophila_vision/vision/connectome/FAFBv783/4_built_networks/right_min_neuron1_r10_filtered/network.json
+  n_node=5789, n_cell=14, n_pair=101, n_edge=27824, syn_mode=per_cell
+MBAR_DONE gain6 8043056.125 {'mbar_DSI_bright_T4a': 502.51171875, 'mbar_DSI_bright_T4b': 416.173828125}
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/003_hh_biphasic_parameter_search/validate_and_export.py", line 117, in <module>
+    (VAL/'summary.json').write_text(json.dumps(summary,indent=2)+'\n');assert all(summary['source_unchanged'].values())
+AssertionError

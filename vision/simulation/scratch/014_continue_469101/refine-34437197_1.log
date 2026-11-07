@@ -1,0 +1,29 @@
+Traceback (most recent call last):
+  File "/usr/lib64/python3.9/subprocess.py", line 73, in <module>
+    import msvcrt
+ModuleNotFoundError: No module named 'msvcrt'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/worker.py", line 6, in <module>
+    import numpy as np
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/numpy/__init__.py", line 181, in <module>
+    from . import lib
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/numpy/lib/__init__.py", line 16, in <module>
+    from . import npyio
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/numpy/lib/npyio.py", line 1, in <module>
+    from ._npyio_impl import (
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/numpy/lib/_npyio_impl.py", line 17, in <module>
+    from . import format
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/numpy/lib/format.py", line 170, in <module>
+    from numpy.lib._utils_impl import drop_metadata
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/numpy/lib/_utils_impl.py", line 8, in <module>
+    import platform
+  File "/usr/lib64/python3.9/platform.py", line 119, in <module>
+    import subprocess
+  File "/usr/lib64/python3.9/subprocess.py", line 79, in <module>
+    import select
+  File "/home/yitai/drosophila_vision/vision/simulation/scratch/014_continue_469101/select.py", line 6, in <module>
+    run=p.parent/'run';saved=float(np.load(run/'data/costs.npy')[0]);assert saved==d['best_cost']
+AttributeError: partially initialized module 'numpy' has no attribute 'load' (most likely due to a circular import)
